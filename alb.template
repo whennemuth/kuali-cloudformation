@@ -1,0 +1,86 @@
+{
+	"AWSTemplateFormatVersion" : "2010-09-09",
+
+	"Description": "This template deploys an application load balancer that exposes the ECS services. It is assumed this is a nested template whose output is consumed by other nested templates.",
+
+	"Parameters" : {
+		"Landscape" : {
+		  "Description": "Specify which landscape to build into the VPC",
+		  "Type": "String",
+		  "AllowedValues" : [ "sb", "ci", "qa", "stg", "prod" ],
+		  "ConstraintDescription" : "This parameter is restricted to the following values: sb, ci, qa, stg, prod",
+		  "Default" : "sb"
+		},
+        "GlobalPrefix" : {
+		    "Type" : "String",
+			"Description": "A common value that all resources in this template will prefix to their name to establish a bundling through naming convention. If a nested stack, this will most likely be the name of the top-most stack.",
+			"Default" : "ECS-test"
+        },
+        "vpcid" : {
+            "Type" : "AWS::EC2::VPC::Id",
+            "Description" : "The id of the VPC the application load balancer is to be deployed to."
+        },
+        "Subnets" : {
+            "Type" : "List<AWS::EC2::Subnet::Id>",
+            "Description" : "The subnets the application load balancer is to be deployed to."
+        },
+        "SecurityGroup" : {
+            "Type" : "AWS::EC2::SecurityGroup::Id",
+            "Description" : "The security group to be applied to the application load balancer."
+        }
+	},
+
+
+	"Resources" : {
+
+		"LoadBalancer" : {
+		    "Type" : "AWS::ElasticLoadBalancingV2::LoadBalancer",
+            "Description" : "The load balancer for applications running in our private subnets",
+		    "Properties" : {
+				"Name" : {"Fn::Join" : [ "", [ { "Ref" : "GlobalPrefix" }, "-alb" ] ]},
+                "Subnets" : { "Ref" : "Subnets" },
+                "SecurityGroups" : [ { "Ref" : "SecurityGroup" } ],
+				"Tags" : [ { "Key" : "Name", "Value" : {"Fn::Join" : [ "", [ { "Ref" : "GlobalPrefix" }, "-alb" ] ]} }]
+		    }
+		},
+
+        "LoadBalancerListener" : {
+            "Type" : "AWS::ElasticLoadBalancingV2::Listener",
+            "Properties" : {
+                "DefaultActions" : [{
+                    "TargetGroupArn" : { "Ref" : "DefaultTargetGroup" },
+                    "Type" : "forward"
+                }],
+                "LoadBalancerArn" : { "Ref" : "LoadBalancer" },
+                "Port"            : 80,
+                "Protocol"        : "HTTP"
+            }
+        },
+
+		"DefaultTargetGroup" : {
+		    "Type" : "AWS::ElasticLoadBalancingV2::TargetGroup",
+            "Description" : "Since a target group is a mandatory parameter for an application load balancer, a default target group is included here. It's just a dummy target group - the actual target group(s) are established in the service template(s).",
+		    "Properties" : {
+				"Name" : {"Fn::Join" : [ "", [ { "Ref" : "GlobalPrefix" }, "-default-target-group" ] ]},
+		        "Port" : 80,
+		        "Protocol" : "HTTP",
+		        "VpcId" : { "Ref" : "vpcid" }
+		    }
+		}
+	},
+
+	"Outputs" : {
+		"LoadBalancer" : {
+		    "Value" : { "Ref" : "LoadBalancer" },
+			"Description" : "A reference to the ALB"
+		},
+        "LoadBalancerUrl" : {
+            "Value" : {"Fn::GetAtt" : [ "LoadBalancer", "DNSName"]},
+            "Description" : "The URL of the ALB"
+        },
+        "Listener" : {
+            "Value" : { "Ref" : "LoadBalancerListener" },
+            "Description" : "A reference to a port 80 Listener"
+        }
+	}
+}
