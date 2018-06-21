@@ -1,0 +1,100 @@
+{
+	"AWSTemplateFormatVersion" : "2010-09-09",
+
+	"Description" : "One or more resources for custom logic executed by Lambda functions.",
+
+    "Parameters" : {
+		"Landscape" : {
+			"Type" : "String",
+			"AllowedValues" : [ "sb", "ci", "qa", "stg", "prod" ],
+			"ConstraintDescription" : "This parameter is restricted to the following values: sb, ci, qa, stg, prod",
+			"Default" : "sb"
+		},
+		"GlobalPrefix" : {
+		    "Type" : "String",
+			"Description": "A common value that all resources in this template will prefix to their name to establish a bundling through naming convention. If a nested stack, this will most likely be the name of the top-most stack.",
+			"Default" : "ECS-test"
+		}
+	},
+
+    "Metadata" : {
+		"Caveats" : {"Fn::Join" : [ " ", [
+		    "From https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-lambda-function-code.html :",
+			"1) If you specify your source code as inline text by specifying the ZipFile property within the Code property, specify index.function_name as the handler.",
+			"2) The cfn-response module is available only when you use the ZipFile property to write your source code. It isn't available for source code that's stored in Amazon S3 buckets. ",
+			"3) There is a 4096 character limit"
+		]]}
+	},
+
+	"Resources" : {
+
+		"LambdaExecutionRole" : {
+		    "Type" : "AWS::IAM::Role",
+		    "Properties" : {
+				"RoleName" : {"Fn::Join" : [ "-", [ { "Ref" : "GlobalPrefix" }, "lambda-helper"] ]},
+		        "AssumeRolePolicyDocument" : {
+					"Statement": [{
+						"Effect" : "Allow",
+						"Principal" : {
+							"Service" : [ "lambda.amazonaws.com" ]
+						},
+                        "Action" : [ "sts:AssumeRole" ]
+					}]
+		        },
+                "Path" : "/",
+                "ManagedPolicyArns" : [
+					"arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+				]
+		    }
+		},
+
+        "HelperFunction" : {
+            "Type" : "AWS::Lambda::Function",
+            "Properties" : {
+				"Description" : "Note If you specify your source code as inline text by specifying the ZipFile property within the Code property, specify index.function_name as the handler",
+                "Handler" : "index.helper",
+                "Role"    : {"Fn::GetAtt" : [ "LambdaExecutionRole", "Arn"]},
+                "Runtime" : "nodejs",
+                "FunctionName" : {"Fn::Join" : [ "-", [ { "Ref" : "GlobalPrefix" }, "lambda-helper" ] ]},
+                "Code" : {
+					"ZipFile" : {"Fn::Join" : [ "", [
+						"var response = require('cfn-response');\\n",
+						"exports.helper = function (event, context) {\\n",
+						"    try {\\n",
+						"        switch(event.ResourceProperties.task) {\\n",
+						"            case 'add': \\n",
+						"                var result = parseInt(event.ResourceProperties.parm1) + parseInt(event.ResourceProperties.parm2); \\n",
+						"                response.send(event, context, response.SUCCESS, { Value: result });\\n",
+						"                break;\\n",
+						"            case 'subtract': \\n",
+						"                var result = parseInt(event.ResourceProperties.parm1) - parseInt(event.ResourceProperties.parm2); \\n",
+						"                response.send(event, context, response.SUCCESS, { Value: result });\\n",
+						"                break;\\n",
+						"            case 'cluster-size': \\n",
+						"                var initialSize = parseInt(event.ResourceProperties.parm1);\\n",
+						"                var min = initialSize < 2 ? 1 : (initialSize - 1); \\n",
+						"                var max = initialSize + 1; \\n",
+						"                var json = { minSize: min, maxSize: max }; \\n",
+						"                response.send(event, context, response.SUCCESS, json);\\n",
+						"            default: \\n",
+						"                var msg = 'Unexpected/Missing task parameter!'; \\n",
+						"                throw new Error(msg);\\n",
+						"        }\\n",
+						"    }\\n",
+						"    catch(e) {\\n",
+						"        console.error(e);\\n",
+						"        response.send(event, context, response.FAILURE, { Value: { error: { name: e.name, message: e.message } }});\\n",
+						"    }\\n",
+						"};"
+					]]}
+				}
+            }
+        }
+	},
+
+	"Outputs" : {
+		"HelperFunction" : {
+		    "Value" : { "Ref" : "HelperFunction" }
+		}
+	}
+}

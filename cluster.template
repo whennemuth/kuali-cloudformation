@@ -1,0 +1,137 @@
+{
+	"AWSTemplateFormatVersion" : "2010-09-09",
+
+	"Description" : "Deploys an ECS cluster to the specified VPC and subnets using an auto scaling group. ",
+
+	"Parameters" : {
+		"Landscape" : {
+		  "Description": "Specify which landscape to build into the VPC",
+		  "Type": "String",
+		  "AllowedValues" : [ "sb", "ci", "qa", "stg", "prod" ],
+		  "ConstraintDescription" : "This parameter is restricted to the following values: sb, ci, qa, stg, prod",
+		  "Default" : "sb"
+		},
+        "GlobalPrefix" : {
+		    "Type" : "String",
+			"Description": "A common value that all resources in this template will prefix to their name to establish a bundling through naming convention. If a nested stack, this will most likely be the name of the top-most stack.",
+			"Default" : "ECS-test"
+        },
+        "vpcid" : {
+            "Type" : "AWS::EC2::VPC::Id",
+            "Description" : "The id of the vpc this is a subnet of."
+        },
+        "InstanceType" : {
+            "Type" : "String",
+			"Description" : "What type of EC2 instance should be used for ECS hosting?",
+            "AllowedValues" : [
+				"t2.medium", "t2.large", "t2.xlarge",
+				"m4.large", "m4.xlarge", "m4.2xlarge",
+				"m5.large", "m5.xlarge", "m5.2xlarge"
+			],
+            "ConstraintDescription" : "Specified instance type is not within selection list.",
+            "Default" : "m4.large"
+        },
+        "ClusterSize" : {
+            "Type" : "Number",
+            "Description" : "How many EC2 instances are to be initially deployed as ECS hosts?",
+            "AllowedValues" : [ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 ],
+			"ConstraintDescription" : "Cluster size is limited between 1 and 10 instances.",
+            "Default" : "2"
+        },
+        "Subnets" : {
+            "Type" : "List<AWS::EC2::Subnet::Id>",
+            "Description" : "The subnets this cluster should span."
+        },
+        "SecurityGroup" : {
+            "Type" : "AWS::EC2::SecurityGroup::Id",
+            "Description" : "The security group to use for ECS cluster hosts."
+        }
+	},
+	
+    "Metadata" : {
+		"EC2" : { 
+			"image_name" : "mzn-ami-2018.03.a-amazon-ecs-optimized" ,
+			"os" : "Amazon Linux",
+			"ecs_runtime_version" : "Docker version 17.12.1-ce",
+			"ecs_agent_version" : "1.18.0",
+			"NOTES" : {"Fn::Join" : [ " ", [
+				"The mappings included in this template are for the latest ECS optimized AMIs as of June 2018.",
+				"They only include those AMIs for US regions.",
+				"To query for the latest AMI per region, use the following command in the aws CLI:",
+				"aws ssm get-parameters --names /aws/service/ecs/optimized-ami/amazon-linux/recommended/image_id --region [REGION]",
+				"where REGION is us-east-1, us-west-2, etc.",
+			]]}
+		}
+	},
+
+    "Mappings" : {
+		"RegionMap" : {
+			"us-east-1": { "AMI": "ami-5253c32d" },
+			"us-east-2": { "AMI": "ami-956e52f0" },
+			"us-west-1": { "AMI": "ami-6b81980b" },
+			"us-west-2": { "AMI": "ami-d2f489aa" }
+		}
+	},
+
+	"Resources" : {
+
+		"Utils" : {
+		    "Type" : "AWS::CloudFormation::Stack",
+		    "Properties" : {
+		        "TemplateURL" : "https://s3.amazonaws.com/kuali-research-ec2-setup/ecs/cloudformation/Utils.template",
+                "Parameters" : {
+					"GlobalPrefix": { "Ref" : "GlobalPrefix" },
+					"Landscape": { "Ref" : "Landscape" }
+				}
+		    }
+		},
+				
+        "ClusterSizeParms" : {
+            "Type" : "Custom::Functions",
+            "Properties" : {
+				"ServiceToken" : {"Fn::GetAtt" : [ "Utils", "Outputs.HelperFunction.Arn"]},
+				"task" : "cluster-size",
+                "parm1" : { "Ref" : "ClusterSize" }
+			}
+        },
+	
+        "ECSCluster" : {
+            "Type" : "AWS::ECS::Cluster",
+            "Properties" : {
+				"ClusterName" : {"Fn::Join" : [ "-", [ { "Ref" : "GlobalPrefix" }, "ecs-cluster"] ]}
+            }
+        },
+		
+        "ECSAutoScalingGroup" : {
+            "Type" : "AWS::AutoScaling::AutoScalingGroup",
+            "Properties" : {
+				"VPCZoneIdentifier" : { "Ref" : "Subnets" },
+                "LaunchConfigurationName" : { "Ref" : "ECSLaunchConfiguration" },
+                "MaxSize" : {"Fn::GetAtt" : [ "ClusterSizeParms", "maxSize"]},
+                "MinSize" : {"Fn::GetAtt" : [ "ClusterSizeParms", "minSize"]},
+                "DesiredCapacity" : { "Ref" : "ClusterSize" },
+                "Tags" : [{
+					"Key" : "Name",
+                    "Value" : {"Fn::Join" : [ "-", [ { "Ref" : "GlobalPrefix" }, "ecs-host", { "Ref" : "Landscape" } ] ]},
+                    "PropagateAtLaunch" : true
+				}]
+            },
+            "CreationPolicy" : {
+				"ResourceSignal" : {
+					
+				}
+			}
+        },
+
+        "ECSLaunchConfiguration" : {
+            "Type" : "AWS::AutoScaling::LaunchConfiguration",
+            "Properties" : {
+				
+            }
+        }
+	},
+
+	"Outputs" : {
+    
+	}
+}

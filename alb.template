@@ -52,8 +52,8 @@
                     "Type" : "forward"
                 }],
                 "LoadBalancerArn" : { "Ref" : "LoadBalancer" },
-                "Port"            : 80,
-                "Protocol"        : "HTTP"
+                "Port" : 80,
+                "Protocol" : "HTTP"
             }
         },
 
