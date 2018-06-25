@@ -22,7 +22,7 @@
 		    "From https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-lambda-function-code.html :",
 			"1) If you specify your source code as inline text by specifying the ZipFile property within the Code property, specify index.function_name as the handler.",
 			"2) The cfn-response module is available only when you use the ZipFile property to write your source code. It isn't available for source code that's stored in Amazon S3 buckets. ",
-			"3) There is a 4096 character limit"
+			"3) There is a 4096 character limit to text of inline code."
 		]]}
 	},
 

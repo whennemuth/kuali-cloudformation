@@ -50,7 +50,7 @@
 	
     "Metadata" : {
 		"EC2" : { 
-			"image_name" : "mzn-ami-2018.03.a-amazon-ecs-optimized" ,
+			"image_name" : "amzn-ami-2018.03.a-amazon-ecs-optimized" ,
 			"os" : "Amazon Linux",
 			"ecs_runtime_version" : "Docker version 17.12.1-ce",
 			"ecs_agent_version" : "1.18.0",
@@ -59,7 +59,29 @@
 				"They only include those AMIs for US regions.",
 				"To query for the latest AMI per region, use the following command in the aws CLI:",
 				"aws ssm get-parameters --names /aws/service/ecs/optimized-ami/amazon-linux/recommended/image_id --region [REGION]",
-				"where REGION is us-east-1, us-west-2, etc.",
+				"where REGION is us-east-1, us-west-2, etc."
+			]]}
+		},
+        "AUTO-SCALING" : {
+			"NOTES" : { "Fn::Join" : [ " ", [
+				"In this template we define EC2 auto-scaling as distinct from application auto-scaling employed by the service(s) for ECS.",
+				"The difference is that EC2 auto-scaling uses properties like MinSize, MaxSize, DesiredCapacity, etc. to refer to the number",
+				"of EC2 instances need to run in order to meet targets for metric thresholds.",
+				"ECS auto-scaling uses these properties to refer to docker containers (tasks) and how many of them should be running across",
+				"the ECS cluster (can span one or more EC2 instances) to meet targets for metric thresholds.",
+				"Combined, these two auto-scaling types define the overall auto-scaling strategy. This implies a certain amount of orchestration",
+				"to make sure the two types collaborate with each other instead of clash.",
+				"SEE: https://www.reddit.com/r/aws/comments/5swd80/ec2_vs_ecs_autoscaling_question/"
+			]]}
+		},
+		"AUTO_SCALING-GROUP" : {
+			"NOTES" : {"Fn::Join" : [ " ", [
+				"The ECSAutoScalingGroup resource will not go into a CREATE_COMPLETE state until enough EC2 instances are heard back from to say they are running.",
+				"The userdata defined to run on EC2 startup will call the cfn-signal function that comes packaged in the aws optimized",
+				"ami to signal that the instance is running. We are requiring that a minimum of 2 such signals are received by setting",
+				"the ECSAutoScalingGroup.CreationPolicy.ResourceSignal.Count property. Currently the signal is sent upon startup, but",
+				"it could be made contingent on further conditionas written into the EC2 userdata, like a test that a task(s) is running",
+				"must also succeed."
 			]]}
 		}
 	},
@@ -118,8 +140,12 @@
             },
             "CreationPolicy" : {
 				"ResourceSignal" : {
-					
+					"Count" : "2",
+                    "Timeout" : "PT5M"
 				}
+			},
+            "UpdatePolicy" : {
+				
 			}
         },
 
