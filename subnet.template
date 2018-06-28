@@ -82,7 +82,7 @@
                 "Tags" : [
 					{
 						"Key" : "Name", 
-						"Value" : { "Fn::Sub" : [ "${prefix}-public-subnet1-${landscape}", { "landscape": { "Ref" : "Landscape" }, "prefix": { "Ref" : "GlobalPrefix" } } ] }
+						"Value" : { "Fn::Sub" : [ "${GlobalPrefix}-public-subnet1-${Landscape}" ] }
 					},
                     {
                         "Key": "Created-by",
@@ -106,7 +106,7 @@
                 "Tags": [
                     {
                         "Key": "Name",
-                        "Value": { "Fn::Sub" : [ "${prefix}-private-subnet1-${landscape}", { "landscape": { "Ref" : "Landscape" }, "prefix": { "Ref" : "GlobalPrefix" } } ] }
+                        "Value": { "Fn::Sub" : [ "${GlobalPrefix}-private-subnet1-${Landscape}" ] }
                     },
                     {
                         "Key": "Created-by",
@@ -130,7 +130,7 @@
                 "Tags" : [
 					{
 						"Key" : "Name", 
-						"Value" : { "Fn::Sub" : [ "${prefix}-public-subnet2-${landscape}", { "landscape": { "Ref" : "Landscape" }, "prefix": { "Ref" : "GlobalPrefix" } } ] }
+						"Value" : { "Fn::Sub" : [ "${GlobalPrefix}-public-subnet2-${Landscape}" ] }
 					},
                     {
                         "Key": "Created-by",
@@ -154,7 +154,7 @@
                 "Tags": [
                     {
                         "Key": "Name",
-                        "Value": { "Fn::Sub" : [ "${prefix}-private-subnet2-${landscape}", { "landscape": { "Ref" : "Landscape" }, "prefix": { "Ref" : "GlobalPrefix" } } ] }
+                        "Value": { "Fn::Sub" : [ "${GlobalPrefix}-private-subnet2-${Landscape}" ] }
                     },
                     {
                         "Key": "Created-by",

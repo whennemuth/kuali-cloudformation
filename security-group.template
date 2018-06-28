@@ -29,7 +29,7 @@
 				"VpcId" : { "Ref" : "vpcid" },
                 "GroupName" : {"Fn::Join" : [ "", [ { "Ref" : "GlobalPrefix" }, "-ecs-host-sg-", { "Ref" : "Landscape" } ] ]},
                 "GroupDescription" : {"Fn::Join" : [ " ", [ 
-					{ "Fn::Sub" : [ "Defines who/where is allowed to access the ECS hosts in the ${landscape} landscape and the tasks/containers that run on them directly.", { "landscape" : { "Ref" : "Landscape" }} ] },
+					{ "Fn::Sub" : [ "Defines who/where is allowed to access the ECS hosts in the ${Landscape} landscape and the tasks/containers that run on them directly." ] },
 					"This includes allowing access from: ",
 					"1) The load balancer",
 					"2) SSH access into the ec2 hosts"

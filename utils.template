@@ -54,37 +54,38 @@
 				"Description" : "Note If you specify your source code as inline text by specifying the ZipFile property within the Code property, specify index.function_name as the handler",
                 "Handler" : "index.helper",
                 "Role"    : {"Fn::GetAtt" : [ "LambdaExecutionRole", "Arn"]},
-                "Runtime" : "nodejs",
+                "Runtime" : "nodejs6.10",
                 "FunctionName" : {"Fn::Join" : [ "-", [ { "Ref" : "GlobalPrefix" }, "lambda-helper" ] ]},
                 "Code" : {
-					"ZipFile" : {"Fn::Join" : [ "", [
-						"var response = require('cfn-response');\\n",
-						"exports.helper = function (event, context) {\\n",
-						"    try {\\n",
-						"        switch(event.ResourceProperties.task) {\\n",
-						"            case 'add': \\n",
-						"                var result = parseInt(event.ResourceProperties.parm1) + parseInt(event.ResourceProperties.parm2); \\n",
-						"                response.send(event, context, response.SUCCESS, { Value: result });\\n",
-						"                break;\\n",
-						"            case 'subtract': \\n",
-						"                var result = parseInt(event.ResourceProperties.parm1) - parseInt(event.ResourceProperties.parm2); \\n",
-						"                response.send(event, context, response.SUCCESS, { Value: result });\\n",
-						"                break;\\n",
-						"            case 'cluster-size': \\n",
-						"                var initialSize = parseInt(event.ResourceProperties.parm1);\\n",
-						"                var min = initialSize < 2 ? 1 : (initialSize - 1); \\n",
-						"                var max = initialSize + 1; \\n",
-						"                var json = { minSize: min, maxSize: max }; \\n",
-						"                response.send(event, context, response.SUCCESS, json);\\n",
-						"            default: \\n",
-						"                var msg = 'Unexpected/Missing task parameter!'; \\n",
-						"                throw new Error(msg);\\n",
-						"        }\\n",
-						"    }\\n",
-						"    catch(e) {\\n",
-						"        console.error(e);\\n",
-						"        response.send(event, context, response.FAILURE, { Value: { error: { name: e.name, message: e.message } }});\\n",
-						"    }\\n",
+					"ZipFile" : {"Fn::Join" : [ "\n", [
+						"var response = require('cfn-response');",
+						"exports.helper = function (event, context) {",
+						"    try {",
+						"        switch(event.ResourceProperties.task) {",
+						"            case 'add': ",
+						"                var result = parseInt(event.ResourceProperties.parm1) + parseInt(event.ResourceProperties.parm2); ",
+						"                response.send(event, context, response.SUCCESS, { Value: result });",
+						"                break;",
+						"            case 'subtract': ",
+						"                var result = parseInt(event.ResourceProperties.parm1) - parseInt(event.ResourceProperties.parm2); ",
+						"                response.send(event, context, response.SUCCESS, { Value: result });",
+						"                break;",
+						"            case 'cluster-size': ",
+						"                var initialSize = parseInt(event.ResourceProperties.parm1);",
+						"                var min = initialSize < 2 ? 1 : (initialSize - 1); ",
+						"                var max = initialSize + 1; ",
+						"                var json = { minSize: min, maxSize: max }; ",
+						"                response.send(event, context, response.SUCCESS, json);",
+						"                break;",
+						"            default: ",
+						"                var msg = 'Unexpected/Missing task parameter!'; ",
+						"                throw new Error(msg);",
+						"        }",
+						"    }",
+						"    catch(e) {",
+						"        console.error(e);",
+						"        response.send(event, context, response.FAILURE, { Value: { error: { name: e.name, message: e.message } }});",
+						"    }",
 						"};"
 					]]}
 				}
@@ -95,6 +96,9 @@
 	"Outputs" : {
 		"HelperFunction" : {
 		    "Value" : { "Ref" : "HelperFunction" }
+		},
+		"ExecutionRole" : {
+		    "Value" : { "Ref" : "LambdaExecutionRole" }
 		}
 	}
 }
