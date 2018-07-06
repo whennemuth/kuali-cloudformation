@@ -54,7 +54,7 @@
 			"os" : "Amazon Linux",
 			"ecs_runtime_version" : "Docker version 17.12.1-ce",
 			"ecs_agent_version" : "1.18.0",
-			"NOTES" : {"Fn::Join" : [ " ", [
+			"NOTES" : {"Fn::Join" : [ "\n", [
 				"The mappings included in this template are for the latest ECS optimized AMIs as of June 2018.",
 				"They only include those AMIs for US regions.",
 				"To query for the latest AMI per region, use the following command in the aws CLI:",
@@ -63,7 +63,7 @@
 			]]}
 		},
         "AUTO-SCALING" : {
-			"NOTES" : { "Fn::Join" : [ " ", [
+			"NOTES" : { "Fn::Join" : [ "\n", [
 				"In this template we define EC2 auto-scaling as distinct from application auto-scaling employed by the service(s) for ECS.",
 				"The difference is that EC2 auto-scaling uses properties like MinSize, MaxSize, DesiredCapacity, etc. to refer to the number",
 				"of EC2 instances need to run in order to meet targets for metric thresholds.",
@@ -75,7 +75,7 @@
 			]]}
 		},
 		"AUTO_SCALING-GROUP" : {
-			"NOTES" : {"Fn::Join" : [ " ", [
+			"NOTES" : {"Fn::Join" : [ "\n", [
 				"The ECSAutoScalingGroup resource will not go into a CREATE_COMPLETE state until enough EC2 instances are heard back from to say they are running.",
 				"The userdata defined to run on EC2 startup will call the cfn-signal function that comes packaged in the aws optimized",
 				"ami to signal that the instance is running. We are requiring that a minimum of 2 such signals are received by setting",
@@ -92,6 +92,15 @@
 			"us-east-2": { "AMI": "ami-956e52f0" },
 			"us-west-1": { "AMI": "ami-6b81980b" },
 			"us-west-2": { "AMI": "ami-d2f489aa" }
+		},
+		"sshKeys" : {
+			"key1" : {
+				"user": "wrh",
+				"public": {"Fn::Join" : [ "", [ "ssh-rsa ",
+					"AAAAB3NzaC1yc2EAAAADAQABAAABAQCxXNWjzJ4zYiIW0MW88x2rkKxEM77DPcS19WPLzYoDfakoHrvhzhKN2rCB86zg9HJ9n2Hh",
+					"zLd1im43+I9fsYgawS3QY/FL6kPosF9bm56+mwYU6AlWV9J82QJyRPgMAySDOkXY5DLKPI5os0kVr9nqMVdsWc0Z4hsJI8OpR1mV",					"nbbnoKVQku1ao24T2kOneqtFDJunNMUuBannW9B51Gs+UIjk/TVTwzFPUJ2HYPhD1O1vXeKtojsQw4SvtGJlNv/MWJqH9t35KjOj",					"uwSCdBOCZni9+qKKrNi3ZDW9t9HtQ7lh8SNhljP29m116rzvK50QoMqZ/XIJAnNRmqDXd4Id"
+				]]}
+			}
 		}
 	},
 
@@ -160,14 +169,13 @@
 				}
 			}
         },
-
         "ECSLaunchConfiguration" : {
             "Type" : "AWS::AutoScaling::LaunchConfiguration",
             "Properties" : {
 				"ImageId" : {"Fn::FindInMap" : [ "RegionMap" , { "Ref" : "AWS::Region" }, "AMI"] },
                 "InstanceType" : { "Ref" : "InstanceType" },
                 "SecurityGroups" : [ { "Ref" : "SecurityGroup" } ],
-                "IamInstanceProfile" : { "Ref" : "InstanceProfile" },
+                "IamInstanceProfile" : { "Ref" : "ECSInstanceProfile" },
                 "UserData" : { "Fn::Base64" : { "Fn::Sub" : [ { "Fn::Join" : [ "\n", [
 					"#!/bin/bash",
 					"yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm",
@@ -181,8 +189,7 @@
 					"   usermod -aG root $user && \\",
 					"   usermod -aG docker $user && \\",
 					"   mkdir /home/$user/.ssh && \\",
-					"   chmod 700 /home/$user/.ssh && \\",
-					"   touch /home/$user/authorized_keys",
+					"   chmod 700 /home/$user/.ssh",
 					"done",
 					"",
 					"# Implement all the metadata in AWS::CloudFormation::Init",
@@ -298,14 +305,53 @@
 									"log_stream_name = ${ECSCluster}",
 									"datetime_format = %Y-%m-%dT%H:%M:%SZ"								
 								]]}]}
+							},
+							"/home/wrh/.ssh/authorized_keys" : {
+								"mode" : "000600",
+								"owner" : "wrh",
+								"group" : "wrh",
+								"content": {"Fn::Join" : [ "", [ "ssh-rsa ",
+									"AAAAB3NzaC1yc2EAAAADAQABAAABAQCxXNWjzJ4zYiIW0MW88x2rkKxEM77DPcS19WPLzYoDfakoHrvhzhKN2rCB86zg9HJ9n2Hh",
+									"zLd1im43+I9fsYgawS3QY/FL6kPosF9bm56+mwYU6AlWV9J82QJyRPgMAySDOkXY5DLKPI5os0kVr9nqMVdsWc0Z4hsJI8OpR1mV",									"nbbnoKVQku1ao24T2kOneqtFDJunNMUuBannW9B51Gs+UIjk/TVTwzFPUJ2HYPhD1O1vXeKtojsQw4SvtGJlNv/MWJqH9t35KjOj",									"uwSCdBOCZni9+qKKrNi3ZDW9t9HtQ7lh8SNhljP29m116rzvK50QoMqZ/XIJAnNRmqDXd4Id"
+								]]}
+							},
+							"/home/mkousheh/.ssh/authorized_keys" : {
+								"mode" : "000600",
+								"owner" : "mkousheh",
+								"group" : "mkousheh",
+								"content": {"Fn::Join" : [ "", [ "ssh-rsa ",
+									"AAAAB3NzaC1yc2EAAAADAQABAAABAQCzgIDqcIpJ0+uNYWGWciep/vnfJ6uLGuHOfLYsYm1JFoSNNS3PTirK6RIBkJocGvcM5/ea",
+									"pLtN9V55uhCrfolBxRvYSSNLBCeH3KdgHTSfSkN71NjTisPz5luyrFFjFgFq4jNr8OSuBFzjasfBeSVIR9dXB/AxjauIPfY6TCVi",
+									"9j0hTjhsoIuup+gGayD0pFuj95zZCzZmnpci6Q2j+rQ4xDXZMih/cyr9rkpTASmFuAPdJ8j05YcyBnTD5BWGkLb6wbOCsOjr641R",
+									"aKLw4FMeSA4kI315fE5Nh0ffYrgk7rnOzQkSfnIcBPagVHyjmSnObcP1tJSI/07+iwZMASct"
+								]]}
+							},
+							"/home/mukadder/.ssh/authorized_keys" : {
+								"mode" : "000600",
+								"owner" : "mukadder",
+								"group" : "mukadder",
+								"content": {"Fn::Join" : [ "", [ "ssh-rsa ",
+									"AAAAB3NzaC1yc2EAAAADAQABAAABAQCwAc8aK5xqcgpCxdGa+2g2EaYWE1N0Xv9qJw9TW2znj4HxqVIEBk4jC7b1lsJbF1NJHaPG",
+									"T2o0YaDX/xoSaVJ1pz03ai08mm71nuQteZ/LoXDYYM9EOM6orVmmhI6tyrqeJQsK6oOy3QubRVvfyEkwn18Rp4qun3IlZrtSCd9k",
+									"6O+8LkofX45e/PbnfUzKJHI2XCoiJcSrdSQ7vzOxBPIIRY9iiuZX0KnlTAgaohWRvXAOLxFXrrxz8z+prCfRacrpKsnEllMYVuzd",
+									"xqh3nDuXfML6ikcwJfoMujU6umepqwgJaF8hpg2utYf/qddr9PzktuUtEaB47F1QboBGxmMP"
+								]]}
+							},
+							"/home/dhaywood/.ssh/authorized_keys" : {
+								"mode" : "000600",
+								"owner" : "dhaywood",
+								"group" : "dhaywood",
+								"content": {"Fn::Join" : [ "", [ "ssh-rsa ",
+									"AAAAB3NzaC1yc2EAAAADAQABAAABAQDTjbU47P9X0vHP4Ubre625O6/KNK0+9nN97j8U9y/Q3UdviYibejGmOPaD5n1sYcntAShO",
+									"D4bGHpriZtITuMxeu+a5LnJqSWHxOUO/IE74pVHqLp6HlRueDSMenmCZL1llBtPd8bYYXfilQ0AN7ulkG0R5s73wfgAiYAQeeY0V",
+									"0KFt0KaeCoUCNQmJm1LudSxX167o3ODZaXIWFS8ryjKP5JLR8t3KQIHzo7yQA85EVjTtKzHIEOGahAt+J0RwhyrXYmpK5gYVwdCr",
+									"dh0uttAz8/+f5Phx7qyVCz1/tQqQ4wVYmqxC/z5+XNd2lOGSkFeuQW30dWanlWmBKWMPHIg7"
+								]]}
 							}
 						},
 						"commands" : {
 							"01_add_instance_to_cluster" : {
 								"command" : { "Fn::Sub" : [ "echo ECS_CLUSTER=${ECSCluster} >> /etc/ecs/ecs.config" ] }
-							},
-							"02_add_ssh_keys" : {
-								"command"
 							}
 						},
 						"services" : {
@@ -332,17 +378,135 @@
 				}
 			}
         },
-
-        "InstanceProfile" : {
-            "Type" : "AWS::IAM::InstanceProfile",
+		"ECSRole" : {
+		    "Type" : "AWS::IAM::Role",
+		    "Properties" : {
+				"Path" : "/",
+                "RoleName" : { "Fn::Sub" : [ "${GlobalPrefix}-ECSRole-${Landscape}-${AWS::Region}" ] },
+		        "AssumeRolePolicyDocument" : {
+					"Statement" : [{
+						"Action" : [ "sts:AssumeRole" ],
+						"Effect" : "Allow",
+						"Principal" : { "Service" : [ "ec2.amazonaws.com" ] }
+					}]
+		        },
+                "Policies" : [
+					{
+						"PolicyName": { "Fn::Sub" : [ "${GlobalPrefix}-${Landscape}-ecs-service-policy" ] },
+                        "PolicyDocument" : {
+							"Statement" : [{
+								"Effect" : "Allow",
+								"Resource" : "*",
+								"Action" : [
+									"ecs:CreateCluster",
+									"ecs:DeregisterContainerInstance",
+									"ecs:DiscoverPollEndpoint",
+									"ecs:Poll",
+									"ecs:RegisterContainerInstance",
+									"ecs:StartTelemetrySession",
+									"ecs:Submit*",
+									"logs:CreateLogStream",
+									"logs:PutLogEvents",
+									"ecr:BatchCheckLayerAvailability",
+									"ecr:BatchGetImage",
+									"ecr:GetDownloadUrlForLayer",
+									"ecr:GetAuthorizationToken",
+									"ssm:DescribeAssociation",
+									"ssm:GetDeployablePatchSnapshotForInstance",
+									"ssm:GetDocument",
+									"ssm:GetManifest",
+									"ssm:GetParameters",
+									"ssm:ListAssociations",
+									"ssm:ListInstanceAssociations",
+									"ssm:PutInventory",
+									"ssm:PutComplianceItems",
+									"ssm:PutConfigurePackageResult",
+									"ssm:UpdateAssociationStatus",
+									"ssm:UpdateInstanceAssociationStatus",
+									"ssm:UpdateInstanceInformation",
+									"ec2messages:AcknowledgeMessage",
+									"ec2messages:DeleteMessage",
+									"ec2messages:FailMessage",
+									"ec2messages:GetEndpoint",
+									"ec2messages:GetMessages",
+									"ec2messages:SendReply",
+									"cloudwatch:PutMetricData",
+									"ec2:DescribeInstanceStatus",
+									"ds:CreateComputer",
+									"ds:DescribeDirectories",
+									"logs:CreateLogGroup",
+									"logs:CreateLogStream",
+									"logs:DescribeLogGroups",
+									"logs:DescribeLogStreams",
+									"logs:PutLogEvents",
+									"s3:PutObject",
+									"s3:GetObject",
+									"s3:AbortMultipartUpload",
+									"s3:ListMultipartUploadParts",
+									"s3:ListBucket",
+									"s3:ListBucketMultipartUploads"
+								]
+							}]
+						}
+					}
+				]
+		    }
+		},
+		"ECSInstanceProfile" : {
+			"Type": "AWS::IAM::InstanceProfile",
             "Properties" : {
-                "Roles" : [
-                ]
-            }
-        }
+				"InstanceProfileName" : "Profile-for-ECS-Role",
+                "Path" : "/",
+                "Roles" : [ { "Ref" : "ECSRole" } ]
+			}
+		},
+		"ECSServiceAutoScalingRole" : {
+		    "Type" : "AWS::IAM::Role",
+		    "Properties" : {
+				"Path" : "/",
+                "RoleName" : { "Fn::Sub" : [ "${GlobalPrefix}-ECS-Autoscale-Role-${Landscape}-${AWS::Region}" ] },
+		        "AssumeRolePolicyDocument" : {
+					"Version" : "2012-10-17",
+					"Statement" : [{
+						"Action" : [ "sts:AssumeRole" ],
+						"Effect" : "Allow",
+						"Principal" : { "Service" : [ "application-autoscaling.amazonaws.com" ] }
+					}]
+		        },
+                "Policies" : [
+					{
+						"PolicyName": { "Fn::Sub" : [ "${GlobalPrefix}-${Landscape}-ecs-autoscale-service-policy" ] },
+                        "PolicyDocument" : {
+							"Statement" : [{
+								"Effect" : "Allow",
+								"Resource" : "*",
+								"Action" : [
+									"application-autoscaling:*",
+									"cloudwatch:DescribeAlarms",
+									"cloudwatch:PutMetricAlarm",
+									"ecs:DescribeServices",
+									"ecs:UpdateService"
+								]
+							}]
+						}
+					}
+				]
+		    }
+		}
 	},
 
 	"Outputs" : {
-    
+		"Cluster" : {
+			"Description" : "A reference to the ECS cluster",
+		    "Value" : { "Ref" : "ECSCluster" }
+		},
+        "ECSServiceAutoScalingRole" : {
+			"Description" : "A reference to ECS service auto scaling role",
+            "Value" : {"Fn::GetAtt" : [ "ECSServiceAutoScalingRole", "Arn"]}
+        },
+        "ECSAutoScalingGroupName" : {
+			"Description" : "A reference to ECS AutoScaling Group Name",
+            "Value" : { "Ref" : "ECSAutoScalingGroup" }
+        }
 	}
 }
