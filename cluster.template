@@ -96,10 +96,7 @@
 		"sshKeys" : {
 			"key1" : {
 				"user": "wrh",
-				"public": {"Fn::Join" : [ "", [ "ssh-rsa ",
-					"AAAAB3NzaC1yc2EAAAADAQABAAABAQCxXNWjzJ4zYiIW0MW88x2rkKxEM77DPcS19WPLzYoDfakoHrvhzhKN2rCB86zg9HJ9n2Hh",
-					"zLd1im43+I9fsYgawS3QY/FL6kPosF9bm56+mwYU6AlWV9J82QJyRPgMAySDOkXY5DLKPI5os0kVr9nqMVdsWc0Z4hsJI8OpR1mV",					"nbbnoKVQku1ao24T2kOneqtFDJunNMUuBannW9B51Gs+UIjk/TVTwzFPUJ2HYPhD1O1vXeKtojsQw4SvtGJlNv/MWJqH9t35KjOj",					"uwSCdBOCZni9+qKKrNi3ZDW9t9HtQ7lh8SNhljP29m116rzvK50QoMqZ/XIJAnNRmqDXd4Id"
-				]]}
+				"public": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCxXNWjzJ4zYiIW0MW88x2rkKxEM77DPcS19WPLzYoDfakoHrvhzhKN2rCB86zg9HJ9n2HhzLd1im43+I9fsYgawS3QY/FL6kPosF9bm56+mwYU6AlWV9J82QJyRPgMAySDOkXY5DLKPI5os0kVr9nqMVdsWc0Z4hsJI8OpR1mVnbbnoKVQku1ao24T2kOneqtFDJunNMUuBannW9B51Gs+UIjk/TVTwzFPUJ2HYPhD1O1vXeKtojsQw4SvtGJlNv/MWJqH9t35KjOjuwSCdBOCZni9+qKKrNi3ZDW9t9HtQ7lh8SNhljP29m116rzvK50QoMqZ/XIJAnNRmqDXd4Id"
 			}
 		}
 	},
@@ -176,7 +173,7 @@
                 "InstanceType" : { "Ref" : "InstanceType" },
                 "SecurityGroups" : [ { "Ref" : "SecurityGroup" } ],
                 "IamInstanceProfile" : { "Ref" : "ECSInstanceProfile" },
-                "UserData" : { "Fn::Base64" : { "Fn::Sub" : [ { "Fn::Join" : [ "\n", [
+                "UserData" : { "Fn::Base64" : { "Fn::Join" : [ "\n", [
 					"#!/bin/bash",
 					"yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm",
 					"yum install -y aws-cfn-bootstrap",
@@ -194,18 +191,18 @@
 					"",
 					"# Implement all the metadata in AWS::CloudFormation::Init",
 					"/opt/aws/bin/cfn-init",
-					"	-v",
-					"   --region ${AWS::Region}",
-					"   --stack ${AWS::StackName}",
+					"   -v",
+					{ "Fn::Sub" : "   --region ${AWS::Region}" },
+					{ "Fn::Sub" : "   --stack ${AWS::StackName}" },
 					"   --resource ECSLaunchConfiguration",
 					"",
 					"# Now that all initialization is done signal success",
 					"/opt/aws/bin/cfn-signal",
 					"   -e $?",
-					"   --region ${AWS::Region}",
-					"   --stack ${AWS::StackName}",
+					{ "Fn::Sub" : "   --region ${AWS::Region}" },
+					{ "Fn::Sub" : "   --stack ${AWS::StackName}" },
 					"   --resource ECSAutoScalingGroup"
-				]]}]}}
+				]]}}
             },
             "Metadata" : {
 				"COMMENTS" : {"Fn::Join" : [ "\n", [
@@ -243,68 +240,68 @@
 								"mode" : "000400",
 								"owner" : "root",
 								"group" : "root",
-								"content" : { "Fn::Sub" : [ { "Fn::Join" : [ "\n", [
+								"content" : { "Fn::Join" : [ "\n", [
 									"[main]",
-									"stack=${AWS::StackId}",
-									"region=${AWS::Region}"
-								]]}]}
+									{ "Fn::Sub" : "stack=${AWS::StackId}" },
+									{ "Fn::Sub" : "region=${AWS::Region} "}
+								]]}
 							},
 							"/etc/cfn/hooks.d/cfn-auto-reloader.conf" : {
-								"content" : { "Fn::Sub" : [ { "Fn::Join" : [ "\n", [
+								"content" : { "Fn::Join" : [ "\n", [
 									"[cfn-auto-reloader-hook]",
 									"triggers=post.update",
 									"path=Resources.ECSLaunchConfiguration.Metadata.AWS::CloudFormation::Init",
-									"action=/opt/aws/bin/cfn-init -v --region ${AWS::Region} --stack ${AWS::StackName} --resource ECSLaunchConfiguration"
-								]]}]}
+									{ "Fn::Sub" : "action=/opt/aws/bin/cfn-init -v --region ${AWS::Region} --stack ${AWS::StackName} --resource ECSLaunchConfiguration" }
+								]]}
 							},
 							"/etc/awslogs/awscli.conf" : {
-								"content" : { "Fn::Sub" : [ { "Fn::Join" : [ "\n", [
+								"content" : { "Fn::Join" : [ "\n", [
 									"[plugins]",
 									"cwlogs = cwlogs",
 									"[default]",
-									"region = ${AWS::Region}"
-								]]}]}
+									{ "Fn::Sub" : "region = ${AWS::Region}" }
+								]]}
 							},
 							"/etc/awslogs/awslogs.conf" : {
-								"content" : { "Fn::Sub" : [ { "Fn::Join" : [ "\n", [
+								"content" : { "Fn::Join" : [ "\n", [
 									"[general]",
 									"state_file = /var/lib/awslogs/agent-state",
 									"",
 									"[/var/log/dmesg]",
 									"file = /var/log/dmesg",
-									"log_group_name = ${ECSCluster}-/var/log/dmesg",
-									"log_stream_name = ${ECSCluster}",
+									{ "Fn::Sub" : "log_group_name = ${ECSCluster}-/var/log/dmesg" },
+									{ "Fn::Sub" : "log_stream_name = ${ECSCluster}" },
 									"",
 									"[/var/log/messages]",
 									"file = /var/log/messages",
-									"log_group_name = ${ECSCluster}-/var/log/messages",
-									"log_stream_name = ${ECSCluster}",
+									{ "Fn::Sub" : "log_group_name = ${ECSCluster}-/var/log/messages" },
+									{ "Fn::Sub" : "log_stream_name = ${ECSCluster}" },
 									"datetime_format = %b %d %H:%M:%S",
 									"",
 									"[/var/log/docker]",
 									"file = /var/log/docker",
-									"log_group_name = ${ECSCluster}-/var/log/docker",
-									"log_stream_name = ${ECSCluster}",
+									{ "Fn::Sub" : "log_group_name = ${ECSCluster}-/var/log/docker" },
+									{ "Fn::Sub" : "log_stream_name = ${ECSCluster}" },
 									"datetime_format = %Y-%m-%dT%H:%M:%S.%f",
 									"",
 									"[/var/log/ecs/ecs-init.log]",
 									"file = /var/log/ecs/ecs-init.log.*",
-									"log_group_name = ${ECSCluster}-/var/log/ecs/ecs-init.log",
-									"log_stream_name = ${ECSCluster}",
+									{ "Fn::Sub" : "log_group_name = ${ECSCluster}-/var/log/ecs/ecs-init.log" },
+									{ "Fn::Sub" : "log_stream_name = ${ECSCluster}" },
 									"datetime_format = %Y-%m-%dT%H:%M:%SZ",
 									"",
 									"[/var/log/ecs/ecs-agent.log]",
 									"file = /var/log/ecs/ecs-agent.log.*",
-									"log_group_name = ${ECSCluster}-/var/log/ecs/ecs-agent.log",
-									"log_stream_name = ${ECSCluster}",
+									{ "Fn::Sub" : "log_group_name = ${ECSCluster}-/var/log/ecs/ecs-agent.log" },
+									{ "Fn::Sub" : "log_stream_name = ${ECSCluster}" },
 									"datetime_format = %Y-%m-%dT%H:%M:%SZ",
 									"",
 									"[/var/log/ecs/audit.log]",
 									"file = /var/log/ecs/audit.log.*",
-									"log_group_name = ${ECSCluster}-/var/log/ecs/audit.log",
-									"log_stream_name = ${ECSCluster}",
+									{ "Fn::Sub" : "log_group_name = ${ECSCluster}-/var/log/ecs/audit.log" },
+									{ "Fn::Sub" : "log_stream_name = ${ECSCluster}" },
 									"datetime_format = %Y-%m-%dT%H:%M:%SZ"								
-								]]}]}
+								]]}
 							},
 							"/home/wrh/.ssh/authorized_keys" : {
 								"mode" : "000600",
@@ -351,7 +348,7 @@
 						},
 						"commands" : {
 							"01_add_instance_to_cluster" : {
-								"command" : { "Fn::Sub" : [ "echo ECS_CLUSTER=${ECSCluster} >> /etc/ecs/ecs.config" ] }
+								"command" : { "Fn::Sub" : "echo ECS_CLUSTER=${ECSCluster} >> /etc/ecs/ecs.config" }
 							}
 						},
 						"services" : {
@@ -382,7 +379,7 @@
 		    "Type" : "AWS::IAM::Role",
 		    "Properties" : {
 				"Path" : "/",
-                "RoleName" : { "Fn::Sub" : [ "${GlobalPrefix}-ECSRole-${Landscape}-${AWS::Region}" ] },
+                "RoleName" : { "Fn::Sub" : "${GlobalPrefix}-ECSRole-${Landscape}-${AWS::Region}" },
 		        "AssumeRolePolicyDocument" : {
 					"Statement" : [{
 						"Action" : [ "sts:AssumeRole" ],
@@ -392,7 +389,7 @@
 		        },
                 "Policies" : [
 					{
-						"PolicyName": { "Fn::Sub" : [ "${GlobalPrefix}-${Landscape}-ecs-service-policy" ] },
+						"PolicyName": { "Fn::Sub" : "${GlobalPrefix}-${Landscape}-ecs-service-policy" },
                         "PolicyDocument" : {
 							"Statement" : [{
 								"Effect" : "Allow",
@@ -464,7 +461,7 @@
 		    "Type" : "AWS::IAM::Role",
 		    "Properties" : {
 				"Path" : "/",
-                "RoleName" : { "Fn::Sub" : [ "${GlobalPrefix}-ECS-Autoscale-Role-${Landscape}-${AWS::Region}" ] },
+                "RoleName" : { "Fn::Sub" : "${GlobalPrefix}-ECS-Autoscale-Role-${Landscape}-${AWS::Region}" },
 		        "AssumeRolePolicyDocument" : {
 					"Version" : "2012-10-17",
 					"Statement" : [{
@@ -475,7 +472,7 @@
 		        },
                 "Policies" : [
 					{
-						"PolicyName": { "Fn::Sub" : [ "${GlobalPrefix}-${Landscape}-ecs-autoscale-service-policy" ] },
+						"PolicyName": { "Fn::Sub" : "${GlobalPrefix}-${Landscape}-ecs-autoscale-service-policy" },
                         "PolicyDocument" : {
 							"Statement" : [{
 								"Effect" : "Allow",
