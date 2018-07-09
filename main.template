@@ -11,6 +11,24 @@
       "AllowedValues" : [ "sb", "ci", "qa", "stg", "prod" ],
 	  "ConstraintDescription" : "This parameter is restricted to the following values: sb, ci, qa, stg, prod",
 	  "Default" : "sb"
+    },
+    "InstanceType" : {
+        "Type" : "String",
+		"Description" : "What type of EC2 instance should be used for ECS hosting?",
+        "AllowedValues" : [
+			"t2.medium", "t2.large", "t2.xlarge",
+			"m4.large", "m4.xlarge", "m4.2xlarge",
+			"m5.large", "m5.xlarge", "m5.2xlarge"
+		],
+        "ConstraintDescription" : "Specified instance type is not within selection list.",
+        "Default" : "m4.large"
+    },
+    "ClusterSize" : {
+        "Type" : "Number",
+        "Description" : "How many EC2 instances are to be initially deployed as ECS hosts accross your cluster?",
+        "AllowedValues" : [ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 ],
+		"ConstraintDescription" : "Cluster size is limited between 1 and 10 instances.",
+        "Default" : "2"
     }
   }, 
 
@@ -49,6 +67,22 @@
 			  "vpcid": {"Fn::GetAtt" : [ "VPC", "Outputs.VPC"]},
               "Subnets" : {"Fn::GetAtt" : [ "VPC", "Outputs.PublicSubnets"]},
               "SecurityGroup" : {"Fn::GetAtt" : [ "SecurityGroups", "Outputs.LoadBalancerSecurityGroup"]}
+			}
+        }
+    },
+
+    "ECS" : {
+        "Type" : "AWS::CloudFormation::Stack",
+        "Properties" : {
+            "TemplateURL" : "https://s3.amazonaws.com/kuali-research-ec2-setup/ecs/cloudformation/cluster.template",
+			"Parameters" : {
+				"Landscape": { "Ref" : "Landscape" },
+				"GlobalPrefix": { "Ref" : "AWS::StackName" },
+				"vpcid": {"Fn::GetAtt" : [ "VPC", "Outputs.VPC"]},
+                "InstanceType" : { "Ref" : "InstanceType" },
+                "ClusterSize" : { "Ref" : "ClusterSize" },
+				"Subnets" : {"Fn::GetAtt" : [ "VPC", "Outputs.PrivateSubnets"]},
+				"SecurityGroup" : {"Fn::GetAtt" : [ "SecurityGroups", "Outputs.ECSHostSecurityGroup"]}
 			}
         }
     }

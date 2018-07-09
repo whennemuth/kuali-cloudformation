@@ -1,14 +1,20 @@
 {
 	"AWSTemplateFormatVersion" : "2010-09-09",
 
-	"Description": {"Fn::Join" : [ " ", [
-		"This is a test of the output of lambda functionality created with utils.template at the time it is generated during stack creation.",
-		"The output is reflected in the name of an s3 bucket that is created. Would not be doing this if I knew how to",
-		"output the data in a custom stack creation status message."
-	]]},
+	"Description": "Test for utils.template.",
 
 	"Parameters" : {
 	
+	},
+
+	"Metadata" : {
+		"NOTES" : {
+			"full_description" : {"Fn::Join" : [ "\n", [
+				"This is a test of the output of lambda functionality created with utils.template at the time it is generated during stack creation.",
+				"The output is reflected in the name of an s3 bucket that is created. Would not be doing this if I knew how to",
+				"output the data in a custom stack creation status message."			
+			]]}
+		}
 	},
 
 	"Resources" : {
