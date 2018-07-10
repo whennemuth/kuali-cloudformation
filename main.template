@@ -6,7 +6,7 @@
 
   "Parameters": {
     "Landscape" : {
-      "Description": "Specify a landscape (sandbox, qa, etc...",
+      "Description": "Specify a landscape (sandbox, qa, etc... )",
       "Type": "String",
       "AllowedValues" : [ "sb", "ci", "qa", "stg", "prod" ],
 	  "ConstraintDescription" : "This parameter is restricted to the following values: sb, ci, qa, stg, prod",

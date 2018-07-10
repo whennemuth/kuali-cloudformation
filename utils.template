@@ -94,8 +94,8 @@
 	},
 
 	"Outputs" : {
-		"HelperFunction" : {
-		    "Value" : { "Ref" : "HelperFunction" }
+		"HelperFunctionArn" : {
+		 "Value" : {"Fn::GetAtt" : [ "HelperFunction", "Arn"]}
 		},
 		"ExecutionRole" : {
 		    "Value" : { "Ref" : "LambdaExecutionRole" }

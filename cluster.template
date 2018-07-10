@@ -117,7 +117,7 @@
         "ClusterSizeParms" : {
             "Type" : "Custom::Functions",
             "Properties" : {
-				"ServiceToken" : {"Fn::GetAtt" : [ "Utils", "Outputs.HelperFunction.Arn"]},
+				"ServiceToken" : {"Fn::GetAtt" : [ "Utils", "Outputs.HelperFunctionArn"]},
 				"task" : "cluster-size",
                 "parm1" : { "Ref" : "ClusterSize" }
 			}
@@ -190,17 +190,17 @@
 					"done",
 					"",
 					"# Implement all the metadata in AWS::CloudFormation::Init",
-					"/opt/aws/bin/cfn-init",
-					"   -v",
-					{ "Fn::Sub" : "   --region ${AWS::Region}" },
-					{ "Fn::Sub" : "   --stack ${AWS::StackName}" },
+					"/opt/aws/bin/cfn-init \\",
+					"   -v \\",
+					{ "Fn::Sub" : "   --region ${AWS::Region} \\" },
+					{ "Fn::Sub" : "   --stack ${AWS::StackName} \\" },
 					"   --resource ECSLaunchConfiguration",
 					"",
 					"# Now that all initialization is done signal success",
-					"/opt/aws/bin/cfn-signal",
-					"   -e $?",
-					{ "Fn::Sub" : "   --region ${AWS::Region}" },
-					{ "Fn::Sub" : "   --stack ${AWS::StackName}" },
+					"/opt/aws/bin/cfn-signal \\",
+					"   -e $? \\",
+					{ "Fn::Sub" : "   --region ${AWS::Region} \\" },
+					{ "Fn::Sub" : "   --stack ${AWS::StackName} \\" },
 					"   --resource ECSAutoScalingGroup"
 				]]}}
             },
@@ -225,15 +225,6 @@
 							"yum" : {
 								"awslogs" : []
 							}
-						},
-						"groups" : {
-						
-						},
-						"users" : {
-						
-						},
-						"sources" : {
-						
 						},
 						"files" : {
 							"/etc/cfn/cfn-hup.conf" : {
