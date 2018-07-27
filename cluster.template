@@ -78,10 +78,10 @@
 			"NOTES" : {"Fn::Join" : [ "\n", [
 				"The ECSAutoScalingGroup resource will not go into a CREATE_COMPLETE state until enough EC2 instances are heard back from to say they are running.",
 				"The userdata defined to run on EC2 startup will call the cfn-signal function that comes packaged in the aws optimized",
-				"ami to signal that the instance is running. We are requiring that a minimum of 2 such signals are received by setting",
+				"ami to signal that the instance is running. We are requiring that a minimum of 1 such signals are received by setting",
 				"the ECSAutoScalingGroup.CreationPolicy.ResourceSignal.Count property. Currently the signal is sent upon startup, but",
-				"it could be made contingent on further conditionas written into the EC2 userdata, like a test that a task(s) is running",
-				"must also succeed."
+				"it could be made contingent on further conditions written into the EC2 userdata, like a test that a task(s) is running",
+				"must also succeed (you could send more than one signal and up CreationPolicy.ResourceSignal.Count property correspondingly)."
 			]]}
 		}
 	},
@@ -146,7 +146,7 @@
             },
             "CreationPolicy" : {
 				"ResourceSignal" : {
-					"Count" : "2",
+					"Count" : "1",
                     "Timeout" : "PT5M"
 				}
 			},
@@ -368,6 +368,7 @@
         },
 		"ECSRole" : {
 		    "Type" : "AWS::IAM::Role",
+			"Description" : "This IAM Role is attached to all of the ECS hosts. Add other IAM policy statements here to allow access from your ECS hosts to other AWS services. This role will be used by ALL containers running on the ECS host.",
 		    "Properties" : {
 				"Path" : "/",
                 "RoleName" : { "Fn::Sub" : "${GlobalPrefix}-ECSRole-${Landscape}-${AWS::Region}" },
