@@ -1,12 +1,160 @@
 ﻿{
 	"AWSTemplateFormatVersion" : "2010-09-09",
 
-	"Description" : "",
+	"Description" : "This service contains one task that runs the kuali cor-main application",
 
 	"Parameters" : {
+        "GlobalPrefix" : {
+		    "Type" : "String",
+			"Description": "A common value that all resources in this template will prefix to their name to establish a bundling through naming convention. If a nested stack, this will most likely be the name of the top-most stack.",
+			"Default" : "ECS-test"
+        },
+        "vpcid" : {
+            "Type" : "AWS::EC2::VPC::Id",
+            "Description" : "The id of the vpc this is a subnet of."
+        },
+		"clusterid" : {
+		    "Type" : "String",
+			"Description" : "Please provide the ECS Cluster ID that this service should run on"
+		},
+        "DesiredCount" : {
+            "Type" : "Number",
+			"Description" : "How many instances of the cor-main task should we run across our cluster?",
+			"AllowedValues" : [ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 ],
+			"ConstraintDescription" : "Cluster size is limited between 1 and 10 instances.",
+            "Default" : "3"
+        },
+        "MaxCount" : {
+            "Type" : "Number",
+			"Description" : "Maximum number of instances of the cor-main task we can run across our cluster",
+			"AllowedValues" : [ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 ],
+			"ConstraintDescription" : "Cluster size is limited between 1 and 10 instances.",
+            "Default" : "4"
+        },
+		 "Listener" : {
+		     "Type" : "String",
+			  "Description" : "The Application Load Balancer listener to register with."
+		 },
+         "Path" : {
+             "Type" : "String",
+             "Description" : "The path to register with the Application Load Balancer.",
+             "Default" : "/"
+         },
+         "ECSServiceAutoScalingRoleARN" : {
+             "Type" : "String",
+             "Description" : "The ECS service auto scaling role ARN."
+         }
 	},
 
 	"Resources" : {
+		"Service" : {
+			"Type" : "AWS::ECS::Service",
+            "DependsOn" : "ListenerRule",
+			"Properties" : {
+				"Cluster" : { "Ref" : "clusterid" },
+                "Role" : { "Ref" : "ServiceRole" },
+                "DesiredCount" : { "Ref" : "DesiredCount" },
+				"TaskDefinition" : { "Ref" : "TaskDefinition" },
+                "LoadBalancers" : [{
+					"ContainerName" : "core",
+                    "ContainerPort" : "3000",
+                    "LoadBalancerName" : {"Fn::Join" : [ "", [ { "Ref" : "GlobalPrefix" }, "-alb" ] ]},
+                    "TargetGroupArn" : { "Ref" : "TargetGroup" }
+				}]
+			}
+		},
+        "TaskDefinition" : {
+            "Type" : "AWS::ECS::TaskDefinition",
+            "Properties" : {
+                "Family" : "",
+                "ContainerDefinitions" : [
+                ],
+                "TaskRoleArn"          : "",
+                "Volumes"              : [
+                ]
+            }
+        },
+        "CloudWatchLogsGroup" : {
+            "Type" : "AWS::Logs::LogGroup",
+            "Properties" : {
+            }
+        },
+        "TargetGroup" : {
+            "Type" : "AWS::ElasticLoadBalancingV2::TargetGroup",
+            "Properties" : {
+                "Port" : "",
+                "Protocol" : "",
+                "TargetGroupAttributes" : [
+                ],
+                "Targets"               : [
+                ],
+                "VpcId"                 : ""
+            }
+        },
+        "ListenerRule" : {
+            "Type" : "AWS::ElasticLoadBalancingV2::ListenerRule",
+            "Properties" : {
+                "Actions" : [
+                ],
+                "Conditions" : [
+                ],
+                "ListenerArn" : "",
+                "Priority"    : ""
+            }
+        },
+        "ServiceRole" : {
+            "Type" : "AWS::IAM::Role",
+            "Properties" : {
+                "AssumeRolePolicyDocument" : {
+                }
+            }
+        },
+        "ServiceScalableTarget" : {
+            "Type" : "AWS::ApplicationAutoScaling::ScalableTarget",
+            "Properties" : {
+                "MaxCapacity" : "",
+                "MinCapacity" : "",
+                "ResourceId"  : "",
+                "ScalableDimension" : "",
+                "ServiceNamespace"  : ""
+            }
+        },
+        "ServiceScaleOutPolicy" : {
+            "Type" : "AWS::ApplicationAutoScaling::ScalingPolicy",
+            "Properties" : {
+                "PolicyName" : ""
+            }
+        },
+        "ServiceScaleInPolicy" : {
+            "Type" : "AWS::ApplicationAutoScaling::ScalingPolicy",
+            "Properties" : {
+                "PolicyName" : ""
+            }
+        },
+        "CPUScaleOutAlarm" : {
+            "Type" : "AWS::CloudWatch::Alarm",
+            "Properties" : {
+                "ComparisonOperator" : "",
+                "EvaluationPeriods"  : "",
+                "MetricName"         : "",
+                "Namespace"          : "",
+                "Period"             : "",
+                "Statistic"          : "",
+                "Threshold"          : ""
+            }
+        },
+        "CUPScaleInAlarm" : {
+            "Type" : "AWS::CloudWatch::Alarm",
+            "Properties" : {
+                "ComparisonOperator" : "",
+                "EvaluationPeriods"  : "",
+                "MetricName"         : "",
+                "Namespace"          : "",
+                "Period"             : "",
+                "Statistic"          : "",
+                "Threshold"          : ""
+            }
+        }
 	},
 
 	"Outputs" : {
