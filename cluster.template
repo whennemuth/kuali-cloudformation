@@ -83,6 +83,12 @@
 				"it could be made contingent on further conditions written into the EC2 userdata, like a test that a task(s) is running",
 				"must also succeed (you could send more than one signal and up CreationPolicy.ResourceSignal.Count property correspondingly)."
 			]]}
+		},
+		"AMI_MAPPINGS" :{
+			"NOTES" : {"Fn::Join" : [ "\n", [
+				"TODO: In order to not have to maintain and ami mapping (see below), delegate ami lookup to a lambda function:",
+				"https://github.com/awsdocs/aws-cloudformation-user-guide/blob/master/doc_source/walkthrough-custom-resources-lambda-lookup-amiids.md"
+			]]}
 		}
 	},
 
@@ -91,7 +97,8 @@
 			"us-east-1": { "AMI": "ami-5253c32d" },
 			"us-east-2": { "AMI": "ami-956e52f0" },
 			"us-west-1": { "AMI": "ami-6b81980b" },
-			"us-west-2": { "AMI": "ami-d2f489aa" }
+			"us-west-2": { "AMI": "ami-d2f489aa" },
+			"alternative-approach" : "https://github.com/awsdocs/aws-cloudformation-user-guide/blob/master/doc_source/walkthrough-custom-resources-lambda-lookup-amiids.md"
 		},
 		"sshKeys" : {
 			"key1" : {
@@ -108,8 +115,7 @@
 		    "Properties" : {
 		        "TemplateURL" : "https://s3.amazonaws.com/kuali-research-ec2-setup/ecs/cloudformation/utils.template",
                 "Parameters" : {
-					"GlobalPrefix": { "Ref" : "GlobalPrefix" },
-					"Landscape": { "Ref" : "Landscape" }
+					"GlobalPrefix": { "Ref" : "GlobalPrefix" }
 				}
 		    }
 		},
@@ -117,7 +123,7 @@
         "ClusterSizeParms" : {
             "Type" : "Custom::Functions",
             "Properties" : {
-				"ServiceToken" : {"Fn::GetAtt" : [ "Utils", "Outputs.HelperFunctionArn"]},
+				"ServiceToken" : {"Fn::GetAtt" : [ "Utils", "Outputs.NodeHelperFunctionArn"]},
 				"task" : "cluster-size",
                 "parm1" : { "Ref" : "ClusterSize" }
 			}

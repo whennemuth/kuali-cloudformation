@@ -29,7 +29,12 @@
         "AllowedValues" : [ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 ],
 		"ConstraintDescription" : "Cluster size is limited between 1 and 10 instances.",
         "Default" : "2"
-    }
+    },
+	"MavenVersion" : {
+	    "Type" : "String",
+        "Description" : "The maven verion number for the kuali-research application that is to be deployed to the cluster. Example: 1808.0044. This also happens to be how all other modules (core, coi, etc.) that run along with kuali-research are tagged as docker images in the elastic container registry. Using this value is how we select the correct images from the registry for each ecr task being deployed in a service throughout the cluster.",
+        "Default" : "1806.0044"
+	}
   }, 
 
   "Resources" : {

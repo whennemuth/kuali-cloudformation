@@ -1,0 +1,56 @@
+{
+	"AWSTemplateFormatVersion" : "2010-09-09",
+
+	"Description" : "Test for basic java lambda function resource from utils.template.",
+
+	"Parameters" : {
+		"Landscape" : {
+			"Type" : "String",
+			"AllowedValues" : [ "sb", "ci", "qa", "stg", "prod" ],
+			"ConstraintDescription" : "This parameter is restricted to the following values: sb, ci, qa, stg, prod",
+			"Default" : "sb"
+		},
+		"GlobalPrefix" : {
+		    "Type" : "String",
+			"Description": "A common value that all resources in this template will prefix to their name to establish a bundling through naming convention. If a nested stack, this will most likely be the name of the top-most stack.",
+			"Default" : "ECS-test"
+		}
+	},
+
+	"Resources" : {
+		"Utils" : {
+		    "Type" : "AWS::CloudFormation::Stack",
+		    "Properties" : {
+		        "TemplateURL" : "https://s3.amazonaws.com/kuali-research-ec2-setup/ecs/cloudformation/lambda.template",
+                "Parameters" : {
+					"GlobalPrefix": { "Ref" : "GlobalPrefix" }
+				}
+		    }
+		},
+
+        "EnvironmentLookup" : {
+            "Type" : "Custom::Functions",
+            "Properties" : {
+				"ServiceToken" : {"Fn::GetAtt" : [ "Utils", "Outputs.JavaHelperFunctionArn"]},
+                "landscape" : { "Ref" : "Landscape" },
+				"task" : "get.container.env.vars",
+				"application" : "core"
+			}
+        }    
+	},
+
+	"Outputs" : {
+        "LookupResult1" : {
+            "Value" : {"Fn::GetAtt" : [ "EnvironmentLookup", "result.map1.key1"]}
+        },
+		"SingleLookupResult1" : {
+		    "Value" : {"Fn::GetAtt" : [ "EnvironmentLookup", "map1.key1"]}
+		},
+        "LookupResult2" : {
+            "Value" : {"Fn::GetAtt" : [ "EnvironmentLookup", "result.map1.key3.map2.key1"]}
+        },
+		"SingleLookupResult2" : {
+		    "Value" : {"Fn::GetAtt" : [ "EnvironmentLookup", "map1.key3.map2.key1"]}
+		}
+	}
+}

@@ -4,12 +4,6 @@
 	"Description" : "One or more resources for custom logic executed by Lambda functions.",
 
     "Parameters" : {
-		"Landscape" : {
-			"Type" : "String",
-			"AllowedValues" : [ "sb", "ci", "qa", "stg", "prod" ],
-			"ConstraintDescription" : "This parameter is restricted to the following values: sb, ci, qa, stg, prod",
-			"Default" : "sb"
-		},
 		"GlobalPrefix" : {
 		    "Type" : "String",
 			"Description": "A common value that all resources in this template will prefix to their name to establish a bundling through naming convention. If a nested stack, this will most likely be the name of the top-most stack.",
@@ -43,12 +37,30 @@
 		        },
                 "Path" : "/",
                 "ManagedPolicyArns" : [
-					"arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+					"arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+					"arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess"
 				]
 		    }
 		},
 
-        "HelperFunction" : {
+        "JavaHelperFunction" : {
+			"Type" : "AWS::Lambda::Function",
+            "DependsOn" : "LambdaExecutionRole",
+            "Properties" : {
+				"Description" : "Java-based lambda function for getting environment-specific details for container environment variables (sensitive data, like passwords, etc.).",
+                "FunctionName" : "GetEnvironmentVariables",
+                "Role" : {"Fn::GetAtt" : [ "LambdaExecutionRole", "Arn"]},
+				"Runtime" : "java8",
+                "Timeout" : "60",
+                "Handler" : "edu.bu.ist.apps.aws.lambda.CustomResourceHandler",
+                "Code" : {
+					"S3Bucket" : "kuali-research-ec2-setup",
+                    "S3Key" : "ecs/cloudformation/lambda-utils.jar"
+				}
+			}
+		},
+
+        "NodeHelperFunction" : {
             "Type" : "AWS::Lambda::Function",
             "Properties" : {
 				"Description" : "Note If you specify your source code as inline text by specifying the ZipFile property within the Code property, specify index.function_name as the handler",
@@ -94,8 +106,11 @@
 	},
 
 	"Outputs" : {
-		"HelperFunctionArn" : {
-		 "Value" : {"Fn::GetAtt" : [ "HelperFunction", "Arn"]}
+		"NodeHelperFunctionArn" : {
+		 "Value" : {"Fn::GetAtt" : [ "NodeHelperFunction", "Arn"]}
+		},
+		"JavaHelperFunctionArn" : {
+		    "Value" : {"Fn::GetAtt" : [ "JavaHelperFunction", "Arn"]}
 		},
 		"ExecutionRole" : {
 		    "Value" : { "Ref" : "LambdaExecutionRole" }

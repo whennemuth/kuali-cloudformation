@@ -1,10 +1,20 @@
 {
 	"AWSTemplateFormatVersion" : "2010-09-09",
 
-	"Description": "Test for utils.template.",
+	"Description": "Test for basic node lambda function resource from utils.template.",
 
 	"Parameters" : {
-	
+		"Landscape" : {
+			"Type" : "String",
+			"AllowedValues" : [ "sb", "ci", "qa", "stg", "prod" ],
+			"ConstraintDescription" : "This parameter is restricted to the following values: sb, ci, qa, stg, prod",
+			"Default" : "sb"
+		},
+		"GlobalPrefix" : {
+		    "Type" : "String",
+			"Description": "A common value that all resources in this template will prefix to their name to establish a bundling through naming convention. If a nested stack, this will most likely be the name of the top-most stack.",
+			"Default" : "ECS-test"
+		}	
 	},
 
 	"Metadata" : {
@@ -21,10 +31,9 @@
 		"Utils" : {
 		    "Type" : "AWS::CloudFormation::Stack",
 		    "Properties" : {
-		        "TemplateURL" : "https://s3.amazonaws.com/kuali-research-ec2-setup/ecs/cloudformation/utils.template",
+		        "TemplateURL" : "https://s3.amazonaws.com/kuali-research-ec2-setup/ecs/cloudformation/lambda.template",
                 "Parameters" : {
-					"GlobalPrefix": "ECS-test",
-					"Landscape": "qa"
+					"GlobalPrefix": { "Ref" : "GlobalPrefix" }
 				}
 		    }
 		},
@@ -32,7 +41,7 @@
         "ClusterSizeParms" : {
             "Type" : "Custom::Functions",
             "Properties" : {
-				"ServiceToken" : {"Fn::GetAtt" : [ "Utils", "Outputs.HelperFunctionArn"]},
+				"ServiceToken" : {"Fn::GetAtt" : [ "Utils", "Outputs.NodeHelperFunctionArn"]},
 				"task" : "cluster-size",
                 "parm1" : "3"
 			}

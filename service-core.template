@@ -1,4 +1,4 @@
-﻿{
+{
 	"AWSTemplateFormatVersion" : "2010-09-09",
 
 	"Description" : "This service contains one task that runs the kuali cor-main application",
@@ -9,6 +9,13 @@
 			"Description": "A common value that all resources in this template will prefix to their name to establish a bundling through naming convention. If a nested stack, this will most likely be the name of the top-most stack.",
 			"Default" : "ECS-test"
         },
+		"Landscape" : {
+		  "Description": "Specify a landscape (sandbox, qa, etc... )",
+		  "Type": "String",
+		  "AllowedValues" : [ "sb", "ci", "qa", "stg", "prod" ],
+		  "ConstraintDescription" : "This parameter is restricted to the following values: sb, ci, qa, stg, prod",
+		  "Default" : "sb"
+		},
         "vpcid" : {
             "Type" : "AWS::EC2::VPC::Id",
             "Description" : "The id of the vpc this is a subnet of."
@@ -43,7 +50,12 @@
          "ECSServiceAutoScalingRoleARN" : {
              "Type" : "String",
              "Description" : "The ECS service auto scaling role ARN."
-         }
+         },
+		"DockerImageVersion" : {
+			"Type" : "String",
+			"Description" : "The maven verion number for the kuali-research application that is to be deployed to the cluster. Example: 1808.0044. All other modules (core, coi, etc.) that run along with kuali-research borrow the same tag when they are pushed as docker images into the elastic container registry. This way, all container definitions of every task are grouped because the docker images on which they are based will conform with eachother in terms of api cross-compatiblility, equivalent release, etc.",
+			"Default" : "1806.0044"
+		}
 	},
 
 	"Resources" : {
@@ -66,9 +78,30 @@
         "TaskDefinition" : {
             "Type" : "AWS::ECS::TaskDefinition",
             "Properties" : {
-                "Family" : "",
-                "ContainerDefinitions" : [
-                ],
+                "Family" : "core-task", 
+				"RequiresCompatibilities" : [ "EC2" ],
+                "ContainerDefinitions" : [{
+					"Name" : "core",
+					"Essential" : true,
+					"Image" : { "Fn::Sub" : "730096353738.dkr.ecr.us-east-1.amazonaws.com/core:${DockerImageVersion}" },
+                    "Environment" : [
+						{ "Name" : "LANDSCAPE", "Value" : { "Ref" : "Landscape" } },
+						{ "Name" : "", "Value" : "" },
+						{ "Name" : "", "Value" : "" },
+						{ "Name" : "", "Value" : "" },
+						{ "Name" : "", "Value" : "" },
+						{ "Name" : "", "Value" : "" },
+						{ "Name" : "", "Value" : "" },
+						{ "Name" : "", "Value" : "" },
+						{ "Name" : "", "Value" : "" },
+						{ "Name" : "", "Value" : "" },
+						{ "Name" : "", "Value" : "" },
+						{ "Name" : "", "Value" : "" },
+						{ "Name" : "", "Value" : "" },
+						{ "Name" : "", "Value" : "" },
+						{ "Name" : "", "Value" : "" }
+					]
+				}],
                 "TaskRoleArn"          : "",
                 "Volumes"              : [
                 ]

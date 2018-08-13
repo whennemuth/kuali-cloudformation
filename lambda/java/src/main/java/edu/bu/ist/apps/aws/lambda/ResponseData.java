@@ -1,0 +1,145 @@
+package edu.bu.ist.apps.aws.lambda;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+import edu.bu.ist.apps.aws.task.Task;
+import edu.bu.ist.apps.aws.task.TaskResult;
+
+/**
+ * When calling a lambda function custom resource from a cloudformation stack template, any items beyond the service token that
+ * are included its properties set are are passed as parameters into the lambda function and are available in the input map as
+ * a nested map keyed as "ResourceProperties". This is according to cloudformation:
+ * https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/crpg-ref-requests.html
+ * <p>
+ * This class extends the input map with convenience functions.
+ * Included are logging statements to Logger, whose implemention should be logging to a com.amazonaws.services.lambda.runtime.LambdaLogger
+ * so the response data will be shown in cloudwatch logs (minus the sensitive data).
+ * @author wrh
+ *
+ */
+public class ResponseData extends LinkedHashMap<String, Object> {
+
+	private static final long serialVersionUID = 42155840541234301L;
+	private ResponseDataParms parms;
+	
+	/**
+	 * Restrict default constructor
+	 */
+	@SuppressWarnings("unused")
+	private ResponseData() {
+		super();
+	}
+	
+	public ResponseData(ResponseDataParms parms) {
+		this.parms = parms;
+		parseInput();
+	}
+	
+	/**
+	 * Strip out the task identifier from the ResourceProperties map and return another map
+	 * resulting from running the corresponding task.
+	 */
+	private void parseInput() {
+		
+		log("message", parms.getMessage(), null);
+		
+		// Put the original input back into the output for debugging purposes.
+		log("-----------------------------------------");
+		log("   INPUT:");
+		log("-----------------------------------------");
+		
+		// ResourceProperties are intended as input parameters for a lambda function.
+		// Run the lambda function with these parameters and put the results to this map.
+		if(parms.getInput().containsKey("ResourceProperties")) {
+			
+			putAndLog("input", parms.getInput());
+			
+			Object rsrcProps = parms.getInput().get("ResourceProperties");
+			Task task = parms.getTaskFactory().extractTask(rsrcProps, parms.getLogger());
+			
+			if(! Task.UNKNOWN.equals(task)) {
+				
+				TaskResult result = parms.getTaskRunner().run(rsrcProps, parms.getLogger());
+				
+				if(result.isValid()) {
+					
+					if(result.containsIllegalCharacters() || parms.isBase64()) {
+						result.convertToBase64();
+					}
+					
+					putAll(result.getResults());
+					
+					put("result", result.getResults());
+					
+					log("-----------------------------------------");
+					log("   OUTPUT:");
+					log("-----------------------------------------");
+					log("result", result.getResults(), null);
+				}
+			}
+		}
+		else {
+			parms.addInput("ResourceProperties", "ERROR! No Resource Properties!");
+			putAndLog("input", parms.getInput());
+		}
+	}
+	
+	private void putAndLog(Object key, Object val) {
+		put(String.valueOf(key), val);
+		log(key, val, null);
+	}
+	
+	@SuppressWarnings("unused")
+	private void putAndLog(Object key, Object val, String prefix) {
+		put(String.valueOf(key), val);
+		log(key, val, prefix);
+	}
+	
+	/**
+	 * Log an object as "key: object.toString()", unless object is a map. If a map, then recurse
+	 * against the maps keySet until the entire original object is logged as a "flattened" item.
+	 * 
+	 * @param key1
+	 * @param val
+	 * @param prefix
+	 */
+	private void log(Object key1, Object val, String prefix) {
+		if(val instanceof Map<?,?>) {
+			Map<?,?> map = ((Map<?,?>) val);
+			for(Object key2 : map.keySet()) {
+				StringBuilder prfx = new StringBuilder();
+				if(prefix != null && ! prefix.isEmpty()) {
+					prfx.append(prefix).append(".");
+				}
+				prfx.append(String.valueOf(key1));
+				log(key2, map.get(key2), prfx.toString());
+			}
+		}
+		else {
+			StringBuilder logstr = new StringBuilder(String.valueOf(key1));
+			if(prefix != null && ! prefix.isEmpty()) {
+				logstr.insert(0, ".").insert(0, prefix);
+			}
+			logstr.append(": ").append(String.valueOf(val));
+			log(logstr.toString());
+		}
+	}
+	
+	private void log(String s) {
+		parms.getLogger().log(s);
+	}
+
+	public String getMessage() {
+		return parms.getMessage();
+	}
+
+	public boolean hasInput() {
+		return ! "ERROR! NO INPUT!".equals(get("input"));
+	}
+	
+	public boolean hasResourceProperties() {
+		return ! "ERROR! No Resource Properties!".equals(get("input.ResourceProperties"));
+		
+	}
+}
