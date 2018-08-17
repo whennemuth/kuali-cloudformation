@@ -36,23 +36,63 @@
 				"region" : "${AWS::Region}",
                 "s3bucket" : "kuali-research-ec2-setup",
 				"s3file" : { "Fn::Sub" : "${Landscape}/core/environment.variables.s3" },
-				"outputmask" : "{class: edu.bu.ist.apps.aws.task.BasicOutputMask, parameters: { fieldsToMask: { full: [], logs: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, MONGO_PASS, SERVICE_SECRET_1]}}}"
+				"outputmask" : { "Fn::Join" : [ "\n", [
+					"{ class: edu.bu.ist.apps.aws.task.BasicOutputMask, ",
+					"  parameters: { ",
+					"    fieldsToMask: { ",
+					"      full: [], ",
+					"      logs: [ AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, MONGO_PASS, SERVICE_SECRET_1 ] ",
+					"}}}"
+			    ]]}
 			}
-        }    
+        },
+		
+        "PublicKeysLookup" : {
+			"Type" : "Custom::Functions",
+			"Properties" : {
+				"ServiceToken" : { "Fn::GetAtt" : [ "Utils", "Outputs.JavaHelperFunctionArn"]},
+				"task" : "get.ec2.public.keys",
+				"region" : "${AWS::Region}",
+                "s3bucket" : "kuali-research-ec2-setup",
+				"s3files" : { "Fn::Join" : [ "\n", [
+					"{s3keyfiles: [",
+					"  {user:wrh,      keyfile:\"ecs/ssh-keys/rsa-key-wrh\"},",
+					"  {user:mukadder, keyfile:\"ecs/ssh-keys/rsa-key-mukadder\"},",
+					"  {user:dhaywood, keyfile:\"ecs/ssh-keys/rsa-key-dhaywood\"}",
+					"  {user:mkousheh, keyfile:\"ecs/ssh-keys/rsa-key-mkousheh\"}",
+					"]}"
+				]]},
+				"outputmask" : { "Fn::Join" : [ "\n", [
+					"{ class: edu.bu.ist.apps.aws.task.BasicOutputMask, ",
+					"  parameters: { ",
+					"    fieldsToMask: { ",
+					"      full: [], ",
+					"      logs: [wrh, mukadder, dhaywood, mkousheh]",
+					"    }",
+					"}}"
+				]]}
+			}
+		}
 	},
 
 	"Outputs" : {
-        "LookupResult1" : {
-            "Value" : {"Fn::GetAtt" : [ "EnvironmentLookup", "result.map1.key1"]}
-        },
-		"SingleLookupResult1" : {
-		    "Value" : {"Fn::GetAtt" : [ "EnvironmentLookup", "map1.key1"]}
+		"EnvLookup1" : {
+		    "Value" : {"Fn::GetAtt" : [ "EnvironmentLookup", "result"]}
 		},
-        "LookupResult2" : {
-            "Value" : {"Fn::GetAtt" : [ "EnvironmentLookup", "result.map1.key3.map2.key1"]}
+        "EnvLookup2" : {
+            "Value" : {"Fn::GetAtt" : [ "EnvironmentLookup", "result.SERVICE_SECRET_1"]}
         },
-		"SingleLookupResult2" : {
-		    "Value" : {"Fn::GetAtt" : [ "EnvironmentLookup", "map1.key3.map2.key1"]}
+		"EnvLookup3" : {
+		    "Value" : {"Fn::GetAtt" : [ "EnvironmentLookup", "SERVICE_SECRET_1"]}
+		},
+        "KeyLookup1" : {
+            "Value" : {"Fn::GetAtt" : [ "EnvironmentLookup", "result"]}
+        },
+        "KeyLookup2" : {
+            "Value" : {"Fn::GetAtt" : [ "EnvironmentLookup", "result.wrh"]}
+        },
+		"keyLookup3" : {
+		    "Value" : {"Fn::GetAtt" : [ "EnvironmentLookup", "wrh"]}
 		}
 	}
 }

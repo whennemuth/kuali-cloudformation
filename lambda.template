@@ -47,8 +47,8 @@
 			"Type" : "AWS::Lambda::Function",
             "DependsOn" : "LambdaExecutionRole",
             "Properties" : {
-				"Description" : "Java-based lambda function for getting environment-specific details for container environment variables (sensitive data, like passwords, etc.).",
-                "FunctionName" : "GetEnvironmentVariables",
+				"Description" : "Java-based lambda function for getting sensitive data, like passwords, keys, etc., so as not to hard-code them in the template itself. Can be extended to perform any task, however.",
+                "FunctionName" : "CloudFormationHelperFunction",
                 "Role" : {"Fn::GetAtt" : [ "LambdaExecutionRole", "Arn"]},
 				"Runtime" : "java8",
                 "Timeout" : "60",
@@ -62,6 +62,7 @@
 
         "NodeHelperFunction" : {
             "Type" : "AWS::Lambda::Function",
+            "DependsOn" : "LambdaExecutionRole",
             "Properties" : {
 				"Description" : "Note If you specify your source code as inline text by specifying the ZipFile property within the Code property, specify index.function_name as the handler",
                 "Handler" : "index.helper",

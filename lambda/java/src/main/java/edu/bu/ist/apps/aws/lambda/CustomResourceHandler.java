@@ -68,7 +68,7 @@ public class CustomResourceHandler implements RequestHandler<Map<String, Object>
 		    	break;
 		    default:
 		    	message = "ERROR! Unknown requestType \"" + String.valueOf(requestType + "\"");
-		    	responseStatus = "FAILURE";
+		    	responseStatus = "FAILED";
 		    	break;		    	
 	    }
 

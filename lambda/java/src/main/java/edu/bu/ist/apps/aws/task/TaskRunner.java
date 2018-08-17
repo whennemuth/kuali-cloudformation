@@ -54,6 +54,7 @@ public class TaskRunner {
 				String s3FileJson = extractValue(resourceProperties, "s3files", logger);
 				JSONArray keysinfo = new JSONObject(s3FileJson).getJSONArray("s3keyfiles");
 				
+				// Get each s3file as its own TaskResult and merge them into a single TaskResult
 				keysinfo.forEach( (keyinfo) -> {
 					String username = ((JSONObject) keyinfo).getString("user");
 					String keyfile = ((JSONObject) keyinfo).getString("keyfile");
