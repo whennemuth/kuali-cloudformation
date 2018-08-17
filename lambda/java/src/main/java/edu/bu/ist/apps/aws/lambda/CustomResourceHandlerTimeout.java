@@ -48,7 +48,13 @@ public class CustomResourceHandlerTimeout extends CustomResourceHandler implemen
 						// Do nothing.
 					}
 					
-					sendResponse(input, context, getResponseData());
+					try {
+						sendResponse(input, context, getResponseData());
+					}
+					catch(Exception e) {
+						// This should make it as a single entry in cloudwatch logs, not separate entry per line of stacktrace.
+						throw new RuntimeException(e);
+					}
 				}
 			};
 			

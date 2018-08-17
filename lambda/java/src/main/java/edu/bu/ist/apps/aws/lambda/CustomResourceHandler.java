@@ -13,6 +13,7 @@ import com.amazonaws.services.lambda.runtime.LambdaLogger;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 
 import edu.bu.ist.apps.aws.task.TaskFactory;
+import edu.bu.ist.apps.aws.task.TaskRunner;
 
 /**
  * Documentation for RequestHandler interface:
@@ -39,12 +40,18 @@ public class CustomResourceHandler implements RequestHandler<Map<String, Object>
 		this.context = context;		
 		this.logger = context.getLogger();
 	    
-	    sendResponse(input, context, getResponseData());
+		try {
+			sendResponse(input, context, getResponseData());
+		}
+		catch(Exception e) {
+			// This should make it as a single entry in cloudwatch logs, not separate entry per line of stacktrace.
+			throw new RuntimeException(e);
+		}
 	    
 	    return null;
 	}
 	
-	ResponseData getResponseData() {    
+	ResponseData getResponseData() throws Exception {    
 	    String message = null;
 	    String requestType = String.valueOf(input.get("RequestType")).toUpperCase();
 	    logger.log("input.requestType: " + requestType);
@@ -69,6 +76,7 @@ public class CustomResourceHandler implements RequestHandler<Map<String, Object>
 	    		.setInput(input)
 	    		.setMessage(message)
 	    		.setTaskFactory(new TaskFactory())
+	    		.setTaskRunner(new TaskRunner())
 	    		.setBase64(false)
 	    		.setLogger((String msg) -> logger.log(msg)));
 	}

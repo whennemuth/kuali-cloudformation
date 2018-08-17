@@ -27,42 +27,50 @@ public class TaskFactory {
 		return Task.UNKNOWN;
 	}
 	
-	public Task extractTask(Object obj) {
-		return extractTask(obj, null);
+	public Task extractTask(Object resourceProperties) {
+		return extractTask(resourceProperties, null);
+	}
+	
+	public Task extractTask(Object resourceProperties, Logger logger) {
+		String value = extractValue(resourceProperties, "task", null);
+		if(value == null)
+			return Task.UNKNOWN;
+		
+		return getTask(value);
 	}
 	
 	/**
-	 * Get a Task enumeration that matches a supplied string that must be accessed from within a map or as a getter of an object. 
-	 * @param obj
+	 * Get a value from an object. The object can be a map or a bean, so there are two ways to "extract" the value (key, or getter method). 
+	 * @param resourceProperties
 	 * @param logger
 	 * @return
 	 */
-	public Task extractTask(Object obj, Logger logger) {
-		if(obj == null) {
-			log(logger, "ERROR!: Task could not be found in null object");
-			return Task.UNKNOWN;
+	public String extractValue(Object resourceProperties, String fieldname, Logger logger) {
+		if(resourceProperties == null) {
+			log(logger, "WARNING!: " + fieldname + " could not be found in null object");
+			return null;
 		}
-		if(obj instanceof Map) {
-			Map<?,?> map = (Map<?,?>) obj;
-			return getTask(String.valueOf(map.get("task")));
+		if(resourceProperties instanceof Map) {
+			Map<?,?> map = (Map<?,?>) resourceProperties;
+			return String.valueOf(map.get(fieldname));
 		}
 		else {
-			String task = tryGetTask(obj);
-			if(task != null)
-				return getTask(task);
-		}
-		log(logger, "ERROR!: Task could not be found.");
-		return Task.UNKNOWN;
+			String value = tryAccessor(resourceProperties, fieldname);
+			if(value == null) {
+				log(logger, "WARNING!: " + fieldname + " could not be found.");
+			}
+		}		
+		return null;
 	}
 	
 	/**
-	 * The task enumeration might be output by a "getTask" method of the supplied object.
+	 * Invoke the accessor of an object identified by fieldname and return the value.
 	 * @param obj
 	 * @return
 	 */
-	private String tryGetTask(Object obj) {
+	private String tryAccessor(Object obj, String fieldname) {
 		String task = null;
-		Method getter = getTaskMethod(obj);
+		Method getter = getMethod(obj, fieldname);
 		if(getter != null) {
 			try {
 				task = (String) getter.invoke(obj);
@@ -75,14 +83,14 @@ public class TaskFactory {
 	}
 	
 	/**
-	 * Find a getter method for a "task" field if it exists on an object.
+	 * Find a getter method for a field if it exists on an object.
 	 * @param obj
 	 * @return
 	 */
-	private Method getTaskMethod(Object obj) {
+	private Method getMethod(Object obj, String fieldname) {
 		Method m = null;
 		try {
-			m = obj.getClass().getMethod("getTask");
+			m = obj.getClass().getMethod(getAccessorName(fieldname));
 		} 
 		catch (NoSuchMethodException e) {
 			// Do nothing;
@@ -92,7 +100,11 @@ public class TaskFactory {
 		}
 		return m;
 	}
-		
+	
+	private String getAccessorName(String fieldname) {
+		return "get" + fieldname.substring(0, 1).toUpperCase() + fieldname.substring(1);
+	}
+	
 	private void log(Logger logger, String message) {
 		if(logger == null)
 			return;

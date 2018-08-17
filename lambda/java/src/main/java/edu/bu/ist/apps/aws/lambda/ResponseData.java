@@ -4,7 +4,9 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import edu.bu.ist.apps.aws.task.Task;
+import edu.bu.ist.apps.aws.task.TaskFactory;
 import edu.bu.ist.apps.aws.task.TaskResult;
+import edu.bu.ist.apps.aws.task.TaskRunner;
 
 /**
  * When calling a lambda function custom resource from a cloudformation stack template, any items beyond the service token that
@@ -31,7 +33,7 @@ public class ResponseData extends LinkedHashMap<String, Object> {
 		super();
 	}
 	
-	public ResponseData(ResponseDataParms parms) {
+	public ResponseData(ResponseDataParms parms) throws Exception {
 		this.parms = parms;
 		parseInput();
 	}
@@ -39,8 +41,9 @@ public class ResponseData extends LinkedHashMap<String, Object> {
 	/**
 	 * Strip out the task identifier from the ResourceProperties map and return another map
 	 * resulting from running the corresponding task.
+	 * @throws Exception 
 	 */
-	private void parseInput() {
+	private void parseInput() throws Exception {
 		
 		log("message", parms.getMessage(), null);
 		
@@ -60,7 +63,7 @@ public class ResponseData extends LinkedHashMap<String, Object> {
 			
 			if(! Task.UNKNOWN.equals(task)) {
 				
-				TaskResult result = parms.getTaskRunner().run(rsrcProps, parms.getLogger());
+				TaskResult result = parms.getTaskRunner().run(task, rsrcProps, parms.getLogger());
 				
 				if(result.isValid()) {
 					
@@ -68,14 +71,14 @@ public class ResponseData extends LinkedHashMap<String, Object> {
 						result.convertToBase64();
 					}
 					
-					putAll(result.getResults());
+					putAll(result.getMaskedResults());
 					
-					put("result", result.getResults());
+					put("result", result.getMaskedResults());
 					
 					log("-----------------------------------------");
 					log("   OUTPUT:");
 					log("-----------------------------------------");
-					log("result", result.getResults(), null);
+					log("result", result.getMaskedResultsForLogging(), null);
 				}
 			}
 		}
@@ -141,5 +144,38 @@ public class ResponseData extends LinkedHashMap<String, Object> {
 	public boolean hasResourceProperties() {
 		return ! "ERROR! No Resource Properties!".equals(get("input.ResourceProperties"));
 		
+	}
+	
+	public static void main(String[] args) throws Exception {
+
+		Map<String, Object> resourceProperties = new LinkedHashMap<String, Object>();
+		resourceProperties.put("task", Task.CONTAINER_ENV_VARS.getShortname());
+		resourceProperties.put("region", "us-east-1");
+		resourceProperties.put("s3bucket", "kuali-research-ec2-setup");
+		resourceProperties.put("s3file", "qa/core/environment.variables.s3");
+		resourceProperties.put("profile", "ecr.access");
+		resourceProperties.put("outputmask", "{"
+				+ "class: edu.bu.ist.apps.aws.task.BasicOutputMask, "
+				+ "parameters: { "
+				+ "  fieldsToMask: { "
+				+ "    full: [], "
+				+ "    logs: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, MONGO_PASS, SERVICE_SECRET_1]"
+				+ "  }"
+				+ "}}");
+		
+		Map<String, Object> input = new LinkedHashMap<String, Object>();
+		input.put("RequestType", "Create");
+		input.put("ResourceProperties", resourceProperties);
+		
+		Logger logger = (String msg) -> { System.out.println(msg); };
+		
+		@SuppressWarnings("unused")
+		ResponseData response = new ResponseData(new ResponseDataParms()
+	    		.setInput(input)
+	    		.setMessage("Hello there!")
+	    		.setTaskFactory(new TaskFactory())
+	    		.setTaskRunner(new TaskRunner())
+	    		.setBase64(false)
+	    		.setLogger(logger));
 	}
 }

@@ -32,9 +32,11 @@
             "Type" : "Custom::Functions",
             "Properties" : {
 				"ServiceToken" : {"Fn::GetAtt" : [ "Utils", "Outputs.JavaHelperFunctionArn"]},
-                "landscape" : { "Ref" : "Landscape" },
 				"task" : "get.container.env.vars",
-				"application" : "core"
+				"region" : "${AWS::Region}",
+                "s3bucket" : "kuali-research-ec2-setup",
+				"s3file" : { "Fn::Sub" : "${Landscape}/core/environment.variables.s3" },
+				"outputmask" : "{class: edu.bu.ist.apps.aws.task.BasicOutputMask, parameters: { fieldsToMask: { full: [], logs: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, MONGO_PASS, SERVICE_SECRET_1]}}}"
 			}
         }    
 	},

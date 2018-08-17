@@ -2,7 +2,6 @@ package edu.bu.ist.apps.aws.lambda;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.when;
 
@@ -39,7 +38,7 @@ public class ResponseDataTest {
 	Logger logger = null;
 	
 	@Before
-	public void setup() {
+	public void setup() throws Exception {
 		
 		input.clear();
 		logs.clear();
@@ -71,14 +70,17 @@ public class ResponseDataTest {
 		results.put("result2", "myresult2");
 		results.put("result3", "myresult3");
 		when(taskResult.isValid()).thenReturn(true);
-		when(taskResult.getResults()).thenReturn(results);
+		when(taskResult.getMaskedResults()).thenReturn(results);
+		when(taskResult.getMaskedResultsForLogging()).thenReturn(results);
 		
 		// Mock the TaskRunner
-		when(taskRunner.run(any(Object.class))).thenReturn(taskResult);
-		when(taskRunner.run(any(Object.class), any(Logger.class))).thenReturn(taskResult);
+		when(taskRunner.run(any(Task.class), any(Object.class))).thenReturn(taskResult);
+		when(taskRunner.run(any(Task.class), any(Object.class), any(Logger.class))).thenReturn(taskResult);
 		
 		// Mock the TaskFactory
 		when(taskFactory.getTask(any(String.class))).thenReturn(Task.CONTAINER_ENV_VARS);
+		when(taskFactory.extractTask(any(Object.class))).thenReturn(Task.CONTAINER_ENV_VARS);
+		when(taskFactory.extractTask(any(Object.class), any(Logger.class))).thenReturn(Task.CONTAINER_ENV_VARS);
 		
 		// Mock the ResponseDataParms
 		logger = (String msg) -> { log(msg); };
@@ -108,7 +110,7 @@ public class ResponseDataTest {
 	}
 
 	@Test
-	public void test01NormalUsage() {
+	public void test01NormalUsage() throws Exception {
 		ResponseData rd = new ResponseData(parms);	
 		
 		// Assert the map content.
@@ -144,7 +146,7 @@ public class ResponseDataTest {
 	}
 
 	@Test
-	public void test02NoResourceData() {
+	public void test02NoResourceData() throws Exception {
 
 		input.remove("ResourceProperties");
 		parms = parms.setInput(input);
@@ -167,7 +169,7 @@ public class ResponseDataTest {
 	}
 	
 	@Test
-	public void test03InvalidResponseData() {
+	public void test03InvalidResponseData() throws Exception {
 		
 		when(taskResult.isValid()).thenReturn(false);
 		ResponseData rd = new ResponseData(parms);

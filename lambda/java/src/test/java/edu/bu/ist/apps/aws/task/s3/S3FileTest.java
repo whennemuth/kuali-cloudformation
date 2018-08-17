@@ -12,8 +12,10 @@ import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.util.List;
 
+import org.junit.FixMethodOrder;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.junit.runners.MethodSorters;
 import org.mockito.Mock;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.runners.MockitoJUnitRunner;
@@ -28,6 +30,7 @@ import edu.bu.ist.apps.aws.task.s3.S3File;
 import edu.bu.ist.apps.aws.task.s3.S3FileParms;
 
 @RunWith(MockitoJUnitRunner.class)
+@FixMethodOrder(MethodSorters.NAME_ASCENDING)
 public class S3FileTest {
 
 	@Mock private S3FileParms parms;

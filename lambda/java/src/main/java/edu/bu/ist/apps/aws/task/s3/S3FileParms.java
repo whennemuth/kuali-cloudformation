@@ -3,6 +3,8 @@ package edu.bu.ist.apps.aws.task.s3;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import com.amazonaws.auth.AWSStaticCredentialsProvider;
+import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.auth.profile.ProfileCredentialsProvider;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
@@ -17,7 +19,7 @@ import edu.bu.ist.apps.aws.lambda.Logger;
  */
 public class S3FileParms {
 	private enum parmname {
-		region, bucketname, filename, profilename, logger;
+		region, bucketname, filename, profilename, accessKey, secretKey, logger;
 	}
 	private Map<parmname, Object> parms = new LinkedHashMap<parmname, Object>();
 	
@@ -47,6 +49,18 @@ public class S3FileParms {
 	public S3FileParms setProfilename(String profilename) {
 		return setParm(parmname.profilename, profilename);
 	}
+	public String getAccessKey() {
+		return String.valueOf(parms.get(parmname.accessKey));
+	}
+	public S3FileParms setAccessKey(String accessKey) {
+		return setParm(parmname.accessKey, accessKey);
+	}
+	public String getSecretKey() {
+		return String.valueOf(parms.get(parmname.secretKey));
+	}
+	public S3FileParms setSecretKey(String secretKey) {
+		return setParm(parmname.secretKey, secretKey);
+	}	
 	public Logger getLogger() {
 		return (Logger) parms.get(parmname.logger);
 	}
@@ -93,7 +107,7 @@ public class S3FileParms {
 		return getIssueMessage().length() == 0;
 	}
 	/**
-	 * @return A message that indicates which parameter(s) are missing, otherwise and empty string.
+	 * @return A message that indicates which parameter(s) are missing, otherwise an empty string.
 	 */
 	public String getIssueMessage() {
 		if(issue.length() == 0) {
@@ -119,16 +133,27 @@ public class S3FileParms {
 	public AmazonS3 getS3Client() {
 		if(isComplete()) {
 			AmazonS3ClientBuilder builder = AmazonS3ClientBuilder.standard().withRegion(getRegion());
-			if(validParm(parmname.profilename)) {
-				builder = builder.withCredentials(new ProfileCredentialsProvider(getProfilename()));
+			
+			if(hasValue(parmname.profilename)) {
+				builder = builder.withCredentials(
+						new ProfileCredentialsProvider(getProfilename()));
+			}
+			else if(hasValue(parmname.accessKey) && hasValue(parmname.secretKey)){
+				builder = builder.withCredentials(
+						new AWSStaticCredentialsProvider(
+								new BasicAWSCredentials(getAccessKey(), getSecretKey())));				
 			}
 			return builder.build();
 		}
 		return null;
 	}
 	private boolean validParm(parmname pn) {
-		// profilename is not required, so any value, including null is allowed.
+		// Credentials are not required, so any value, including null is allowed.
 		if(pn.equals(parmname.profilename))
+			return true;
+		if(pn.equals(parmname.accessKey))
+			return true;
+		if(pn.equals(parmname.secretKey))
 			return true;
 		
 		return hasValue(parms.get(pn));

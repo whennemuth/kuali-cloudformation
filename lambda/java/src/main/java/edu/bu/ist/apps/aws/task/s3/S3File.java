@@ -46,7 +46,7 @@ public class S3File {
 	}
 
 	/**
-	 * Check the parameters are valid and 
+	 * Check the parameters are valid and download the file
 	 * @param parms
 	 */
 	public S3File(S3FileParms parms) throws Exception {
@@ -76,7 +76,7 @@ public class S3File {
 		parms.logMessage("Downloading " + parms.getFilename() + " from S3 bucket " + parms.getBucketname() + "...");
 		
 		try {
-			AmazonS3 s3Client = parms.getS3Client();	
+			AmazonS3 s3Client = parms.getS3Client();
 			s3obj = s3Client.getObject(new GetObjectRequest(parms.getBucketname(), parms.getFilename()));
 			// Not wrapping in BufferedInputStream because S3ObjectInputStream cannot be mocked.
 			// For some reason the mocked methods are not being called by wrapper. 
