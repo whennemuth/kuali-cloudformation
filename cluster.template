@@ -45,6 +45,11 @@
         "SecurityGroup" : {
             "Type" : "AWS::EC2::SecurityGroup::Id",
             "Description" : "The security group to use for ECS cluster hosts."
+        },
+        "ConfigBucket" : {
+            "Type" : "String",
+			"Description" : "The S3 bucket where our config files, keys, etc. are stored",
+			"Default" : "kuali-research-ec2-setup"
         }
 	},
 	
@@ -98,13 +103,7 @@
 			"us-east-2": { "AMI": "ami-956e52f0" },
 			"us-west-1": { "AMI": "ami-6b81980b" },
 			"us-west-2": { "AMI": "ami-d2f489aa" },
-			"alternative-approach" : "https://github.com/awsdocs/aws-cloudformation-user-guide/blob/master/doc_source/walkthrough-custom-resources-lambda-lookup-amiids.md"
-		},
-		"sshKeys" : {
-			"key1" : {
-				"user": "wrh",
-				"public": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCxXNWjzJ4zYiIW0MW88x2rkKxEM77DPcS19WPLzYoDfakoHrvhzhKN2rCB86zg9HJ9n2HhzLd1im43+I9fsYgawS3QY/FL6kPosF9bm56+mwYU6AlWV9J82QJyRPgMAySDOkXY5DLKPI5os0kVr9nqMVdsWc0Z4hsJI8OpR1mVnbbnoKVQku1ao24T2kOneqtFDJunNMUuBannW9B51Gs+UIjk/TVTwzFPUJ2HYPhD1O1vXeKtojsQw4SvtGJlNv/MWJqH9t35KjOjuwSCdBOCZni9+qKKrNi3ZDW9t9HtQ7lh8SNhljP29m116rzvK50QoMqZ/XIJAnNRmqDXd4Id"
-			}
+			"alternative-approach" : { "url": "https://github.com/awsdocs/aws-cloudformation-user-guide/blob/master/doc_source/walkthrough-custom-resources-lambda-lookup-amiids.md"}
 		}
 	},
 
@@ -225,6 +224,15 @@
 					"   and then services. If you require a different order, separate your sections into different config keys, and then use a configset that ",
 					"   specifies the order in which the config keys should be processed."
 				]]},
+				"AWS::CloudFormation::Authentication": {
+                    "S3AccessCreds": {
+                        "type": "S3",
+                        "roleName": {
+                            "Ref": "ECSRole"
+                        },
+						"buckets" : [ { "Ref" : "ConfigBucket" } ]
+                    }
+                },
 				"AWS::CloudFormation::Init" : {
 					"config" : {
 						"packages" : {
@@ -304,43 +312,25 @@
 								"mode" : "000600",
 								"owner" : "wrh",
 								"group" : "wrh",
-								"content": {"Fn::Join" : [ "", [ "ssh-rsa ",
-									"AAAAB3NzaC1yc2EAAAADAQABAAABAQCxXNWjzJ4zYiIW0MW88x2rkKxEM77DPcS19WPLzYoDfakoHrvhzhKN2rCB86zg9HJ9n2Hh",
-									"zLd1im43+I9fsYgawS3QY/FL6kPosF9bm56+mwYU6AlWV9J82QJyRPgMAySDOkXY5DLKPI5os0kVr9nqMVdsWc0Z4hsJI8OpR1mV",									"nbbnoKVQku1ao24T2kOneqtFDJunNMUuBannW9B51Gs+UIjk/TVTwzFPUJ2HYPhD1O1vXeKtojsQw4SvtGJlNv/MWJqH9t35KjOj",									"uwSCdBOCZni9+qKKrNi3ZDW9t9HtQ7lh8SNhljP29m116rzvK50QoMqZ/XIJAnNRmqDXd4Id"
-								]]}
+								"source" : { "Fn::Sub" : "https://${ConfigBucket}/ecs/ssh-keys/rsa-key-wrh" }
 							},
 							"/home/mkousheh/.ssh/authorized_keys" : {
 								"mode" : "000600",
 								"owner" : "mkousheh",
 								"group" : "mkousheh",
-								"content": {"Fn::Join" : [ "", [ "ssh-rsa ",
-									"AAAAB3NzaC1yc2EAAAADAQABAAABAQCzgIDqcIpJ0+uNYWGWciep/vnfJ6uLGuHOfLYsYm1JFoSNNS3PTirK6RIBkJocGvcM5/ea",
-									"pLtN9V55uhCrfolBxRvYSSNLBCeH3KdgHTSfSkN71NjTisPz5luyrFFjFgFq4jNr8OSuBFzjasfBeSVIR9dXB/AxjauIPfY6TCVi",
-									"9j0hTjhsoIuup+gGayD0pFuj95zZCzZmnpci6Q2j+rQ4xDXZMih/cyr9rkpTASmFuAPdJ8j05YcyBnTD5BWGkLb6wbOCsOjr641R",
-									"aKLw4FMeSA4kI315fE5Nh0ffYrgk7rnOzQkSfnIcBPagVHyjmSnObcP1tJSI/07+iwZMASct"
-								]]}
+								"source" : { "Fn::Sub" : "https://${ConfigBucket}/ecs/ssh-keys/rsa-key-mkousheh" }
 							},
 							"/home/mukadder/.ssh/authorized_keys" : {
 								"mode" : "000600",
 								"owner" : "mukadder",
 								"group" : "mukadder",
-								"content": {"Fn::Join" : [ "", [ "ssh-rsa ",
-									"AAAAB3NzaC1yc2EAAAADAQABAAABAQCwAc8aK5xqcgpCxdGa+2g2EaYWE1N0Xv9qJw9TW2znj4HxqVIEBk4jC7b1lsJbF1NJHaPG",
-									"T2o0YaDX/xoSaVJ1pz03ai08mm71nuQteZ/LoXDYYM9EOM6orVmmhI6tyrqeJQsK6oOy3QubRVvfyEkwn18Rp4qun3IlZrtSCd9k",
-									"6O+8LkofX45e/PbnfUzKJHI2XCoiJcSrdSQ7vzOxBPIIRY9iiuZX0KnlTAgaohWRvXAOLxFXrrxz8z+prCfRacrpKsnEllMYVuzd",
-									"xqh3nDuXfML6ikcwJfoMujU6umepqwgJaF8hpg2utYf/qddr9PzktuUtEaB47F1QboBGxmMP"
-								]]}
+								"source" : { "Fn::Sub" : "https://${ConfigBucket}/ecs/ssh-keys/rsa-key-mukadder" }
 							},
 							"/home/dhaywood/.ssh/authorized_keys" : {
 								"mode" : "000600",
 								"owner" : "dhaywood",
 								"group" : "dhaywood",
-								"content": {"Fn::Join" : [ "", [ "ssh-rsa ",
-									"AAAAB3NzaC1yc2EAAAADAQABAAABAQDTjbU47P9X0vHP4Ubre625O6/KNK0+9nN97j8U9y/Q3UdviYibejGmOPaD5n1sYcntAShO",
-									"D4bGHpriZtITuMxeu+a5LnJqSWHxOUO/IE74pVHqLp6HlRueDSMenmCZL1llBtPd8bYYXfilQ0AN7ulkG0R5s73wfgAiYAQeeY0V",
-									"0KFt0KaeCoUCNQmJm1LudSxX167o3ODZaXIWFS8ryjKP5JLR8t3KQIHzo7yQA85EVjTtKzHIEOGahAt+J0RwhyrXYmpK5gYVwdCr",
-									"dh0uttAz8/+f5Phx7qyVCz1/tQqQ4wVYmqxC/z5+XNd2lOGSkFeuQW30dWanlWmBKWMPHIg7"
-								]]}
+								"source" : { "Fn::Sub" : "https://${ConfigBucket}/ecs/ssh-keys/rsa-key-dhaywood" }
 							}
 						},
 						"commands" : {

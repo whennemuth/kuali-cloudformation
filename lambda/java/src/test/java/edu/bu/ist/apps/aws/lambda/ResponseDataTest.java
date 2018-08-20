@@ -87,7 +87,6 @@ public class ResponseDataTest {
 		parms = new ResponseDataParms()
 				.setInput(input)
 				.setLogger(logger)
-				.setMessage("mymessage")
 				.setTaskFactory(taskFactory)
 				.setTaskRunner(taskRunner);
 	}
@@ -114,7 +113,6 @@ public class ResponseDataTest {
 		ResponseData rd = new ResponseData(parms);	
 		
 		// Assert the map content.
-		assertEquals("mymessage", rd.getMessage());		
 		assertEquals(5, rd.keySet().size());
 		assertNotNull(rd.get("result1"));
 		assertNotNull(rd.get("result2"));
@@ -123,7 +121,7 @@ public class ResponseDataTest {
 		assertNotNull(rd.get("input"));
 		
 		// Assert what was logged when the map was being populated.		
-		assertEquals( new String("message: mymessage\r\n" + 
+		assertEquals( new String( 
 				"-----------------------------------------\r\n" + 
 				"   INPUT:\r\n" + 
 				"-----------------------------------------\r\n" + 
@@ -142,7 +140,8 @@ public class ResponseDataTest {
 				"-----------------------------------------\r\n" + 
 				"result.result1: myresult1\r\n" + 
 				"result.result2: myresult2\r\n" + 
-				"result.result3: myresult3"), getLogString());
+				"result.result3: myresult3\r\n" +
+				" "), getLogString());
 	}
 
 	@Test
@@ -153,19 +152,19 @@ public class ResponseDataTest {
 		ResponseData rd = new ResponseData(parms);
 		
 		// Assert the map content.
-		assertEquals("mymessage", rd.getMessage());		
 		assertEquals(1, rd.keySet().size());
 		assertNotNull(rd.get("input"));
 
 		// Assert what was logged when the map was being populated.		
-		assertEquals( new String("message: mymessage\r\n" + 
+		assertEquals( new String( 
 				"-----------------------------------------\r\n" + 
 				"   INPUT:\r\n" + 
 				"-----------------------------------------\r\n" + 
 				"input.apples: oranges\r\n" + 
 				"input.hello: goodbye\r\n" + 
 				"input.this: that\r\n" + 
-				"input.ResourceProperties: ERROR! No Resource Properties!"), getLogString());
+				"input.ResourceProperties: ERROR! No Resource Properties!\r\n" +
+				" "), getLogString());
 	}
 	
 	@Test
@@ -175,12 +174,11 @@ public class ResponseDataTest {
 		ResponseData rd = new ResponseData(parms);
 		
 		// Assert the map content.
-		assertEquals("mymessage", rd.getMessage());		
 		assertEquals(1, rd.keySet().size());
 		assertNotNull(rd.get("input"));
 		
 		// Assert what was logged when the map was being populated.		
-		assertEquals( new String("message: mymessage\r\n" + 
+		assertEquals( new String( 
 				"-----------------------------------------\r\n" + 
 				"   INPUT:\r\n" + 
 				"-----------------------------------------\r\n" + 
@@ -193,6 +191,7 @@ public class ResponseDataTest {
 				"input.ResourceProperties.map1.key3.map2.key2: map2.value2\r\n" + 
 				"input.ResourceProperties.map1.key3.map2.key3.map3.key1: map3.value1\r\n" + 
 				"input.ResourceProperties.map1.key3.map2.key3.map3.key2: map3.value2\r\n" + 
-				"input.ResourceProperties.map1.key3.map2.key3.map3.key3: map3.value3"), getLogString());
+				"input.ResourceProperties.map1.key3.map2.key3.map3.key3: map3.value3\r\n" +
+				" "), getLogString());
 	}
 }

@@ -26,37 +26,37 @@ public class S3FileParms {
 	private StringBuilder issue = new StringBuilder();
 	
 	public String getRegion() {
-		return String.valueOf(parms.get(parmname.region));
+		return getStringParm(parmname.region);
 	}
 	public S3FileParms setRegion(String region) {
 		return setParm(parmname.region, region);
 	}
 	public String getBucketname() {
-		return String.valueOf(parms.get(parmname.bucketname));
+		return getStringParm(parmname.bucketname);
 	}
 	public S3FileParms setBucketname(String bucketname) {
 		return setParm(parmname.bucketname, bucketname);
 	}
 	public String getFilename() {
-		return String.valueOf(parms.get(parmname.filename));
+		return getStringParm(parmname.filename);
 	}
 	public S3FileParms setFilename(String filename) {
 		return setParm(parmname.filename, filename);
 	}
 	public String getProfilename() {
-		return String.valueOf(parms.get(parmname.profilename));
+		return getStringParm(parmname.profilename);
 	}
 	public S3FileParms setProfilename(String profilename) {
 		return setParm(parmname.profilename, profilename);
 	}
 	public String getAccessKey() {
-		return String.valueOf(parms.get(parmname.accessKey));
+		return getStringParm(parmname.accessKey);
 	}
 	public S3FileParms setAccessKey(String accessKey) {
 		return setParm(parmname.accessKey, accessKey);
 	}
 	public String getSecretKey() {
-		return String.valueOf(parms.get(parmname.secretKey));
+		return getStringParm(parmname.secretKey);
 	}
 	public S3FileParms setSecretKey(String secretKey) {
 		return setParm(parmname.secretKey, secretKey);
@@ -81,6 +81,11 @@ public class S3FileParms {
 			return null;
 		}		
 		return this;
+	}
+	private String getStringParm(parmname pn) {
+		if(parms.get(pn) == null)
+			return null;
+		return String.valueOf(parms.get(pn));
 	}
 	public void logIssue() {
 		log(getIssueMessage(), true);
@@ -134,14 +139,30 @@ public class S3FileParms {
 		if(isComplete()) {
 			AmazonS3ClientBuilder builder = AmazonS3ClientBuilder.standard().withRegion(getRegion());
 			
-			if(hasValue(parmname.profilename)) {
+			if(hasValue(parms.get(parmname.profilename))) {
 				builder = builder.withCredentials(
 						new ProfileCredentialsProvider(getProfilename()));
 			}
-			else if(hasValue(parmname.accessKey) && hasValue(parmname.secretKey)){
+			else if(hasValue(parms.get(parmname.accessKey)) && hasValue(parms.get(parmname.secretKey))){
 				builder = builder.withCredentials(
 						new AWSStaticCredentialsProvider(
 								new BasicAWSCredentials(getAccessKey(), getSecretKey())));				
+			}
+			else {
+				/**
+				 * com.amazonaws.auth.DefaultAWSCredentialsProviderChain should try to figure out credentials if you get here.
+				 * 
+				 * 1) You have run this function locally and not explicitly provided profilename or accessKey/secretKey.
+				 * This will not be a problem as the DefaultAWSCredentialsProviderChain will find your default profile 
+				 * if you have it set in ~/.aws/config, or you have set the equivalent environment variable, etc.
+				 *  
+				 * 2) In the case of a lambda-backed custom resource being created/updated during a cloudformation template 
+				 * execution, the credentials should be discoverable through the ServiceToken tied to the AWS::Lambda::Function
+				 * resource, and this should provide sufficient privileges, provided the IAM Role associated with the lambda 
+				 * function includes the arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess policy or the equivalent.
+				 * 
+				 * SEE: https://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/auth/DefaultAWSCredentialsProviderChain.html
+				 */
 			}
 			return builder.build();
 		}

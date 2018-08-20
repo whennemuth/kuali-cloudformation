@@ -39,46 +39,47 @@ public class CustomResourceHandler implements RequestHandler<Map<String, Object>
 		this.input = input;
 		this.context = context;		
 		this.logger = context.getLogger();
-	    
+
+		/**
+		 * NOTE: You must send a response with a status code on all cases if this request is being made by
+		 * cloud-formation as part of a lambda-backed custom resource call. If no response is sent, 
+		 * cloud-formation will hang for a long time before eventually responding with:
+		 * "Custom Resource failed to stabilize in expected time" and rolling back.
+		 * If this happens, rollback will hang and you will have trouble deleting the stack.
+		 */
 		try {
 			sendResponse(input, context, getResponseData());
 		}
 		catch(Exception e) {
+			responseStatus = "FAILED";
 			// This should make it as a single entry in cloudwatch logs, not separate entry per line of stacktrace.
-			throw new RuntimeException(e);
+			e.printStackTrace(System.err);
+			sendResponse(input, context, null);
 		}
 	    
 	    return null;
 	}
 	
 	ResponseData getResponseData() throws Exception {    
-	    String message = null;
 	    String requestType = String.valueOf(input.get("RequestType")).toUpperCase();
-	    logger.log("input.requestType: " + requestType);
 	    
-	    switch(requestType) {
-		    case "CREATE":
-		    	message = "Resource creation successful!";
-		        break;
-		    case "UPDATE":
-		    	message = "Resource update successful!";
-		        break;
-		    case "DELETE": 
-		    	message = "Resource deletion successful!";
-		    	break;
-		    default:
-		    	message = "ERROR! Unknown requestType \"" + String.valueOf(requestType + "\"");
-		    	responseStatus = "FAILED";
-		    	break;		    	
-	    }
-
-	    return new ResponseData(new ResponseDataParms()
+	    ResponseDataParms parms = new ResponseDataParms()
 	    		.setInput(input)
-	    		.setMessage(message)
+	    		.setRequestType(requestType)
 	    		.setTaskFactory(new TaskFactory())
 	    		.setTaskRunner(new TaskRunner())
 	    		.setBase64(false)
-	    		.setLogger((String msg) -> logger.log(msg)));
+	    		.setLogger((String msg) -> logger.log(msg));
+	    
+	    if(parms.isUnknownRequestType()) {
+	    	logger.log("input.requestType: ERROR! Unknown requestType \"" + String.valueOf(requestType + "\""));
+		    responseStatus = "FAILED";
+	    }
+	    else {
+	    	logger.log("input.requestType: " + requestType);
+	    }
+	    
+	    return new ResponseData(parms);	    	
 	}
 
 	void sendResponse(
@@ -102,7 +103,7 @@ public class CustomResourceHandler implements RequestHandler<Map<String, Object>
 	        responseBody.put("StackId", input.get("StackId"));
 	        responseBody.put("RequestId", input.get("RequestId"));
 	        responseBody.put("LogicalResourceId", input.get("LogicalResourceId"));
-	        if(responseData != null) {
+	        if(responseData != null && ! responseData.isEmpty()) {
 	        	responseBody.put("Data", new JSONObject(responseData));
 	        }	        
 	        
@@ -112,7 +113,8 @@ public class CustomResourceHandler implements RequestHandler<Map<String, Object>
 	        context.getLogger().log("Response Code: " + connection.getResponseCode());
 	    }
 	    catch(IOException e) {
-	    	e.printStackTrace();
+	    	context.getLogger().log(e.getMessage());
+	    	e.printStackTrace(System.err);
 	    }
 	}
 

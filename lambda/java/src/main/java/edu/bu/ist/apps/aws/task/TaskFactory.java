@@ -52,6 +52,8 @@ public class TaskFactory {
 		}
 		if(resourceProperties instanceof Map) {
 			Map<?,?> map = (Map<?,?>) resourceProperties;
+			if(map.get(fieldname) == null)
+				return null;
 			return String.valueOf(map.get(fieldname));
 		}
 		else {

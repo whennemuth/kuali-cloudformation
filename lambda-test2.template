@@ -33,7 +33,7 @@
             "Properties" : {
 				"ServiceToken" : {"Fn::GetAtt" : [ "Utils", "Outputs.JavaHelperFunctionArn"]},
 				"task" : "get.container.env.vars",
-				"region" : "${AWS::Region}",
+				"region" : { "Ref" : "AWS::Region" },
                 "s3bucket" : "kuali-research-ec2-setup",
 				"s3file" : { "Fn::Sub" : "${Landscape}/core/environment.variables.s3" },
 				"outputmask" : { "Fn::Join" : [ "\n", [
@@ -52,13 +52,13 @@
 			"Properties" : {
 				"ServiceToken" : { "Fn::GetAtt" : [ "Utils", "Outputs.JavaHelperFunctionArn"]},
 				"task" : "get.ec2.public.keys",
-				"region" : "${AWS::Region}",
+				"region" : { "Ref" : "AWS::Region" },
                 "s3bucket" : "kuali-research-ec2-setup",
 				"s3files" : { "Fn::Join" : [ "\n", [
 					"{s3keyfiles: [",
 					"  {user:wrh,      keyfile:\"ecs/ssh-keys/rsa-key-wrh\"},",
 					"  {user:mukadder, keyfile:\"ecs/ssh-keys/rsa-key-mukadder\"},",
-					"  {user:dhaywood, keyfile:\"ecs/ssh-keys/rsa-key-dhaywood\"}",
+					"  {user:dhaywood, keyfile:\"ecs/ssh-keys/rsa-key-dhaywood\"},",
 					"  {user:mkousheh, keyfile:\"ecs/ssh-keys/rsa-key-mkousheh\"}",
 					"]}"
 				]]},

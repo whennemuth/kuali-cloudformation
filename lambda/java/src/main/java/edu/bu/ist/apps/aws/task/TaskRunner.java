@@ -44,6 +44,10 @@ public class TaskRunner {
 				result = TaskResult.getInstanceFromProperties(s3file.getBytes(), outputmask);				
 				break;
 			case EC2_PUBLIC_KEYS:
+				// TODO: The limit to a CustomResource response is 4k. Each public key is at least 2K.
+				// Therefore need to call this one at a time for each key from the cloudformation template.
+				// OR better yet, do this:
+				// https://aws.amazon.com/blogs/devops/authenticated-file-downloads-with-cloudformation/
 				/**
 				 * There are a number of public rsa keys files sitting in an s3 bucket. Get each by name and
 				 * create a TaskResult that houses them all, indexed by their provided user names.

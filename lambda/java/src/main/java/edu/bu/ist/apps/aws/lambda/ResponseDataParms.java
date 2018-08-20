@@ -26,11 +26,11 @@ public class ResponseDataParms {
 			}
 		}		
 	});
-	private String message;
 	private boolean base64;
 	private Logger logger;
 	private TaskFactory taskFactory;
 	private TaskRunner taskRunner;
+	private String requestType;
 	public Map<String, Object> getInput() {
 		return input;
 	}
@@ -43,13 +43,6 @@ public class ResponseDataParms {
 	}
 	public void addInput(String key, Object item) {
 		input.put(key, item);
-	}
-	public String getMessage() {
-		return message;
-	}
-	public ResponseDataParms setMessage(String message) {
-		this.message = message;
-		return this;
 	}
 	public boolean isBase64() {
 		return base64;
@@ -78,5 +71,27 @@ public class ResponseDataParms {
 	public ResponseDataParms setTaskRunner(TaskRunner taskRunner) {
 		this.taskRunner = taskRunner;
 		return this;
+	}
+	public ResponseDataParms setRequestType(String requestType) {
+		this.requestType = requestType;
+		return this;
+	}
+	public boolean isCreateRequestType() {
+		return "create".equalsIgnoreCase(requestType);
+	}
+	public boolean isUpdateRequestType() {
+		return "update".equalsIgnoreCase(requestType);
+	}
+	public boolean isDeleteRequestType() {
+		return "delete".equalsIgnoreCase(requestType);
+	}
+	public boolean isUnknownRequestType() {		
+		if(isCreateRequestType())
+			return false;
+		if(isUpdateRequestType())
+			return false;
+		if(isDeleteRequestType())
+			return false;
+		return true;
 	}
 }

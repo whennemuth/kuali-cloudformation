@@ -3,6 +3,8 @@ package edu.bu.ist.apps.aws.lambda;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import org.json.JSONObject;
+
 import edu.bu.ist.apps.aws.task.Task;
 import edu.bu.ist.apps.aws.task.TaskFactory;
 import edu.bu.ist.apps.aws.task.TaskResult;
@@ -33,9 +35,24 @@ public class ResponseData extends LinkedHashMap<String, Object> {
 		super();
 	}
 	
-	public ResponseData(ResponseDataParms parms) throws Exception {
+	public ResponseData(ResponseDataParms parms) {
 		this.parms = parms;
-		parseInput();
+		
+		try {	
+			if(parms.isDeleteRequestType() ) {
+				log("-----------------------------------------");
+				log("   DELETING RESOURCE...");
+				log("-----------------------------------------");
+				log("Delete successful.");
+			}
+			else {
+				parseInput();
+			}
+		}
+		catch (Exception e) {
+			e.printStackTrace(System.err);
+			putAndLog("ERROR - " + e.getClass().getSimpleName() + ": ", e.getMessage());
+		}
 	}
 	
 	/**
@@ -44,8 +61,6 @@ public class ResponseData extends LinkedHashMap<String, Object> {
 	 * @throws Exception 
 	 */
 	private void parseInput() throws Exception {
-		
-		log("message", parms.getMessage(), null);
 		
 		// Put the original input back into the output for debugging purposes.
 		log("-----------------------------------------");
@@ -80,11 +95,13 @@ public class ResponseData extends LinkedHashMap<String, Object> {
 					log("-----------------------------------------");
 					log("result", result.getMaskedResultsForLogging(), null);
 				}
+				log(" ");
 			}
 		}
 		else {
 			parms.addInput("ResourceProperties", "ERROR! No Resource Properties!");
 			putAndLog("input", parms.getInput());
+			log(" ");
 		}
 	}
 	
@@ -133,10 +150,6 @@ public class ResponseData extends LinkedHashMap<String, Object> {
 		parms.getLogger().log(s);
 	}
 
-	public String getMessage() {
-		return parms.getMessage();
-	}
-
 	public boolean hasInput() {
 		return ! "ERROR! NO INPUT!".equals(get("input"));
 	}
@@ -169,13 +182,13 @@ public class ResponseData extends LinkedHashMap<String, Object> {
 		
 		Logger logger = (String msg) -> { System.out.println(msg); };
 		
-		@SuppressWarnings("unused")
 		ResponseData response = new ResponseData(new ResponseDataParms()
 	    		.setInput(input)
-	    		.setMessage("Hello there!")
 	    		.setTaskFactory(new TaskFactory())
 	    		.setTaskRunner(new TaskRunner())
 	    		.setBase64(false)
 	    		.setLogger(logger));
+		
+		System.out.println(new JSONObject(response));
 	}
 }
