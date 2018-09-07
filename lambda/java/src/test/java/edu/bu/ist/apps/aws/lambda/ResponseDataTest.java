@@ -113,11 +113,10 @@ public class ResponseDataTest {
 		ResponseData rd = new ResponseData(parms);	
 		
 		// Assert the map content.
-		assertEquals(5, rd.keySet().size());
+		assertEquals(4, rd.keySet().size());
 		assertNotNull(rd.get("result1"));
 		assertNotNull(rd.get("result2"));
 		assertNotNull(rd.get("result3"));
-		assertNotNull(rd.get("result"));
 		assertNotNull(rd.get("input"));
 		
 		// Assert what was logged when the map was being populated.		

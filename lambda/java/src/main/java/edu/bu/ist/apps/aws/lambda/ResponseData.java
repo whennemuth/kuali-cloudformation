@@ -88,7 +88,7 @@ public class ResponseData extends LinkedHashMap<String, Object> {
 					
 					putAll(result.getMaskedResults());
 					
-					put("result", result.getMaskedResults());
+					//put("result", result.getMaskedResults());
 					
 					log("-----------------------------------------");
 					log("   OUTPUT:");

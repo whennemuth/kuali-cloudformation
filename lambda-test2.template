@@ -50,16 +50,18 @@
         "PublicKeysLookup" : {
 			"Type" : "Custom::Functions",
 			"Properties" : {
+				"NOTES" : { "Fn::Join" : [ "\n", [
+					"CAVEAT: Found out the hard way that the limit to a CustomResource response is 4k. Each public key is at least 2K. Therefore you can ",
+					"only specify one user in the s3files json object (which was designed to take multiple in one go). You can use ",
+					"AWS::CloudFormation::Init.file.[filename].source in favor of this method of getting a key from S3 and skip Lambda altogether."
+				]]},
 				"ServiceToken" : { "Fn::GetAtt" : [ "Utils", "Outputs.JavaHelperFunctionArn"]},
 				"task" : "get.ec2.public.keys",
 				"region" : { "Ref" : "AWS::Region" },
                 "s3bucket" : "kuali-research-ec2-setup",
 				"s3files" : { "Fn::Join" : [ "\n", [
 					"{s3keyfiles: [",
-					"  {user:wrh,      keyfile:\"ecs/ssh-keys/rsa-key-wrh\"},",
-					"  {user:mukadder, keyfile:\"ecs/ssh-keys/rsa-key-mukadder\"},",
-					"  {user:dhaywood, keyfile:\"ecs/ssh-keys/rsa-key-dhaywood\"},",
-					"  {user:mkousheh, keyfile:\"ecs/ssh-keys/rsa-key-mkousheh\"}",
+					"  {user:wrh,      keyfile:\"ecs/ssh-keys/rsa-key-wrh\"}",
 					"]}"
 				]]},
 				"outputmask" : { "Fn::Join" : [ "\n", [
@@ -76,23 +78,11 @@
 	},
 
 	"Outputs" : {
-		"EnvLookup1" : {
-		    "Value" : {"Fn::GetAtt" : [ "EnvironmentLookup", "result"]}
-		},
-        "EnvLookup2" : {
-            "Value" : {"Fn::GetAtt" : [ "EnvironmentLookup", "result.SERVICE_SECRET_1"]}
-        },
-		"EnvLookup3" : {
+		"EnvLookup" : {
 		    "Value" : {"Fn::GetAtt" : [ "EnvironmentLookup", "SERVICE_SECRET_1"]}
 		},
-        "KeyLookup1" : {
-            "Value" : {"Fn::GetAtt" : [ "EnvironmentLookup", "result"]}
-        },
-        "KeyLookup2" : {
-            "Value" : {"Fn::GetAtt" : [ "EnvironmentLookup", "result.wrh"]}
-        },
-		"keyLookup3" : {
-		    "Value" : {"Fn::GetAtt" : [ "EnvironmentLookup", "wrh"]}
+		"keyLookup" : {
+		    "Value" : {"Fn::GetAtt" : [ "PublicKeysLookup", "wrh"]}
 		}
 	}
 }

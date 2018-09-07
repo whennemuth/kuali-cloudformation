@@ -94,6 +94,25 @@
 				"TODO: In order to not have to maintain and ami mapping (see below), delegate ami lookup to a lambda function:",
 				"https://github.com/awsdocs/aws-cloudformation-user-guide/blob/master/doc_source/walkthrough-custom-resources-lambda-lookup-amiids.md"
 			]]}
+		},
+		"CONTENT_FROM_S3_BUCKET" : {
+			"NOTES" : {"Fn::Join" : [ "\n", [
+				"Typically to place files where they need to go, you would declare their content inline using AWS::CloudFormation::Init.file.[filename].content",
+				"However, you can use the AWS::CloudFormation::Init.file.[filename].source instead and specify a file in an S3 bucket. Example here:",
+				"https://aws.amazon.com/blogs/devops/authenticated-file-downloads-with-cloudformation/"
+			]]}
+		},
+		"USERDATA_VS_CFN-INIT" : {
+			"NOTES" : {"Fn::Join" : [ "\n", [
+				"UserData is run only once upon creation of the ec2 instance and will call cfn-init for the first time as one of its last commands.",
+				"Instead of being procedural like UserData, cfn-init is state-based in that it comprises only commands that deposit/replace files, set environment ",
+				"variables, update packages, etc. But the biggest difference is that cfn-init can be run again after the initial ec2 creation either by modifying",
+				"anything in the AWS::CloudFormation::Init resource of the cfn stack template and performing a stack update, or shelling into the ec2 instance ",
+				"and running: /opt/aws/bin/cfn-init -v --region ${AWS::Region} --stack ${AWS::StackName} --resource YourResourceName --configsets ...",
+				"If you make a modification to UserData cloudformation will REPLACE that EC2 instance during a stack update.",
+				"If you make a modification to AWS::CloudFormation::Init, cloudformation will UPDATE that ec2 instance in place during a stack update.",
+				"So, rule of thumb: Don't put anything in UserData that you want to be \"refreshable\" with a stack update"
+			]]}
 		}
 	},
 
@@ -234,7 +253,10 @@
                     }
                 },
 				"AWS::CloudFormation::Init" : {
-					"config" : {
+					"configSets" : {
+						"all" : [ "getFiles", "runCommands" ]
+					}, 
+					"getFiles" : {
 						"packages" : {
 							"yum" : {
 								"awslogs" : []
@@ -312,27 +334,35 @@
 								"mode" : "000600",
 								"owner" : "wrh",
 								"group" : "wrh",
-								"source" : { "Fn::Sub" : "https://${ConfigBucket}/ecs/ssh-keys/rsa-key-wrh" }
+								"source" : { "Fn::Sub" : "https://s3.amazonaws.com/${ConfigBucket}/ecs/ssh-keys/rsa-key-wrh.pub" }
 							},
 							"/home/mkousheh/.ssh/authorized_keys" : {
 								"mode" : "000600",
 								"owner" : "mkousheh",
 								"group" : "mkousheh",
-								"source" : { "Fn::Sub" : "https://${ConfigBucket}/ecs/ssh-keys/rsa-key-mkousheh" }
+								"source" : { "Fn::Sub" : "https://s3.amazonaws.com/${ConfigBucket}/ecs/ssh-keys/rsa-key-mkousheh.pub" }
 							},
 							"/home/mukadder/.ssh/authorized_keys" : {
 								"mode" : "000600",
 								"owner" : "mukadder",
 								"group" : "mukadder",
-								"source" : { "Fn::Sub" : "https://${ConfigBucket}/ecs/ssh-keys/rsa-key-mukadder" }
+								"source" : { "Fn::Sub" : "https://s3.amazonaws.com/${ConfigBucket}/ecs/ssh-keys/rsa-key-mukadder.pub" }
 							},
 							"/home/dhaywood/.ssh/authorized_keys" : {
 								"mode" : "000600",
 								"owner" : "dhaywood",
 								"group" : "dhaywood",
-								"source" : { "Fn::Sub" : "https://${ConfigBucket}/ecs/ssh-keys/rsa-key-dhaywood" }
+								"source" : { "Fn::Sub" : "https://s3.amazonaws.com/${ConfigBucket}/ecs/ssh-keys/rsa-key-dhaywood.pub" }
+							},
+							"/tmp/environment" : {
+								"mode" : "000755",
+								"owner" : "root",
+								"group" : "root",
+								"source" : { "Fn::Sub" : "https://s3.amazonaws.com/${ConfigBucket}/${Landscape}" }
 							}
-						},
+						}
+					},
+					"runCommands" : {
 						"commands" : {
 							"01_add_instance_to_cluster" : {
 								"command" : { "Fn::Sub" : "echo ECS_CLUSTER=${ECSCluster} >> /etc/ecs/ecs.config" }
