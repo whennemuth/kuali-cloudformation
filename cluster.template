@@ -131,7 +131,7 @@
 		"Utils" : {
 		    "Type" : "AWS::CloudFormation::Stack",
 		    "Properties" : {
-		        "TemplateURL" : "https://s3.amazonaws.com/kuali-research-ec2-setup/ecs/cloudformation/utils.template",
+		        "TemplateURL" : "https://s3.amazonaws.com/kuali-research-ec2-setup/ecs/cloudformation/lambda/lambda.template",
                 "Parameters" : {
 					"GlobalPrefix": { "Ref" : "GlobalPrefix" }
 				}
@@ -202,6 +202,11 @@
 					"yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm",
 					"yum install -y aws-cfn-bootstrap",
 					"",
+					"# Modify the sudoers file so that anyone in the wheel group can be a sudoer",
+					"chmod u+w /etc/sudoers && \\",
+					"echo -e \"%wheel\\tALL=(ALL)\\tNOPASSWD: ALL\" >> /etc/sudoers && \\",
+					"chmod u-w /etc/sudoers && \\",
+					"",
 					"# NOTE: Creating users here and not in Metadata.AWS::CloudFormation::Init.config.users due to restrictions: ",
 					"# \"Users are created as non-interactive system users with a shell of /sbin/nologin. This is by design and cannot be modified.\"",
 					"users=(wrh mukadder dhaywood mkousheh)",
@@ -209,8 +214,10 @@
 					"   adduser -m $user && \\",
 					"   usermod -aG root $user && \\",
 					"   usermod -aG docker $user && \\",
+					"   usermod -aG wheel $user && \\",
 					"   mkdir /home/$user/.ssh && \\",
-					"   chmod 700 /home/$user/.ssh",
+					"   chmod 700 /home/$user/.ssh && \\",
+					"   chown -R /home/$user",
 					"done",
 					"",
 					"# Implement all the metadata in AWS::CloudFormation::Init",
