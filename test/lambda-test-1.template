@@ -1,0 +1,74 @@
+{
+	"AWSTemplateFormatVersion" : "2010-09-09",
+
+	"Description": "Test for basic node lambda function resource from lambda.template.",
+
+	"Parameters" : {
+		"Landscape" : {
+			"Type" : "String",
+			"AllowedValues" : [ "sb", "ci", "qa", "stg", "prod" ],
+			"ConstraintDescription" : "This parameter is restricted to the following values: sb, ci, qa, stg, prod",
+			"Default" : "sb"
+		},
+		"GlobalPrefix" : {
+		    "Type" : "String",
+			"Description": "A common value that all resources in this template will prefix to their name to establish a bundling through naming convention. If a nested stack, this will most likely be the name of the top-most stack.",
+			"Default" : "ECS-test"
+		}	
+	},
+
+	"Metadata" : {
+		"NOTES" : {
+			"full_description" : {"Fn::Join" : [ "\n", [
+				"This is a test of the output of lambda functionality created with lambda.template at the time it is generated during stack creation.",
+				"The output is reflected in the name of an s3 bucket that is created. Would not be doing this if I knew how to",
+				"output the data in a custom stack creation status message."			
+			]]}
+		}
+	},
+
+	"Resources" : {
+		"Utils" : {
+		    "Type" : "AWS::CloudFormation::Stack",
+		    "Properties" : {
+		        "TemplateURL" : "https://s3.amazonaws.com/kuali-research-ec2-setup/ecs/cloudformation/lambda/lambda.template",
+                "Parameters" : {
+					"GlobalPrefix": { "Ref" : "GlobalPrefix" }
+				}
+		    }
+		},
+				
+        "ClusterSizeParms" : {
+            "Type" : "Custom::Functions",
+            "Properties" : {
+				"ServiceToken" : {"Fn::GetAtt" : [ "Utils", "Outputs.NodeHelperFunctionArn"]},
+				"task" : "cluster-size",
+                "parm1" : "3"
+			}
+        },
+        
+	   "S3Bucket" : {
+		  "Type" : "AWS::S3::Bucket",
+		  "Properties" : {
+			 "AccessControl" : "PublicRead",
+			 "BucketName" : {"Fn::Join" : [ "-", [ 
+				"warrens", 
+				{"Fn::GetAtt" : [ "ClusterSizeParms", "minSize"]}, 
+				{"Fn::GetAtt" : [ "ClusterSizeParms", "maxSize"]}, 
+				"test-bucket"
+			 ]]},
+			 "WebsiteConfiguration" : {
+				"IndexDocument" : "index.htm"
+			 }
+		  },
+		  "DeletionPolicy" : "Retain"
+	   }
+	},
+
+	"Outputs" : {
+	   "WebsiteURL" : {
+		  "Value" : { "Fn::GetAtt" : [ "S3Bucket", "WebsiteURL" ] },
+		  "Description" : "URL for website hosted on S3"
+	   }
+	}
+}
