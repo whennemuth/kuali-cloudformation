@@ -10,7 +10,6 @@ prePublishCheck() {
     printf "   Directions to install at: https://docs.aws.amazon.com/cli/latest/userguide\n" 
     printf "   Until you install the cli, you cannot push the build artifact (jar file) to s3\n"
     local answer=""
-    local maven="mvn package shade:shade"
     while true; do
       printf "   Would you like to build the jar? [y/n]: "
       read answer
@@ -33,7 +32,7 @@ build() {
 }
 
 pkg="mvn package shade:shade"
-s3="s3://kuali-research-ec2-setup/ecs/cloudformation/lambda-utils.jar"
+s3="s3://kuali-research-ec2-setup/ecs/cloudformation/lambda/lambda-utils.jar"
 
 prePublishCheck
 

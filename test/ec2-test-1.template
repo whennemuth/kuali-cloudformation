@@ -58,7 +58,7 @@
 					"   usermod -aG wheel $user && \\",
 					"   mkdir /home/$user/.ssh && \\",
 					"   chmod 700 /home/$user/.ssh && \\",
-					"   chown -R /home/$user",
+					"   chown -R $user:$user /home/$user",
 					"done",
 					"",
 					"# Implement all the metadata in AWS::CloudFormation::Init",
@@ -82,7 +82,8 @@
                 },
 				"AWS::CloudFormation::Init" : {
 					"configSets" : {
-						"AllConfigs" : [ "getFiles", "runCommands" ]
+						"AllConfigs" : [ "getFiles", "runCommands" ],
+						"Testing" : [ "test" ]
 					}, 
 					"getFiles" : {
 						"packages" : {
@@ -127,30 +128,157 @@
 							},
 							"/var/kuali/env.vars.sh" : {
 								"content" : { "Fn::Join" : [ "\n", [
+									"#!/bin/bash",
 									"# Save a version of a properties file as a bash script that exports the properties as environment variables",
 									"# The docker container will run this when it starts up from a mounted directory.",
 									"",
+									"# If no properties file came down from the s3 bucket, return with an error",
+									"[ ! -f $PROPERTIES_FILE ] && echo \"$PROPERTIES_FILE is missing!\" && return 1",
+									"",
 									"getLineExport() {",
 									"  local line=$(echo -n \"$1\" | xargs) # Use xargs to trim the line.",
-									"  [ \"${line:0:1}\" == \"#\" ] && echo \"\" && return 0;",
-									"  [ -z \"$line\" ] && echo \"\" && return 0;",
+									"  [ \"${line:0:1}\" == \"#\" ] && echo \"\" && exit 0;",
+									"  [ -z \"$line\" ] && echo \"\" && exit 0;",
 									"  echo \"export $line\"",
 									"}",
 									"",
-									"[ ! -f $MOUNT_DIR ] && mkdir -p $MOUNT_DIR",
-									"rm -f $/MOUNT_DIR/$EXPORT_FILE",
+									"[ ! -d $MOUNT_DIR ] && mkdir -p $MOUNT_DIR",
+									"rm -f $MOUNT_DIR/$EXPORT_FILE",
+									"echo \"Creating $EXPORT_FILE ...\"",
 									"while read line ; do",
 									"  expline=\"$(getLineExport \"$line\")\" &&",
 									"  [ -n \"$expline\" ] &&",
+									"  echo \"Writing $expline ...\" &&",
 									"  echo $\"$expline\" >> $MOUNT_DIR/$EXPORT_FILE;",
-									"done < $PROPERTIES_FILE"
+									"done < $PROPERTIES_FILE",
+									"",
+									"exit 0"
+								]]},
+								"mode" : "000775",
+								"owner" : "root",
+								"group" : "root"
+							},
+							"/var/kuali/docker/build.context/Dockerfile" : {
+								"content" : { "Fn::Join" : [ "\n", [
+									" # Create a Dockerfile for basic node application",
+									"FROM node:8",
+									"ENV AARDVARK1=HELLO",
+									"WORKDIR /app",
+									"COPY package*.json ./",
+									"RUN npm install",
+									"COPY index.js .",
+									"EXPOSE 8080",
+									"COPY start-node.sh .",
+									"CMD [ \"/app/start-node.sh\" ]"
+								]]},
+								"mode" : "000775",
+								"owner" : "root",
+								"group" : "root"
+							},
+							"/var/kuali/docker/build.context/index.js" : {
+								"content" : { "Fn::Join" : [ "\n", [
+									"// Create a default page for node website that lists all environment variables",
+									"'use strict';",
+									"",
+									"const express = require('express');",
+									"const PORT = 8080;",
+									"const HOST = '0.0.0.0';",
+									"const app = express();",
+									"",
+									"app.get('/', (req, res) => {",
+									"  res.contentType('application/json');",
+									"  res.send(JSON.stringify(process.env, null, 4));",
+									"});",
+									"",
+									"app.listen(PORT, HOST);",
+									"console.log(`Running on http://${HOST}:${PORT}`);"
+								]]},
+								"mode" : "000775",
+								"owner" : "root",
+								"group" : "root"
+							},
+							"/var/kuali/docker/build.context/package.json" : {
+								"content" : { "Fn::Join" : [ "\n", [
+									"{",
+									"  \"name\": \"environment_var_test\",",
+									"  \"version\": \"1.0.0\",",
+									"  \"description\": \"Testing environment variables\",",
+									"  \"author\": \"Warren Hennemuth <wrh@bu.edu>\",",
+									"  \"main\": \"index.js\",",
+									"  \"scripts\": {",
+									"    \"start\": \"node index.js\"",
+									"  },",
+									"  \"dependencies\": {",
+									"    \"express\": \"^4.16.1\"",
+									"  }",
+									"}"
+								]]},
+								"mode" : "000775",
+								"owner" : "root",
+								"group" : "root"
+							},
+							"/var/kuali/docker/build.context/start-node.sh" : {
+								"content" : { "Fn::Join" : [ "\n", [
+									"#!/bin/bash",
+									"",
+									"# Export all environment variables in the mounted directory before starting node",
+									"if [ -f /var/env/env.export.sh ] ; then",
+									"  source /var/env/env.export.sh",
+									"else",
+									"  touch /var/env/$(date +%T).missing.env.file",
+									"fi",
+									"",
+									"npm start"
+								]]},
+								"mode" : "000775",
+								"owner" : "root",
+								"group" : "root"
+							},
+							"/var/kuali/docker/build.context/docker.sh" : {
+								"content" : { "Fn::Join" : [ "\n", [
+									"#!/bin/bash",
+									"# Create script to build docker image and run container (re-runnable)",
+									"",
+									"build() {",
+									"  if [ \"$1\" == \"clean\" ] ; then",
+									"    if [ -n \"$(docker ps -a | grep nodetest)\" ] ; then",
+									"      docker rm -f nodetest",
+									"    fi",
+									"  fi",
+									"  docker build -t nodeserver:v1 .",
+									"}",
+									"",
+									"run() {",
+									"  if [ -n \"$(docker ps -a | grep nodetest)\" ] ; then",
+									"    docker rm -f nodetest",
+									"  fi",
+									"  docker run -d --name=nodetest -p 80:8080 -e AARDVARK2=GOODBYE -v /var/kuali/core:/var/env nodeserver:v1",
+									"}",
+									"",
+									"if [ ! $1 ] ; then",
+									"  echo \"Missing parameter!\" && return 1;",
+									"elif [ $1 == 'build' ] ; then",
+									"  echo \"Building...\"",
+									"  if [ $2 == 'run' ] ; then",
+									"    build clean",
+									"    echo \"Running...\"",
+									"    run",
+									"  else",
+									"    build",
+									"  fi",
+									"elif [ $1 == 'run' ] ; then",
+									"  echo \"Running...\"",
+									"  run",
+									"else",
+									"  echo \"Unrecognized parameter $1\"",
+									"  return 1",
+									"fi"
 								]]},
 								"mode" : "000775",
 								"owner" : "root",
 								"group" : "root"
 							}
 						}
-
 					},
 					"runCommands" : {
 						"commands" : {
@@ -161,11 +289,15 @@
 							"02_set_core_environment_variables_script" : {
 								"cwd" : "/var/kuali",
 								"env" : {
-									"PROPERTIES_FILE" : { "Fn::Sub" : "core/environment.variables.s3" },
+									"PROPERTIES_FILE" : "core/environment.variables.s3",
 									"MOUNT_DIR" : "core",
 									"EXPORT_FILE" : "env.export.sh"
 								},
-								"command" : "source env.vars.sh"
+								"command" : "bash env.vars.sh"
+							},
+							"03_docker_build_image_run_container" : {
+								"cwd" : "/var/kuali/docker/build.context",
+								"command" : "bash docker.sh build run"
 							}
 						}
 					}
@@ -183,6 +315,12 @@
 						"IpProtocol" : "tcp",
                         "FromPort" : "22",
                         "ToPort" : "22",
+                        "CidrIp" : "0.0.0.0/0"
+					},
+					{
+						"IpProtocol" : "tcp",
+                        "FromPort" : "80",
+                        "ToPort" : "80",
                         "CidrIp" : "0.0.0.0/0"
 					}
 				]

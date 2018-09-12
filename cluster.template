@@ -217,7 +217,7 @@
 					"   usermod -aG wheel $user && \\",
 					"   mkdir /home/$user/.ssh && \\",
 					"   chmod 700 /home/$user/.ssh && \\",
-					"   chown -R /home/$user",
+					"   chown -R $user:$user /home/$user",
 					"done",
 					"",
 					"# Implement all the metadata in AWS::CloudFormation::Init",
