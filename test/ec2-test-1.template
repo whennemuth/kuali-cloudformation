@@ -82,8 +82,7 @@
                 },
 				"AWS::CloudFormation::Init" : {
 					"configSets" : {
-						"AllConfigs" : [ "getFiles", "runCommands" ],
-						"Testing" : [ "test" ]
+						"AllConfigs" : [ "getFiles", "runCommands" ]
 					}, 
 					"getFiles" : {
 						"packages" : {
@@ -126,43 +125,11 @@
 								"owner" : "root",
 								"group" : "root"
 							},
-							"/var/kuali/env.vars.sh" : {
-								"content" : { "Fn::Join" : [ "\n", [
-									"#!/bin/bash",
-									"# Save a version of a properties file as a bash script that exports the properties as environment variables",
-									"# The docker container will run this when it starts up from a mounted directory.",
-									"",
-									"# If no properties file came down from the s3 bucket, return with an error",
-									"[ ! -f $PROPERTIES_FILE ] && echo \"$PROPERTIES_FILE is missing!\" && return 1",
-									"",
-									"getLineExport() {",
-									"  local line=$(echo -n \"$1\" | xargs) # Use xargs to trim the line.",
-									"  [ \"${line:0:1}\" == \"#\" ] && echo \"\" && exit 0;",
-									"  [ -z \"$line\" ] && echo \"\" && exit 0;",
-									"  echo \"export $line\"",
-									"}",
-									"",
-									"[ ! -d $MOUNT_DIR ] && mkdir -p $MOUNT_DIR",
-									"rm -f $MOUNT_DIR/$EXPORT_FILE",
-									"echo \"Creating $EXPORT_FILE ...\"",
-									"while read line ; do",
-									"  expline=\"$(getLineExport \"$line\")\" &&",
-									"  [ -n \"$expline\" ] &&",
-									"  echo \"Writing $expline ...\" &&",
-									"  echo $\"$expline\" >> $MOUNT_DIR/$EXPORT_FILE;",
-									"done < $PROPERTIES_FILE",
-									"",
-									"exit 0"
-								]]},
-								"mode" : "000775",
-								"owner" : "root",
-								"group" : "root"
-							},
 							"/var/kuali/docker/build.context/Dockerfile" : {
 								"content" : { "Fn::Join" : [ "\n", [
 									" # Create a Dockerfile for basic node application",
 									"FROM node:8",
-									"ENV AARDVARK1=HELLO",
+									"ENV AARDVARK=HELLO",
 									"WORKDIR /app",
 									"COPY package*.json ./",
 									"RUN npm install",
@@ -221,11 +188,27 @@
 								"content" : { "Fn::Join" : [ "\n", [
 									"#!/bin/bash",
 									"",
+									"# Turn a name=value line into an \"export name=value\" line",
+									"getLineExport() {",
+									"  local line=$(echo -n \"$1\" | xargs) # Use xargs to trim the line.",
+									"  # Return and empty string if the line is a properties file comment", 
+									"  [ \"${line:0:1}\" == \"#\" ] && echo \"\" && exit 0;",
+									"  [ -z \"$line\" ] && echo \"\" && exit 0;",
+									"  echo \"export $line\"",
+									"}",
+									"",
 									"# Export all environment variables in the mounted directory before starting node",
-									"if [ -f /var/env/env.export.sh ] ; then",
-									"  source /var/env/env.export.sh",
-									"else",
-									"  touch /var/env/$(date +%T).missing.env.file",
+									"if [ $ENV_FILE ] && [ ! -f /var/env/$ENV_FILE ] ; then",
+									"  echo \"ERROR! MISSING /var/env/$ENV_FILE\"",
+									"  exit 1",
+									"elif [ $ENV_FILE ] ; then",
+									"  echo \"Exporting environment variables...\"",
+									"  while read line ; do",
+									"    expline=\"$(getLineExport \"$line\")\" &&",
+									"    [ -n \"$expline\" ] &&",
+									"    echo \"Setting env var $(echo \"$expline\" | cut -f1 -d '=')\" &&",
+									"    eval \"$expline\"",
+									"  done < /var/env/$ENV_FILE",
 									"fi",
 									"",
 									"npm start"
@@ -252,7 +235,7 @@
 									"  if [ -n \"$(docker ps -a | grep nodetest)\" ] ; then",
 									"    docker rm -f nodetest",
 									"  fi",
-									"  docker run -d --name=nodetest -p 80:8080 -e AARDVARK2=GOODBYE -v /var/kuali/core:/var/env nodeserver:v1",
+									"  docker run -d --name=nodetest -p 80:8080 -e ENV_FILE=${ENV_FILE} -v /var/kuali/core:/var/env nodeserver:v1",
 									"}",
 									"",
 									"if [ ! $1 ] ; then",
@@ -286,17 +269,11 @@
 								"cwd" : "/var/kuali",
 								"command" : { "Fn::Sub" : "aws s3 cp --recursive s3://kuali-research-ec2-setup/${Landscape}/ ." }
 							},
-							"02_set_core_environment_variables_script" : {
-								"cwd" : "/var/kuali",
-								"env" : {
-									"PROPERTIES_FILE" : "core/environment.variables.s3",
-									"MOUNT_DIR" : "core",
-									"EXPORT_FILE" : "env.export.sh"
-								},
-								"command" : "bash env.vars.sh"
-							},
-							"03_docker_build_image_run_container" : {
+							"02_docker_build_image_run_container" : {
 								"cwd" : "/var/kuali/docker/build.context",
+								"env" : {
+									"ENV_FILE" : "environment.variables.s3"
+								},
 								"command" : "bash docker.sh build run"
 							}
 						}
