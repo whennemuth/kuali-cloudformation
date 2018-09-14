@@ -1,7 +1,7 @@
 {
 	"AWSTemplateFormatVersion" : "2010-09-09",
 
-	"Description" : "Create a new micro EC2 ecs-optimized instance to test out UserData and MetaData settings for a simple node app",
+	"Description" : "Create a new micro EC2 ecs-optimized instance to test out UserData and MetaData settings of the cor-main app",
 
 	"Parameters" : {
 		"EC2InstanceType" : {
@@ -42,6 +42,7 @@
 					"#!/bin/bash",
 					"yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm",
 					"yum install -y aws-cfn-bootstrap",
+					"yum install -y git",
 					"",
 					"# Modify the sudoers file so that anyone in the wheel group can be a sudoer",
 					"chmod u+w /etc/sudoers && \\",
@@ -82,7 +83,8 @@
                 },
 				"AWS::CloudFormation::Init" : {
 					"configSets" : {
-						"AllConfigs" : [ "getFiles", "runCommands" ]
+						"AllConfigs" : [ "getFiles", "runCommands" ],
+						"OnlyCommands" : [ "runCommands" ]
 					}, 
 					"getFiles" : {
 						"packages" : {
@@ -125,66 +127,59 @@
 								"owner" : "root",
 								"group" : "root"
 							},
-							"/var/kuali/docker/build.context/Dockerfile" : {
+							"/root/.ssh/git_rsa_key" : {
+								"source" : "https://s3.amazonaws.com/kuali-research-ec2-setup/bu_github_id_docker_rsa",
+								"mode" : "000600",
+								"owner" : "root",
+								"group" : "root"
+							},
+							"/var/kuali/scripts/s3.download.configs.sh" : {
 								"content" : { "Fn::Join" : [ "\n", [
-									" # Create a Dockerfile for basic node application",
-									"FROM node:8",
-									"ENV AARDVARK=HELLO",
-									"WORKDIR /app",
-									"COPY package*.json ./",
-									"RUN npm install",
-									"COPY index.js .",
-									"EXPOSE 8080",
-									"COPY start-node.sh .",
-									"CMD [ \"/app/start-node.sh\" ]"
+									"#!/bin/bash",
+									"",
+									"echo \"Downloading all configurations for the container from the s3 bucket\"",
+									"[ ! -d /var/kuali/s3 ] && mkdir /var/kuali/s3",
+									"cd /var/kuali/s3",
+									"aws s3 sync --delete s3://kuali-research-ec2-setup/${LANDSCAPE}/ ."
 								]]},
 								"mode" : "000775",
 								"owner" : "root",
 								"group" : "root"
 							},
-							"/var/kuali/docker/build.context/index.js" : {
+							"/var/kuali/scripts/git.download.docker.scripts.sh" : {
 								"content" : { "Fn::Join" : [ "\n", [
-									"// Create a default page for node website that lists all environment variables",
-									"'use strict';",
+									"#!/bin/bash",
 									"",
-									"const express = require('express');",
-									"const PORT = 8080;",
-									"const HOST = '0.0.0.0';",
-									"const app = express();",
+									"# Download the master branch of the docker git repository into a \"docker\" subdirectory",
+									"if [ ! -d /var/kuali/docker ] ; then",
+									"  mkdir /var/kuali/docker",
+									"  cd /var/kuali/docker",
+									"  git init",
+									"  git remote add github git@github.com:bu-ist/kuali-research-docker.git",
+									"else",
+									"  cd /var/kuali/docker",
+									"fi",
 									"",
-									"app.get('/', (req, res) => {",
-									"  res.contentType('application/json');",
-									"  res.send(JSON.stringify(process.env, null, 4));",
-									"});",
+									"if [ -n \"$(git status -s -z)\" ] ; then",
+									"  echo \"Git Pull: Found local changes! Sorry, these changes will be lost.\"",
+									"fi",
 									"",
-									"app.listen(PORT, HOST);",
-									"console.log(`Running on http://${HOST}:${PORT}`);"
+									"if [ ! -f ~/.ssh/known_hosts ] || [ -z \"$(cat ~/.ssh/known_hosts | grep 'github.com')\" ] ; then",
+									"  ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts",
+									"fi",
+									"",
+									"echo \"Fetching from upstream and performing hard reset\"",
+									"eval `ssh-agent -s`",
+									"ssh-add ~/.ssh/git_rsa_key",
+									"git fetch github master",
+									"git reset --hard FETCH_HEAD",
+									"eval `ssh-agent -k`"
 								]]},
 								"mode" : "000775",
 								"owner" : "root",
 								"group" : "root"
 							},
-							"/var/kuali/docker/build.context/package.json" : {
-								"content" : { "Fn::Join" : [ "\n", [
-									"{",
-									"  \"name\": \"environment_var_test\",",
-									"  \"version\": \"1.0.0\",",
-									"  \"description\": \"Testing environment variables\",",
-									"  \"author\": \"Warren Hennemuth <wrh@bu.edu>\",",
-									"  \"main\": \"index.js\",",
-									"  \"scripts\": {",
-									"    \"start\": \"node index.js\"",
-									"  },",
-									"  \"dependencies\": {",
-									"    \"express\": \"^4.16.1\"",
-									"  }",
-									"}"
-								]]},
-								"mode" : "000775",
-								"owner" : "root",
-								"group" : "root"
-							},
-							"/var/kuali/docker/build.context/start-node.sh" : {
+							"/var/kuali/scripts/process.env.file.sh" : {
 								"content" : { "Fn::Join" : [ "\n", [
 									"#!/bin/bash",
 									"",
@@ -198,83 +193,73 @@
 									"}",
 									"",
 									"# Export all environment variables in the mounted directory before starting node",
-									"if [ $ENV_FILE ] && [ ! -f /var/env/$ENV_FILE ] ; then",
-									"  echo \"ERROR! MISSING /var/env/$ENV_FILE\"",
+									"if [ ! -f $ENV_FILE_FROM_S3 ] ; then",
+									"  echo \"ERROR! MISSING $ENV_FILE_FROM_S3\"",
 									"  exit 1",
-									"elif [ $ENV_FILE ] ; then",
+									"elif [ ! -d $DOCKER_BUILD_CONTEXT ] ; then",
+									"  echo \"ERROR! MISSING config directory: $DOCKER_BUILD_CONTEXT\"",
+									"  exit 1",
+									"else",
 									"  echo \"Exporting environment variables...\"",
+									"  rm -f $DOCKER_BUILD_CONTEXT/exports.sh",
 									"  while read line ; do",
 									"    expline=\"$(getLineExport \"$line\")\" &&",
 									"    [ -n \"$expline\" ] &&",
 									"    echo \"Setting env var $(echo \"$expline\" | cut -f1 -d '=')\" &&",
-									"    eval \"$expline\"",
-									"  done < /var/env/$ENV_FILE",
+									"    echo \"$expline\" >> $DOCKER_BUILD_CONTEXT/exports.sh",
+									"  done < $ENV_FILE_FROM_S3",
 									"fi",
 									"",
-									"npm start"
-								]]},
-								"mode" : "000775",
-								"owner" : "root",
-								"group" : "root"
-							},
-							"/var/kuali/docker/build.context/docker.sh" : {
-								"content" : { "Fn::Join" : [ "\n", [
-									"#!/bin/bash",
-									"# Create script to build docker image and run container (re-runnable)",
-									"",
-									"build() {",
-									"  if [ \"$1\" == \"clean\" ] ; then",
-									"    if [ -n \"$(docker ps -a | grep nodetest)\" ] ; then",
-									"      docker rm -f nodetest",
-									"    fi",
-									"  fi",
-									"  docker build -t nodeserver:v1 .",
-									"}",
-									"",
-									"run() {",
-									"  if [ -n \"$(docker ps -a | grep nodetest)\" ] ; then",
-									"    docker rm -f nodetest",
-									"  fi",
-									"  docker run -d --name=nodetest -p 80:8080 -e ENV_FILE=${ENV_FILE} -v /var/kuali/core:/var/env nodeserver:v1",
-									"}",
-									"",
-									"if [ ! $1 ] ; then",
-									"  echo \"Missing parameter!\" && return 1;",
-									"elif [ $1 == 'build' ] ; then",
-									"  echo \"Building...\"",
-									"  if [ $2 == 'run' ] ; then",
-									"    build clean",
-									"    echo \"Running...\"",
-									"    run",
-									"  else",
-									"    build",
-									"  fi",
-									"elif [ $1 == 'run' ] ; then",
-									"  echo \"Running...\"",
-									"  run",
-									"else",
-									"  echo \"Unrecognized parameter $1\"",
-									"  return 1",
-									"fi"
+									"exit 0"
 								]]},
 								"mode" : "000775",
 								"owner" : "root",
 								"group" : "root"
 							}
+						},
+						"/var/kuali/scripts/start.app.sh" : {
+							"content" : { "Fn::Join" : [ "\n", [
+									"#!/bin/bash",
+									"",
+									""
+								]]},
+								"mode" : "000775",
+								"owner" : "root",
+								"group" : "root"
 						}
 					},
 					"runCommands" : {
 						"commands" : {
 							"01_get_configs_from_s3" : {
-								"cwd" : "/var/kuali",
-								"command" : { "Fn::Sub" : "aws s3 cp --recursive s3://kuali-research-ec2-setup/${Landscape}/ ." }
-							},
-							"02_docker_build_image_run_container" : {
-								"cwd" : "/var/kuali/docker/build.context",
+								"cwd" : "/var/kuali/scripts",
 								"env" : {
-									"ENV_FILE" : "environment.variables.s3"
+									"LANDSCAPE" : { "Fn::Sub" : "${Landscape}" }
 								},
-								"command" : "bash docker.sh build run"
+								"command" : "bash s3.download.configs.sh"
+							},
+							"02_get_docker_scripts_from_github" : {
+								"cwd" : "/var/kuali/scripts",
+								"command" : "bash git.download.docker.scripts.sh"
+							},
+							"03_create_env_exports_file" : {
+								"cwd" : "/var/kuali/scripts",
+								"env" : {
+									"ENV_FILE_FROM_S3" : "/var/kuali/s3/core/environment.variables.s3",
+									"DOCKER_BUILD_CONTEXT" : "/var/kuali/docker/core/build.context"
+								},
+								"command" : "bash process.env.file.sh"
+							},
+							"04_docker_run_container" : {
+								"cwd" : "/var/kuali/docker/core/build.context",
+								"env" : {
+									"CORE_HOST" : "",
+									"LANDSCAPE" : { "Fn::Sub" : "${Landscape}" },
+									"RSYNC" : "true",
+									"ROOT_DIR" : "/var/kuali/docker/core/build.context",
+									"RENEW_CONFIGS" : "false",
+									"INTERACTIVE" : "false"
+								},
+								"command" : "echo \"TODO: collect the right parameters and invoke docker.sh\""
 							}
 						}
 					}
