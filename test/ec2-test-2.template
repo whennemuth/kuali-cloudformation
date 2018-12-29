@@ -20,7 +20,17 @@
             "Type" : "String",
 			"Description" : "The S3 bucket where our config files, keys, etc. are stored",
 			"Default" : "kuali-research-ec2-setup"
-        }
+        },
+		"DockerRepositoryURI" : {
+			"Type" : "String",
+			"Description" : "The URI to for the docker repository containing the docker image we need to run a container",
+			"Default" : "730096353738.dkr.ecr.us-east-1.amazonaws.com/core"
+		},
+		"DockerImageTag" : {
+			"Type" : "String",
+			"Description" : "The version of the cor-main docker image to pull from the docker registry",
+			"Default" : "1810.0020"
+		}
 	},
 
     "Metadata" : {
@@ -128,10 +138,10 @@
 								"group" : "root"
 							},
 							"/root/.ssh/git_rsa_key" : {
-								"source" : "https://s3.amazonaws.com/kuali-research-ec2-setup/bu_github_id_docker_rsa",
 								"mode" : "000600",
 								"owner" : "root",
-								"group" : "root"
+								"group" : "root",
+								"source" : { "Fn::Sub" : "https://s3.amazonaws.com/${ConfigBucket}/bu_github_id_docker_rsa"}
 							},
 							"/var/kuali/scripts/s3.download.configs.sh" : {
 								"content" : { "Fn::Join" : [ "\n", [
@@ -140,40 +150,7 @@
 									"echo \"Downloading all configurations for the container from the s3 bucket\"",
 									"[ ! -d /var/kuali/s3 ] && mkdir /var/kuali/s3",
 									"cd /var/kuali/s3",
-									"aws s3 sync --delete s3://kuali-research-ec2-setup/${LANDSCAPE}/ ."
-								]]},
-								"mode" : "000775",
-								"owner" : "root",
-								"group" : "root"
-							},
-							"/var/kuali/scripts/git.download.docker.scripts.sh" : {
-								"content" : { "Fn::Join" : [ "\n", [
-									"#!/bin/bash",
-									"",
-									"# Download the master branch of the docker git repository into a \"docker\" subdirectory",
-									"if [ ! -d /var/kuali/docker ] ; then",
-									"  mkdir /var/kuali/docker",
-									"  cd /var/kuali/docker",
-									"  git init",
-									"  git remote add github git@github.com:bu-ist/kuali-research-docker.git",
-									"else",
-									"  cd /var/kuali/docker",
-									"fi",
-									"",
-									"if [ -n \"$(git status -s -z)\" ] ; then",
-									"  echo \"Git Pull: Found local changes! Sorry, these changes will be lost.\"",
-									"fi",
-									"",
-									"if [ ! -f ~/.ssh/known_hosts ] || [ -z \"$(cat ~/.ssh/known_hosts | grep 'github.com')\" ] ; then",
-									"  ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts",
-									"fi",
-									"",
-									"echo \"Fetching from upstream and performing hard reset\"",
-									"eval `ssh-agent -s`",
-									"ssh-add ~/.ssh/git_rsa_key",
-									"git fetch github master",
-									"git reset --hard FETCH_HEAD",
-									"eval `ssh-agent -k`"
+									"aws s3 sync --delete s3://kuali-research-ec2-setup/${LANDSCAPE}/core/ ."
 								]]},
 								"mode" : "000775",
 								"owner" : "root",
@@ -192,22 +169,28 @@
 									"  echo \"export $line\"",
 									"}",
 									"",
-									"# Export all environment variables in the mounted directory before starting node",
+									"# Create a script to export all environment variables in the mounted directory before starting node",
 									"if [ ! -f $ENV_FILE_FROM_S3 ] ; then",
 									"  echo \"ERROR! MISSING $ENV_FILE_FROM_S3\"",
 									"  exit 1",
-									"elif [ ! -d $DOCKER_BUILD_CONTEXT ] ; then",
-									"  echo \"ERROR! MISSING config directory: $DOCKER_BUILD_CONTEXT\"",
-									"  exit 1",
 									"else",
-									"  echo \"Exporting environment variables...\"",
-									"  rm -f $DOCKER_BUILD_CONTEXT/exports.sh",
+									"  cd $(dirname $ENV_FILE_FROM_S3)",
+									"  CORE_HOST=$(cat /var/kuali/public-dns-name)",
+									"  rm -f export.sh",
+									"  echo \"Creating $(pwd)/export.sh...\"",
 									"  while read line ; do",
-									"    expline=\"$(getLineExport \"$line\")\" &&",
-									"    [ -n \"$expline\" ] &&",
-									"    echo \"Setting env var $(echo \"$expline\" | cut -f1 -d '=')\" &&",
-									"    echo \"$expline\" >> $DOCKER_BUILD_CONTEXT/exports.sh",
+									"    expline=\"$(getLineExport \"$line\")\" ",
+									"    [ -z \"$expline\" ] && continue",
+									"    prop=$(echo \"$expline\" | cut -f1 -d '=') ",
+									"    # Override some of the existing environment variables",
+									"    [ \"${prop^^}\" == \"CORE_HOST\" ] && expline=\"CORE_HOST=${CORE_HOST}\"",
+									"    [ \"${prop^^}\" == \"SHIB_HOST\" ] && expline=\"SHIB_HOST=\"",
+									"    [ \"${prop^^}\" == \"ROOT_DIR\" ]  && expline=\"ROOT_DIR=/var/core-temp\"",
+									"    echo \"Setting env var $prop\" ",
+									"    echo \"$expline\" >> export.sh",
 									"  done < $ENV_FILE_FROM_S3",
+									"",
+									"  echo \"# Testing: CORE_HOST=http://$(curl -s http://169.254.169.254/latest/meta-data/public-hostname)\"",
 									"fi",
 									"",
 									"exit 0"
@@ -215,51 +198,54 @@
 								"mode" : "000775",
 								"owner" : "root",
 								"group" : "root"
+							},
+							"/var/kuali/scripts/start.app.sh" : {
+								"content" : { "Fn::Join" : [ "\n", [
+										"#!/bin/bash",
+										"",
+										"echo \"Running docker container\"",
+										"",
+										"$(aws ecr get-login --no-include-email --region ${AWS::Region})",
+										"",
+										"docker run \\",
+										"  -d \\",
+										"  -p 3000:3000 \\",
+										"  -p 27017:27017 \\",
+										"  -p 9229:9229 \\",
+										"  --restart unless-stopped \\",
+										"  --name=core \\",
+										"  -v /var/kuali/s3:/var/core-config \\",
+										"  -v /var/kuali/scripts:/var/bash-scripts \\",
+										"  $DOCKER_IMAGE_NAME"
+									]]},
+									"mode" : "000775",
+									"owner" : "root",
+									"group" : "root"
 							}
-						},
-						"/var/kuali/scripts/start.app.sh" : {
-							"content" : { "Fn::Join" : [ "\n", [
-									"#!/bin/bash",
-									"",
-									""
-								]]},
-								"mode" : "000775",
-								"owner" : "root",
-								"group" : "root"
 						}
 					},
 					"runCommands" : {
 						"commands" : {
 							"01_get_configs_from_s3" : {
 								"cwd" : "/var/kuali/scripts",
-								"env" : {
-									"LANDSCAPE" : { "Fn::Sub" : "${Landscape}" }
-								},
+								"env" : { "LANDSCAPE" : { "Fn::Sub" : "${Landscape}" } },
 								"command" : "bash s3.download.configs.sh"
 							},
-							"02_get_docker_scripts_from_github" : {
-								"cwd" : "/var/kuali/scripts",
-								"command" : "bash git.download.docker.scripts.sh"
+							"02_get_public_dns_name" : {
+								"cwd" : "/var/kuali",
+								"command" : "curl -s http://169.254.169.254/latest/meta-data/public-hostname > public-dns-name"
 							},
 							"03_create_env_exports_file" : {
 								"cwd" : "/var/kuali/scripts",
-								"env" : {
-									"ENV_FILE_FROM_S3" : "/var/kuali/s3/core/environment.variables.s3",
-									"DOCKER_BUILD_CONTEXT" : "/var/kuali/docker/core/build.context"
-								},
+								"env" : { "ENV_FILE_FROM_S3" : "/var/kuali/s3/environment.variables.s3" },
 								"command" : "bash process.env.file.sh"
 							},
 							"04_docker_run_container" : {
-								"cwd" : "/var/kuali/docker/core/build.context",
+								"cwd" : "/var/kuali/scripts",
 								"env" : {
-									"CORE_HOST" : "",
-									"LANDSCAPE" : { "Fn::Sub" : "${Landscape}" },
-									"RSYNC" : "true",
-									"ROOT_DIR" : "/var/kuali/docker/core/build.context",
-									"RENEW_CONFIGS" : "false",
-									"INTERACTIVE" : "false"
+									"DOCKER_IMAGE_NAME" : { "Fn::Sub" : "${DockerRepositoryURI}:${DockerImageTag}" }
 								},
-								"command" : "echo \"TODO: collect the right parameters and invoke docker.sh\""
+								"command" : "bash start.app.sh"
 							}
 						}
 					}
@@ -311,18 +297,19 @@
 		        },
                 "Path" : "/",
                 "ManagedPolicyArns" : [
-					"arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess"
+					"arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess",
+					"arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
 				]
 		    }
 		}
 	},
 
 	"Outputs" : {
-		"PrivateIP" : {
-		    "Value" : {"Fn::GetAtt" : [ "MyMicro", "PrivateIp"]}
-		},
 		"PublicIP" : {
 		    "Value" : {"Fn::GetAtt" : [ "MyMicro", "PublicIp"]}
+		},
+		"PublicDnsName" : {
+			"Value" : {"Fn::GetAtt" : [ "MyMicro", "PublicDnsName"]}
 		}
 	}
 }
