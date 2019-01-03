@@ -61,7 +61,7 @@
                 "s3bucket" : "kuali-research-ec2-setup",
 				"s3files" : { "Fn::Join" : [ "\n", [
 					"{s3keyfiles: [",
-					"  {user:wrh,      keyfile:\"ecs/ssh-keys/rsa-key-wrh\"}",
+					"  {user:wrh,      keyfile:\"ecs/ssh-keys/rsa-key-wrh.pub\"}",
 					"]}"
 				]]},
 				"outputmask" : { "Fn::Join" : [ "\n", [

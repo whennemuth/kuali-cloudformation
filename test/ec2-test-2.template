@@ -203,9 +203,9 @@
 								"content" : { "Fn::Join" : [ "\n", [
 										"#!/bin/bash",
 										"",
-										"echo \"Running docker container\"",
+										"echo \"Running the core docker container\"",
 										"",
-										"$(aws ecr get-login --no-include-email --region ${AWS::Region})",
+										"$(aws ecr get-login --no-include-email --region ", { "Ref" : "AWS::Region" }, ")",
 										"",
 										"docker run \\",
 										"  -d \\",
@@ -269,6 +269,24 @@
 						"IpProtocol" : "tcp",
                         "FromPort" : "80",
                         "ToPort" : "80",
+                        "CidrIp" : "0.0.0.0/0"
+					},
+					{
+						"IpProtocol" : "tcp",
+                        "FromPort" : "3000",
+                        "ToPort" : "3000",
+                        "CidrIp" : "0.0.0.0/0"
+					},
+					{
+						"IpProtocol" : "tcp",
+                        "FromPort" : "27017",
+                        "ToPort" : "27017",
+                        "CidrIp" : "0.0.0.0/0"
+					},
+					{
+						"IpProtocol" : "tcp",
+                        "FromPort" : "9229",
+                        "ToPort" : "9229",
                         "CidrIp" : "0.0.0.0/0"
 					}
 				]

@@ -56,7 +56,7 @@
                 "Handler" : "edu.bu.ist.apps.aws.lambda.CustomResourceHandler",
                 "Code" : {
 					"S3Bucket" : "kuali-research-ec2-setup",
-                    "S3Key" : "ecs/cloudformation/lambda-utils.jar"
+                    "S3Key" : "ecs/cloudformation/lambda/lambda-utils.jar"
 				}
 			}
 		},

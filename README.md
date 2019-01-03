@@ -35,55 +35,116 @@ Once you click "Create stack" or "Create new stack"
 **Stack updates**
 You can either [Update the stack directly](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/using-cfn-updating-stacks-direct.html), or [Update the stack using a changeset](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/using-cfn-updating-stacks-direct.html), but if you want AWS to present a prediction of what affects the update will have (particularly deletions) before the update is implemented, then use the changeset.
 In any event, the updates would be written into the template file(s) and re-uploaded to the S3 bucket before starting. The stack update wizard will present you with the option of specifying the S3 url to update the stack or nested stack(s). This would not be necessary if simply updating to implement different parameters.
-Upgrades/releases to kuali-research as well as scheduled system maintenance or updates to the ec2 instances in the ECS cluster would be performed through stack updates.
+Upgrades/releases to kuali modules as well as scheduled system maintenance or updates to the EC2 instances in the ECS cluster would be performed through stack updates.
 
 ### <u>Stack Breakdown</u>
 
 1. [main.template](main.template)
+   All other templates are nested templates. This is the main template that invokes them all and comprises the whole stack set from Network infrastructure all the way to ECS task definitions.
+
+   RESOURCES :
+
+   - [AWS::Cloudformation:Stack](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-stack.html)
+
+   NOTES:
+
+   - NONE YET
 
 2. [vpc.template](vpc.template)
+   Creates a new virtual private cloud for our services with subnets, gateways, and route tables.
+
+   RESOURCES :
+
+   - [AWS::EC2::VPC](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-ec2-vpc.html)
+   - [AWS::EC2::InternetGateway](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-ec2-internetgateway.html)
+   - [AWS::EC2::VPCGatewayAttachment](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-ec2-vpc-gateway-attachment.html)
+   - [AWS::EC2::EIP](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-eip.html)
+   - [AWS::EC2::NatGateway](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-ec2-natgateway.html)
+   - [AWS::EC2::RouteTable](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-ec2-route-table.html)
+   - [AWS::EC2::Route](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-ec2-route.html)
+   - [AWS::EC2::SubnetRouteTableAssociation](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-ec2-subnet-route-table-assoc.html)
+
+   NOTES:
+
+   - NONE
 
 3. [subnet.template](subnet.template)
+   This template will create 2 private subnets whose CIDR blocks depends on the specified landscape and have 128 IPs each. 
+
+   RESOURCES :
+
+   - [AWS::EC2::Subnet](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-ec2-subnet.html)
+
+   NOTES:
+
+   - The goal is to have ready 2 subnets that the ECS cluster that corresponds to the landscape can span. As of now, there are 5 environments and the EC2 instances of the associated ECS cluster run in two availability zones, at least one of which overlaps with another landscape. This means 5 total availability zones across the landscapes. Currently us-east-1 will support this as it has zones A-F
 
 4. [security-group.template](security-group.template)
+   Establishes the security groups required throughout the VPC
+
+   RESOURCES :
+
+   - [AWS::EC2::SecurityGroup](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-security-group.html)
+
+   NOTES:
+
+   - NONE
 
 5. [alb.template](alb.template)
-   NOTE: We define a default target group in this template, as this is a mandatory parameter when creating an Application Load Balancer Listener. This is not used, instead a target group is created per-service in each service template. In order for the load balancer created in this template to load balance for the services, its LoadBalancerListener  is output from this template and fed in as a parameter to each service template, where it is set as a property of the ListenerRule of the TargetGroup of the service.
+   This template deploys an application load balancer that exposes the ECS services.
+
+   RESOURCES :
+
+   - [AWS::ElasticLoadBalancingV2::LoadBalancer](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-elasticloadbalancingv2-loadbalancer.html)
+   - [AWS::ElasticLoadBalancingV2::Listener](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-elasticloadbalancingv2-listener.html)
+   - [AWS::ElasticLoadBalancingV2::TargetGroup](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-elasticloadbalancingv2-targetgroup.html)
+
+   NOTES:
+
+   - We define a default target group in this template, as this is a mandatory parameter when creating an Application Load Balancer Listener. This is not used, instead a target group is created per-service in each service template. In order for the load balancer created in this template to load balance for the services, its LoadBalancerListener  is output from this template and fed in as a parameter to each service template, where it is set as a property of the ListenerRule of the TargetGroup of the service.
 
 6. [cluster.template](cluster.template)
+   This template defines EC2 instance creation for the ECS container instances that form the ECS cluster.     RESOURCES :
+
+   - [AWS::EC2::Instance](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-instance.html)
+   - [AWS::EC2::SecurityGroup](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-security-group.html)
+   - [AWS::IAM::Role](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-iam-role.html)
+   - [AWS::IAM::InstanceProfile](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-iam-instanceprofile.html)
+
+   NOTES:
+
+   - [What does and does not get changed when an EC2 instance undergoes a stack update](notes/ecs-cluster.md)
 
 7. [lifecycle-hook.template](lifecycle-hook.template)
-
    A [lifecycle hook](https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_LifecycleHook.html) tells Auto Scaling that you want to perform an action whenever it launches instances or whenever it terminates instances. For this ECS environment, we want to use the lifecycle hook to accomplish [Container Instance Draining](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/container-instance-draining.html).
+   RESOURCES :
 
-   > **TERMINOLOGY**
-   >
-   > [Container Instance](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ECS_instances.html):
-   >
-   > > *An Amazon ECS container instance is an Amazon EC2 instance that is running the Amazon ECS container agent and has been registered into a cluster.* 
-   >
-   > [Task Definition](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_definitions.html):
-   >
-   > > *After an Amazon ECS cluster is up and running, you can define task definitions and services that specify which Docker container images to run across your clusters. Container images are stored in and pulled from docker container registries.* 
+   - [AWS::AutoScaling::LifecycleHook](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-as-lifecyclehook.html)
+   - [AWS::SNS::Topic](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-sns-topic.html)
+   - [AWS::IAM::Role](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-iam-role.html)
+   - [AWS::Lambda::Function](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-lambda-function.html)
+   - [AWS::Lambda::Permission](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-lambda-permission.html)
 
-   NOTE: Container instance draining is not to be confused with connection draining.
+   NOTES:
 
-   1. [Connection Draining](https://docs.aws.amazon.com/elasticloadbalancing/latest/classic/config-conn-drain.html):
-      If you want to ensure that in-flight requests are completed before the ec2 instance servicing the request is de-registered for health check failure or a scaling event, you enable connection draining. This one of the following:
-
-      | Load balancer type | Connection Draining Configuration                            |
-      | :----------------- | :----------------------------------------------------------- |
-      | Classic ELB        | [AWS::ElasticLoadBalancing::LoadBalancer.Properties.ConnectionDrainingPolicy.Enabled:true,Timeout:[seconds]](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-elb.html#aws-resource-elasticloadbalancing-loadbalancer-example3.json) |
-      | V2 ELB             | [AWS::ElasticLoadBalancingV2::TargetGroup.Properties.TargetGroupAttributes.Key:deregistration_delay.timeout_seconds,Value:[seconds]](https://docs.aws.amazon.com/elasticloadbalancing/latest/APIReference/API_TargetGroupAttribute.html) |
-
-      We use the V2 ELB, but in either case, the timeout setting specifies how long to wait for in-flight requests to complete and the de-registration to proceed.
-
-   2. [Container Instance Draining](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/container-instance-draining.html):
-      Connection draining essentially prevents the client from experiencing the server being cut off in mid-reply to a request that was made to one of its tasks. But container instance draining involves a special transitional state applied to a container instance having to do with its lifecycle.
-      You put the container instance into a DRAINING state, which prevents new tasks from being launched and signals ECS to put replacement tasks on other instances in the cluster.
-      You would then watch while the container instance is "drained" of its tasks as ECS attempts to maintain capacity, as defined in the minimum/maximum HealthyPercent configuration of the service, by redistributing it on the non-draining instances in the cluster.
-      Terminating the instance without draining it could cause a disruption to this process - ECS would be unable ensure the proper capacity of the service (at least for a while).
-      ​         *<u>Lamdbda function</u>*: In this template we [automate](https://aws.amazon.com/blogs/compute/how-to-automate-container-instance-draining-in-amazon-ecs/) container instance draining by creating an event that is triggered when a container instance goes into a TERMINATING transition whereby the event calls a lambda function that holds the container instance in a DRAINING state until all tasks have been stopped. It then lets ECS complete the TERMINATING transition. This lambda function is essentially a for loop and a sleep statement that loops through each task in the service on the instance at an interval and only removes the DRAINING state when all tasks are found to have been stopped (loop exits). You can also include in the lambda function whatever other custom functionality you need.
+   - [Container instance draining is not to be confused with connection draining](notes/lifecycle-hook.md)
 
 8. [service-core.template](service-core.template)
+   This service contains one task definition that runs the kuali cor-main application. Basically a docker image is defined along with policies for auto-scaling it as docker containers across the cluster and a tie-in with the application load balancer created earlier.
+
+   RESOURCES :
+
+   - [AWS::ECS::Service](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-ecs-service.html)
+   - [AWS::ECS::TaskDefinition](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-ecs-taskdefinition.html)
+   - [AWS::Logs::LogGroup](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-logs-loggroup.html)
+   - [AWS::ElasticLoadBalancingV2::TargetGroup](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-elasticloadbalancingv2-targetgroup.html)
+   - [AWS::ElasticLoadBalancingV2::ListenerRule](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-elasticloadbalancingv2-listenerrule.html)
+   - [AWS::IAM::Role](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-iam-role.html)
+   - [AWS::ApplicationAutoScaling::ScalableTarget](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-applicationautoscaling-scalabletarget.html)
+   - [AWS::ApplicationAutoScaling::ScalingPolicy](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-applicationautoscaling-scalingpolicy.html)
+   - [AWS::CloudWatch::Alarm](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-cw-alarm.html)
+
+   NOTES:
+
+   - NONE
 
