@@ -61,7 +61,7 @@
    Technically, the stack was updated with both changes. The EC2 instance now has a new security group and a new subset of metadata that instructs what to do when the EC2 instance is "initialized". Initialization is not something a stack update concerns itself with, only the metadata the initialization consumes when it happens. You still have to explicitly invoke those new metadata instructions - this is beyond the stack update itself.
 
    <u>REMEDY</u>:
-   Part of defining the EC2 instance includes mechanisms for ensuring that it is modified in place whenever changes to the cloud formation stack on which it is based are made. EC2 instances that are based of the Amazon Linux AMI come with a library of python [helper scripts](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/cfn-helper-scripts-reference.html) in the bin directory that can be used, among other things, to perform and automate these updates.
+   Part of defining the EC2 instance includes mechanisms for ensuring that it is modified in place whenever changes to the cloud formation stack on which it is based are made. EC2 instances that are based of the Amazon ECS-Optimized Amazon Linux AMI come with a library of python [helper scripts](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/cfn-helper-scripts-reference.html) in the bin directory that can be used, among other things, to perform and automate these updates.
    So, in order to get the awscli.conf file from the example refreshed after a stack update you have the following options:
 
    1. MANUALLY:
@@ -93,7 +93,7 @@
       } ...
       ```
 
-      Then add a service that polls the cloudformation "mothership" for updates to metadata.
+      Then make cfn-hup a service that polls the cloudformation "mothership" for updates to metadata.
 
       ```
       "services" : {
@@ -107,9 +107,7 @@
             ]
             ...
       ```
-
-
-      A service means a daemon process that uses cfn-hup at regular intervals. If cfn-hup determines an update was made to the stack against the resource in question, cfn-init is called.
+   A service means a daemon process, and this one uses cfn-hup at regular intervals. If cfn-hup determines an update was made to the stack against the resource in question, cfn-init is called.
 
 2. 
 

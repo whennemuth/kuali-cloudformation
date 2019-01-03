@@ -94,7 +94,8 @@
 				"AWS::CloudFormation::Init" : {
 					"configSets" : {
 						"AllConfigs" : [ "getFiles", "runCommands" ],
-						"OnlyCommands" : [ "runCommands" ]
+						"GetFiles" : [ "getFiles" ],
+						"RunCommands" : [ "runCommands" ]
 					}, 
 					"getFiles" : {
 						"packages" : {
@@ -205,7 +206,7 @@
 										"",
 										"echo \"Running the core docker container\"",
 										"",
-										"$(aws ecr get-login --no-include-email --region ", { "Ref" : "AWS::Region" }, ")",
+										{ "Fn::Sub" : "$(aws ecr get-login --no-include-email --region ${AWS::Region})" },
 										"",
 										"docker run \\",
 										"  -d \\",
