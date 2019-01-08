@@ -1,13 +1,13 @@
 {
 	"AWSTemplateFormatVersion" : "2010-09-09",
 
-	"Description" : "Create a new micro EC2 ecs-optimized instance to test out UserData and MetaData settings of the cor-main app",
+	"Description" : "Create a new T2 EC2 ecs-optimized instance to test out UserData and MetaData settings of the cor-main app",
 
 	"Parameters" : {
 		"EC2InstanceType" : {
 		    "Type" : "String",
-            "AllowedValues" : [ "t2.nano", "t2.micro", "t2.small", "t2.medium", "t2.large", "t2.xlarge" ],
-            "Default" : "t2.micro"
+            "AllowedValues" : [ "t2.small", "t2.medium", "t2.large", "t2.xlarge" ],
+            "Default" : "t2.small"
 		},
 		"Landscape" : {
 			"Description": "Specify which landscape to build into the VPC",
@@ -34,20 +34,20 @@
 	},
 
     "Metadata" : {
-		"NOTES-1" : "To get the ec2 instance into the BU VPC, add the following to MyMicro.Properties: \"SubnetId\" : \"subnet-61377139\","
+		"NOTES-1" : "To get the ec2 instance into the BU VPC, add the following to MyEC2Instance.Properties: \"SubnetId\" : \"subnet-61377139\","
 	},
 
 	"Resources" : {
-		"MyMicro" : {
+		"MyEC2Instance" : {
 			"Type" : "AWS::EC2::Instance",
-            "Description" : "Micro instance for testing UserData and MetaData settings.",
+            "Description" : "T2nstance for testing UserData and MetaData settings.",
 			"Properties" : {
 				"Tags" : [ { "Key" : "Name", "Value" : "buaws-wrh-ecs-ec2-test1" } ],
 				"ImageId" : "ami-00129b193dc81bc31",
 				"InstanceType" : { "Ref" : "EC2InstanceType" },
-                "SecurityGroups" : [ { "Ref" : "MyMicroSecurityGroup" } ],
+                "SecurityGroups" : [ { "Ref" : "MyEC2InstanceSecurityGroup" } ],
 				"KeyName" : "buaws-kuali-rsa-warren",
-                "IamInstanceProfile" : { "Ref" : "MyMicroProfile" },
+                "IamInstanceProfile" : { "Ref" : "MyEC2InstanceProfile" },
                 "UserData" : { "Fn::Base64" : { "Fn::Join" : [ "\n", [
 					"#!/bin/bash",
 					"yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm",
@@ -75,10 +75,10 @@
 					"# Implement all the metadata in AWS::CloudFormation::Init",
 					"/opt/aws/bin/cfn-init \\",
 					"   -v \\",
-					"   --configsets AllConfigs \\",
+					"   --configsets GetFiles \\",
 					{ "Fn::Sub" : "   --region ${AWS::Region} \\" },
 					{ "Fn::Sub" : "   --stack ${AWS::StackName} \\" },
-					"   --resource MyMicro"
+					"   --resource MyEC2Instance"
 				]]}}
 			},
             "Metadata" : {
@@ -86,16 +86,23 @@
                     "S3AccessCreds": {
                         "type": "S3",
                         "roleName": {
-                            "Ref": "MyMicroS3Role"
+                            "Ref": "MyEC2InstanceS3Role"
                         },
 						"buckets" : [ { "Ref" : "ConfigBucket" } ]
                     }
                 },
 				"AWS::CloudFormation::Init" : {
 					"configSets" : {
-						"AllConfigs" : [ "getFiles", "runCommands" ],
+						"AllConfigs" : [ "getFiles", { "ConfigSet" : "RunCommands" } ],
 						"GetFiles" : [ "getFiles" ],
-						"RunCommands" : [ "runCommands" ]
+						"RunCommands" : [ 
+							{ "ConfigSet" : "cmd01"}, 
+							{ "ConfigSet" : "cmd02"}, 
+							{ "ConfigSet" : "cmd03"} 
+						],
+						"cmd01" : [ "01_get_configs_from_s3" ],
+						"cmd02" : [ "02_create_env_exports_file" ], 
+						"cmd03" : [ "03_docker_run_container" ]
 					}, 
 					"getFiles" : {
 						"packages" : {
@@ -161,13 +168,18 @@
 								"content" : { "Fn::Join" : [ "\n", [
 									"#!/bin/bash",
 									"",
-									"# Turn a name=value line into an \"export name=value\" line",
+									"# Turn a name=value line into an \"export name=\"value\"\" line",
 									"getLineExport() {",
 									"  local line=$(echo -n \"$1\" | xargs) # Use xargs to trim the line.",
 									"  # Return and empty string if the line is a properties file comment", 
 									"  [ \"${line:0:1}\" == \"#\" ] && echo \"\" && exit 0;",
 									"  [ -z \"$line\" ] && echo \"\" && exit 0;",
-									"  echo \"export $line\"",
+									"  if [ -n \"$(echo $testline | grep -P '\\x22')\" ] ; then", 
+									"    echo \"export $line\"",
+									"  else",
+									"    # Put double quotes around the exported variable value",
+									"    echo \"export $(echo $line | sed 's/=/=\"/1')\\\"\"",
+									"  fi",
 									"}",
 									"",
 									"# Create a script to export all environment variables in the mounted directory before starting node",
@@ -176,22 +188,22 @@
 									"  exit 1",
 									"else",
 									"  cd $(dirname $ENV_FILE_FROM_S3)",
-									"  CORE_HOST=$(cat /var/kuali/public-dns-name)",
+									"  CORE_HOST=$(curl -s http://169.254.169.254/latest/meta-data/public-hostname)",
 									"  rm -f export.sh",
 									"  echo \"Creating $(pwd)/export.sh...\"",
 									"  while read line ; do",
 									"    expline=\"$(getLineExport \"$line\")\" ",
 									"    [ -z \"$expline\" ] && continue",
-									"    prop=$(echo \"$expline\" | cut -f1 -d '=') ",
+									"    prop=$(echo \"$line\" | cut -f1 -d '=') ",
 									"    # Override some of the existing environment variables",
-									"    [ \"${prop^^}\" == \"CORE_HOST\" ] && expline=\"CORE_HOST=${CORE_HOST}\"",
-									"    [ \"${prop^^}\" == \"SHIB_HOST\" ] && expline=\"SHIB_HOST=\"",
-									"    [ \"${prop^^}\" == \"ROOT_DIR\" ]  && expline=\"ROOT_DIR=/var/core-temp\"",
+									"    [ \"${prop^^}\" == \"CORE_HOST\" ] && expline=\"export CORE_HOST=${CORE_HOST}\"",
+									"    [ \"${prop^^}\" == \"SHIB_HOST\" ] && expline=\"export SHIB_HOST=\"",
+									"    [ \"${prop^^}\" == \"ROOT_DIR\" ]  && expline=\"export ROOT_DIR=/var/core-temp\"",
 									"    echo \"Setting env var $prop\" ",
 									"    echo \"$expline\" >> export.sh",
 									"  done < $ENV_FILE_FROM_S3",
-									"",
-									"  echo \"# Testing: CORE_HOST=http://$(curl -s http://169.254.169.254/latest/meta-data/public-hostname)\"",
+									"  # In case the file from s3 originated on a windows file system, remove return carriage chars",
+									"  sed -i 's/\\r//g' export.sh",
 									"fi",
 									"",
 									"exit 0"
@@ -204,60 +216,133 @@
 								"content" : { "Fn::Join" : [ "\n", [
 										"#!/bin/bash",
 										"",
-										"echo \"Running the core docker container\"",
+										"docker rm -f core 2> /dev/null || true",
+										"echo \"Running new core docker container\"",
 										"",
 										{ "Fn::Sub" : "$(aws ecr get-login --no-include-email --region ${AWS::Region})" },
 										"",
 										"docker run \\",
 										"  -d \\",
-										"  -p 3000:3000 \\",
+										"  -p 80:3000 \\",
 										"  -p 27017:27017 \\",
 										"  -p 9229:9229 \\",
 										"  --restart unless-stopped \\",
 										"  --name=core \\",
 										"  -v /var/kuali/s3:/var/core-config \\",
-										"  -v /var/kuali/scripts:/var/bash-scripts \\",
+										"  --log-driver=awslogs \\",
+										{ "Fn::Sub" : "  --log-opt awslogs-region=${AWS::Region} \\" },
+										{ "Fn::Sub" : "  --log-opt awslogs-group=${MyEC2InstanceDockerLogsGroup} \\" },
+										"  --log-opt awslogs-stream=MyEC2Instance-Docker-Core-Logstream \\",
+										"  --log-opt awslogs-create-group=false \\",
 										"  $DOCKER_IMAGE_NAME"
 									]]},
 									"mode" : "000775",
 									"owner" : "root",
 									"group" : "root"
+							},
+							"/etc/awslogs/awscli.conf" : {
+								"content" : { "Fn::Join" : [ "\n", [
+									"[plugins]",
+									"cwlogs = cwlogs",
+									"[default]",
+									{ "Fn::Sub" : "region = ${AWS::Region}" }
+								]]}
+							},
+							"/etc/awslogs/awslogs.conf" : {
+								"content" : { "Fn::Join" : [ "\n", [
+									"[general]",
+									"state_file = /var/lib/awslogs/agent-state",
+									"",
+									"[/var/log/dmesg]",
+									"file = /var/log/dmesg",
+									"log_group_name = MyEC2Instance-/var/log/dmesg",
+									"log_stream_name = MyEC2Instance-DMESG-Logstream",
+									"",
+									"[/var/log/messages]",
+									"file = /var/log/messages",
+									"log_group_name = MyEC2Instance-/var/log/messages",
+									"log_stream_name = MyEC2Instance-Messages-Logstream",
+									"datetime_format = %b %d %H:%M:%S",
+									"",
+									"[/var/log/docker]",
+									"file = /var/log/docker",
+									"log_group_name = MyEC2Instance-/var/log/docker",
+									"log_stream_name = MyEC2Instance-Docker-Logstream",
+									"datetime_format = %Y-%m-%dT%H:%M:%S.%f"
+								]]}
 							}
 						}
 					},
-					"runCommands" : {
+					"01_get_configs_from_s3" : {
 						"commands" : {
-							"01_get_configs_from_s3" : {
+							"cmd01" : {
 								"cwd" : "/var/kuali/scripts",
 								"env" : { "LANDSCAPE" : { "Fn::Sub" : "${Landscape}" } },
 								"command" : "bash s3.download.configs.sh"
-							},
-							"02_get_public_dns_name" : {
-								"cwd" : "/var/kuali",
-								"command" : "curl -s http://169.254.169.254/latest/meta-data/public-hostname > public-dns-name"
-							},
-							"03_create_env_exports_file" : {
+							}
+						}
+					},
+					"02_create_env_exports_file" : {
+						"commands" : {
+							"cmd01" : {
 								"cwd" : "/var/kuali/scripts",
 								"env" : { "ENV_FILE_FROM_S3" : "/var/kuali/s3/environment.variables.s3" },
 								"command" : "bash process.env.file.sh"
-							},
-							"04_docker_run_container" : {
+							}
+						}
+					},
+					"03_docker_run_container" : {
+						"commands" : {
+							"cmd01" : {
 								"cwd" : "/var/kuali/scripts",
 								"env" : {
 									"DOCKER_IMAGE_NAME" : { "Fn::Sub" : "${DockerRepositoryURI}:${DockerImageTag}" }
 								},
 								"command" : "bash start.app.sh"
 							}
+						},
+						"services" : {
+							"sysvinit" : {
+								"awslogs" : {
+									"enabled": "true",
+									"ensureRunning" : "true",
+									"files" : [
+										"/etc/awslogs/awslogs.conf",
+										"/etc/awslogs/awscli.conf"
+									]
+								}
+							}
 						}
 					}
 				}
 			}
 		},
-        "MyMicroSecurityGroup" : {
+		"MyEC2InstanceDmesgLogsGroup" : {
+		    "Type" : "AWS::Logs::LogGroup",
+		    "Properties" : {
+				"LogGroupName" : "MyEC2Instance-/var/log/dmesg",
+                "RetentionInDays" : 30
+		    }
+		},
+		"MyEC2InstanceMessagesLogsGroup" : {
+		    "Type" : "AWS::Logs::LogGroup",
+		    "Properties" : {
+				"LogGroupName" : "MyEC2Instance-/var/log/messages",
+                "RetentionInDays" : 30
+		    }
+		},
+		"MyEC2InstanceDockerLogsGroup" : {
+		    "Type" : "AWS::Logs::LogGroup",
+		    "Properties" : {
+				"LogGroupName" : "MyEC2Instance-/var/log/docker",
+                "RetentionInDays" : 30
+		    }
+		},
+        "MyEC2InstanceSecurityGroup" : {
             "Type" : "AWS::EC2::SecurityGroup",
             "Properties" : {
-				"GroupDescription" : "Warrens security group for a test t2.micro ec2 instance",
-                "GroupName" : "WarrensT2.micro.SG",
+				"GroupDescription" : "Warrens security group for a test t2 ec2 instance",
+                "GroupName" : "MyEC2Instance.SG",
                 "Tags" : [ { "Key" : "Name", "Value" : "buaws-wrh-ecs-ec2-test1.SG" } ],
                 "SecurityGroupIngress" : [
 					{
@@ -293,18 +378,18 @@
 				]
             }
         },
-		"MyMicroProfile" : {
+		"MyEC2InstanceProfile" : {
 			"Type": "AWS::IAM::InstanceProfile",
             "Properties" : {
-				"InstanceProfileName" : "Profile-for-MyMicroS3Role",
+				"InstanceProfileName" : "Profile-for-MyEC2InstanceS3Role",
                 "Path" : "/",
-                "Roles" : [ { "Ref" : "MyMicroS3Role" } ]
+                "Roles" : [ { "Ref" : "MyEC2InstanceS3Role" } ]
 			}
 		},
-		"MyMicroS3Role" : {
+		"MyEC2InstanceS3Role" : {
 		    "Type" : "AWS::IAM::Role",
 		    "Properties" : {
-				"RoleName" : "MyMicroS3Role",
+				"RoleName" : "MyEC2InstanceS3Role",
 		        "AssumeRolePolicyDocument" : {
 					"Statement": [{
 						"Effect" : "Allow",
@@ -317,7 +402,8 @@
                 "Path" : "/",
                 "ManagedPolicyArns" : [
 					"arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess",
-					"arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+					"arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly",
+					"arn:aws:iam::aws:policy/CloudWatchLogsFullAccess"
 				]
 		    }
 		}
@@ -325,10 +411,10 @@
 
 	"Outputs" : {
 		"PublicIP" : {
-		    "Value" : {"Fn::GetAtt" : [ "MyMicro", "PublicIp"]}
+		    "Value" : {"Fn::GetAtt" : [ "MyEC2Instance", "PublicIp"]}
 		},
 		"PublicDnsName" : {
-			"Value" : {"Fn::GetAtt" : [ "MyMicro", "PublicDnsName"]}
+			"Value" : {"Fn::GetAtt" : [ "MyEC2Instance", "PublicDnsName"]}
 		}
 	}
 }
