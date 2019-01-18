@@ -10,6 +10,7 @@
 
 		"KualiEC2JenkinsRole" : {
 		    "Type" : "AWS::IAM::Role",
+            "DeletionPolicy" : "Retain",
 		    "Properties" : {
 				"Path" : "/",
                 "RoleName" : "kuali-ec2-jenkins-role",
@@ -76,6 +77,7 @@
 
         "KualiEC2AppHostRole" : {
             "Type" : "AWS::IAM::Role",
+            "DeletionPolicy" : "Retain",
 		    "Properties" : {
 				"Path" : "/",
                 "RoleName" : "kuali-ec2-apphost-role",
