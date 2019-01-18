@@ -77,6 +77,7 @@
 		},
         "KualiEC2JenkinsInstanceProfile" : {
             "Type" : "AWS::IAM::InstanceProfile",
+			"DependsOn" : "KualiEC2JenkinsRole",
             "Properties" : {
 				"InstanceProfileName" : "kuali-ec2-jenkins-instance-profile",
                 "Roles" : [ { "Ref" : "KualiEC2JenkinsRole" } ]
@@ -131,6 +132,7 @@
         },
         "KualiEC2AppHostProfile" : {
             "Type" : "AWS::IAM::InstanceProfile",
+            "DependsOn" : "KualiEC2AppHostRole",
             "Properties" : {
 				"InstanceProfileName" : "kuali-ec2-apphost-instance-profile",
                 "Roles" : [ { "Ref" : "KualiEC2AppHostRole" } ]
