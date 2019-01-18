@@ -11,6 +11,7 @@
 		"KualiEC2JenkinsRole" : {
 		    "Type" : "AWS::IAM::Role",
             "DeletionPolicy" : "Retain",
+            "Description" : "The Role the EC2 instance Jenkins is running on is to assume. The aws api calls the policy allows that are made on this instance should not require credentials",
 		    "Properties" : {
 				"Path" : "/",
                 "RoleName" : "kuali-ec2-jenkins-role",
@@ -77,6 +78,7 @@
 
         "KualiEC2AppHostRole" : {
             "Type" : "AWS::IAM::Role",
+            "Description" : "The Role the EC2 instances on which are running any kuali applications are to assume. The aws api calls the policy allows that are made on these instances should not require credentials",
             "DeletionPolicy" : "Retain",
 		    "Properties" : {
 				"Path" : "/",
