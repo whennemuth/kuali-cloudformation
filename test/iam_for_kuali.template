@@ -8,7 +8,7 @@
 
 	"Resources" : {
 
-		"Kuali-EC2-Jenkins-Role" : {
+		"KualiEC2JenkinsRole" : {
 		    "Type" : "AWS::IAM::Role",
 		    "Properties" : {
 				"Path" : "/",
@@ -74,7 +74,7 @@
 		    }
 		},
 
-        "Kuali-EC2-AppHost-Role" : {
+        "KualiEC2AppHostRole" : {
             "Type" : "AWS::IAM::Role",
 		    "Properties" : {
 				"Path" : "/",
@@ -122,12 +122,12 @@
 
 
 	"Outputs" : {
-		"Kuali-EC2-Jenkins-Role" : {
+		"KualiEC2JenkinsRole" : {
 			"Description" : "The Amazon Resource Name for the Role the EC2 instance Jenkins is running on is to assume.",
-		    "Value" : { "Fn::GetAtt" : [ "Kuali-EC2-Jenkins-Role", "Arn"] }
+		    "Value" : { "Fn::GetAtt" : [ "KualiEC2JenkinsRole", "Arn"] }
 		},
-        "Kuali-EC2-AppHost-Role" : {
-            "Value" : { "Fn::GetAtt" : [ "Kuali-EC2-AppHost-Role", "Arn"] },
+        "KualiEC2AppHostRole" : {
+            "Value" : { "Fn::GetAtt" : [ "KualiEC2AppHostRole", "Arn"] },
             "Description" : "The Amazon Resource Name for the Role each kuali application host (ec2 instance) is to assume."
         }
 	}
