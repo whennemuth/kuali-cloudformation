@@ -95,7 +95,7 @@
 				],
                 "Policies" : [
 					{
-						"PolicyName" : "kuali-ec2-jenkins-policy",
+						"PolicyName" : "kuali-ec2-apphost-policy",
                         "PolicyDocument" : {                        
 							"Statement" : [{
 								"Effect": "Allow",
