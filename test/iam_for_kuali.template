@@ -14,7 +14,7 @@
             "Description" : "The Role the EC2 instance Jenkins is running on is to assume. The aws api calls the policy allows that are made on this instance should not require credentials",
 		    "Properties" : {
 				"Path" : "/",
-                "RoleName" : "kuali-ec2-jenkins-role",
+                "RoleName" : "KualiEC2JenkinsRole",
 		        "AssumeRolePolicyDocument" : {
 					"Statement" : [{
 						"Action" : [ "sts:AssumeRole" ],
@@ -82,7 +82,7 @@
             "DeletionPolicy" : "Retain",
 		    "Properties" : {
 				"Path" : "/",
-                "RoleName" : "kuali-ec2-apphost-role",
+                "RoleName" : "KualiEC2AppHostRole",
 		        "AssumeRolePolicyDocument" : {
 					"Statement" : [{
 						"Action" : [ "sts:AssumeRole" ],
