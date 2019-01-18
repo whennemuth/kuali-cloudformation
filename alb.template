@@ -75,8 +75,8 @@
 			"Description" : "A reference to the ALB"
 		},
         "LoadBalancerUrl" : {
-            "Value" : {"Fn::GetAtt" : [ "LoadBalancer", "DNSName"]},
-            "Description" : "The URL of the ALB"
+            "Description" : "The URL of the ALB",
+			"Value" : {"Fn::GetAtt" : [ "LoadBalancer", "DNSName"]}            
         },
         "Listener" : {
             "Value" : { "Ref" : "LoadBalancerListener" },

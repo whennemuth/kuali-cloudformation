@@ -38,14 +38,14 @@
 					{ 
 						"IpProtocol" : -1, 
 						"SourceSecurityGroupId" : { "Ref" : "LoadBalancerSecurityGroup" }, 
-						"Description" : "Allows inbound access to ECS from the load balancer."
+						"Description" : "Allows inbound access to ECS instances from the ALB only."
 					},
 					{
 						"IpProtocol" : "tcp", 
 						"FromPort" : "22", 
 						"ToPort" : "22", 
 						"CidrIp" : "0.0.0.0/0", 
-						"Description" : "Allows SSH access to ECS host instances."
+						"Description" : "Allows SSH access to ECS host instances directly without requiring it originate from the ALB."
 					}
 				]
 		    }
@@ -57,7 +57,7 @@
 				"VpcId" : { "Ref" : "vpcid" },
                 "GroupName" : {"Fn::Join" : [ "", [ { "Ref" : "GlobalPrefix" }, "-load-balancer-sg-", { "Ref" : "Landscape" }] ]},
                 "GroupDescription" : {"Fn::Join" : [ " ", [
-					"This security group defines who/where is allowed to access the application load balancer that sits in front of ECS for the",
+					"This security group defines who/where is allowed to access the application load balancer that sits in front of ECS",
                     { "Ref" : "Landscape" }, "landscape"
 				]]},
                 "SecurityGroupIngress" : [

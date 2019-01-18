@@ -75,7 +75,14 @@
 					"# Implement all the metadata in AWS::CloudFormation::Init",
 					"/opt/aws/bin/cfn-init \\",
 					"   -v \\",
-					"   --configsets GetFiles \\",
+					"   --configsets AllConfigs \\",
+					{ "Fn::Sub" : "   --region ${AWS::Region} \\" },
+					{ "Fn::Sub" : "   --stack ${AWS::StackName} \\" },
+					"   --resource MyEC2Instance",
+					"",
+					"# Now that all initialization is done signal success",
+					"/opt/aws/bin/cfn-signal \\",
+					"   -e $? \\",
 					{ "Fn::Sub" : "   --region ${AWS::Region} \\" },
 					{ "Fn::Sub" : "   --stack ${AWS::StackName} \\" },
 					"   --resource MyEC2Instance"
@@ -86,7 +93,7 @@
                     "S3AccessCreds": {
                         "type": "S3",
                         "roleName": {
-                            "Ref": "MyEC2InstanceS3Role"
+                            "Ref": "MyEC2Role"
                         },
 						"buckets" : [ { "Ref" : "ConfigBucket" } ]
                     }
@@ -151,6 +158,55 @@
 								"group" : "root",
 								"source" : { "Fn::Sub" : "https://s3.amazonaws.com/${ConfigBucket}/bu_github_id_docker_rsa"}
 							},
+							"/etc/cfn/cfn-hup.conf" : {
+								"mode" : "000400",
+								"owner" : "root",
+								"group" : "root",
+								"content" : { "Fn::Join" : [ "\n", [
+									"[main]",
+									{ "Fn::Sub" : "stack=${AWS::StackId}" },
+									{ "Fn::Sub" : "region=${AWS::Region} "}
+								]]}
+							},
+							"/etc/cfn/hooks.d/cfn-auto-reloader.conf" : {
+								"content" : { "Fn::Join" : [ "\n", [
+									"[cfn-auto-reloader-hook]",
+									"triggers=post.update",
+									"path=Resources.MyEC2Instance.Metadata.AWS::CloudFormation::Init",
+									{ "Fn::Sub" : "action=/opt/aws/bin/cfn-init -v --region ${AWS::Region} --stack ${AWS::StackName} --resource MyEC2Instance" }
+								]]}
+							},
+							"/etc/awslogs/awscli.conf" : {
+								"content" : { "Fn::Join" : [ "\n", [
+									"[plugins]",
+									"cwlogs = cwlogs",
+									"[default]",
+									{ "Fn::Sub" : "region = ${AWS::Region}" }
+								]]}
+							},
+							"/etc/awslogs/awslogs.conf" : {
+								"content" : { "Fn::Join" : [ "\n", [
+									"[general]",
+									"state_file = /var/lib/awslogs/agent-state",
+									"",
+									"[/var/log/dmesg]",
+									"file = /var/log/dmesg",
+									"log_group_name = MyEC2InstanceLogsGroup",
+									"log_stream_name = /var/log/dmesg",
+									"",
+									"[/var/log/messages]",
+									"file = /var/log/messages",
+									"log_group_name = MyEC2InstanceLogsGroup",
+									"log_stream_name = /var/log/messages",
+									"datetime_format = %b %d %H:%M:%S",
+									"",
+									"[/var/log/docker]",
+									"file = /var/log/docker",
+									"log_group_name = MyEC2InstanceLogsGroup",
+									"log_stream_name = /var/log/docker",
+									"datetime_format = %Y-%m-%dT%H:%M:%S.%f"
+								]]}
+							},
 							"/var/kuali/scripts/s3.download.configs.sh" : {
 								"content" : { "Fn::Join" : [ "\n", [
 									"#!/bin/bash",
@@ -212,7 +268,7 @@
 								"owner" : "root",
 								"group" : "root"
 							},
-							"/var/kuali/scripts/start.app.sh" : {
+							"/var/kuali/scripts/start.docker.container.sh" : {
 								"content" : { "Fn::Join" : [ "\n", [
 										"#!/bin/bash",
 										"",
@@ -231,45 +287,14 @@
 										"  -v /var/kuali/s3:/var/core-config \\",
 										"  --log-driver=awslogs \\",
 										{ "Fn::Sub" : "  --log-opt awslogs-region=${AWS::Region} \\" },
-										{ "Fn::Sub" : "  --log-opt awslogs-group=${MyEC2InstanceDockerLogsGroup} \\" },
-										"  --log-opt awslogs-stream=MyEC2Instance-Docker-Core-Logstream \\",
+										"  --log-opt awslogs-group=MyEC2InstanceLogsGroup \\",
+										"  --log-opt awslogs-stream=core-docker-container \\",
 										"  --log-opt awslogs-create-group=false \\",
 										"  $DOCKER_IMAGE_NAME"
 									]]},
 									"mode" : "000775",
 									"owner" : "root",
 									"group" : "root"
-							},
-							"/etc/awslogs/awscli.conf" : {
-								"content" : { "Fn::Join" : [ "\n", [
-									"[plugins]",
-									"cwlogs = cwlogs",
-									"[default]",
-									{ "Fn::Sub" : "region = ${AWS::Region}" }
-								]]}
-							},
-							"/etc/awslogs/awslogs.conf" : {
-								"content" : { "Fn::Join" : [ "\n", [
-									"[general]",
-									"state_file = /var/lib/awslogs/agent-state",
-									"",
-									"[/var/log/dmesg]",
-									"file = /var/log/dmesg",
-									"log_group_name = MyEC2Instance-/var/log/dmesg",
-									"log_stream_name = MyEC2Instance-DMESG-Logstream",
-									"",
-									"[/var/log/messages]",
-									"file = /var/log/messages",
-									"log_group_name = MyEC2Instance-/var/log/messages",
-									"log_stream_name = MyEC2Instance-Messages-Logstream",
-									"datetime_format = %b %d %H:%M:%S",
-									"",
-									"[/var/log/docker]",
-									"file = /var/log/docker",
-									"log_group_name = MyEC2Instance-/var/log/docker",
-									"log_stream_name = MyEC2Instance-Docker-Logstream",
-									"datetime_format = %Y-%m-%dT%H:%M:%S.%f"
-								]]}
 							}
 						}
 					},
@@ -298,11 +323,19 @@
 								"env" : {
 									"DOCKER_IMAGE_NAME" : { "Fn::Sub" : "${DockerRepositoryURI}:${DockerImageTag}" }
 								},
-								"command" : "bash start.app.sh"
+								"command" : "bash start.docker.container.sh"
 							}
 						},
 						"services" : {
 							"sysvinit" : {
+								"cfn-hup" : {
+									"enabled": "true",
+									"ensureRunning" : "true",
+									"files" : [
+										"/etc/cfn/cfn-hup.conf",
+										"/etc/cfn/hooks.d/cfn-auto-reloader.conf"
+									]
+								},
 								"awslogs" : {
 									"enabled": "true",
 									"ensureRunning" : "true",
@@ -317,24 +350,37 @@
 				}
 			}
 		},
-		"MyEC2InstanceDmesgLogsGroup" : {
-		    "Type" : "AWS::Logs::LogGroup",
+		"MyEC2Role" : {
+		    "Type" : "AWS::IAM::Role",
 		    "Properties" : {
-				"LogGroupName" : "MyEC2Instance-/var/log/dmesg",
-                "RetentionInDays" : 30
+                "Path" : "/",
+				"RoleName" : "MyEC2Role",
+		        "AssumeRolePolicyDocument" : {
+					"Statement": [{
+                        "Action" : [ "sts:AssumeRole" ],
+						"Effect" : "Allow",
+						"Principal" : { "Service" : [ "ec2.amazonaws.com" ] }
+					}]
+		        },
+                "ManagedPolicyArns" : [
+					"arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess",
+					"arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly",
+					"arn:aws:iam::aws:policy/CloudWatchLogsFullAccess"
+				]
 		    }
 		},
-		"MyEC2InstanceMessagesLogsGroup" : {
-		    "Type" : "AWS::Logs::LogGroup",
-		    "Properties" : {
-				"LogGroupName" : "MyEC2Instance-/var/log/messages",
-                "RetentionInDays" : 30
-		    }
+		"MyEC2InstanceProfile" : {
+			"Type": "AWS::IAM::InstanceProfile",
+            "Properties" : {
+				"InstanceProfileName" : "Profile-for-MyEC2Role",
+                "Path" : "/",
+                "Roles" : [ { "Ref" : "MyEC2Role" } ]
+			}
 		},
-		"MyEC2InstanceDockerLogsGroup" : {
+		"MyEC2InstanceLogsGroup" : {
 		    "Type" : "AWS::Logs::LogGroup",
 		    "Properties" : {
-				"LogGroupName" : "MyEC2Instance-/var/log/docker",
+				"LogGroupName" : "MyEC2InstanceLogsGroup",
                 "RetentionInDays" : 30
 		    }
 		},
@@ -377,36 +423,7 @@
 					}
 				]
             }
-        },
-		"MyEC2InstanceProfile" : {
-			"Type": "AWS::IAM::InstanceProfile",
-            "Properties" : {
-				"InstanceProfileName" : "Profile-for-MyEC2InstanceS3Role",
-                "Path" : "/",
-                "Roles" : [ { "Ref" : "MyEC2InstanceS3Role" } ]
-			}
-		},
-		"MyEC2InstanceS3Role" : {
-		    "Type" : "AWS::IAM::Role",
-		    "Properties" : {
-				"RoleName" : "MyEC2InstanceS3Role",
-		        "AssumeRolePolicyDocument" : {
-					"Statement": [{
-						"Effect" : "Allow",
-						"Principal" : {
-							"Service" : [ "ec2.amazonaws.com" ]
-						},
-                        "Action" : [ "sts:AssumeRole" ]
-					}]
-		        },
-                "Path" : "/",
-                "ManagedPolicyArns" : [
-					"arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess",
-					"arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly",
-					"arn:aws:iam::aws:policy/CloudWatchLogsFullAccess"
-				]
-		    }
-		}
+        }
 	},
 
 	"Outputs" : {

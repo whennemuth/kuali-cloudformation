@@ -201,6 +201,7 @@
 					"#!/bin/bash",
 					"yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm",
 					"yum install -y aws-cfn-bootstrap",
+					"yum install -y git",
 					"",
 					"# Modify the sudoers file so that anyone in the wheel group can be a sudoer",
 					"chmod u+w /etc/sudoers && \\",
@@ -223,6 +224,7 @@
 					"# Implement all the metadata in AWS::CloudFormation::Init",
 					"/opt/aws/bin/cfn-init \\",
 					"   -v \\",
+					"   --configsets AllConfigs \\",
 					{ "Fn::Sub" : "   --region ${AWS::Region} \\" },
 					{ "Fn::Sub" : "   --stack ${AWS::StackName} \\" },
 					"   --resource ECSLaunchConfiguration",
@@ -261,7 +263,16 @@
                 },
 				"AWS::CloudFormation::Init" : {
 					"configSets" : {
-						"all" : [ "getFiles", "runCommands" ]
+						"AllConfigs" : [ "getFiles", { "ConfigSet" : "RunCommands" } ],
+						"GetFiles" : [ "getFiles" ],
+						"RunCommands" : [ 
+							{ "ConfigSet" : "cmd01"}, 
+							{ "ConfigSet" : "cmd02"}, 
+							{ "ConfigSet" : "cmd03"} 
+						],
+						"cmd01" : [ "01_get_configs_from_s3" ],
+						"cmd02" : [ "02_create_env_exports_file" ], 
+						"cmd03" : [ "03_add_instance_to_cluster" ]
 					}, 
 					"getFiles" : {
 						"packages" : {
@@ -270,6 +281,46 @@
 							}
 						},
 						"files" : {
+							"/home/wrh/.ssh/authorized_keys" : {
+								"mode" : "000600",
+								"owner" : "wrh",
+								"group" : "wrh",
+								"source" : { "Fn::Sub" : "https://s3.amazonaws.com/${ConfigBucket}/ecs/ssh-keys/rsa-key-wrh.pub" }
+							},
+							"/home/mkousheh/.ssh/authorized_keys" : {
+								"mode" : "000600",
+								"owner" : "mkousheh",
+								"group" : "mkousheh",
+								"source" : { "Fn::Sub" : "https://s3.amazonaws.com/${ConfigBucket}/ecs/ssh-keys/rsa-key-mkousheh.pub" }
+							},
+							"/home/mukadder/.ssh/authorized_keys" : {
+								"mode" : "000600",
+								"owner" : "mukadder",
+								"group" : "mukadder",
+								"source" : { "Fn::Sub" : "https://s3.amazonaws.com/${ConfigBucket}/ecs/ssh-keys/rsa-key-mukadder.pub" }
+							},
+							"/home/dhaywood/.ssh/authorized_keys" : {
+								"mode" : "000600",
+								"owner" : "dhaywood",
+								"group" : "dhaywood",
+								"source" : { "Fn::Sub" : "https://s3.amazonaws.com/${ConfigBucket}/ecs/ssh-keys/rsa-key-dhaywood.pub" }
+							},
+							"/var/kuali/README.txt" : {
+								"content" : { "Fn::Join" : [ "\n", [
+									"This directory contains the \"environment\" for each app to run in a docker container that it needs.",
+									"This includes env-file, configuration files, keys, etc.",
+                                    { "Fn::Sub" : "These are specific to the ${Landscape} landscape." }
+								]]},
+								"mode" : "000775",
+								"owner" : "root",
+								"group" : "root"
+							},
+							"/root/.ssh/git_rsa_key" : {
+								"mode" : "000600",
+								"owner" : "root",
+								"group" : "root",
+								"source" : { "Fn::Sub" : "https://s3.amazonaws.com/${ConfigBucket}/bu_github_id_docker_rsa"}
+							},
 							"/etc/cfn/cfn-hup.conf" : {
 								"mode" : "000400",
 								"owner" : "root",
@@ -303,75 +354,124 @@
 									"",
 									"[/var/log/dmesg]",
 									"file = /var/log/dmesg",
-									{ "Fn::Sub" : "log_group_name = ${ECSCluster}-/var/log/dmesg" },
-									{ "Fn::Sub" : "log_stream_name = ${ECSCluster}" },
+									{ "Fn::Sub" : "log_group_name = ${GlobalPrefix}-${Landscape}-${ECSCluster}" },
+									{ "Fn::Sub" : "log_stream_name = /var/log/dmesg" },
 									"",
 									"[/var/log/messages]",
 									"file = /var/log/messages",
-									{ "Fn::Sub" : "log_group_name = ${ECSCluster}-/var/log/messages" },
-									{ "Fn::Sub" : "log_stream_name = ${ECSCluster}" },
+									{ "Fn::Sub" : "log_group_name = ${GlobalPrefix}-${Landscape}-${ECSCluster}" },
+									{ "Fn::Sub" : "log_stream_name = /var/log/messages" },
 									"datetime_format = %b %d %H:%M:%S",
 									"",
 									"[/var/log/docker]",
 									"file = /var/log/docker",
-									{ "Fn::Sub" : "log_group_name = ${ECSCluster}-/var/log/docker" },
-									{ "Fn::Sub" : "log_stream_name = ${ECSCluster}" },
+									{ "Fn::Sub" : "log_group_name = ${GlobalPrefix}-${Landscape}-${ECSCluster}-docker" },
+									{ "Fn::Sub" : "log_stream_name = /var/log/docker" },
 									"datetime_format = %Y-%m-%dT%H:%M:%S.%f",
 									"",
 									"[/var/log/ecs/ecs-init.log]",
 									"file = /var/log/ecs/ecs-init.log.*",
-									{ "Fn::Sub" : "log_group_name = ${ECSCluster}-/var/log/ecs/ecs-init.log" },
-									{ "Fn::Sub" : "log_stream_name = ${ECSCluster}" },
+									{ "Fn::Sub" : "log_group_name = ${GlobalPrefix}-${Landscape}-${ECSCluster}-ecs" },
+									{ "Fn::Sub" : "log_stream_name = /var/log/ecs/ecs-init.log" },
 									"datetime_format = %Y-%m-%dT%H:%M:%SZ",
 									"",
 									"[/var/log/ecs/ecs-agent.log]",
 									"file = /var/log/ecs/ecs-agent.log.*",
-									{ "Fn::Sub" : "log_group_name = ${ECSCluster}-/var/log/ecs/ecs-agent.log" },
-									{ "Fn::Sub" : "log_stream_name = ${ECSCluster}" },
+									{ "Fn::Sub" : "log_group_name = ${GlobalPrefix}-${Landscape}-${ECSCluster}-ecs" },
+									{ "Fn::Sub" : "log_stream_name = /var/log/ecs/ecs-agent.log" },
 									"datetime_format = %Y-%m-%dT%H:%M:%SZ",
 									"",
 									"[/var/log/ecs/audit.log]",
 									"file = /var/log/ecs/audit.log.*",
-									{ "Fn::Sub" : "log_group_name = ${ECSCluster}-/var/log/ecs/audit.log" },
-									{ "Fn::Sub" : "log_stream_name = ${ECSCluster}" },
+									{ "Fn::Sub" : "log_group_name = ${GlobalPrefix}-${Landscape}-${ECSCluster}-ecs" },
+									{ "Fn::Sub" : "log_stream_name = /var/log/ecs/audit.log" },
 									"datetime_format = %Y-%m-%dT%H:%M:%SZ"								
 								]]}
 							},
-							"/home/wrh/.ssh/authorized_keys" : {
-								"mode" : "000600",
-								"owner" : "wrh",
-								"group" : "wrh",
-								"source" : { "Fn::Sub" : "https://s3.amazonaws.com/${ConfigBucket}/ecs/ssh-keys/rsa-key-wrh.pub" }
-							},
-							"/home/mkousheh/.ssh/authorized_keys" : {
-								"mode" : "000600",
-								"owner" : "mkousheh",
-								"group" : "mkousheh",
-								"source" : { "Fn::Sub" : "https://s3.amazonaws.com/${ConfigBucket}/ecs/ssh-keys/rsa-key-mkousheh.pub" }
-							},
-							"/home/mukadder/.ssh/authorized_keys" : {
-								"mode" : "000600",
-								"owner" : "mukadder",
-								"group" : "mukadder",
-								"source" : { "Fn::Sub" : "https://s3.amazonaws.com/${ConfigBucket}/ecs/ssh-keys/rsa-key-mukadder.pub" }
-							},
-							"/home/dhaywood/.ssh/authorized_keys" : {
-								"mode" : "000600",
-								"owner" : "dhaywood",
-								"group" : "dhaywood",
-								"source" : { "Fn::Sub" : "https://s3.amazonaws.com/${ConfigBucket}/ecs/ssh-keys/rsa-key-dhaywood.pub" }
-							},
-							"/tmp/environment" : {
-								"mode" : "000755",
+							"/var/kuali/scripts/s3.download.configs.sh" : {
+								"content" : { "Fn::Join" : [ "\n", [
+									"#!/bin/bash",
+									"",
+									"echo \"Downloading all configurations for the container from the s3 bucket\"",
+									"[ ! -d /var/kuali/s3 ] && mkdir /var/kuali/s3",
+									"cd /var/kuali/s3",
+									"aws s3 sync --delete s3://kuali-research-ec2-setup/${LANDSCAPE}/core/ ."
+								]]},
+								"mode" : "000775",
 								"owner" : "root",
-								"group" : "root",
-								"source" : { "Fn::Sub" : "https://s3.amazonaws.com/${ConfigBucket}/${Landscape}" }
+								"group" : "root"
+							},
+							"/var/kuali/scripts/process.env.file.sh" : {
+								"content" : { "Fn::Join" : [ "\n", [
+									"#!/bin/bash",
+									"",
+									"# Turn a name=value line into an \"export name=\"value\"\" line",
+									"getLineExport() {",
+									"  local line=$(echo -n \"$1\" | xargs) # Use xargs to trim the line.",
+									"  # Return and empty string if the line is a properties file comment", 
+									"  [ \"${line:0:1}\" == \"#\" ] && echo \"\" && exit 0;",
+									"  [ -z \"$line\" ] && echo \"\" && exit 0;",
+									"  if [ -n \"$(echo $testline | grep -P '\\x22')\" ] ; then", 
+									"    echo \"export $line\"",
+									"  else",
+									"    # Put double quotes around the exported variable value",
+									"    echo \"export $(echo $line | sed 's/=/=\"/1')\\\"\"",
+									"  fi",
+									"}",
+									"",
+									"# Create a script to export all environment variables in the mounted directory before starting node",
+									"if [ ! -f $ENV_FILE_FROM_S3 ] ; then",
+									"  echo \"ERROR! MISSING $ENV_FILE_FROM_S3\"",
+									"  exit 1",
+									"else",
+									"  cd $(dirname $ENV_FILE_FROM_S3)",
+									"  CORE_HOST=$(curl -s http://169.254.169.254/latest/meta-data/public-hostname)",
+									"  rm -f export.sh",
+									"  echo \"Creating $(pwd)/export.sh...\"",
+									"  while read line ; do",
+									"    expline=\"$(getLineExport \"$line\")\" ",
+									"    [ -z \"$expline\" ] && continue",
+									"    prop=$(echo \"$line\" | cut -f1 -d '=') ",
+									"    # Override some of the existing environment variables",
+									"    [ \"${prop^^}\" == \"CORE_HOST\" ] && expline=\"export CORE_HOST=${CORE_HOST}\"",
+									"    [ \"${prop^^}\" == \"SHIB_HOST\" ] && expline=\"export SHIB_HOST=\"",
+									"    [ \"${prop^^}\" == \"ROOT_DIR\" ]  && expline=\"export ROOT_DIR=/var/core-temp\"",
+									"    echo \"Setting env var $prop\" ",
+									"    echo \"$expline\" >> export.sh",
+									"  done < $ENV_FILE_FROM_S3",
+									"  # In case the file from s3 originated on a windows file system, remove return carriage chars",
+									"  sed -i 's/\\r//g' export.sh",
+									"fi",
+									"",
+									"exit 0"
+								]]},
+								"mode" : "000775",
+								"owner" : "root",
+								"group" : "root"
 							}
 						}
 					},
-					"runCommands" : {
+					"01_get_configs_from_s3" : {
 						"commands" : {
-							"01_add_instance_to_cluster" : {
+							"cmd01" : {
+								"cwd" : "/var/kuali/scripts",
+								"env" : { "LANDSCAPE" : { "Fn::Sub" : "${Landscape}" } },
+								"command" : "bash s3.download.configs.sh"
+							}
+						}
+					},
+					"02_create_env_exports_file" : {
+						"commands" : {
+							"cmd01" : {
+								"cwd" : "/var/kuali/scripts",
+								"env" : { "ENV_FILE_FROM_S3" : "/var/kuali/s3/environment.variables.s3" },
+								"command" : "bash process.env.file.sh"
+							}
+						}
+					},
+					"03_add_instance_to_cluster" : {
+						"commands" : {
+							"cmd01" : {
 								"command" : { "Fn::Sub" : "echo ECS_CLUSTER=${ECSCluster} >> /etc/ecs/ecs.config" }
 							}
 						},
@@ -412,6 +512,9 @@
 						"Principal" : { "Service" : [ "ec2.amazonaws.com" ] }
 					}]
 		        },
+                "ManagedPolicyArns" : [
+					"arn:aws:iam::aws:policy/AmazonEC2RoleforSSM"
+				],
                 "Policies" : [
 					{
 						"PolicyName": { "Fn::Sub" : "${GlobalPrefix}-${Landscape}-ecs-service-policy" },
@@ -433,19 +536,6 @@
 									"ecr:BatchGetImage",
 									"ecr:GetDownloadUrlForLayer",
 									"ecr:GetAuthorizationToken",
-									"ssm:DescribeAssociation",
-									"ssm:GetDeployablePatchSnapshotForInstance",
-									"ssm:GetDocument",
-									"ssm:GetManifest",
-									"ssm:GetParameters",
-									"ssm:ListAssociations",
-									"ssm:ListInstanceAssociations",
-									"ssm:PutInventory",
-									"ssm:PutComplianceItems",
-									"ssm:PutConfigurePackageResult",
-									"ssm:UpdateAssociationStatus",
-									"ssm:UpdateInstanceAssociationStatus",
-									"ssm:UpdateInstanceInformation",
 									"ec2messages:AcknowledgeMessage",
 									"ec2messages:DeleteMessage",
 									"ec2messages:FailMessage",

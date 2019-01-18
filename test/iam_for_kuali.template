@@ -1,0 +1,134 @@
+{
+	"AWSTemplateFormatVersion" : "2010-09-09",
+
+	"Description" : "Creates 2 roles, one the ec2 instance running jenkins is to assume, and one for each ec2 instance acting as a host for any kuali application.",
+
+	"Parameters" : {
+	},
+
+	"Resources" : {
+
+		"Kuali-EC2-Jenkins-Role" : {
+		    "Type" : "AWS::IAM::Role",
+		    "Properties" : {
+				"Path" : "/",
+                "RoleName" : "kuali-ec2-jenkins-role",
+		        "AssumeRolePolicyDocument" : {
+					"Statement" : [{
+						"Action" : [ "sts:AssumeRole" ],
+						"Effect" : "Allow",
+						"Principal" : { "Service" : [ "ec2.amazonaws.com" ] }
+					}]
+		        },
+				"ManagedPolicyArns" : [
+					"arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess"
+				],
+                "Policies" : [
+					{
+						"PolicyName" : "kuali-ec2-jenkins-policy",
+                        "PolicyDocument" : {                        
+							"Statement" : [{
+								"Effect" : "Allow",
+								"Resource" : "*",
+								"Action" : [
+									"ssm:GetParameters",
+									"ssm:CancelCommand",
+									"ssm:GetCommandInvocation",
+									"ssm:ListCommandInvocations",
+									"ssm:ListCommands",
+									"ssm:SendCommand",
+									"ec2messages:AcknowledgeMessage",
+									"ec2messages:DeleteMessage",
+									"ec2messages:FailMessage",
+									"ec2messages:GetEndpoint",
+									"ec2messages:GetMessages",
+									"ec2messages:SendReply",
+									"cloudwatch:PutMetricData",
+									"ec2:DescribeInstanceStatus"
+								]
+							},
+							{
+								"Effect" : "Allow",
+								"Resource" : "arn:aws:s3:::kuali-research-ec2-setup",
+								"Action" : [
+									"s3:PutObject",
+									"s3:Get*",
+									"s3:List*"
+								]
+							},
+							{
+								"Effect": "Allow",
+								"Action": "iam:PassRole",
+								"Resource": "*",
+								"Condition": {
+									"StringEquals": {
+										"iam:PassedToService": [
+											"ssm.amazonaws.com"
+										]
+									}
+								}
+							}]
+						}
+					}
+				]
+		    }
+		},
+
+        "Kuali-EC2-AppHost-Role" : {
+            "Type" : "AWS::IAM::Role",
+		    "Properties" : {
+				"Path" : "/",
+                "RoleName" : "kuali-ec2-apphost-role",
+		        "AssumeRolePolicyDocument" : {
+					"Statement" : [{
+						"Action" : [ "sts:AssumeRole" ],
+						"Effect" : "Allow",
+						"Principal" : { "Service" : [ "ec2.amazonaws.com" ] }
+					}]
+		        },
+				"ManagedPolicyArns" : [
+					"arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+				],
+                "Policies" : [
+					{
+						"PolicyName" : "kuali-ec2-jenkins-policy",
+                        "PolicyDocument" : {                        
+							"Statement" : [{
+								"Effect": "Allow",
+								"Action": [
+									"logs:CreateLogGroup",
+									"logs:CreateLogStream",
+									"logs:DescribeLogGroups",
+									"logs:DescribeLogStreams",
+									"logs:PutLogEvents"
+								],
+								"Resource": "*"
+							},
+							{
+								"Effect" : "Allow",
+								"Resource" : "arn:aws:s3:::kuali-research-ec2-setup",
+								"Action" : [
+									"s3:PutObject",
+									"s3:Get*",
+									"s3:List*"
+								]
+							}]
+						}
+					}
+				]
+		    }
+        }
+	},
+
+
+	"Outputs" : {
+		"Kuali-EC2-Jenkins-Role" : {
+			"Description" : "The Amazon Resource Name for the Role the EC2 instance Jenkins is running on is to assume.",
+		    "Value" : { "Fn::GetAtt" : [ "Kuali-EC2-Jenkins-Role", "Arn"] }
+		},
+        "Kuali-EC2-AppHost-Role" : {
+            "Value" : { "Fn::GetAtt" : [ "Kuali-EC2-AppHost-Role", "Arn"] },
+            "Description" : "The Amazon Resource Name for the Role each kuali application host (ec2 instance) is to assume."
+        }
+	}
+}
