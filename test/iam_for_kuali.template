@@ -51,7 +51,10 @@
 							},
 							{
 								"Effect" : "Allow",
-								"Resource" : "arn:aws:s3:::kuali-research-ec2-setup",
+								"Resource" : [
+									"arn:aws:s3:::kuali-research-ec2-setup",
+									"arn:aws:s3:::kuali-docker-run-stdout"
+								],
 								"Action" : [
 									"s3:PutObject",
 									"s3:Get*",
