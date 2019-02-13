@@ -52,14 +52,10 @@
 							{
 								"Effect" : "Allow",
 								"Resource" : [
-									"arn:aws:s3:::kuali-research-ec2-setup",
-									"arn:aws:s3:::kuali-docker-run-stdout"
+									"arn:aws:s3:::kuali-research-ec2-setup*",
+									"arn:aws:s3:::kuali-docker-run-stdout*"
 								],
-								"Action" : [
-									"s3:PutObject",
-									"s3:Get*",
-									"s3:List*"
-								]
+								"Action" : "*"
 							},
 							{
 								"Effect": "Allow",
@@ -115,18 +111,42 @@
 									"logs:CreateLogStream",
 									"logs:DescribeLogGroups",
 									"logs:DescribeLogStreams",
-									"logs:PutLogEvents"
+									"logs:PutLogEvents",
+									"ssm:DescribeAssociation",
+									"ssm:GetDeployablePatchSnapshotForInstance",
+									"ssm:GetDocument",
+									"ssm:GetManifest",
+									"ssm:GetParameters",
+									"ssm:ListAssociations",
+									"ssm:ListInstanceAssociations",
+									"ssm:PutInventory",
+									"ssm:PutComplianceItems",
+									"ssm:PutConfigurePackageResult",
+									"ssm:UpdateAssociationStatus",
+									"ssm:UpdateInstanceAssociationStatus",
+									"ssm:UpdateInstanceInformation",
+									"ssmmessages:CreateControlChannel",
+									"ssmmessages:CreateDataChannel",
+									"ssmmessages:OpenControlChannel",
+									"ssmmessages:OpenDataChannel",
+									"ec2messages:AcknowledgeMessage",
+									"ec2messages:DeleteMessage",
+									"ec2messages:FailMessage",
+									"ec2messages:GetEndpoint",
+									"ec2messages:GetMessages",
+									"ec2messages:SendReply",
+									"cloudwatch:PutMetricData",
+									"ec2:DescribeInstanceStatus"
 								],
 								"Resource": "*"
 							},
 							{
 								"Effect" : "Allow",
-								"Resource" : "arn:aws:s3:::kuali-research-ec2-setup",
-								"Action" : [
-									"s3:PutObject",
-									"s3:Get*",
-									"s3:List*"
-								]
+								"Resource" : [
+									"arn:aws:s3:::kuali-research-ec2-setup*",
+									"arn:aws:s3:::kuali-docker-run-stdout*"
+								],
+								"Action" : "*"
 							}]
 						}
 					}

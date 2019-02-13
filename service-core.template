@@ -36,7 +36,7 @@
 			"Description" : "Maximum number of instances of the cor-main task we can run across our cluster",
 			"AllowedValues" : [ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 ],
 			"ConstraintDescription" : "Cluster size is limited between 1 and 10 instances.",
-            "Default" : "4"
+            "Default" : "5"
         },
 		 "Listener" : {
 		     "Type" : "String",
@@ -74,29 +74,41 @@
 				"https://forums.aws.amazon.com/thread.jspa?threadID=286855&start=25&tstart=0",
 				"Recently released HTTPS redirection"
 			]]}
+		},
+		"AWS::ECS::TaskDefinition" : {
+			"NOTES" : { "Fn::Join" : [ "\n", [
+				"The docker containers launched for the core TaskDefinition use HostPorts that are dynamically mapped.",
+				"This allows for more granular auto-scaling where more than one instance of the same container can be run on the same ContainerHost (ec2 instance).",
+				"To do this, the ContainerDefinitions must:",
+				"  - Use the bridge NetworkMode setting",
+				"  - Use PortMappings where the HostPort is left blank (or set to 0)",
+				"https://docs.aws.amazon.com/AmazonECS/latest/APIReference/API_PortMapping.html",
+				"https://docs.aws.amazon.com/AmazonECS/latest/APIReference/API_RegisterTaskDefinition.html",
+				"https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_definition_parameters.html#network_mode"
+			]]}
+		},
+		"AWS::ApplicationAutoScaling::ScalingPolicy" : {
+			"NOTES" : { "Fn::Join" : [ "\n", [
+				"Not using a target tracking scaling policy because aws creates and manages the cloudformation alarms, which prevents the opportunity",
+				"for you to create your own custom metric based alarms and have more control in general."
+			]]}
+		},
+		"AWS::CloudWatch::Alarm" : {
+			"NOTES" : { "Fn::Join" : [ "\n", [
+				"How cloudwatch metrics are aggregated across the cluster/service in order to properly trigger scaleout/scalein alarms:",
+				"https://docs.aws.amazon.com/AmazonECS/latest/developerguide/cloudwatch-metrics.html",
+				"https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/AlarmThatSendsEmail.html"
+			]]}
 		}
 	},
 
 	"Resources" : {
-		"ServicePort80" : {
-			"Type" : "AWS::ECS::Service",
-            "DependsOn" : "ListenerRule",
-			"Properties" : {
-				"Cluster" : { "Ref" : "clusterid" },
-                "Role" : { "Ref" : "ServiceRole" },
-                "DesiredCount" : { "Ref" : "DesiredCount" },
-				"TaskDefinition" : { "Ref" : "TaskDefinition" },
-                "LoadBalancers" : [{
-					"ContainerName" : "core",
-                    "ContainerPort" : "80",
-                    "TargetGroupArn" : { "Ref" : "TargetGroup80" }
-				}]
-			}
-		},
         "TaskDefinition" : {
             "Type" : "AWS::ECS::TaskDefinition",
+			"Description" : "Definition for the Task that runs the cor-main application for kuali-research",
             "Properties" : {
-                "Family" : "core-task", 
+                "Family" : "core", 
+                "NetworkMode" : "bridge",
 				"RequiresCompatibilities" : [ "EC2" ],
                 "ContainerDefinitions" : [{
 					"Name" : "core",
@@ -108,8 +120,8 @@
 						{ "Name" : "LANDSCAPE", "Value" : { "Ref" : "Landscape" } }
 					],
 					"PortMappings" : [
-						{ "HostPort" : "80", "ContainerPort" : "3000" },
-						{ "HostPort" : "27017", "ContainerPort" : "27017" }
+						{ "HostPort" : "0", "ContainerPort" : "3000" },
+						{ "HostPort" : "0", "ContainerPort" : "27017" }
 					],
                     "LogConfiguration" : {
 						"LogDriver" : "awslogs",
@@ -135,16 +147,95 @@
                 "RetentionInDays" : 90
             }
         },
+
+
+
+
+		"ServicePort80" : {
+			"Type" : "AWS::ECS::Service",
+            "DependsOn" : "ListenerRule80",
+			"Properties" : {
+				"Cluster" : { "Ref" : "clusterid" },
+                "Role" : { "Ref" : "ServiceRole" },
+                "DesiredCount" : { "Ref" : "DesiredCount" },
+				"TaskDefinition" : { "Ref" : "TaskDefinition" },
+                "LoadBalancers" : [{
+					"ContainerName" : "core",
+                    "ContainerPort" : "80",
+                    "TargetGroupArn" : { "Ref" : "TargetGroup80" }
+				}]
+			}
+		},
         "TargetGroup80" : {
             "Type" : "AWS::ElasticLoadBalancingV2::TargetGroup",
             "Properties" : {
+				"Name" : { "Fn::Sub" : "${GlobalPrefix}-${Landscape}-${AWS::StackName}-TG-port-80" },
 				"VpcId" : { "Ref" : "vpcid" },
                 "Port" : 80,
                 "Protocol" : "HTTP",
                 "Matcher" : { "HttpCode" : "200-299"},
+               "TargetGroupAttributes" : [
+					{ "Key" : "stickiness.enabled", "Value" : "true" },
+					{ "Key" : "stickiness.type", "Value" : "lb_cookie" },
+					{ "Key" : "stickiness.lb_cookie.duration_seconds", "Value" : "86400" },
+					{ "Key" : "deregistration_delay.timeout_seconds", "Value" : "300" },
+					{ "Key" : "slow_start.duration_seconds", "Value" : "0" }
+                ]                
+            }
+        },
+		"ListenerRule80": {
+			"Type" : "AWS::ElasticLoadBalancingV2::ListenerRule",
+            "Description" : "When the core institution provider type is switched from \"kuali\" to \"saml\" as the institution provider value, the shibboleth configuration will take over https redirection and this rule can be removed.",
+			"Properties" : {
+                "ListenerArn" : { "Ref" : "Listener" },
+                "Priority" : 1,
+                "Actions" : [{
+					"TargetGroupArn" : { "Ref" : "TargetGroup80" },
+                    "Type" : "redirect",
+					"RedirectConfig": {
+						"Host" : "#{host}",
+						"Path" : "/#{path}",
+						"Port" : "443",
+						"Protocol" : "HTTPS",
+						"Query" : "#{query}",
+						"StatusCode" : "HTTP_301"
+					}
+				}],
+                "Conditions" : [
+					{ "Field" : "path-pattern", "Values" : [ "/" ] }
+				]
+			}
+		},
+
+
+
+
+		"ServicePort443" : {
+			"Type" : "AWS::ECS::Service",
+            "DependsOn" : "ListenerRule443",
+			"Properties" : {
+				"Cluster" : { "Ref" : "clusterid" },
+                "Role" : { "Ref" : "ServiceRole" },
+                "DesiredCount" : { "Ref" : "DesiredCount" },
+				"TaskDefinition" : { "Ref" : "TaskDefinition" },
+                "LoadBalancers" : [{
+					"ContainerName" : "core",
+                    "ContainerPort" : "443",
+                    "TargetGroupArn" : { "Ref" : "TargetGroup443" }
+				}]
+			}
+		},
+        "TargetGroup443" : {
+            "Type" : "AWS::ElasticLoadBalancingV2::TargetGroup",
+            "Properties" : {
+				"Name" : { "Fn::Sub" : "${GlobalPrefix}-${Landscape}-${AWS::StackName}-TG-port-443" },
+				"VpcId" : { "Ref" : "vpcid" },
+                "Port" : 443,
+                "Protocol" : "HTTPS",
+                "Matcher" : { "HttpCode" : "200-299"},
                 "HealthCheckIntervalSeconds" : 10,
                 "HealthCheckPath" : "/apps/",
-                "HealthCheckProtocol" : "HTTP",
+                "HealthCheckProtocol" : "HTTPS",
                 "HealthCheckTimeoutSeconds" : 5,
                 "HealthyThresholdCount" : 2,
                 "TargetGroupAttributes" : [
@@ -156,19 +247,43 @@
                 ]                
             }
         },
-        "ListenerRule" : {
-            "Type" : "AWS::ElasticLoadBalancingV2::ListenerRule",
-            "Properties" : {
+		"ListenerRule443": {
+			"Type" : "AWS::ElasticLoadBalancingV2::ListenerRule",
+			"Properties" : {
                 "ListenerArn" : { "Ref" : "Listener" },
                 "Priority" : 1,
-                "Actions" : [
-					{ "TargetGroupArn" : { "Ref" : "TargetGroup80" }, "Type" : "forward" }
-                ],
+                "Actions" : [{
+					"TargetGroupArn" : { "Ref" : "TargetGroup443" },
+                    "Type" : "forward"
+				}],
                 "Conditions" : [
-					{ "Field" : "path-pattern", "Values" : [ "/" ] }
-                ]
-            }
-        },
+					{ "Field" : "path-pattern", "Values" : [ "/apps" ] },
+					{ "Field" : "path-pattern", "Values" : [ "/api/v1/apps" ] },
+					{ "Field" : "path-pattern", "Values" : [ "/users" ] },
+					{ "Field" : "path-pattern", "Values" : [ "/api/v1/users" ] },
+					{ "Field" : "path-pattern", "Values" : [ "/auth" ] },
+					{ "Field" : "path-pattern", "Values" : [ "/api/v1/auth" ] },
+					{ "Field" : "path-pattern", "Values" : [ "/api/v1/jobs" ] },
+					{ "Field" : "path-pattern", "Values" : [ "/api/v1/notification-templates" ] },
+					{ "Field" : "path-pattern", "Values" : [ "/api/v1/notifications" ] },
+					{ "Field" : "path-pattern", "Values" : [ "/forms" ] },
+					{ "Field" : "path-pattern", "Values" : [ "/api/v1/forms" ] },
+					{ "Field" : "path-pattern", "Values" : [ "/groups" ] },
+					{ "Field" : "path-pattern", "Values" : [ "/api/v1/groups" ] },
+					{ "Field" : "path-pattern", "Values" : [ "/api/v1/categories" ] },
+					{ "Field" : "path-pattern", "Values" : [ "/core-assets" ] },
+					{ "Field" : "path-pattern", "Values" : [ "/css" ] },
+					{ "Field" : "path-pattern", "Values" : [ "/img" ] },
+					{ "Field" : "path-pattern", "Values" : [ "/font" ] },
+					{ "Field" : "path-pattern", "Values" : [ "/js" ] }
+				]
+			}
+		},
+
+
+
+
+
         "ServiceRole" : {
             "Type" : "AWS::IAM::Role",
             "Properties" : {
@@ -210,36 +325,50 @@
                 "ResourceId"  : {"Fn::Join" : [ "/", [
 					"service",
                     { "Ref" : "clusterid" },
-                    {"Fn::GetAtt" : [ "ServicePort80", "Name"]}
-				] ]},
-                "MaxCapacity" : "",
-                "MinCapacity" : "",
-                "ScalableDimension" : "",
-                "ServiceNamespace"  : ""
+                    {"Fn::GetAtt" : [ "ServicePort443", "Name"]}
+				] ]},               
+                "MaxCapacity" : { "Ref" : "MaxCount" },
+                "MinCapacity" : { "Ref" : "DesiredCount" },
+                "ScalableDimension" : "ecs:service:DesiredCount",
+                "ServiceNamespace"  : "ecs"
             }
         },
         "ServiceScaleOutPolicy" : {
             "Type" : "AWS::ApplicationAutoScaling::ScalingPolicy",
             "Properties" : {
-                "PolicyName" : ""
-            }
-        },
-        "ServiceScaleInPolicy" : {
-            "Type" : "AWS::ApplicationAutoScaling::ScalingPolicy",
-            "Properties" : {
-                "PolicyName" : ""
+                "PolicyName" : { "Fn::Sub" : "${GlobalPrefix}-${Landscape}-${AWS::StackName}-core-target-scaling-policy" },
+                "PolicyType" : "TargetTrackingScaling",
+                "ScalingTargetId" : { "Ref" : "ServiceScalableTarget" },
+                "StepScalingPolicyConfiguration" : {
+					"AdjustmentType" : "ChangeInCapacity",
+                    "Cooldown" : 3000,
+                    "MetricAggregationType" : "Average",
+                    "MinAdjustmentMagnitude" : 1,
+                    "StepAdjustments" : [{
+						"MetricIntervalLowerBound" : 0,
+                        "MetricIntervalUpperBound" : 1,
+                        "ScalingAdjustment" : 1
+					}]
+				}
             }
         },
         "CPUScaleOutAlarm" : {
             "Type" : "AWS::CloudWatch::Alarm",
             "Properties" : {
-                "ComparisonOperator" : "",
+				"AlarmName" : { "Fn::Sub" : "${GlobalPrefix}-${Landscape}-${AWS::StackName}-core-scaleout-alarm" },
+                "AlarmDescription" : "Alarm triggered when average cpu utilization across the service exceeds set threshold",
+                "Namespace"          : "AWS/ECS",
+                "MetricName"         : "CPUUtilization",
+                "Dimensions" : [
+					{ "Name" : "ClusterName", "Value" : { "Ref" : "clusterid" }},
+					{ "Name" : "ServiceName", "Value" : {"Fn::GetAtt" : [ "ServicePort443", "Name"]}}
+				],
+                "Statistic"          : "Average",
+                "ComparisonOperator" : "GreaterThanOrEqualToThreshold",
                 "EvaluationPeriods"  : "",
-                "MetricName"         : "",
-                "Namespace"          : "",
                 "Period"             : "",
-                "Statistic"          : "",
-                "Threshold"          : ""
+                "Threshold"          : "",
+                "AlarmActions" : [ { "Ref" : "ServiceScaleoutPolicy" } ]
             }
         },
         "CUPScaleInAlarm" : {

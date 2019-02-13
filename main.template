@@ -32,8 +32,8 @@
     },
 	"MavenVersion" : {
 	    "Type" : "String",
-        "Description" : "The maven verion number for the kuali-research application that is to be deployed to the cluster. Example: 1808.0044. This also happens to be how all other modules (core, coi, etc.) that run along with kuali-research are tagged as docker images in the elastic container registry. Using this value is how we select the correct images from the registry for each ecr task being deployed in a service throughout the cluster.",
-        "Default" : "1806.0044"
+        "Description" : "The maven verion number for the kuali-research application that is to be deployed to the cluster. Example: 1812.0024. This also happens to be how all other modules (core, coi, etc.) that run along with kuali-research are tagged as docker images in the elastic container registry. Using this value is how we select the correct images from the registry for each ecr task being deployed in a service throughout the cluster.",
+        "Default" : "1812.0024"
 	}
   }, 
 

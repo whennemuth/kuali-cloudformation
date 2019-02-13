@@ -44,9 +44,23 @@
 		    }
 		},
 
+		"ECSTestSSLCert" : {
+			"Type" : "AWS::CertificateManager::Certificate",
+            "DependsOn" : "LoadBalancer",
+			"Properties" : {				
+				"DomainName" : {"Fn::GetAtt" : [ "LoadBalancer", "DNSName"]},
+				"DomainValidationOptions" : [{
+					"DomainName" : {"Fn::GetAtt" : [ "LoadBalancer", "DNSName"]},
+					"ValidationDomain" : {"Fn::GetAtt" : [ "LoadBalancer", "DNSName"]}
+				}]
+			}
+		},
+
         "LoadBalancerListener" : {
             "Type" : "AWS::ElasticLoadBalancingV2::Listener",
+            "DependsOn" : "ECSTestSSLCert",
             "Properties" : {
+				"Certificates" : [ { "CertificateArn" : { "Ref" : "ECSTestSSLCert" } } ],
                 "DefaultActions" : [{
                     "TargetGroupArn" : { "Ref" : "DefaultTargetGroup" },
                     "Type" : "forward"
