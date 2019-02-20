@@ -29,7 +29,7 @@
 		"DockerImageTag" : {
 			"Type" : "String",
 			"Description" : "The version of the cor-main docker image to pull from the docker registry",
-			"Default" : "1810.0020"
+			"Default" : "1812.0024"
 		}
 	},
 
@@ -115,7 +115,8 @@
 						"RunCommands" : [ 
 							{ "ConfigSet" : "cmd01"}, 
 							{ "ConfigSet" : "cmd02"}, 
-							{ "ConfigSet" : "cmd03"} 
+							{ "ConfigSet" : "cmd03"},
+							{ "ConfigSet" : "cmd04"}
 						],
 						"cmd01" : [ "01_get_configs_from_s3" ],
 						"cmd02" : [ "02_create_env_exports_file" ], 
@@ -189,7 +190,7 @@
 								"owner" : "root",
 								"group" : "root"
 							},
-							"/root/send-special-cloudwatch-metrics1.sh" : {
+							"/root/send-custom-cloudwatch-metrics1.sh" : {
 								"content" : { "Fn::Join" : [ "\n", [
 									"#!/bin/bash",
 									"# Adding additional cloudwatch metrics that include memory utilization.",
@@ -224,7 +225,7 @@
 									"  # If no average cpu record, then take the cpu as of this moment",
 									"[ -z \"$((cat /tmp/average.cpu | grep -P '^\\d+(\\.\\d+)?$') 2> /dev/null)\" ] && grep 'cpu ' /proc/stat | awk '{print ($2+$4)*100/($2+$4+$5)}' > /tmp/average.cpu",
 									"AVERAGE_CPU=$(cat /tmp/average.cpu)",
-									"  # Compute the average cpu utilization by taking a reading every 2seconds for a 58 seconds and taking their average.",
+									"  # Compute the average cpu utilization by taking a reading every 2 seconds for 58 seconds and taking their average.",
 									"  # The cron job is on a minute schedule, so 58 seconds will ensure that a new average will be recorded BEFORE the next cron cycle.",
 									"NEXT_AVERAGE_CPU=$(n=0 && cat <(echo \"$(while [ $n -lt 4 ] ; do grep 'cpu ' /proc/stat && sleep 2 && n=$((n+1)) ; done)\") | awk '{c++; t += ($2+$4)*100/($2+$4+$5)} END {print t/c}')",
 									"echo $NEXT_AVERAGE_CPU > /tmp/average.cpu",
@@ -241,12 +242,54 @@
 								"mode" : "000744",
 								"owner" : "root",
 								"group" : "root"
-							},
+							},				
 							"/root/send-psuedo-cloudwatch-metrics.sh" : {
 								"content" : { "Fn::Join" : [ "\n", [
 									"#!/bin/bash",
 									"",
-									""
+									"# This function streams a json file from s3 that indicates dummy metrics to send to cloudwatch.",
+									"# The purpose is to simulate higher (or lower) thresholds that would trigger alarms to engage",
+									"# a scale-in or scale-out policy for auto-scaling activity.",
+									"sendDummyMetrics() {",
+									"  # local json=$(cat /c/whennemuth/workspaces/ecs_workspace/dummy-metrics/dummy-ec2-metrics.json)",
+									"  local json=$(aws s3 cp s3://kuali-research-ec2-setup/dummydata/dummy-ec2-metrics.json -)",
+									"  local namespace=$(echo \"$json\" | jq -r '.Namespace')",
+									"  local instances=$(echo $json | jq -r -c '.Instances[]')",
+									"  local evals=()",
+									"  while read -r instance; do",
+									"    local instanceId=$(echo \"$instance\" | jq -r '.InstanceId')",
+									"    local metrics=$(echo $instance | jq -r -c '.Metrics[]')",
+									"    while read -r metric; do",
+									"      local name=$(echo \"$metric\" | jq -r '.MetricName')",
+									"      local baseline=$(echo \"$metric\" | jq -r '.BaselineValue')",
+									"      local deviation=$(echo \"$metric\" | jq -r '.DeviationValue')i",
+									"      # Examples to set until to a value offset from current UTC time",
+									"      # date +%s --date='+5 minute'",
+									"      # date +%s --date='-1 hour'",
+									"      local until=$(echo \"$metric\" | jq -r '.DeviateUntil')",
+									"      local value=$baseline",
+									"      local now=$(date +%s)",
+									"      [ $until -gt $now ] && value=$deviation",
+									"      local evalstr=\"$(cat <<EOF",
+									"        aws cloudwatch put-metric-data \\",
+									"          --region us-east-1 \\",
+									"          --dimensions Instance=$instanceId \\",
+									"          --namespace \"$namespace\" \\",
+									"          --metric-name $name \\",
+									"          --value $value",
+									"EOF",
+									"      )\"",
+									"      evals=(\"${evals[@]}\" \"$(echo \"$evalstr\" | sed -E 's/[[:space:]]+/ /g' | xargs)\")",
+									"    done <<< \"$metrics\"",
+									"  done <<< \"$instances\"",
+									"",
+									"  for cmd in \"${evals[@]}\" ; do",
+									"    echo \"$cmd\"",
+									"    eval \"$cmd\"",
+									"  done",
+									"}",
+									"",
+									"sendDummyMetrics"
 								]]},
 								"mode" : "000744",
 								"owner" : "root",
@@ -443,7 +486,9 @@
 					},
 					"04_start_cron_for_custom_cloudwatch_metrics" : {
 						"commands" : {
-							"cmd01" : "crontab -u root /root/crontab"
+							"cmd01" : {
+								"command" : "crontab -u root /root/crontab"
+							}
 						}
 					}
 				}
