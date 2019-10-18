@@ -21,7 +21,7 @@
 			"m5.large", "m5.xlarge", "m5.2xlarge"
 		],
         "ConstraintDescription" : "Specified instance type is not within selection list.",
-        "Default" : "m4.large"
+        "Default" : "m4.small"
     },
     "ClusterSize" : {
         "Type" : "Number",
@@ -33,7 +33,7 @@
 	"MavenVersion" : {
 	    "Type" : "String",
         "Description" : "The maven verion number for the kuali-research application that is to be deployed to the cluster. Example: 1812.0024. This also happens to be how all other modules (core, coi, etc.) that run along with kuali-research are tagged as docker images in the elastic container registry. Using this value is how we select the correct images from the registry for each ecr task being deployed in a service throughout the cluster.",
-        "Default" : "1812.0024"
+        "Default" : "1906.0021"
 	}
   }, 
 
@@ -90,6 +90,96 @@
 				"SecurityGroup" : {"Fn::GetAtt" : [ "SecurityGroups", "Outputs.ECSHostSecurityGroup"]}
 			}
         }
+    },
+
+    "KualiCoreService" : {
+        "Type" : "AWS::CloudFormation::Stack",
+        "Properties" : {
+            "TemplateURL" : "https://s3.amazonaws.com/kuali-research-ec2-setup/ecs/cloudformation/service-core.template",
+            "Parameters" : {
+                "GlobalPrefix" : { "Ref" : "Landscape" },
+                "Landscape" : { "Ref" : "Landscape" },
+                "vpcid" : {"Fn:GetAtt" : ["VPC", "Outputs.VPC"]},
+                "clusterid" : {"Fn:GetAtt" : ["ECS", "Outputs.Cluster"]},
+                "DesiredCount" : "2",
+                "MaxCount" : "3",
+                "KualiResearchUrl" : {"Fn::Join" : [ "/", [ { "Fn:GetAtt" : ["ALB", "Outputs.LoadBalancerUrl"] }, "kc"] ]},
+                "KualiDashboardUrl" : {"Fn::Join" : [ "/", [ { "Fn:GetAtt" : ["ALB", "Outputs.LoadBalancerUrl"] }, "dashboard"] ]},
+                "Listener" : { "Fn:GetAtt" : ["ALB", "Outputs.Listener"]},
+                "Path" : "/",
+                "ECSServiceAutoScalingRoleARN" : { "Fn:GetAtt" : ["ECS", "Outputs.ECSServiceAutoScalingRole"]},
+                "DockerImageVersion" : { "Ref" : "MavenVersion"}
+            }
+        }
+    },
+
+    "KualiResearchService" : {
+        "Type" : "AWS::CloudFormation::Stack",
+        "Properties" : {
+            "TemplateURL" : "https://s3.amazonaws.com/kuali-research-ec2-setup/ecs/cloudformation/service-research.template",
+            "Parameters" : {
+                "GlobalPrefix" : { "Ref" : "Landscape" },
+                "Landscape" : { "Ref" : "Landscape" },
+                "vpcid" : {"Fn:GetAtt" : ["VPC", "Outputs.VPC"]},
+                "clusterid" : {"Fn:GetAtt" : ["ECS", "Outputs.Cluster"]},
+                "DesiredCount" : "2",
+                "MaxCount" : "3",
+                "KualiCoreUrl" : { "Fn:GetAtt" : ["ALB", "Outputs.LoadBalancerUrl"] },
+                "KualiDashboardUrl" : {"Fn::Join" : [ "/", [ { "Fn:GetAtt" : ["ALB", "Outputs.LoadBalancerUrl"] }, "dashboard"] ]},
+                "Listener" : { "Fn:GetAtt" : ["ALB", "Outputs.Listener"]},
+                "Path" : "/kc",
+                "ECSServiceAutoScalingRoleARN" : { "Fn:GetAtt" : ["ECS", "Outputs.ECSServiceAutoScalingRole"]},
+                "DockerImageVersion" : { "Ref" : "MavenVersion"}
+            }
+        }
+    },
+
+    "KualiDashboardService" : {
+        "Type" : "AWS::CloudFormation::Stack",
+        "Properties" : {
+            "TemplateURL" : "https://s3.amazonaws.com/kuali-research-ec2-setup/ecs/cloudformation/service-dashboard.template",
+            "Parameters" : {
+                "GlobalPrefix" : { "Ref" : "Landscape" },
+                "Landscape" : { "Ref" : "Landscape" },
+                "vpcid" : {"Fn:GetAtt" : ["VPC", "Outputs.VPC"]},
+                "clusterid" : {"Fn:GetAtt" : ["ECS", "Outputs.Cluster"]},
+                "DesiredCount" : "2",
+                "MaxCount" : "3",
+                "KualiCoreUrl" : { "Fn:GetAtt" : ["ALB", "Outputs.LoadBalancerUrl"] },
+                "KualiResearchUrl" :  {"Fn::Join" : [ "/", [ { "Fn:GetAtt" : ["ALB", "Outputs.LoadBalancerUrl"] }, "kc"] ]},
+                "Listener" : { "Fn:GetAtt" : ["ALB", "Outputs.Listener"]},
+                "Path" : "/dashboard",
+                "ECSServiceAutoScalingRoleARN" : { "Fn:GetAtt" : ["ECS", "Outputs.ECSServiceAutoScalingRole"]},
+                "DockerImageVersion" : { "Ref" : "MavenVersion"}
+            }
+        }
+    },
+
+
+    "LifeCycleHook" : {
+        "Type" : "AWS::CloudFormation::Stack",
+        "Properties" : {
+            "TemplateURL" : "https://s3.amazonaws.com/kuali-research-ec2-setup/ecs/cloudformation/lifecycle-hook.template",
+            "Parameters" : {
+                "Cluster" : {"Fn::GetAtt" : [ "ECS", "Outputs.Cluster"] },
+                "ECSAutoScalingGroupName" : [ "ECS", "Outputs.ECSAutoScalingGroupName" ]
+            }
+        }
     }
+  },
+
+  "Outputs" : {
+      "KualiCoreUrl" : {
+        "Description" : "The URL endpoint for the kuali cor-main service",
+        "Value": { "Fn:GetAtt" : ["ALB", "Outputs.Listener"]}
+      },
+      "KualiResearchUrl" : {
+        "Description" : "The URL endpoint for the kuali research service",
+        "Value": {"Fn::Join" : [ "/", [ { "Fn:GetAtt" : ["ALB", "Outputs.LoadBalancerUrl"] }, "kc"] ]}
+      },
+      "KualiDashboardUrl" : {
+        "Description" : "The URL endpoint for the kuali research service",
+        "Value": {"Fn::Join" : [ "/", [ { "Fn:GetAtt" : ["ALB", "Outputs.LoadBalancerUrl"] }, "dashboard"] ]}
+      }
   }
 }

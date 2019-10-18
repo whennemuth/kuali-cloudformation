@@ -29,7 +29,7 @@
 		"DockerImageTag" : {
 			"Type" : "String",
 			"Description" : "The version of the cor-main docker image to pull from the docker registry",
-			"Default" : "1812.0024"
+			"Default" : "1906.0021"
 		}
 	},
 

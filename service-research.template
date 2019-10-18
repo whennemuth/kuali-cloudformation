@@ -1,7 +1,7 @@
 {
 	"AWSTemplateFormatVersion" : "2010-09-09",
 
-	"Description" : "This service contains one task that runs the kuali cor-main application",
+	"Description" : "This service contains one task that runs the kuali research application",
 
 	"Parameters" : {
         "GlobalPrefix" : {
@@ -51,9 +51,9 @@
              "Type" : "String",
              "Description" : "The ECS service auto scaling role ARN."
 		 },
-		 "KualiResearchUrl" : {
+		 "KualiCoreUrl" : {
 			"Type" : "String",
-			"Description" : "The url where the kuali research app can be reached."
+			"Description" : "The url where the kuali cor-main app can be reached."
 		 },
 		 "KualiDashboardUrl" : {
 			"Type" : "String",
@@ -113,45 +113,40 @@
 	"Resources" : {
         "TaskDefinition" : {
             "Type" : "AWS::ECS::TaskDefinition",
-			"Description" : "Definition for the Task that runs the cor-main application for kuali-research",
+			"Description" : "Definition for the Task that runs the kuali research application for kuali-research",
             "Properties" : {
-                "Family" : "core", 
+                "Family" : "kuali-research", 
                 "NetworkMode" : "bridge",
 				"RequiresCompatibilities" : [ "EC2" ],
                 "ContainerDefinitions" : [{
-					"Name" : "core",
+					"Name" : "kuali-research",
 					"User" : "root",
 					"Essential" : true,
-					"Image" : { "Fn::Sub" : "730096353738.dkr.ecr.us-east-1.amazonaws.com/core:${DockerImageVersion}" },
+					"Image" : { "Fn::Sub" : "wrh1/kuali-dashboard:${DockerImageVersion}" },
 					"Memory" : 256,
                     "Environment" : [
 						{ "Name" : "LANDSCAPE", "Value" : { "Ref" : "Landscape" } }
 					],
 					"PortMappings" : [
-						{ "HostPort" : "0", "ContainerPort" : "3000" },
-						{ "HostPort" : "0", "ContainerPort" : "27017" }
+						{ "HostPort" : "0", "ContainerPort" : "8080" }
 					],
                     "LogConfiguration" : {
 						"LogDriver" : "awslogs",
                         "Options" : {
-							"awslogs-group" : { "Ref" : "KualiECSCoreLogGroup" },
+							"awslogs-group" : { "Ref" : "KualiECSKcLogGroup" },
 							"awslogs-region" : { "Ref" : "AWS::Region" },
 							"awslogs-stream-prefix" : { "Ref" : "AWS::StackName" },
 							"awslogs-create-group" : "false"
 						}
 					},
-                    "MountPoints" : [{ 
-						"SourceVolume" : "/var/kuali/s3/core", 
-						"ContainerPath" : "/var/core-config", 
-						"ReadOnly" : false
-					}]
+                    "MountPoints" : []
 				}]
             }
         },
-        "KualiECSCoreLogGroup" : {
+        "KualiECSKcLogGroup" : {
             "Type" : "AWS::Logs::LogGroup",
             "Properties" : {
-				"LogGroupName" : { "Fn::Sub" : "${GlobalPrefix}-${Landscape}-${AWS::StackName}-core" },
+				"LogGroupName" : { "Fn::Sub" : "${GlobalPrefix}-${Landscape}-${AWS::StackName}-kc" },
                 "RetentionInDays" : 90
             }
         },
@@ -168,7 +163,7 @@
                 "DesiredCount" : { "Ref" : "DesiredCount" },
 				"TaskDefinition" : { "Ref" : "TaskDefinition" },
                 "LoadBalancers" : [{
-					"ContainerName" : "core",
+					"ContainerName" : "kc",
                     "ContainerPort" : "80",
                     "TargetGroupArn" : { "Ref" : "TargetGroup80" }
 				}]
@@ -177,7 +172,7 @@
         "TargetGroup80" : {
             "Type" : "AWS::ElasticLoadBalancingV2::TargetGroup",
             "Properties" : {
-				"Name" : { "Fn::Sub" : "${GlobalPrefix}-${Landscape}-${AWS::StackName}-TG-core-port-80" },
+				"Name" : { "Fn::Sub" : "${GlobalPrefix}-${Landscape}-${AWS::StackName}-TG-kc-port-80" },
 				"VpcId" : { "Ref" : "vpcid" },
                 "Port" : 80,
                 "Protocol" : "HTTP",
@@ -236,7 +231,7 @@
         "TargetGroup443" : {
             "Type" : "AWS::ElasticLoadBalancingV2::TargetGroup",
             "Properties" : {
-				"Name" : { "Fn::Sub" : "${GlobalPrefix}-${Landscape}-${AWS::StackName}-TG-core-port-443" },
+				"Name" : { "Fn::Sub" : "${GlobalPrefix}-${Landscape}-${AWS::StackName}-TG-port-443" },
 				"VpcId" : { "Ref" : "vpcid" },
                 "Port" : 443,
                 "Protocol" : "HTTPS",

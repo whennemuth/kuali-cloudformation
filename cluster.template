@@ -382,9 +382,9 @@
 									"",
 									"# Send custom metrics to cloudwatch once every minute",
 									"# Check the system log for any errors this script encounters",
-									"* * * * * /root/send-custom-cloudwatch-metrics1.sh",
-									"* * * * * /root/send-custom-cloudwatch-metrics2.sh",
-									"* * * * * /root/send-psuedo-cloudwatch-metrics.sh",
+									"# * * * * * /root/send-custom-cloudwatch-metrics1.sh",
+									"# * * * * * /root/send-custom-cloudwatch-metrics2.sh",
+									"# * * * * * /root/send-psuedo-cloudwatch-metrics.sh",
 									""
 								]]},
 								"mode" : "000644",
@@ -567,10 +567,11 @@
 								"content" : { "Fn::Join" : [ "\n", [
 									"#!/bin/bash",
 									"",
-									"echo \"Downloading all configurations for the container from the s3 bucket\"",
+									"echo \"Downloading all configurations for the containers from the s3 bucket\"",
 									"[ ! -d /var/kuali/s3 ] && mkdir /var/kuali/s3",
 									"cd /var/kuali/s3",
-									"aws s3 sync --delete s3://kuali-research-ec2-setup/${LANDSCAPE}/core/ ."
+									"aws s3 sync --delete s3://kuali-research-ec2-setup/${LANDSCAPE}/ .",
+									""
 								]]},
 								"mode" : "000775",
 								"owner" : "root",
@@ -639,7 +640,7 @@
 						"commands" : {
 							"cmd01" : {
 								"cwd" : "/var/kuali/scripts",
-								"env" : { "ENV_FILE_FROM_S3" : "/var/kuali/s3/environment.variables.s3" },
+								"env" : { "ENV_FILE_FROM_S3" : "/var/kuali/s3/core/environment.variables.s3" },
 								"command" : "bash process.env.file.sh"
 							}
 						}

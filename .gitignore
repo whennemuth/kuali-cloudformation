@@ -3,5 +3,8 @@
 !/.gitignore
 !/*.md
 !/lambda
+!/lambda/*
 !/test
+!/test/*
 !/notes
+!/notes/*
