@@ -1,9 +1,8 @@
 /*
+!/*.yaml
 !/*.template
 !/.gitignore
 !/*.md
-!/lambda
-!/lambda/*
 !/test
 !/test/*
 !/notes

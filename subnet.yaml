@@ -1,0 +1,207 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: >
+  This template will create 2 private subnets whose CIDR blocks depends
+  on the specified landscape and have 128 IPs each. The goal is to have ready 2 subnets
+  that the ecs cluster that corresponds to the landscape can span. As of now, there
+  are 5 environments and the ec2 instances of the associated ecs cluster run in two
+  availability zones, at least one of which overlaps with another landscape. This
+  means 5 total availability zones across the landscapes. Currently us-east-1 will
+  support this as it has zones A-F
+
+
+Parameters:
+
+  Landscape:
+    Type: String
+    AllowedValues:
+    - sb
+    - ci
+    - qa
+    - stg
+    - prod
+    ConstraintDescription: >
+      This parameter is restricted to the following values: sb, ci, qa, stg, prod
+    Default: sb
+  vpcid:
+    Type: AWS::EC2::VPC::Id
+    Description: The id of the vpc this is a subnet of.
+  GlobalPrefix:
+    Type: String
+    Description: >
+      A common value that all resources in this template will prefix to
+      their name to establish a bundling through naming convention. If a nested stack,
+      this will most likely be the name of the top-most stack.
+    Default: ECS-test
+
+
+Mappings:
+  ZoneMap:
+    sb:
+      pubCIDR1: 10.0.1.0/25
+      priCIDR1: 10.0.1.128/25
+      az1Idx: 0
+      pubCIDR2: 10.0.2.0/25
+      priCIDR2: 10.0.2.128/25
+      az2Idx: 1
+    ci:
+      pubCIDR1: 10.0.3.0/25
+      priCIDR1: 10.0.3.128/25
+      az1Idx: 1
+      pubCIDR2: 10.0.4.0/25
+      priCIDR2: 10.0.4.128/25
+      az2Idx: 2
+    qa:
+      pubCIDR1: 10.0.5.0/25
+      priCIDR1: 10.0.5.128/25
+      az1Idx: 2
+      pubCIDR2: 10.0.6.0/25
+      priCIDR2: 10.0.6.128/25
+      az2Idx: 3
+    stg:
+      pubCIDR1: 10.0.7.0/25
+      priCIDR1: 10.0.7.128/25
+      az1Idx: 3
+      pubCIDR2: 10.0.8.0/25
+      priCIDR2: 10.0.8.128/25
+      az2Idx: 4
+    prod:
+      pubCIDR1: 10.0.9.0/25
+      priCIDR1: 10.0.9.128/25
+      az1Idx: 4
+      pubCIDR2: 10.0.10.0/25
+      priCIDR2: 10.0.10.128/25
+      az2Idx: 5
+
+
+Resources:
+    
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Description: >
+      First of 2 public subnets in which is deployed a NAT gateway for handling traffic that is outbound to the internet.
+    Properties:
+      AvailabilityZone:
+        !Select
+        - Fn::FindInMap:
+          - ZoneMap
+          - !Ref Landscape
+          - az1Idx
+        - Fn::GetAZs:
+            !Ref AWS::Region
+      CidrBlock:
+        !FindInMap
+        - ZoneMap
+        - !Ref Landscape
+        - pubCIDR1
+      MapPublicIpOnLaunch: true
+      VpcId:
+        !Ref vpcid
+      Tags:
+      - Key: Name
+        Value:
+         !Sub "${GlobalPrefix}-public-subnet1-${Landscape}"
+      - Key: Created-by
+        Value: Warren Hennemuth
+
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Description: >
+      The first of 2 private subnets spanned by the cluster to which are
+      routed traffic inbound from the internet through the application load balancer.
+    Properties:
+      AvailabilityZone:
+        !Select
+        - Fn::FindInMap:
+          - ZoneMap
+          - !Ref Landscape
+          - az1Idx
+        - Fn::GetAZs:
+            !Ref AWS::Region
+      CidrBlock:
+        !FindInMap
+        - ZoneMap
+        - !Ref Landscape
+        - priCIDR1
+      MapPublicIpOnLaunch: false
+      VpcId:
+        !Ref vpcid
+      Tags:
+      - Key: Name
+        Value:
+          !Sub "${GlobalPrefix}-private-subnet1-${Landscape}"
+      - Key: Created-by
+        Value: Warren Hennemuth
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Description: >
+      The second of 2 public subnets in which is deployed a NAT gateway
+      for handling traffic that is outbound to the internet
+    Properties:
+      AvailabilityZone:
+        !Select
+        - Fn::FindInMap:
+          - ZoneMap
+          - !Ref Landscape
+          - az2Idx
+        - Fn::GetAZs:
+            !Ref AWS::Region
+      CidrBlock:
+        !FindInMap
+        - ZoneMap
+        - !Ref Landscape
+        - pubCIDR2
+      MapPublicIpOnLaunch: true
+      VpcId:
+        !Ref vpcid
+      Tags:
+      - Key: Name
+        Value:
+          !Sub "${GlobalPrefix}-public-subnet2-${Landscape}"
+      - Key: Created-by
+        Value: Warren Hennemuth
+
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Description: >
+      The second of 2 private subnets spanned by the cluster to which are
+      routed traffic inbound from the internet through the application load balancer.
+    Properties:
+      AvailabilityZone:
+        !Select
+        - Fn::FindInMap:
+          - ZoneMap
+          - !Ref Landscape
+          - az2Idx
+        - Fn::GetAZs:
+            !Ref AWS::Region
+      CidrBlock:
+        !FindInMap
+        - ZoneMap
+        - !Ref Landscape
+        - priCIDR2
+      MapPublicIpOnLaunch: false
+      VpcId:
+        !Ref vpcid
+      Tags:
+      - Key: Name
+        Value:
+          !Sub "${GlobalPrefix}-private-subnet2-${Landscape}"
+      - Key: Created-by
+        Value: Warren Hennemuth
+
+
+Outputs:
+  PrivateSubnet1:
+    Value:
+      !Ref PrivateSubnet1
+  PrivateSubnet2:
+    Value:
+      !Ref PrivateSubnet2
+  PublicSubnet1:
+    Value:
+      !Ref PublicSubnet1
+  PublicSubnet2:
+    Value:
+      !Ref PublicSubnet2

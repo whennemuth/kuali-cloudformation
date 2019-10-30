@@ -1,0 +1,233 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: >
+  This template deploys a VPC, with a pair of public and private subnets spread 
+  across two Availabilty Zones. It deploys an Internet Gateway, with a default 
+  route on the public subnets. It deploys a pair of NAT Gateways (one in each AZ), 
+  and default routes for them in the private subnets.
+
+
+Parameters:
+  Landscape:
+    Description: Specify which landscape to build into the VPC
+    Type: String
+    AllowedValues:
+    - sb
+    - ci
+    - qa
+    - stg
+    - prod
+    ConstraintDescription: >
+      This parameter is restricted to the following values: sb, ci, qa, stg, prod'
+    Default: sb
+  GlobalPrefix:
+    Type: String
+    Description: >
+      A common value that all resources in this template will prefix to
+      their name to establish a bundling through naming convention. If a nested stack,
+      this will most likely be the name of the top-most stack.
+    Default: ECS-test
+
+
+Resources:
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsHostnames: true
+      Tags:
+      - Key: Name
+        Value: !Join [ '', [ !Ref GlobalPrefix, "-vpc" ] ]
+      - Key: Notes
+        Value: VPC for running ecs, part of cloud formation stack
+      - Key: Created-by
+        Value: Warren Hennemuth
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+      - Key: name
+        Value: !Join [ '', [ !Ref GlobalPrefix, "-internet-gateway" ] ]
+
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId:
+        !Ref InternetGateway
+      VpcId:
+        !Ref VPC
+
+  Subnets:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://s3.amazonaws.com/kuali-research-ec2-setup/ecs/cloudformation/subnet.yaml
+      Parameters:
+        GlobalPrefix:
+          !Ref GlobalPrefix
+        Landscape:
+          !Ref Landscape
+        vpcid:
+          !Ref VPC
+          
+  NatGateway1EIP:
+    Type: AWS::EC2::EIP
+    Description: The elastic IP to associate with the NatGateway of the first public subnet
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      Domain: vpc
+
+  NatGateway2EIP:
+    Type: AWS::EC2::EIP
+    Description: The elastic IP to associate with the NatGateway of the second public subnet
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      Domain: vpc
+
+  NatGateway1:
+    Type: AWS::EC2::NatGateway
+    Description: Gateway for preventing unsolicited inbound connections from the internet to the first private subnet.
+    Properties:
+      AllocationId:
+        !GetAtt NatGateway1EIP.AllocationId
+      SubnetId:
+        GetAtt Subnets.Outputs.PublicSubnet1
+      Tags:
+      - Key: Name
+        Value: !Join [ '', [!Ref GlobalPrefix, "-nat-gateway1-", !Ref Landscape] ]
+
+  NatGateway2:
+    Type: AWS::EC2::NatGateway
+    Description: Gateway for preventing unsolicited inbound connections from the internet to the second private subnet.
+    Properties:
+      AllocationId:
+        !GetAtt NatGateway2EIP.AllocationId
+      SubnetId:
+        !GetAtt Subnets.Outputs.PublicSubnet2
+      Tags:
+      - Key: Name
+        Value:
+          !Join [ '', [ !Ref GlobalPrefix, -nat-gateway2-", !Ref Landscape ] ]
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Description: The table for routes that lead to the InternetGateway.
+    Properties:
+      VpcId:
+        !Ref VPC
+      Tags:
+      - Key: Name
+        Value: !Join [ '', [ !Ref GlobalPrefix,  "-public-route-table-", !Ref Landscape ] ]
+
+  DefaultPublicRoute:
+    Type: AWS::EC2::Route
+    Description: The public route that leads to the InternetGateway.
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      RouteTableId:
+        !Ref PublicRouteTable
+      GatewayId:
+        !Ref InternetGateway
+
+  PublicSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Description: Associates the first public subnet with the single default public
+      route table.
+    Properties:
+      RouteTableId:
+        !Ref PublicRouteTable
+      SubnetId:
+       !GetAtt Subnets.Outputs.PublicSubnet1
+
+  PublicSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Description: Associates the second public subnet with the single default public route table.
+    Properties:
+      RouteTableId:
+        !Ref PublicRouteTable
+      SubnetId:
+        !GetAtt Subnets.Outputs.PublicSubnet2
+
+  PrivateRouteTable1:
+    Type: AWS::EC2::RouteTable
+    Description: >
+      The table for routes that lead between the first private subnet 
+      through the first NatGateway to the internet gateway.
+    Properties:
+      VpcId:
+        !Ref VPC
+      Tags:
+      - Key: Name
+        Value: !Join [ '', [!Ref GlobalPrefix, "-private-route-table1-", !Ref Landscape ] ]
+
+  DefaultPrivateRoute1:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      RouteTableId:
+        !Ref PrivateRouteTable1
+      NatGatewayId:
+        !Ref NatGateway1
+
+  PrivateSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId:
+        !Ref PrivateRouteTable1
+      SubnetId:
+        !GetAtt Subnets.Outputs.PrivateSubnet1
+
+  PrivateRouteTable2:
+    Type: AWS::EC2::RouteTable
+    Description: >
+      The table for routes that lead between the second private subnet
+      through the second NatGateway to the internet gateway.
+    Properties:
+      VpcId:
+        !Ref VPC
+      Tags:
+      - Key: Name
+        Value: !Join [ '', [!Ref GlobalPrefix, "-private-route-table2-", !Ref Landscape] ]
+
+  DefaultPrivateRoute2:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      RouteTableId:
+        !Ref PrivateRouteTable2
+      NatGatewayId:
+        !Ref NatGateway2
+
+  PrivateSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId:
+        !Ref PrivateRouteTable2
+      SubnetId:
+        !GetAtt Subnets.Outputs.PrivateSubnet2
+
+
+Outputs:
+
+  VPC:
+    Value:
+      !Ref VPC
+    Description: A reference to the created VPC
+
+  PrivateSubnets:
+    Value:
+      !Join
+      - ","
+      - - !GetAtt Subnets.Outputs.PrivateSubnet1
+        - !GetAtt Subnets.Outputs.PrivateSubnet2
+    Description: A reference to an array of 2 private subnets, each in its own availability zone.
+
+  PublicSubnets:
+    Value:
+      !Join
+      - ","
+      - - !GetAtt Subnets.Outputs.PublicSubnet1
+        - !GetAtt Subnets.Outputs.PublicSubnet2
+    Description: A reference to an array of 2 public subnets, each in its own availability zone.

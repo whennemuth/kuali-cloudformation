@@ -1,0 +1,328 @@
+Description: >
+  Create a new micro EC2 ecs-optimized instance to test out UserData and
+  MetaData settings for a simple node app
+
+
+Parameters:
+
+  EC2InstanceType:
+    Type: String
+    AllowedValues:
+    - t2.nano
+    - t2.micro
+    - t2.small
+    - t2.medium
+    - t2.large
+    - t2.xlarge
+    Default: t2.micro
+
+  Landscape:
+    Description: Specify which landscape to build into the VPC
+    Type: String
+    AllowedValues:
+    - sb
+    - ci
+    - qa
+    - stg
+    - prod
+
+    ConstraintDescription: >
+      This parameter is restricted to the following values: sb, ci, qa, stg, prod
+    Default: sb
+
+  ConfigBucket:
+    Type: String
+    Description: The S3 bucket where our config files, keys, etc. are stored
+    Default: kuali-research-ec2-setup
+
+
+# To get the ec2 instance into the BU VPC, add the following to MyMicro.Properties: "SubnetId" : "subnet-61377139"
+Resources:
+
+  MyMicro:
+    Type: AWS::EC2::Instance
+    Description: Micro instance for testing UserData and MetaData settings.
+    Properties:
+      Tags:
+      - Key: Name
+        Value: buaws-wrh-ecs-ec2-test1
+      ImageId: ami-00129b193dc81bc31
+      InstanceType:
+        !Ref EC2InstanceType
+      SecurityGroups:
+      - !Ref MyMicroSecurityGroup
+      KeyName: buaws-kuali-rsa-warren
+      IamInstanceProfile:
+        !Ref MyMicroProfile
+      UserData:
+        "Fn::Base64": !Sub |
+          #!/bin/bash"
+          yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
+          yum install -y aws-cfn-bootstrap
+          
+          # Modify the sudoers file so that anyone in the wheel group can be a sudoer
+          chmod u+w /etc/sudoers && \
+          echo -e "%wheel\tALL=(ALL)\tNOPASSWD: ALL" >> /etc/sudoers && \
+          chmod u-w /etc/sudoers && \
+          
+          # NOTE: Creating users here and not in Metadata.AWS::CloudFormation::Init.config.users due to restrictions: 
+          # Users are created as non-interactive system users with a shell of /sbin/nologin. This is by design and cannot be modified.
+          users=(wrh mukadder dhaywood mkousheh)
+          for user in ${!users[@]}; do
+            adduser -m $user && \
+            usermod -aG root $user && \
+            usermod -aG docker $user && \
+            usermod -aG wheel $user && \
+            mkdir /home/$user/.ssh && \
+            chmod 700 /home/$user/.ssh && \
+            chown -R $user:$user /home/$user
+          done
+          
+          # Implement all the metadata in AWS::CloudFormation::Init
+          /opt/aws/bin/cfn-init \
+            -v \
+            --configsets AllConfigs \
+            --region ${AWS::Region} \
+            --stack ${AWS::StackName} \
+            --resource MyMicro
+
+    Metadata:
+      AWS::CloudFormation::Authentication:
+        S3AccessCreds:
+          type: S3
+          roleName:
+            !Ref MyMicroS3Role
+          buckets:
+          - !Ref ConfigBucket
+      AWS::CloudFormation::Init:
+        configSets:
+          AllConfigs:
+          - getFiles
+          - runCommands
+        getFiles:
+          packages:
+            yum:
+              awslogs: []
+          files:
+            /home/wrh/.ssh/authorized_keys:
+              mode: 000600
+              owner: wrh
+              group: wrh
+              source:
+                Fn::Sub: https://s3.amazonaws.com/${ConfigBucket}/ecs/ssh-keys/rsa-key-wrh.pub
+            /home/mkousheh/.ssh/authorized_keys:
+              mode: 000600
+              owner: mkousheh
+              group: mkousheh
+              source:
+                Fn::Sub: https://s3.amazonaws.com/${ConfigBucket}/ecs/ssh-keys/rsa-key-mkousheh.pub
+            /home/mukadder/.ssh/authorized_keys:
+              mode: 000600
+              owner: mukadder
+              group: mukadder
+              source:
+                Fn::Sub: https://s3.amazonaws.com/${ConfigBucket}/ecs/ssh-keys/rsa-key-mukadder.pub
+            /home/dhaywood/.ssh/authorized_keys:
+              mode: 000600
+              owner: dhaywood
+              group: dhaywood
+              source:
+                Fn::Sub: https://s3.amazonaws.com/${ConfigBucket}/ecs/ssh-keys/rsa-key-dhaywood.pub
+            /var/kuali/README.txt:
+              content: !Sub |
+                This directory contains the "environment" for each app to run
+                in a docker container that it needs.
+                This includes env-file, configuration files, keys, etc.
+                These are specific to the ${Landscape} landscape.
+              mode: 000775
+              owner: root
+              group: root
+            /var/kuali/docker/build.context/Dockerfile:
+              content: |
+                # Create a Dockerfile for basic node application"
+                FROM node:8
+                ENV AARDVARK=HELLO
+                WORKDIR /app
+                COPY package*.json ./
+                RUN npm install
+                COPY index.js .
+                EXPOSE 8080
+                COPY start-node.sh .
+                CMD [ "/app/start-node.sh" ]
+              mode: 000775
+              owner: root
+              group: root
+            /var/kuali/docker/build.context/index.js:
+              content: |
+                // Create a default page for node website that lists all environment variables"
+                'use strict';
+                
+                const express = require('express');
+                const PORT = 8080;
+                const HOST = '0.0.0.0';
+                const app = express();
+                
+                app.get('/', (req, res) => {
+                  res.contentType('application/json');
+                  res.send(JSON.stringify(process.env, null, 4));
+                });
+                
+                app.listen(PORT, HOST);
+                console.log(`Running on http://${HOST}:${PORT}`);
+              mode: 000775
+              owner: root
+              group: root
+            /var/kuali/docker/build.context/package.json:
+              content: |
+                {
+                  "name": "environment_var_test",
+                  "version": "1.0.0",
+                  "description": "Testing environment variables",
+                  "author": "Warren Hennemuth <wrh@bu.edu>",
+                  "main": "index.js",
+                  "scripts": {
+                    "start": "node index.js"
+                  },
+                  "dependencies": {
+                    "express": "^4.16.1"
+                  }
+                }
+              mode: 000775
+              owner: root
+              group: root
+            /var/kuali/docker/build.context/start-node.sh:
+              content: !Sub |
+                #!/bin/bash
+                
+                # Turn a name=value line into an "export name=value" line
+                getLineExport() {
+                  local line=$(echo -n "$1" | xargs) # Use xargs to trim the line.
+                  # Return and empty string if the line is a properties file comment
+                    [ "${!line:0:1}" == "#" ] && echo "" && exit 0;
+                    [ -z "$line" ] && echo "" && exit 0;
+                    echo "export $line"
+                  }
+                  
+                  # Export all environment variables in the mounted directory before starting node"
+                  if [ ${!ENV_FILE} ] && [ ! -f /var/env/${!ENV_FILE} ] ; then
+                    echo "ERROR! MISSING /var/env/${!ENV_FILE}"
+                    exit 1
+                  elif [ ${!ENV_FILE} ] ; then
+                    echo "Exporting environment variables..."
+                    while read line ; do
+                      expline="$(getLineExport "$line")" &&
+                      [ -n "$expline" ] &&
+                      echo "Setting env var $(echo "$expline" | cut -f1 -d '=') && eval "$expline"'
+                    done < /var/env/${!ENV_FILE}
+                  fi
+                  
+                  npm start
+              mode: 000775
+              owner: root
+              group: root
+            /var/kuali/docker/build.context/docker.sh:
+              content: !Sub |
+                #!/bin/bash
+                # Create script to build docker image and run container (re-runnable)
+                
+                build() {
+                  if [ "$1" == "clean" ] ; then
+                    if [ -n "$(docker ps -a | grep nodetest)" ] ; then
+                      docker rm -f nodetest
+                    fi
+                  fi
+                  docker build -t nodeserver:v1 .
+                }
+                
+                run() {
+                  if [ -n "$(docker ps -a | grep nodetest)" ] ; then
+                    docker rm -f nodetest
+                  fi
+                  docker run -d --name=nodetest -p 80:8080 -e ENV_FILE=${!ENV_FILE} \
+                    -v /var/kuali/core:/var/env nodeserver:v1
+                }
+                
+                if [ ! $1 ] ; then
+                  echo "Missing parameter!" && return 1;
+                elif [ $1 == 'build' ] ; then
+                  echo "Building..."
+                  if [ $2 == 'run' ] ; then
+                    build clean
+                    echo "Running..."
+                    run
+                  else
+                    build
+                  fi
+                elif [ $1 == 'run' ] ; then
+                  echo "Running..."
+                  run
+                else
+                  echo "Unrecognized parameter $1"
+                    return 1
+                fi
+              mode: 000775
+              owner: root
+              group: root
+        runCommands:
+          commands:
+            01_get_configs_from_s3:
+              cwd: /var/kuali
+              command:
+                !Sub aws s3 cp --recursive s3://kuali-research-ec2-setup/${Landscape}/
+                  .
+            02_docker_build_image_run_container:
+              cwd: /var/kuali/docker/build.context
+              env:
+                ENV_FILE: environment.variables.s3
+              command: bash docker.sh build run
+
+  MyMicroSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Warrens security group for a test t2.micro ec2 instance
+      GroupName: WarrensT2.micro.SG
+      Tags:
+      - Key: Name
+        Value: buaws-wrh-ecs-ec2-test1.SG
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: 0.0.0.0/0
+
+  MyMicroProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: Profile-for-MyMicroS3Role
+      Path: "/"
+      Roles:
+      - !Ref MyMicroS3Role
+
+  MyMicroS3Role:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: MyMicroS3Role
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - ec2.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/"
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
+
+
+Outputs:
+  PrivateIP:
+    Value:
+      !GetAtt MyMicro.PrivateIp
+  PublicIP:
+    Value:
+      !GetAtt MyMicro.PublicIp

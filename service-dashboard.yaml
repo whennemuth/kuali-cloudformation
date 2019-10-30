@@ -1,0 +1,415 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: This service contains one task that runs the kuali dashboard portal
+
+
+Parameters:
+
+  GlobalPrefix:
+    Type: String
+    Description: >
+      A common value that all resources in this template will prefix to
+      their name to establish a bundling through naming convention. If a nested stack,
+      this will most likely be the name of the top-most stack.
+    Default: ECS-test
+
+  Landscape:
+    Description: Specify a landscape (sandbox, qa, etc... )
+    Type: String
+    AllowedValues:
+    - sb
+    - ci
+    - qa
+    - stg
+    - prod
+    ConstraintDescription: >
+      This parameter is restricted to the following values: sb, ci, qa, stg, prod
+    Default: sb
+
+  vpcid:
+    Type: AWS::EC2::VPC::Id
+    Description: The id of the vpc this is a subnet of.
+
+  clusterid:
+    Type: String
+    Description: Please provide the ECS Cluster ID that this service should run on
+
+  DesiredCount:
+    Type: Number
+    Description: How many instances of the kuali dashboard task should we run across our cluster?
+    AllowedValues: [ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 ]
+    ConstraintDescription: Cluster size is limited between 1 and 10 instances.
+    Default: 3
+
+  MaxCount:
+    Type: Number
+    Description: Maximum number of instances of the kuali dashboard task we can run across our cluster
+    AllowedValues: [ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 ]
+    ConstraintDescription: Cluster size is limited between 1 and 10 instances.
+    Default: 5
+
+  Listener:
+    Type: String
+    Description: The Application Load Balancer listener to register with.
+
+  Path:
+    Type: String
+    Description: The path to register with the Application Load Balancer.
+    Default: "/"
+
+  ECSServiceAutoScalingRoleARN:
+    Type: String
+    Description: The ECS service auto scaling role ARN.
+  KualiCoreUrl:
+    Type: String
+    Description: The url where the kuali cor-main app can be reached.
+  KualiDashboardUrl:
+    Type: String
+    Description: The url where the kuali dashboard app can be reached.
+
+  DockerImageVersion:
+    Type: String
+    Description: >
+      The maven verion number for the kuali-research application that
+      is to be deployed to the cluster. Example: 1808.0044. All other modules (core,
+      coi, etc.) that run along with kuali-research borrow the same tag when they
+      are pushed as docker images into the elastic container registry. This way, all
+      container definitions of every task are grouped because the docker images on
+      which they are based will conform with eachother in terms of api cross-compatiblility,
+      equivalent release, etc.
+    Default: 1909.0036
+
+    
+# NOTES:
+# AWS::ECS::Service:
+#   https://docs.aws.amazon.com/AmazonECS/latest/developerguide/service-load-balancing.html
+#   Currently, Amazon ECS services can only specify a single load balancer or target group. 
+#   If your service requires access to multiple load balanced ports (for example, port 80 and 
+#   port 443 for an HTTP/HTTPS service), you must use a Classic Load Balancer with multiple 
+#   listeners. To use an Application Load Balancer, separate the single HTTP/HTTPS service 
+#   into two services, where each handles requests for different ports. Then, each service 
+#   could use a different  target group behind a single Application Load Balancer.
+#
+# AWS::ElasticLoadBalancingV2::ListenerRule:
+#   https://forums.aws.amazon.com/thread.jspa?threadID=286855&start=25&tstart=0
+#   Recently released HTTPS redirection
+#
+# AWS::ECS::TaskDefinition:
+#   The docker containers launched for the kuali dashboard TaskDefinition use HostPorts that are dynamically 
+#   mapped. This allows for more granular auto-scaling where more than one instance of the same 
+#   container can be run on the same ContainerHost (ec2 instance).
+#   To do this, the ContainerDefinitions must:
+#     - Use the bridge NetworkMode setting
+#     - Use PortMappings where the HostPort is left blank (or set to 0)
+#   https://docs.aws.amazon.com/AmazonECS/latest/APIReference/API_PortMapping.html
+#   https://docs.aws.amazon.com/AmazonECS/latest/APIReference/API_RegisterTaskDefinition.html
+#   https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_definition_parameters.html#network_mode
+#
+# AWS::ApplicationAutoScaling::ScalingPolicy:
+#   Not using a target tracking scaling policy because aws creates and manages the cloudformation 
+#   alarms, which prevents the opportunity for you to create your own custom metric based alarms and 
+#   have more control in general.
+#
+# AWS::CloudWatch::Alarm:
+#   How cloudwatch metrics are aggregated across the cluster/service in order to properly trigger 
+#   scaleout/scalein alarms: 
+#     https://docs.aws.amazon.com/AmazonECS/latest/developerguide/cloudwatch-metrics.html
+#     https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/AlarmThatSendsEmail.html
+Resources:
+
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Description: Definition for the Task that runs the kuali dashboard for kuali-research
+    Properties:
+      Family: kuali-dashboard
+      NetworkMode: bridge
+      RequiresCompatibilities:
+      - EC2
+      ContainerDefinitions:
+      - Name: kuali-dashboard
+        User: root
+        Essential: true
+        Image:
+          !Sub wrh1/dummy-kuali-dashboard:${DockerImageVersion}
+        Memory: 256
+        Environment:
+        - Name: LANDSCAPE
+          Value:
+            !Ref Landscape
+        PortMappings:
+        - HostPort: 0
+          ContainerPort: 8080
+        - HostPort: 0
+          ContainerPort: 8009
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-group:
+              !Ref KualiECSDashboardLogGroup
+            awslogs-region:
+              !Ref AWS::Region
+            awslogs-stream-prefix:
+              !Ref AWS::StackName
+            awslogs-create-group: false
+        MountPoints:
+        - SourceVolume: "/var/kuali/s3/kuali"
+          ContainerPath: "/tmp"
+          ReadOnly: false
+
+  KualiECSDashboardLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        !Sub "${GlobalPrefix}-${Landscape}-${AWS::StackName}-dashboard"
+      RetentionInDays: 90
+
+  ServicePort80:
+    Type: AWS::ECS::Service
+    DependsOn: ListenerRule80
+    Properties:
+      Cluster:
+        !Ref clusterid
+      Role:
+        !Ref ServiceRole
+      DesiredCount:
+        !Ref DesiredCount
+      TaskDefinition:
+        !Ref TaskDefinition
+      LoadBalancers:
+      - ContainerName: kuali-dashboard
+        ContainerPort: 8080
+        TargetGroupArn:
+          !Ref TargetGroup80
+
+  TargetGroup80:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name:
+        !Sub "${GlobalPrefix}-${Landscape}-${AWS::StackName}-TG-dashboard-port-80"
+      VpcId:
+        !Ref vpcid
+      Port: 80
+      Protocol: HTTP
+      Matcher:
+        HttpCode: 200-299
+      TargetGroupAttributes:
+      - Key: stickiness.enabled
+        Value: true
+      - Key: stickiness.type
+        Value: lb_cookie
+      - Key: stickiness.lb_cookie.duration_seconds
+        Value: 86400
+      - Key: deregistration_delay.timeout_seconds
+        Value: 300
+      - Key: slow_start.duration_seconds
+        Value: 0
+
+  ListenerRule80:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Description: >
+      When the core institution provider type is switched from "kuali"
+      to "saml" as the institution provider value, the shibboleth configuration will
+      take over https redirection and this rule can be removed.
+    Properties:
+      ListenerArn:
+        !Ref Listener
+      Priority: 1
+      Actions:
+      - TargetGroupArn:
+          !Ref TargetGroup80
+        Type: redirect
+        RedirectConfig:
+          Host: "#{host}"
+          Path: "/#{path}"
+          Port: 443
+          Protocol: HTTPS
+          Query: "#{query}"
+          StatusCode: HTTP_301
+      Conditions:
+      - { Field: path-pattern, Values: [ "/dashboard" ] }
+      - { Field: path-pattern, Values: [ "/dashboard/*" ] }
+
+  ServicePort443:
+    Type: AWS::ECS::Service
+    DependsOn: ListenerRule443
+    Properties:
+      Cluster:
+        !Ref clusterid
+      Role:
+        !Ref ServiceRole
+      DesiredCount:
+        !Ref DesiredCount
+      TaskDefinition:
+        !Ref TaskDefinition
+      LoadBalancers:
+      - ContainerName: kuali-dashboard
+        ContainerPort: 443
+        TargetGroupArn:
+          !Ref TargetGroup443
+
+  TargetGroup443:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name:
+        !Sub "${GlobalPrefix}-${Landscape}-${AWS::StackName}-TG-dashboard-port-443"
+      VpcId:
+        !Ref vpcid
+      Port: 443
+      Protocol: HTTPS
+      Matcher:
+        HttpCode: 200-299
+      HealthCheckIntervalSeconds: 10
+      HealthCheckPath: "/dashboard/"
+      HealthCheckProtocol: HTTPS
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      TargetGroupAttributes:
+      - Key: stickiness.enabled
+        Value: true
+      - Key: stickiness.type
+        Value: lb_cookie
+      - Key: stickiness.lb_cookie.duration_seconds
+        Value: 86400
+      - Key: deregistration_delay.timeout_seconds
+        Value: 300
+      - Key: slow_start.duration_seconds
+        Value: 0
+
+  ListenerRule443:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn:
+        !Ref Listener
+      Priority: 2
+      Actions:
+      - TargetGroupArn:
+          !Ref TargetGroup443
+        Type: forward
+      Conditions:
+      - { Field: path-pattern, Values: [ "/dashboard" ] }
+      - { Field: path-pattern, Values: [ "/dashboard/*" ] }
+
+  ServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName:
+        !Sub "${GlobalPrefix}-${Landscape}-${AWS::StackName}-ecs-dashboard-service"
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - ecs.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Policies:
+      - PolicyName:
+          !Sub "${GlobalPrefix}-${Landscape}-ecs-host-policy"
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Resource: "*"
+            Action:
+            - ec2:AuthorizeSecurityGroupIngress
+            - ec2:Describe*
+            - elasticloadbalancing:DeregisterInstancesFromLoadBalancer
+            - elasticloadbalancing:Describe*
+            - elasticloadbalancing:RegisterInstancesWithLoadBalancer
+            - elasticloadbalancing:DeregisterTargets
+            - elasticloadbalancing:DescribeTargetGroups
+            - elasticloadbalancing:DescribeTargetHealth
+            - elasticloadbalancing:RegisterTargets
+
+  ServiceScalableTarget:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    Properties:
+      ResourceId:
+        !Join [ "/", [ service, !Ref clusterid, !GetAtt ServicePort443.Name ] ]
+      MaxCapacity:
+        !Ref MaxCount
+      MinCapacity:
+        !Ref DesiredCount
+      ScalableDimension: ecs:service:DesiredCount
+      ServiceNamespace: ecs
+
+  ServiceScaleOutPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName:
+        !Sub "${GlobalPrefix}-${Landscape}-${AWS::StackName}-dashboard-target-scale-in-policy"
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId:
+        !Ref ServiceScalableTarget
+      StepScalingPolicyConfiguration:
+        AdjustmentType: ChangeInCapacity
+        Cooldown: 3000
+        MetricAggregationType: Average
+        MinAdjustmentMagnitude: 1
+        StepAdjustments:
+        - MetricIntervalLowerBound: 0
+          ScalingAdjustment: 1
+
+  ServiceScaleInPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName:
+        !Sub "${GlobalPrefix}-${Landscape}-${AWS::StackName}-dashboard-target-scale-out-policy"
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId:
+        !Ref ServiceScalableTarget
+      StepScalingPolicyConfiguration:
+        AdjustmentType: ChangeInCapacity
+        Cooldown: 3000
+        MetricAggregationType: Average
+        MinAdjustmentMagnitude: 1
+        StepAdjustments:
+        - MetricIntervalUpperBound: 0
+          ScalingAdjustment: -1
+
+  CPUScaleOutAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName:
+        !Sub "${GlobalPrefix}-${Landscape}-${AWS::StackName}-dashboard-scale-out-alarm"
+      AlarmDescription: Alarm triggered when average cpu utilization across the service exceeds 85%
+      Namespace: AWS/ECS
+      MetricName: CPUUtilization
+      Dimensions:
+      - Name: ClusterName
+        Value:
+          !Ref clusterid
+      - Name: ServiceName
+        Value:
+          !GetAtt ServicePort443.Name
+      Statistic: Average
+      ComparisonOperator: GreaterThanThreshold
+      EvaluationPeriods: 3
+      Period: 60
+      Threshold: 85
+      AlarmActions:
+      - !Ref ServiceScaleOutPolicy
+
+  CUPScaleInAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName:
+        !Sub "${GlobalPrefix}-${Landscape}-${AWS::StackName}-dashboard-scale-in-alarm"
+      AlarmDescription: Alarm triggered when average cpu utilization across the service falls below 85%
+      Namespace: AWS/ECS
+      MetricName: CPUUtilization
+      Dimensions:
+      - Name: ClusterName
+        Value:
+          !Ref clusterid
+      - Name: ServiceName
+        Value:
+          !GetAtt ServicePort443.Name
+      Statistic: Average
+      ComparisonOperator: LessThanThreshold
+      EvaluationPeriods: 6
+      Period: 60
+      Threshold: 70
+      AlarmActions:
+      - !Ref ServiceScaleInPolicy
+
+Outputs: {}

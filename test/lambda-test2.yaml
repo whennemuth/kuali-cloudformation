@@ -1,0 +1,91 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: Test for basic java lambda function resource from lambda.template.
+
+
+Parameters:
+
+  Landscape:
+    Type: String
+    AllowedValues:
+    - sb
+    - ci
+    - qa
+    - stg
+    - prod
+    ConstraintDescription: >
+      This parameter is restricted to the following values: sb, ci, qa, stg, prod
+    Default: sb
+
+  GlobalPrefix:
+    Type: String
+    Description: >
+      A common value that all resources in this template will prefix to
+      their name to establish a bundling through naming convention. If a nested stack,
+      this will most likely be the name of the top-most stack.
+    Default: ECS-test
+
+
+Resources:
+
+  Utils:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://s3.amazonaws.com/kuali-research-ec2-setup/ecs/cloudformation/lambda/lambda.yaml
+      Parameters:
+        GlobalPrefix:
+          Ref: GlobalPrefix
+
+  EnvironmentLookup:
+    Type: Custom::Functions
+    Properties:
+      ServiceToken:
+        !GetAtt Utils.Outputs.JavaHelperFunctionArn
+      task: get.container.env.vars
+      region:
+        !Ref AWS::Region
+      s3bucket: kuali-research-ec2-setup
+      s3file:
+        !Sub "${Landscape}/core/environment.variables.s3"
+      outputmask: |
+        { class: edu.bu.ist.apps.aws.task.BasicOutputMask, 
+          parameters: { 
+              fieldsToMask: { 
+                full: [], 
+                logs: [ AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, MONGO_PASS, SERVICE_SECRET_1 ]
+        }}}
+
+  PublicKeysLookup:
+    Type: Custom::Functions
+    Properties:
+      # CAVEAT: Found out the hard way that the limit to a CustomResource response is 4k. Each public key is at least 2K. 
+      # Therefore you can only specify one user in the s3files json object (which was designed to take multiple in one go). 
+      # You can use AWS::CloudFormation::Init.file.[filename].source in favor of this method of getting a key from S3 and 
+      # skip Lambda altogether.   
+      ServiceToken:
+        !GetAtt Utils.Outputs.JavaHelperFunctionArn
+      task: get.ec2.public.keys
+      region:
+        !Ref AWS::Region
+      s3bucket: kuali-research-ec2-setup
+      s3files: |
+        {s3keyfiles: [
+          {user:wrh,      keyfile:"ecs/ssh-keys/rsa-key-wrh.pub"}
+        ]}
+      outputmask: |
+        { class: edu.bu.ist.apps.aws.task.BasicOutputMask, 
+          parameters: { 
+            fieldsToMask: { 
+              full: [], 
+              logs: [wrh, mukadder, dhaywood, mkousheh]
+            }
+        }}
+
+
+Outputs:
+  EnvLookup:
+    Value:
+      !GetAtt  EnvironmentLookup.SERVICE_SECRET_1
+  keyLookup:
+    Value:
+      !GetAtt PublicKeysLookup.wrh

@@ -1,0 +1,88 @@
+Description: Establishes the security groups required throughout the VPC
+
+
+Parameters:
+
+  Landscape:
+    Description: Specify which landscape to build into the VPC
+    Type: String
+    AllowedValues:
+    - sb
+    - ci
+    - qa
+    - stg
+    - prod
+    ConstraintDescription: 'This parameter is restricted to the following values:
+      sb, ci, qa, stg, prod'
+    Default: sb
+
+  GlobalPrefix:
+    Type: String
+    Description: >
+      A common value that all resources in this template will prefix to
+      their name to establish a bundling through naming convention. If a nested stack,
+      this will most likely be the name of the top-most stack.
+    Default: ECS-test
+
+  vpcid:
+    Type: AWS::EC2::VPC::Id
+    Description: The id of the vpc this is a subnet of.
+
+
+Resources:
+
+  ECSHostSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId:
+        !Ref vpcid
+      GroupName:
+        !Join [ '', [ !Ref GlobalPrefix, "-ecs-host-sg-", !Ref Landscape ] ]
+      GroupDescription:
+        !Join
+        - " "
+        - - !Sub Defines who/where is allowed to access the ECS hosts in the ${Landscape}
+              landscape and the tasks/containers that run on them directly.
+          - 'This includes allowing access from: '
+          - 1) The load balancer
+          - 2) SSH access into the ec2 hosts
+      SecurityGroupIngress:
+      - IpProtocol: -1
+        SourceSecurityGroupId:
+          !Ref LoadBalancerSecurityGroup
+        Description: Allows inbound access to ECS instances from the ALB only.
+      - IpProtocol: tcp
+        FromPort: '22'
+        ToPort: '22'
+        CidrIp: 0.0.0.0/0
+        Description: Allows SSH access to ECS host instances directly without requiring it originate from the ALB.
+
+  LoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId:
+        !Ref vpcid
+      GroupName:
+        !Join [ '', [ !Ref GlobalPrefix, "-load-balancer-sg-", !Ref Landscape ] ]
+      GroupDescription:
+        !Join 
+        - " "
+        - - This security group defines who/where is allowed to access the application
+            load balancer that sits in front of ECS
+          - !Ref Landscape
+          - landscape
+      SecurityGroupIngress:
+      - CidrIp: 0.0.0.0/0
+        IpProtocol: -1
+        Description: Allow access from anywhere to the ECS services
+
+
+Outputs:
+  ECSHostSecurityGroup:
+    Description: A reference to the security group for ECS hosts
+    Value:
+      !Ref ECSHostSecurityGroup
+  LoadBalancerSecurityGroup:
+    Description: A reference to the security group for load balancers
+    Value:
+      !Ref LoadBalancerSecurityGroup
