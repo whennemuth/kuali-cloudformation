@@ -49,6 +49,22 @@ Parameters:
 # "SubnetId" : "subnet-61377139",'
 Resources:
 
+  Utils:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://s3.amazonaws.com/kuali-research-ec2-setup/ecs/cloudformation/lambda/ami-lookup.yaml
+      Parameters:
+        GlobalPrefix:
+          ECS-test
+
+  AMIInfo:
+    Type: Custom::AMIInfo
+    Properties:
+      ServiceToken:
+        !GetAtt Utils.Outputs.AMIInfoFunction.Arn
+      Region:
+        Ref: AWS::Region    
+
   MyEC2Instance:
     Type: AWS::EC2::Instance
     Description: T2nstance for testing UserData and MetaData settings.
@@ -57,7 +73,9 @@ Resources:
       Tags:
       - Key: Name
         Value: buaws-wrh-ecs-ec2-test1
-      ImageId: ami-00129b193dc81bc31
+      ImageId: 
+        # ami-00129b193dc81bc31
+        !GetAtt AMIInfo.Id
       InstanceType:
         !Ref EC2InstanceType
       SecurityGroups:
@@ -197,7 +215,7 @@ Resources:
                 HOME=/
                 
                 # Send custom metrics to cloudwatch once every minute
-                # NOTE: The cronjob will start, but it does nothing until you ncomment the 1 or more of the 3 lines below.
+                # NOTE: The cronjob will start, but it does nothing until you uncomment the 1 or more of the 3 lines below.
                 # This is a test ec2 instance, so defaulting to running these scripts manually while shelled in."
                 # Check the system log for any errors this script encounters"
                 # * * * * * /root/send-custom-cloudwatch-metrics1.sh
@@ -422,6 +440,21 @@ Resources:
                   --log-opt awslogs-stream=core-docker-container \
                   --log-opt awslogs-create-group=false \
                   $DOCKER_IMAGE_NAME
+              mode: 000775
+              owner: root
+              group: root
+            /usr/local/sbin/stopinstance.sh:
+              content: |
+                #!/bin/bash
+                # Target this script with a crontab and the instance will be shutdown on the crontab schedule.
+                # You can skip the next scheduled shutdown by creating a /tmp/skipshutdown file.
+                if [ -f /tmp/skipshutdown ] ; then
+                  echo "$(date) Skipping shutdown for today - skip file found." >>  /usr/local/sbin/cronlog
+                  rm -f /tmp/skipshutdown
+                  exit 0
+                fi
+                echo "$(date) Stopping instance per cron schedule..." >> /usr/local/sbin/cronlog
+                aws ec2 stop-instances --instance-ids $(curl http://169.254.169.254/latest/meta-data/instance-id) >> /usr/local/sbin/cronlog 2>&1
               mode: 000775
               owner: root
               group: root

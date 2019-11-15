@@ -1,0 +1,224 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+# Examples: https://github.com/awsdocs/aws-cloudformation-user-guide/blob/master/doc_source/aws-resource-elasticsearch-domain.md
+Description: Elasticsearch Domain setup for Kuali using existing VPC and subnets.
+
+Parameters:
+  Landscape:
+    Description: >
+      Specify which landscape to build and elasticsearch cluster for.
+      The DomainName for the cluster will be based on this.
+    Type: String
+    AllowedValues:
+    - sb
+    - ci
+    - qa
+    - stg
+    - prod
+    ConstraintDescription: >
+      This parameter is restricted to the following values: sb, ci, qa, stg, prod
+    Default: sb
+  DomainName:
+    # When you create a domain with VPC access, the endpoint looks similar to a public endpoint:
+    # https://vpc-domain-name-identifier.region.es.amazonaws.com
+    Description: User defined Elasticsearch Domain name. This will be combined with the landscape.
+    Type: String
+    Default: kuali-elasticsearch
+  ElasticsearchVersion:
+    Description: User defined Elasticsearch Version
+    Type: String
+    # NOTE: This is the version specified in the research portal readme.md file.
+    Default: 6.8
+    # aws es list-elasticsearch-versions --query "ElasticsearchVersions[]"
+    AllowedValues: ['7.1', '6.8', '6.7', '6.5', '6.4', '6.3', '6.2', '6.0', '5.6', '5.5']
+  InstanceType:
+    Type: String
+    Description: The instance type for the data nodes in the cluster
+    AllowedValues:
+    - t2.small.elasticsearch
+    - t2.medium.elasticsearch
+    - t2.large.elasticsearch
+    - m3.small.elasticsearch
+    - m3.medium.elasticsearch
+    - m3.large.elasticsearch
+    ConstraintDescription: Specified instance type is not within selection list.
+    Default: t2.medium.elasticsearch
+  # AvailabilityZone:
+  #   Type: String
+  # CidrBlock:
+  #   Type: String
+  # GroupDescription:
+  #   Type: String
+  # SGName:
+  #   Type: String
+
+
+# Multiple subnets are tested for here, but it is assumed that each subnet is in a different AZ
+Conditions:
+  IsMultiAZ:
+    !Or
+    - !Equals [ !Ref Landscape, stg ] 
+    - !Equals [ !Ref Landscape, prod ]
+
+Mappings:
+  NetworkMap:
+    sb: 
+      VPC: vpc-abdf0ccc
+      subnets:
+      - subnet-61377139
+    ci:
+      VPC: vpc-abdf0ccc
+      subnets:
+      - subnet-86f2d8f0
+    qa:
+      VPC: vpc-abdf0ccc
+      subnets:
+      - vpc-abdf0ccc
+    stg:
+      VPC: vpc-abdf0ccc
+      subnets:
+      - subnet-28235902
+      - subnet-c0fcd6b6
+    prod:
+      VPC: vpc-27114f40
+      subnets:
+      - subnet-7dfb1350
+      - subnet-e329f1aa
+
+
+Resources:
+
+  # 1) This will not work:
+  # KualiServiceLinkedRoleForES:
+  #   Type: 'AWS::IAM::ServiceLinkedRole'
+  #   Properties:
+  #     AWSServiceName: es.amazonaws.com
+  #     Description: 'Role for ES to access resources in my VPC'
+  #
+  # For some reason creating a service linked role now will not work and creation of the domain will fail with the message:
+  #   "Before you can proceed, you must enable a service-linked role to give Amazon ES permissions to access your VPC."
+  # Therefore you must create the service linked role first before you run this template:
+  #
+  #    aws iam create-service-linked-role --aws-service-name es.amazonaws.com
+  #
+  # 2) You must have already created a resource based policy that grants elasticsearch access to cloudwatch logging.
+  #    NOTE: This is not a role: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_compare-resource-policies.html
+  #    There doesn't seem to be a way to doing this by giving the elasticsearch domain a role with the equivalent policy.
+  #    If one of the LogPublishingOptions below is enabled without this resource policy, the stack create/update will fail with
+  #    the following message:
+  #      "The Resource Access Policy specified for the CloudWatch Logs log group KualiElasticSearchLogsGroup does not 
+  #       grant sufficient permissions for Amazon Elasticsearch Service to create a log stream. Please check the Resource Access Policy."
+  # 
+  # aws logs put-resource-policy \
+  #   --policy-name Kuali-elasticsearch-logging-policy \
+  #   --policy-document '{
+  #   "Version": "2012-10-17", 
+  #   "Statement": [
+  #       {
+  #         "Effect": "Allow",
+  #         "Principal": {
+  #           "Service": "es.amazonaws.com"
+  #         },
+  #         "Action": [
+  #           "logs:PutLogEvents",
+  #           "logs:CreateLogStream"
+  #         ],
+  #         "Resource": "arn:aws:logs:us-east-1:730096353738:log-group:/aws/aes/domains/kuali-elasticsearch*"
+  #       }
+  #     ]
+  #   }'
+
+  KualiESLogsGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/aes/domains/${DomainName}-${Landscape}
+      RetentionInDays: 30
+
+  KualiElasticsearchDomain:
+    Type: AWS::Elasticsearch::Domain
+    DependsOn: KualiESLogsGroup
+    Properties:
+      DomainName: !Ref DomainName
+      ElasticsearchVersion: !Ref ElasticsearchVersion
+      ElasticsearchClusterConfig:
+        InstanceCount: !If [ IsMultiAZ, '2', '1' ]
+        InstanceType: !Ref InstanceType
+        ZoneAwarenessEnabled: !If [ IsMultiAZ, 'true', 'false' ]
+      EBSOptions:
+        EBSEnabled: true
+        Iops: 0
+        VolumeSize: 10
+        VolumeType: standard
+      SnapshotOptions:
+        AutomatedSnapshotStartHour: 0
+      LogPublishingOptions:
+        'ES_APPLICATION_LOGS' :
+          CloudWatchLogsLogGroupArn: !GetAtt KualiESLogsGroup.Arn
+          Enabled: true
+      AccessPolicies:
+        # Resource based policy: Here we grant access to users/roles in the account to do searches (GET), updates to indexes(PUT), etc., but no configuration changes.
+        # SEE: https://docs.aws.amazon.com/elasticsearch-service/latest/developerguide/es-ac.html
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Principal:
+            # Specifying '*' here will allow anonymous users (like those trying to reach the kibana url in a browser) access to the domain.
+            AWS: '*'
+          Action: 
+          - 'es:ESHttp*'
+          Resource: !Sub 'arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/${DomainName}/*'
+      AdvancedOptions:
+        rest.action.multi.allow_explicit_index: 'true'
+      Tags:
+        - Key: foo
+          Value: bar
+      VPCOptions:
+        SubnetIds:
+          !FindInMap 
+          - NetworkMap
+          - !Ref Landscape
+          - subnets
+        SecurityGroupIds:
+        - !Ref kualiEsSecurityGroup
+
+  # vpc:
+  #   Type: AWS::EC2::VPC
+  #   Properties:
+  #     CidrBlock: 10.0.0.0/16
+
+  # subnet:
+  #   Type: AWS::EC2::Subnet
+  #   Properties:
+  #     VpcId: !Ref vpc
+  #     CidrBlock: !Ref CidrBlock
+  #     AvailabilityZone: !Ref AvailabilityZone
+    
+  kualiEsSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub The security group for access to the ${Landscape} ElasticSearch cluster through its VPC
+      VpcId:
+        !FindInMap 
+        - NetworkMap
+        - !Ref Landscape
+        - VPC
+      GroupName: !Join [ "-", [ "kuali", !Ref Landscape, "elastic-search-sg" ] ]
+      SecurityGroupIngress:
+        - FromPort: '443'
+          IpProtocol: tcp
+          ToPort: '443'
+          CidrIp: 0.0.0.0/0
+
+
+Outputs:
+  DomainArn:
+    Value: !GetAtt KualiElasticsearchDomain.DomainArn
+  DomainEndpoint:
+    Value: !GetAtt KualiElasticsearchDomain.DomainEndpoint
+  KibanaEndpoint: 
+    Value: !Join [ "", [ "https://", !GetAtt KualiElasticsearchDomain.DomainEndpoint, "/_plugin/kibana/" ] ]
+  LogGroupArn:
+    Value: !GetAtt KualiESLogsGroup.Arn
+  SecurityGroupId:
+    Value: !Ref kualiEsSecurityGroup
+

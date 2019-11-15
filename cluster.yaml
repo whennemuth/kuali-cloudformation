@@ -132,38 +132,54 @@ Parameters:
     Default: kuali-research-ec2-setup
 
 
-Mappings:
-  RegionMap:
-    us-east-1:
-      AMI: ami-5253c32d
-    us-east-2:
-      AMI: ami-956e52f0
-    us-west-1:
-      AMI: ami-6b81980b
-    us-west-2:
-      AMI: ami-d2f489aa
-    alternative-approach:
-      url: https://github.com/awsdocs/aws-cloudformation-user-guide/blob/master/doc_source/walkthrough-custom-resources-lambda-lookup-amiids.md
+# Mappings:
+#   RegionMap:
+#     us-east-1:
+#       AMI: ami-5253c32d
+#     us-east-2:
+#       AMI: ami-956e52f0
+#     us-west-1:
+#       AMI: ami-6b81980b
+#     us-west-2:
+#       AMI: ami-d2f489aa
+#     alternative-approach:
+#       url: https://github.com/awsdocs/aws-cloudformation-user-guide/blob/master/doc_source/walkthrough-custom-resources-lambda-lookup-amiids.md
 
 
 Resources:
 
+  # Utils:
+  #   Type: AWS::CloudFormation::Stack
+  #   Properties:
+  #     TemplateURL: https://s3.amazonaws.com/kuali-research-ec2-setup/ecs/cloudformation/lambda/lambda.yaml
+  #     Parameters:
+  #       GlobalPrefix:
+  #         !Ref GlobalPrefix
+
+  # ClusterSizeParms:
+  #   Type: Custom::Functions
+  #   Properties:
+  #     ServiceToken:
+  #       !GetAtt Utils.Outputs.NodeHelperFunctionArn
+  #     task: cluster-size
+  #     parm1:
+  #       !Ref ClusterSize
+
   Utils:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: https://s3.amazonaws.com/kuali-research-ec2-setup/ecs/cloudformation/lambda/lambda.yaml
+      TemplateURL: https://s3.amazonaws.com/kuali-research-ec2-setup/ecs/cloudformation/lambda/ami-lookup.yaml
       Parameters:
         GlobalPrefix:
           !Ref GlobalPrefix
 
-  ClusterSizeParms:
-    Type: Custom::Functions
+  AMIInfo:
+    Type: Custom::AMIInfo
     Properties:
       ServiceToken:
-        !GetAtt Utils.Outputs.NodeHelperFunctionArn
-      task: cluster-size
-      parm1:
-        !Ref ClusterSize
+        !GetAtt Utils.Outputs.AMIInfoFunction.Arn
+      Region:
+        Ref: AWS::Region    
 
   ECSCluster:
     Type: AWS::ECS::Cluster
@@ -180,10 +196,8 @@ Resources:
         !Ref Subnets
       LaunchConfigurationName:
         !Ref ECSLaunchConfiguration
-      MaxSize:
-        !GetAtt ClusterSizeParms.maxSize
-      MinSize:
-        !GetAtt ClusterSizeParms.minSize
+      MaxSize: 10
+      MinSize: 1
       DesiredCapacity:
         !Ref ClusterSize
       Tags:
@@ -246,7 +260,8 @@ Resources:
     Type: AWS::AutoScaling::LaunchConfiguration
     Properties:
       ImageId:
-        !FindInMap [ RegionMap, !Ref 'AWS::Region', AMI ]
+        !GetAtt AMIInfo.Id
+        # !FindInMap [ RegionMap, !Ref 'AWS::Region', AMI ]
       InstanceType:
         !Ref InstanceType
       SecurityGroups:
@@ -408,7 +423,7 @@ Resources:
                 HOME=/
                 
                 # Send custom metrics to cloudwatch once every minute
-                # NOTE: The cronjob will start, but it does nothing until you ncomment the 1 or more of the 3 lines below.
+                # NOTE: The cronjob will start, but it does nothing until you uncomment the 1 or more of the 3 lines below.
                 # This is a test ec2 instance, so defaulting to running these scripts manually while shelled in."
                 # Check the system log for any errors this script encounters"
                 # * * * * * /root/send-custom-cloudwatch-metrics1.sh
