@@ -1,7 +1,8 @@
 AWSTemplateFormatVersion: 2010-09-09
 
 # Examples: https://github.com/awsdocs/aws-cloudformation-user-guide/blob/master/doc_source/aws-resource-elasticsearch-domain.md
-Description: Elasticsearch Domain setup for Kuali using existing VPC and subnets.
+# Troubleshooting: https://docs.aws.amazon.com/elasticsearch-service/latest/developerguide/aes-handling-errors.html
+Description: Elasticsearch Domain setup for a specified Kuali environment using existing VPC and subnets.
 
 Parameters:
   Landscape:
@@ -138,7 +139,7 @@ Resources:
     Type: AWS::Elasticsearch::Domain
     DependsOn: KualiESLogsGroup
     Properties:
-      DomainName: !Ref DomainName
+      DomainName: !Sub ${DomainName}-${Landscape}
       ElasticsearchVersion: !Ref ElasticsearchVersion
       ElasticsearchClusterConfig:
         InstanceCount: !If [ IsMultiAZ, '2', '1' ]
@@ -166,7 +167,7 @@ Resources:
             AWS: '*'
           Action: 
           - 'es:ESHttp*'
-          Resource: !Sub 'arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/${DomainName}/*'
+          Resource: !Sub 'arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/${DomainName}-${Landscape}/*'
       AdvancedOptions:
         rest.action.multi.allow_explicit_index: 'true'
       Tags:
