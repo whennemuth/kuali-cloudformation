@@ -1,0 +1,227 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+
+Description: >
+  AWS CloudFormation AMI Look Up Sample Template: Demonstrates how to
+  dynamically specify an AMI ID. This template provisions an EC2 instance with an
+  AMI ID that is based on the instance's type and region.
+
+
+Parameters:
+
+  GlobalPrefix:
+    Type: String
+    Description: > 
+      A common value that all resources in this template will prefix to
+      their name to establish a bundling through naming convention. If a nested stack,
+      this will most likely be the name of the top-most stack.
+    Default: ECS-test
+    
+
+Resources:
+  # SampleInstance:
+  #   Type: AWS::EC2::Instance
+  #   Properties:
+  #     InstanceType:
+  #       m3.medium
+  #     ImageId:
+  #       !GetAtt AMIInfo.Id
+
+  # AMIInfo:
+  #   Type: Custom::AMIInfo
+  #   Properties:
+  #     ServiceToken:
+  #       !GetAtt AMIInfoFunction.Arn
+  #     Region:
+  #       Ref: AWS::Region
+
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/"
+      RoleName: 
+        !Join [ "-", [ !Ref GlobalPrefix, "lambda-ami-lookup-execution-role" ] ]
+      Policies:
+      - PolicyName: root
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+          - Effect: Allow
+            Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            Resource: arn:aws:logs:*:*:*
+          - Effect: Allow
+            Action:
+            - ec2:DescribeImages
+            Resource: "*"
+
+  # Criteria for selecting latest AMI:
+  # 1) Filter off release candidates (LTS Candidate"), and beta.
+  # 2) We want the next generation of Amazon Linux (Amazon Linux 2)
+  # 3) Favor Arm64 over x86_64 servers
+  # 4) We want SSD Volume type (gp2), not the Magnetic Volume type (ebs)
+  # 5)  the Xen hypervisor offers two kinds of virtualization: 
+  #     HVM (Hardware Virtual Machine) and PV (Paravirtualization). HVM is the better choice.
+  # 6) Not interested in "amzn-ami-graphics*" AMIs.
+  #
+  # Example CLI call for describeImages:
+  #
+  # aws ec2 describe-images \
+  #   --filters \
+  #     "Name=state,Values=available" \
+  #     "Name=architecture,Values=x86_64,arm64" \
+  #     "Name=name,Values=amzn2-ami-hvm*-gp2" \
+  #   --query 'reverse(sort_by(Images, &CreationDate))'  
+  AMIInfoFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: LambdaExecutionRole
+    Properties:
+      Handler: index.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Runtime: nodejs10.x
+      Timeout: 30
+      Code:
+        ZipFile: |          
+          var aws = require("aws-sdk");
+          
+          exports.handler = function(event, context) {
+                
+              console.log("REQUEST RECEIVED:\n" + JSON.stringify(event));              
+              // For Delete requests, immediately send a SUCCESS response.
+              if (event.RequestType == "Delete") {
+                  sendResponse(event, context, "SUCCESS");
+                  return;
+              }
+          
+              var responseStatus = "FAILED";
+              var responseData = {};          
+              var ec2 = new aws.EC2({region: event.ResourceProperties.Region});
+
+              var parms = {
+                Filters: [
+                  {Name: "name",Values: [ "amzn2-ami-hvm*-gp2" ]},
+                  {Name: "architecture", Values: [ "arm64", "x86_64" ] },
+                  {Name: "state",Values: [ "available" ]}
+                ],
+                Owners: [ "amazon" ]
+              };
+          
+              // Get AMI IDs with the specified name pattern and owner
+              ec2.describeImages(parms, function(err, describeImagesResult) {
+
+                  if (err) {
+                      responseData = {Error: "DescribeImages call failed"};
+                      console.log(responseData.Error + ":\n", err);
+                  }
+                  else {
+                      var images = describeImagesResult.Images;
+                      images.sort(function(x, y) { return getYoungerImage(x, y).Name==x.Name ? -1 : 1});
+                      var arm64Img = '';
+                      var x86_64Img = '';
+
+                      for (var j = 0; j < images.length; j++) {
+                          if (isBeta(images[j])) continue;
+                          if (!arm64Img && images[j].Architecture == 'arm64') {
+                            arm64Img = images[j];
+                          }
+                          if (!x86_64Img && images[j].Architecture == 'x86_64') {
+                            x86_64Img = images[j];
+                          }
+                          if(arm64Img && x86_64Img) break;
+                      }
+
+                      var image = getYoungerImage(arm64Img, x86_64Img);
+                      if (image) {
+                        responseStatus = "SUCCESS";
+                        responseData["Id"] = image.ImageId;
+                        if(!event.StackId) {
+                          console.log("IMAGE: " + JSON.stringify(event, null, 2));
+                        }
+                      }
+                  }
+                  sendResponse(event, context, responseStatus, responseData);
+              });
+          };
+
+          function isBeta(image) {
+            if(/(beta)|(rc)/.test(image.Name.toLowerCase())) return true
+            if (/Candidate/i.test(image.Description)) return true;
+            return false;
+          }
+
+          function getYoungerImage(img1, img2) {
+            var yr1 = parseInt(img1.CreationDate.substr(0,4))
+            var yr2 = parseInt(img2.CreationDate.substr(0,4))
+            if(yr1 > yr2) return img1
+            else if(yr2 > yr1) return img2
+            var mnth1 = parseInt(img1.CreationDate.substr(5,7))
+            var mnth2 = parseInt(img2.CreationDate.substr(5,7))
+            if(mnth1 > mnth2) return img1
+            else if(mnth2 > mnth1) return img2            
+            return img1.Architecture == 'arm64' ? img1 : img2;
+          }
+
+          // Send response to the pre-signed S3 URL 
+          function sendResponse(event, context, responseStatus, responseData) {
+              if(!event.StackId) return;
+              var responseBody = JSON.stringify({
+                  Status: responseStatus,
+                  Reason: "See the details in CloudWatch Log Stream: " + context.logStreamName,
+                  PhysicalResourceId: context.logStreamName,
+                  StackId: event.StackId,
+                  RequestId: event.RequestId,
+                  LogicalResourceId: event.LogicalResourceId,
+                  Data: responseData
+              });
+          
+              console.log("RESPONSE BODY:\n", responseBody);          
+              var https = require("https");
+              var url = require("url");          
+              var parsedUrl = url.parse(event.ResponseURL);
+              var options = {
+                  hostname: parsedUrl.hostname,
+                  port: 443,
+                  path: parsedUrl.path,
+                  method: "PUT",
+                  headers: {
+                      "content-type": "",
+                      "content-length": responseBody.length
+                  }
+              };
+          
+              console.log("SENDING RESPONSE...\n");          
+              var request = https.request(options, function(response) {
+                  console.log("STATUS: " + response.statusCode);
+                  console.log("HEADERS: " + JSON.stringify(response.headers));
+                  context.done();
+              });
+          
+              request.on("error", function(error) {
+                  console.log("sendResponse Error:" + error);
+                  context.done();
+              });
+            
+              request.write(responseBody);
+              request.end();
+          }
+
+
+Outputs:
+  # AMIID:
+  #   Description: The Amazon EC2 instance AMI ID.
+  #   Value:
+  #     !GetAtt AMIInfo.Id
+  AMIInfoFunctionArn:
+    Value:
+      !GetAtt AMIInfoFunction.Arn

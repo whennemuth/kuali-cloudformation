@@ -1,0 +1,114 @@
+Description: One or more resources for custom logic executed by Lambda functions.
+
+Parameters:
+  GlobalPrefix:
+    Type: String
+    Description: >
+      A common value that all resources in this template will prefix to
+      their name to establish a bundling through naming convention. If a nested stack,
+      this will most likely be the name of the top-most stack.
+    Default: ECS-test
+
+
+# CAVEATS:
+# From https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-lambda-function-code.htm
+#   1) If you specify your source code as inline text by specifying the ZipFile
+#      property within the Code property, specify index.function_name as the handler.
+#   2) The cfn-response module is available only when you use the ZipFile property in Amazon S3 buckets.
+#   3) There is a 4096 character limit to text of inline code.
+Resources:
+
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName:
+        !Join [ "-", [ !Ref GlobalPrefix, lambda-helper ] ]
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/"
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      - arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
+
+  JavaHelperFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: LambdaExecutionRole
+    Properties:
+      Description: >
+        Java-based lambda function for getting sensitive data, like passwords,
+        keys, etc., so as not to hard-code them in the template itself. Can be extended
+        to perform any task, however.
+      FunctionName: CloudFormationHelperFunction
+      Role:
+        !GetAtt LambdaExecutionRole.Arn
+      Runtime: java8
+      Timeout: 60
+      MemorySize: 256
+      Handler: edu.bu.ist.apps.aws.lambda.CustomResourceHandler
+      Code:
+        S3Bucket: kuali-research-ec2-setup
+        S3Key: ecs/cloudformation/lambda/lambda-utils.jar
+
+  NodeHelperFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: LambdaExecutionRole
+    Properties:
+      Description: >
+        Note If you specify your source code as inline text by specifying
+        the ZipFile property within the Code property, specify index.function_name
+        as the handler
+      Handler: index.helper
+      Role:
+        GetAtt LambdaExecutionRole.Arn
+      Runtime: nodejs6.10
+      FunctionName:
+        !Join [ "-", [ Ref: GlobalPrefix, lambda-helper ] ]
+      Code:
+        ZipFile: |
+          var response = require('cfn-response');
+          exports.helper = function (event, context) {
+            try {
+                switch(event.ResourceProperties.task) {
+                  case 'add': 
+                    var result = parseInt(event.ResourceProperties.parm1) + parseInt(event.ResourceProperties.parm2);
+                    response.send(event, context, response.SUCCESS, { Value: result });
+                      break;
+                    case 'subtract': 
+                      var result = parseInt(event.ResourceProperties.parm1) - parseInt(event.ResourceProperties.parm2);
+                      response.send(event, context, response.SUCCESS, { Value: result });
+                      break;
+                    case 'cluster-size': 
+                      var desiredCapacity = parseInt(event.ResourceProperties.parm1);
+                      var min = desiredCapacity < 2 ? 1 : (desiredCapacity - 1); "
+                      var max = desiredCapacity + 1;
+                      var json = { minSize: min, maxSize: max }; 
+                      response.send(event, context, response.SUCCESS, json);
+                      break;
+                    default: 
+                      var msg = 'Unexpected/Missing task parameter!'; 
+                      throw new Error(msg);
+                }
+            }
+            catch(e) {
+              console.error(e);
+              response.send(event, context, response.FAILURE, { Value: { error: { name: e.name, message: e.message } }});
+            }
+          };
+
+          
+Outputs:
+  NodeHelperFunctionArn:
+    Value:
+      !GetAtt NodeHelperFunction.Arn
+  JavaHelperFunctionArn:
+    Value:
+      !GetAtt JavaHelperFunction.Arn
+  ExecutionRole:
+    Value:
+      Ref: LambdaExecutionRole
