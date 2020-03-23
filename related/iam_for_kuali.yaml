@@ -128,6 +128,7 @@ Resources:
             Resource:
             - arn:aws:s3:::kuali-research-ec2-setup*
             - arn:aws:s3:::kuali-docker-run-stdout*
+            - arn:aws:s3:::kuali-research-pdf-*
             Action: "*"
 
   KualiEC2AppHostProfile:
