@@ -7,15 +7,6 @@ Description: >
 
 Parameters:
 
-  EC2InstanceType:
-    Type: String
-    AllowedValues:
-    - t2.small
-    - t2.medium
-    - t2.large
-    - t2.xlarge
-    Default: t2.small
-
   Landscape:
     Description: Specify which landscape to build into the VPC
     Type: String
@@ -29,30 +20,98 @@ Parameters:
       This parameter is restricted to the following values: sb, ci, qa, stg, prod
     Default: sb
 
+  EC2InstanceType:
+    Type: String
+    Description: What type of EC2 instance should be used for hosting?
+    AllowedValues:
+    - t2.small
+    - t2.medium
+    - t2.large
+    - t2.xlarge
+    - t3.small
+    - t3.medium
+    - t3.large
+    - t3.xlarge
+    - m4.large
+    - m4.xlarge
+    - m5.large
+    - m5.xlarge
+    ConstraintDescription: Specified instance type is not within selection list.
+    Default: m4.large
+
   ConfigBucket:
     Type: String
     Description: The S3 bucket where our config files, keys, etc. are stored
     Default: kuali-research-ec2-setup
 
-  DockerRepositoryURI:
+  CoreImage:
     Type: String
-    Description: The URI to for the docker repository containing the docker image we need to run a container
-    Default: 730096353738.dkr.ecr.us-east-1.amazonaws.com/core
+    Description: The docker image for cor-main. Will indicate the docker registry address.
+    Default: 730096353738.dkr.ecr.us-east-1.amazonaws.com/core:2001.0040
 
-  DockerImageTag:
+  KcImage:
     Type: String
-    Description: The version of the cor-main docker image to pull from the docker registry
-    Default: 1906.0021
+    Description: The docker image for cor-main. Will indicate the docker registry address.
+    Default: 730096353738.dkr.ecr.us-east-1.amazonaws.com/coeus:2001.0040
 
+  PortalImage:
+    Type: String
+    Description: The docker image for cor-main. Will indicate the docker registry address.
+    Default: 730096353738.dkr.ecr.us-east-1.amazonaws.com/portal:2001.0040
 
-# To get the ec2 instance into the BU VPC, add the following to MyEC2Instance.Properties: 
-# "SubnetId" : "subnet-61377139",'
+  PdfImage:
+    Type: String
+    Description: The docker image for cor-main. Will indicate the docker registry address.
+    Default: 730096353738.dkr.ecr.us-east-1.amazonaws.com/research-pdf:2002.0003
+
+  EnableNewRelicAPM:
+    Type: String
+    Description: Is newrelic APM to be enabled for this landscape?
+    Default: "false"
+    AllowedValues:
+    - "true"
+    - "false"
+    ConstraintDescription: Enter "true" or "false" only.
+    Default: "false"
+
+  EnableNewRelicInfrastructure:
+    Type: String
+    Description: Is newrelic infrastructure (with logging) to be enabled for this landscape?
+    Default: "false"
+    AllowedValues:
+    - "true"
+    - "false"
+    ConstraintDescription: Enter "true" or "false" only.
+    Default: "false"
+
+# Each of these subnets will get the ec2 instance into the proper BU VPC.
+# This is necessary to gain access to the oracle databases, which cannot be accessed from outside the VPC
+# Also, you need to apply the specific vpc id to the security group being created here so it does not land in the default VPC.
+# Mappings:
+#   SubnetIdMap:
+#     sb:
+#       vpc: "vpc-abdf0ccc"
+#       subnet: "subnet-61377139"
+#     ci:
+#       vpc: "vpc-abdf0ccc"
+#       subnet: "subnet-86f2d8f0"
+#     qa:
+#       vpc: "vpc-abdf0ccc"
+#       subnet: "subnet-3a215b10"
+#     stg:
+#       vpc: "vpc-abdf0ccc"
+#       subnet: "subnet-28235902"
+#     prod:
+#       vpc: "vpc-27114f40"
+#       subnet: "subnet-7dfb1350"
+
 Resources:
 
   Utils:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: https://s3.amazonaws.com/kuali-research-ec2-setup/ecs/cloudformation/lambda/ami-lookup.yaml
+      TemplateURL: 
+        !Sub https://s3.amazonaws.com/${ConfigBucket}/ecs/cloudformation/lambda/ami-lookup.yaml
       Parameters:
         GlobalPrefix:
           ECS-test
@@ -61,13 +120,16 @@ Resources:
     Type: Custom::AMIInfo
     Properties:
       ServiceToken:
-        !GetAtt Utils.Outputs.AMIInfoFunction.Arn
+        !GetAtt Utils.Outputs.AMIInfoFunctionArn
       Region:
-        Ref: AWS::Region    
+        Ref: AWS::Region
+      InstanceType:
+        !Ref EC2InstanceType   
 
   MyEC2Instance:
     Type: AWS::EC2::Instance
     Description: T2nstance for testing UserData and MetaData settings.
+    DependsOn: MyEC2InstanceSecurityGroup
 
     Properties:
       Tags:
@@ -78,11 +140,20 @@ Resources:
         !GetAtt AMIInfo.Id
       InstanceType:
         !Ref EC2InstanceType
-      SecurityGroups:
-      - !Ref MyEC2InstanceSecurityGroup
+      SecurityGroupIds:
+      - !GetAtt  MyEC2InstanceSecurityGroup.GroupId
       KeyName: buaws-kuali-rsa-warren
       IamInstanceProfile:
         !Ref MyEC2InstanceProfile
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: 64
+            DeleteOnTermination: true
+      # SubnetId: !FindInMap
+      #   - SubnetIdMap
+      #   - !Ref Landscape
+      #   - subnet
 
       UserData: 
         "Fn::Base64": !Sub |
@@ -95,6 +166,17 @@ Resources:
           yum install -y zip unzip
           yum install -y sysstat
           yum install -y jq
+          # Install and run docker
+          amazon-linux-extras install -y docker
+          service docker start
+          usermod -a -G docker ec2-user
+          chkconfig docker on
+          # Install docker-compose
+          curl \
+            -L https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m) \
+            -o /usr/local/bin/docker-compose
+          chmod +x /usr/local/bin/docker-compose
+          ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose
           
           # Modify the sudoers file so that anyone in the wheel group can be a sudoer
           chmod u+w /etc/sudoers && \
@@ -103,8 +185,7 @@ Resources:
           
           # NOTE: Creating users here and not in Metadata.AWS::CloudFormation::Init.config.users due to restrictions: 
           # Users are created as non-interactive system users with a shell of /sbin/nologin. This is by design and cannot be modified.
-          users=(wrh mukadder dhaywood mkousheh)
-          for user in ${!users[@]}; do
+          for user in wrh mukadder dhaywood mkousheh ; do
             adduser -m $user && \
             usermod -aG root $user && \
             usermod -aG docker $user && \
@@ -114,6 +195,17 @@ Resources:
             chown -R $user:$user /home/$user
           done
           
+          # Create certificates for ssl
+          mkdir -p /opt/kuali/nginx/certs
+          openssl req -newkey rsa:4096 \
+            -x509 \
+            -sha256 \
+            -days 3650 \
+            -nodes \
+            -out /opt/kuali/nginx/certs/myec2.crt \
+            -keyout /opt/kuali/nginx/certs/myec2.key \
+            -subj "/C=US/ST=MA/L=Boston/O=BU/OU=IST/CN=MyEc2Instance"
+
           # Install required packages for scripts that will monitor and upload custom metrics to cloudwatch.
           curl https://aws-cloudwatch.s3.amazonaws.com/downloads/CloudWatchMonitoringScripts-1.2.2.zip \
             -o /var/lib/ && CloudWatchMonitoringScripts-1.2.2.zip
@@ -154,7 +246,7 @@ Resources:
           - ConfigSet: cmd01
           - ConfigSet: cmd02
           - ConfigSet: cmd03
-          - ConfigSet: cmd04
+          # - ConfigSet: cmd04
           cmd01:
           - 01_get_configs_from_s3
           cmd02:
@@ -169,45 +261,45 @@ Resources:
               awslogs: []
           files:
             /home/wrh/.ssh/authorized_keys:
-              mode: 000600
+              mode: "000600"
               owner: wrh
               group: wrh
               source:
                 !Sub https://s3.amazonaws.com/${ConfigBucket}/ecs/ssh-keys/rsa-key-wrh.pub
             /home/mkousheh/.ssh/authorized_keys:
-              mode: 000600
+              mode: "000600"
               owner: mkousheh
               group: mkousheh
               source:
                 !Sub https://s3.amazonaws.com/${ConfigBucket}/ecs/ssh-keys/rsa-key-mkousheh.pub
             /home/mukadder/.ssh/authorized_keys:
-              mode: 000600
+              mode: "000600"
               owner: mukadder
               group: mukadder
               source:
                 !Sub https://s3.amazonaws.com/${ConfigBucket}/ecs/ssh-keys/rsa-key-mukadder.pub
             /home/dhaywood/.ssh/authorized_keys:
-              mode: 000600
+              mode: "000600"
               owner: dhaywood
               group: dhaywood
               source:
                 !Sub https://s3.amazonaws.com/${ConfigBucket}/ecs/ssh-keys/rsa-key-dhaywood.pub
-            /var/kuali/README.txt:
+            /opt/kuali/README.txt:
               content: !Sub |
                 This directory contains the "environment" for each app to run
                 in a docker container that it needs.
                 This includes env-file, configuration files, keys, etc.
                 These are specific to the ${Landscape} landscape.
-              mode: 000775
+              mode: "000775"
               owner: root
               group: root
             /root/.ssh/git_rsa_key:
-              mode: 000600
+              mode: "000600"
               owner: root
               group: root
               source:
                 !Sub https://s3.amazonaws.com/${ConfigBucket}/bu_github_id_docker_rsa
-            /root/crontab:
+            /opt/kuali/scripts/crontab:
               content: |
                 SHELL=/bin/bash
                 PATH=/sbin:/bin:/usr/sbin:/usr/bin
@@ -218,15 +310,15 @@ Resources:
                 # NOTE: The cronjob will start, but it does nothing until you uncomment the 1 or more of the 3 lines below.
                 # This is a test ec2 instance, so defaulting to running these scripts manually while shelled in."
                 # Check the system log for any errors this script encounters"
-                # * * * * * /root/send-custom-cloudwatch-metrics1.sh
-                # * * * * * /root/send-custom-cloudwatch-metrics2.sh
-                # * * * * * /root/send-psuedo-cloudwatch-metrics.sh
+                # * * * * * /opt/kuali/scripts/send-custom-cloudwatch-metrics1.sh
+                # * * * * * /opt/kuali/scripts/send-custom-cloudwatch-metrics2.sh
+                # * * * * * /opt/kuali/scripts/send-psuedo-cloudwatch-metrics.sh
                 #
-                0 3 * * * /bin/bash /usr/local/sbin/stopinstance.sh
-              mode: 000644
+                0 3 * * * /bin/bash /opt/kuali/scripts/stopinstance.sh
+              mode: "000644"
               owner: root
               group: root
-            /root/send-custom-cloudwatch-metrics1.sh:
+            /opt/kuali/scripts/send-custom-cloudwatch-metrics1.sh:
               content: |
                 #!/bin/bash
                 # Adding additional cloudwatch metrics that include memory utilization.
@@ -238,10 +330,10 @@ Resources:
                   --disk-space-util \
                   --disk-path=/ \
                   --from-cron
-              mode: 000744
+              mode: "000744"
               owner: root
               group: root
-            /root/send-custom-cloudwatch-metrics2.sh:
+            /opt/kuali/scripts/send-custom-cloudwatch-metrics2.sh:
               content: |
                 #!/bin/bash
                 # Cloudwatch metrics alternative that include are custom and cover all needed measurments.
@@ -270,11 +362,11 @@ Resources:
                 aws cloudwatch put-metric-data --dimensions Instance=$INSTANCEID --namespace "EC2TestCustomMetrics" --metric-name tcp_connection_on_port_80 --value $TCP_CONN_PORT_80
                 aws cloudwatch put-metric-data --dimensions Instance=$INSTANCEID --namespace "EC2TestCustomMetrics" --metric-name nbr_of_users --value $USERS
                 aws cloudwatch put-metric-data --dimensions Instance=$INSTANCEID --namespace "EC2TestCustomMetrics" --metric-name io_wait --value $IO_WAIT_PERCENT
-              mode: 000744
+              mode: "000744"
               owner: root
               group: root
-            /root/send-psuedo-cloudwatch-metrics.sh:
-              content: |
+            /opt/kuali/scripts/send-psuedo-cloudwatch-metrics.sh:
+              content: !Sub |
                 #!/bin/bash
                 
                 # This function streams a json file from s3 that indicates dummy metrics to send to cloudwatch.
@@ -282,7 +374,7 @@ Resources:
                 # a scale-in or scale-out policy for auto-scaling activity.
                 sendDummyMetrics() {
                   # local json=$(cat /c/whennemuth/workspaces/ecs_workspace/dummy-metrics/dummy-ec2-metrics.json)
-                  local json=$(aws s3 cp s3://kuali-research-ec2-setup/dummydata/dummy-ec2-metrics.json)
+                  local json=$(aws s3 cp s3://${ConfigBucket}/dummydata/dummy-ec2-metrics.json)
                   local namespace=$(echo "$json" | jq -r '.Namespace')
                   local instances=$(echo $json | jq -r -c '.Instances[]')
                   local evals=()
@@ -302,29 +394,29 @@ Resources:
                       [ $until -gt $now ] && value=$deviation
                       local evalstr="$(cat <<EOF
                         aws cloudwatch put-metric-data \
-                          --region us-east-1 \
+                          --region ${AWS::Region} \
                           --dimensions Instance=$instanceId \
                           --namespace "$namespace" \
                           --metric-name $name \
                           --value $value
                 EOF
                       )"
-                      evals=("${evals[@]}" "$(echo "$evalstr" | sed -E 's/[[:space:]]+/ /g' | xargs)")
+                      evals=("${!evals[@]}" "$(echo "$evalstr" | sed -E 's/[[:space:]]+/ /g' | xargs)")
                     done <<< "$metrics"
                   done <<< "$instances"
                 
-                  for cmd in "${evals[@]}" ; do
+                  for cmd in "${!evals[@]}" ; do
                     echo "$cmd"
                     eval "$cmd"
                   done
                 }
                 
                 sendDummyMetrics
-              mode: 000744
+              mode: "000744"
               owner: root
               group: root
             /etc/cfn/cfn-hup.conf:
-              mode: 000400
+              mode: "000400"
               owner: root
               group: root
               content: !Sub |
@@ -359,45 +451,56 @@ Resources:
                 log_stream_name = /var/log/messages
                 datetime_format = %b %d %H:%M:%S
                 
-                [/var/log/docker]
-                file = /var/log/docker
-                log_group_name = MyEC2InstanceLogsGroup
-                log_stream_name = /var/log/docker
-                datetime_format = %Y-%m-%dT%H:%M:%S.%f
-            /var/kuali/scripts/s3.download.configs.sh:
-              content: |
+                # [/var/log/docker]
+                # file = /var/log/docker
+                # log_group_name = MyEC2InstanceLogsGroup
+                # log_stream_name = /var/log/docker
+                # datetime_format = %Y-%m-%dT%H:%M:%S.%f
+            /opt/kuali/scripts/s3.download.configs.sh:
+              content: !Sub |
                 #!/bin/bash                
-                echo "Downloading all configurations for the container from the s3 bucket"
-                [ ! -d /var/kuali/s3 ] && mkdir /var/kuali/s3
-                cd /var/kuali/s3
-                aws s3 sync --delete s3://kuali-research-ec2-setup/${LANDSCAPE}/core/ .
-              mode: 000775
+                echo "Downloading all configurations for containers from the s3 bucket, landscape ${!LANDSCAPE}"
+                
+                [ ! -d /opt/kuali/s3 ] && mkdir -p /opt/kuali/s3
+                cd /opt/kuali/s3
+                aws s3 sync --delete \
+                  --exclude "*" \
+                  --include "core/*" \
+                  --include "portal/*" \
+                  --include "pdf/*" \
+                  --include "kuali/main/config/kc-config-rds.xml" \
+                  s3://${ConfigBucket}/${!LANDSCAPE}/ .
+                mv /opt/kuali/s3/kuali/main/config/kc-config-rds.xml /opt/kuali/s3/kuali/main/config/kc-config.xml
+                aws s3 cp s3://${ConfigBucket}/rice.cer /opt/kuali/s3/kuali/main/config/
+                aws s3 cp s3://${ConfigBucket}/rice.keystore /opt/kuali/s3/kuali/main/config/
+              mode: "000775"
               owner: root
               group: root
-            /var/kuali/scripts/process.env.file.sh:
+            /opt/kuali/scripts/process.env.file.sh:
               content: |
                 #!/bin/bash                
                 # Turn a name=value line into an "export name='value'" line
                 getLineExport() {
                   local line=$(echo -n "$1" | xargs) # Use xargs to trim the line.
-                  # Return and empty string if the line is a properties file comment
-                    [ "${line:0:1}" == "#" ] && echo "" && exit 0;
-                    [ -z "$line" ] && echo "" && exit 0;
-                    if [ -n "$(echo $testline | grep -P '\x22')" ] ; then
-                      echo "export $line"
-                    else
-                      # Put double quotes around the exported variable value
-                      echo "export $(echo $line | sed 's/=/="/1')\""
-                    fi
-                  }
+                  # Return an empty string if the line is a properties file comment
+                  [ "${line:0:1}" == "#" ] && echo "" && exit 0;
+                  [ -z "$line" ] && echo "" && exit 0;
+                  if [ -n "$(echo $testline | grep -P '\x22')" ] ; then
+                    echo "export $line"
+                  else
+                    # Put double quotes around the exported variable value
+                    echo "export $(echo $line | sed 's/=/="/1')\""
+                  fi
+                }
                   
-                  # Create a script to export all environment variables in the mounted directory before starting node
+                # Create a script to export all environment variables in the mounted directory before starting node
+                createExportFile() {
+                  local ENV_FILE_FROM_S3="$1"
                   if [ ! -f $ENV_FILE_FROM_S3 ] ; then
                     echo "ERROR! MISSING $ENV_FILE_FROM_S3"
                     exit 1
                   else
                     cd $(dirname $ENV_FILE_FROM_S3)
-                    CORE_HOST=$(curl -s http://169.254.169.254/latest/meta-data/public-hostname)
                     rm -f export.sh
                     echo "Creating $(pwd)/export.sh..."
                     while read line ; do
@@ -405,7 +508,6 @@ Resources:
                       [ -z "$expline" ] && continue
                       prop=$(echo "$line" | cut -f1 -d '=')
                       # Override some of the existing environment variables
-                      [ "${prop^^}" == "CORE_HOST" ] && expline="export CORE_HOST=${CORE_HOST}"
                       [ "${prop^^}" == "SHIB_HOST" ] && expline="export SHIB_HOST="
                       [ "${prop^^}" == "ROOT_DIR" ]  && expline="export ROOT_DIR=/var/core-temp"
                       echo "Setting env var $prop"
@@ -414,39 +516,257 @@ Resources:
                     # In case the file from s3 originated on a windows file system, remove return carriage chars
                     sed -i 's/\r//g' export.sh
                   fi
+                }
 
-                  exit 0
-              mode: 000775
+                export EC2_HOST=$(curl -s http://169.254.169.254/latest/meta-data/public-hostname)
+                SERVER=$(echo ${EC2_HOST} | cut -d'/' -f3) # Strips off the "http://" portion and trailing "/"
+
+                # Perform a replacement in kc-config.xml of application.host parameter value with this ec2 public host name.
+                sed -i "s/APPLICATION_HOST/$SERVER/" /opt/kuali/s3/kuali/main/config/kc-config.xml
+
+                # Perform a replacement in all environment.variables.s3 files of existing application host entries with this ec2 public host name.
+                for f in $(env | grep 'ENV_FILE_FROM_S3') ; do
+                  envfile="$(echo $f | cut -d'=' -f2)"
+                  # Replace the standard kuali-research-[env].bu.edu references with the public host name of this ec2 instance.
+                  sed -i -r "s/kuali-research.*.bu.edu/$SERVER/g" "$envfile"
+                  # Create the export.sh file
+                  createExportFile "$envfile"
+                done
+
+                exit 0
+              mode: "000775"
               owner: root
               group: root
-            /var/kuali/scripts/start.docker.container.sh:
+            /opt/kuali/scripts/start.docker.containers.sh:
               content: !Sub |
                 #!/bin/bash
                 
-                docker rm -f core 2> /dev/null || true
-                echo "Running new core docker container"
-                
+                # Prepare directories for mounting to kuali-research container
+                [ ! -d /opt/kuali/kc_printing ] && mkdir -p /opt/kuali/kc_printing
+                [ ! -d /opt/kuali/kc_javamelody ] && mkdir -p /opt/kuali/kc_javamelody
+                [ ! -d /opt/kuali/kc_attachments ] && mkdir -p /opt/kuali/kc_attachments
+                [ ! -d /opt/kuali/kc_tomcat_logs ] && mkdir -p /opt/kuali/kc_tomcat_logs
+                [ ! -d /opt/kuali/kc_newrelic_logs ] && mkdir -p /opt/kuali/kc_newrelic_logs
+
+                # Set these environment variables for the kuali-research container
+                # These should have been passed in by configset command.
+                #  - LANDSCAPE
+                #  - NEW_RELIC_LICENSE_KEY
+                #  - NEW_RELIC_AGENT_ENABLED
+                #  - JAVA_ENV
+                # But not this one, so set it here:
+                export EC2_HOST=$(curl -s http://169.254.169.254/latest/meta-data/public-hostname)
+
+                # Perform a placeholder replacement in nginx.conf with this ec2 public host name
+                sed -i "s/EC2_HOST/$(echo ${!EC2_HOST} | sed 's/\//\\\//g')/g" /opt/kuali/nginx/nginx.conf
+
+                # Remove all existing containers
+                /usr/local/bin/docker-compose down 2> /dev/null || true
+
+                # Log into the docker registry
                 $(aws ecr get-login --no-include-email --region ${AWS::Region})
+
+                # Create the nginx log files to mount to if none exist
+                [ ! -f /opt/kuali/nginx/error.log ] && touch /opt/kuali/nginx/error.log
+                [ ! -f /opt/kuali/nginx/access.log ] && touch /opt/kuali/nginx/access.log
+
+                /usr/local/bin/docker-compose up --detach
                 
-                docker run \
-                  -d \
-                  -p 80:3000 \
-                  -p 27017:27017 \
-                  -p 9229:9229 \
-                  --restart unless-stopped \
-                  --name=core \
-                  -v /var/kuali/s3:/var/core-config \
-                  --log-driver=awslogs \
-                  --log-opt awslogs-region=${AWS::Region} \
-                  --log-opt awslogs-group=MyEC2InstanceLogsGroup \
-                  --log-opt awslogs-stream=core-docker-container \
-                  --log-opt awslogs-create-group=false \
-                  $DOCKER_IMAGE_NAME
-              mode: 000775
+              mode: "000775"
               owner: root
               group: root
-            /usr/local/sbin/stopinstance.sh:
-              content: |
+            /opt/kuali/scripts/docker-compose.yaml:
+              content: !Sub |
+                version: '3'
+                services:
+
+                  proxy: 
+                    image: nginx:latest
+                    container_name: reverse-proxy
+                    restart: unless-stopped
+                    volumes:
+                      - /opt/kuali/nginx/nginx.conf:/etc/nginx/nginx.conf
+                      - /opt/kuali/nginx/error.log:/etc/nginx/error.log
+                      - /opt/kuali/nginx/access.log:/etc/nginx/access.log
+                      - /opt/kuali/nginx/certs/:/etc/nginx/ssl/
+                    ports:
+                      - 80:80
+                      - 443:443
+
+                  cor-main:
+                    image: ${!CORE_IMAGE}
+                    container_name: cor-main
+                    restart: unless-stopped
+                    env_file: /opt/kuali/s3/core/environment.variables.s3
+                    volumes:
+                      - /opt/kuali/s3/core:/var/core-config
+                    logging:
+                      driver: awslogs
+                      options:
+                        awslogs-region: ${AWS::Region}
+                        awslogs-group: MyEC2InstanceLogsGroup
+                        awslogs-stream: core-docker-container
+                        awslogs-create-group: "true"
+                    expose:
+                      - "3000"
+
+                  kuali-research:
+                    image: ${!KC_IMAGE}
+                    container_name: kuali-research
+                    restart: unless-stopped
+                    volumes:
+                      - /opt/kuali/s3/kuali/main/config:/opt/kuali/main/config
+                      - /opt/kuali/kc_printing:/opt/kuali/logs/printing/logs
+                      - /opt/kuali/kc_javamelody:/var/log/javamelody
+                      - /opt/kuali/kc_attachments:/opt/tomcat/temp/dev/attachments
+                      - /opt/kuali/kc_tomcat_logs:/opt/tomcat/logs
+                      - /opt/kuali/kc_newrelic_logs:/var/log/newrelic
+                    environment:
+                      - NEW_RELIC_LICENSE_KEY=${!NEW_RELIC_LICENSE_KEY}
+                      - NEW_RELIC_AGENT_ENABLED=${!NEW_RELIC_AGENT_ENABLED}
+                      - JAVA_ENV=${!NEW_RELIC_ENVIRONMENT}
+                      - EC2_HOSTNAME=${!EC2_HOST}
+                    logging:
+                      driver: awslogs
+                      options:
+                        awslogs-region: ${AWS::Region}
+                        awslogs-group: MyEC2InstanceLogsGroup
+                        awslogs-stream: kc-docker-container
+                        awslogs-create-group: "true"
+                    expose:
+                      - "8080"
+                    # ports:
+                    #   - 8080:8080
+                    #   - 8009:8009
+
+                  research-portal:
+                    image: ${!PORTAL_IMAGE}
+                    container_name: research-portal
+                    restart: unless-stopped
+                    volumes:
+                      - /opt/kuali/s3/portal:/var/portal-config
+                    env_file: /opt/kuali/s3/portal/environment.variables.s3 
+                    logging:
+                      driver: awslogs
+                      options:
+                        awslogs-region: ${AWS::Region}
+                        awslogs-group: MyEC2InstanceLogsGroup
+                        awslogs-stream: portal-docker-container
+                        awslogs-create-group: "true"
+                    expose:
+                    - "3005"
+
+                  research-pdf:
+                    image: ${!PDF_IMAGE}
+                    container_name: research-pdf
+                    restart: unless-stopped
+                    env_file: /opt/kuali/s3/pdf/environment.variables.s3
+                    logging:
+                      driver: awslogs
+                      options:
+                        awslogs-region: ${AWS::Region}
+                        awslogs-group: MyEC2InstanceLogsGroup
+                        awslogs-stream: pdf-docker-container
+                        awslogs-create-group: "true"
+                    expose:
+                    - "3006"
+
+              mode: "000775"
+              owner: root
+              group: root
+            /opt/kuali/nginx/nginx.conf:
+              content: !Sub |
+                # https://www.domysee.com/blogposts/reverse-proxy-nginx-docker-compose
+
+                events { }
+
+                http {
+                  access_log /etc/nginx/access.log;
+                  error_log /etc/nginx/error.log warn;
+                  client_max_body_size 20m;
+                  include mime.types;
+
+                  upstream docker-kc {
+                    server kuali-research:8080;
+                  }
+                  upstream docker-core {
+                    server cor-main:3000;
+                  }
+                  upstream docker-portal {
+                    server research-portal:3005;
+                  }
+                  upstream docker-pdf {
+                    server research-pdf:3006;
+                  }
+
+                  server { 
+                    # Example: http://ec2-3-91-98-11.compute-1.amazonaws.com/ 
+                    server_name EC2_HOST;
+                    listen 80;
+
+                    # Handle health check requests directly 
+                    location /health-check {
+                      proxy_pass http://docker-kc/index.jsp;
+                    }
+
+                    # Redirect all remaining http requests to https  
+                    location / {  
+                        return 301 https://$server_name$request_uri;  
+                    }
+                  }
+
+                  server {
+                    server_name EC2_HOST;
+                    listen 443 ssl http2;
+                    ssl on;
+                    ssl_certificate /etc/nginx/ssl/myec2.crt;
+                    ssl_certificate_key /etc/nginx/ssl/myec2.key;
+
+                    # Paths to kc
+                    location = / {
+                      proxy_pass http://docker-kc;
+                    }
+                    location /kc {
+                      proxy_pass http://docker-kc;
+                      rewrite ^/kc(.*)$ $1 break;
+                    }
+                    
+                    # Paths to dashboard
+                    location ~ ^/dashboard/?$ {
+                      # Redirect basic dashboard uri to 
+                      return 301 https://$server_name/dashboard/common-tasks;
+                    }
+                    location /dashboard {
+                      proxy_pass http://docker-portal;
+                    }
+                    location /api/v1/dashboard {
+                      proxy_pass http://docker-portal;
+                    }
+
+                    # Paths to research-pdf
+                    location /pdf {
+                      proxy_pass http://docker-pdf;
+                    }
+                    location /api/v1/pdf {
+                      proxy_pass http://docker-pdf;
+                    }
+
+                    # Path to core
+                    location = /apps {
+                      proxy_pass http://docker-core/cor/main/?p=/apps;
+                    }
+                    location ~ ^/((img)|(js)|(css)|(font))$ {
+                      proxy_pass http://docker-core;
+                      rewrite ^/(.*)$ /cor/main/$1 break;
+                    }
+                    location / {
+                      # Anything left over goes to cor-main
+                      proxy_pass http://docker-core;
+                    }
+                  }                  
+                }
+            /opt/kuali/scripts/stopinstance.sh:
+              content: !Sub |
                 #!/bin/bash
                 # Target this script with a crontab and the instance will be shutdown on the crontab schedule.
                 # You can skip the next scheduled shutdown by creating a /tmp/skipshutdown file.
@@ -456,32 +776,41 @@ Resources:
                   exit 0
                 fi
                 echo "$(date) Stopping instance per cron schedule..." >> /usr/local/sbin/cronlog
-                aws ec2 stop-instances --instance-ids $(curl http://169.254.169.254/latest/meta-data/instance-id) >> /usr/local/sbin/cronlog 2>&1
-              mode: 000775
+                aws ec2 stop-instances --region ${AWS::Region} --instance-ids $(curl http://169.254.169.254/latest/meta-data/instance-id) >> /usr/local/sbin/cronlog 2>&1
+              mode: "000775"
               owner: root
               group: root
         01_get_configs_from_s3:
           commands:
             cmd01:
-              cwd: /var/kuali/scripts
+              cwd: /opt/kuali/scripts
               env:
                 LANDSCAPE: !Sub "${Landscape}"
               command: bash s3.download.configs.sh
         02_create_env_exports_file:
           commands:
             cmd01:
-              cwd: /var/kuali/scripts
+              cwd: /opt/kuali/scripts
               env:
-                ENV_FILE_FROM_S3: /var/kuali/s3/environment.variables.s3
+                ENV_FILE_FROM_S3_CORE: /opt/kuali/s3/core/environment.variables.s3
+                ENV_FILE_FROM_S3_PORTAL: /opt/kuali/s3/portal/environment.variables.s3
+                ENV_FILE_FROM_S3_PDF: /opt/kuali/s3/pdf/environment.variables.s3
               command: bash process.env.file.sh
         03_docker_run_container:
           commands:
             cmd01:
-              cwd: /var/kuali/scripts
+              cwd: /opt/kuali/scripts
               env:
-                DOCKER_IMAGE_NAME:
-                  !Sub "${DockerRepositoryURI}:${DockerImageTag}"
-              command: bash start.docker.container.sh
+                LANDSCAPE: !Sub "${Landscape}"
+                JAVA_ENV: !Sub "${Landscape}"
+                NEW_RELIC_ENVIRONMENT: !Sub "${Landscape}"
+                NEW_RELIC_LICENSE_KEY: !Sub "{NewrelicLicsenseKey}"
+                NEW_RELIC_AGENT_ENABLED: !Sub "${EnableNewRelicAPM}"
+                KC_IMAGE: !Sub "${KcImage}"
+                CORE_IMAGE: !Sub "${CoreImage}"
+                PORTAL_IMAGE: !Sub "${PortalImage}"
+                PDF_IMAGE: !Sub "${PdfImage}"
+              command: bash start.docker.containers.sh
           services:
             sysvinit:
               cfn-hup:
@@ -499,7 +828,9 @@ Resources:
         04_start_cron_for_custom_cloudwatch_metrics:
           commands:
             cmd01:
-              command: crontab -u root /root/crontab
+              command: crontab -u root /opt/kuali/scripts/crontab
+              env:
+                LANDSCAPE: !Sub "${Landscape}"
 
   MyEC2Role:
     Type: AWS::IAM::Role
@@ -518,6 +849,15 @@ Resources:
       - arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
       - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
       - arn:aws:iam::aws:policy/CloudWatchFullAccess
+      Policies:
+      - PolicyName:
+          !Sub "stop-ec2-instance-policy"
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Resource: "arn:aws:ec2:*:*:instance/${ec2:SourceInstanceARN}"
+            Action:
+            - ec2:StopInstances
 
   MyEC2InstanceProfile:
     Type: AWS::IAM::InstanceProfile
@@ -529,6 +869,7 @@ Resources:
 
   MyEC2InstanceLogsGroup:
     Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
     Properties:
       LogGroupName: MyEC2InstanceLogsGroup
       RetentionInDays: 30
@@ -537,7 +878,11 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Warrens security group for a test t2 ec2 instance
-      GroupName: MyEC2Instance.SG
+      GroupName: MyEC2Instance.SG1
+      # VpcId: !FindInMap
+      #   - SubnetIdMap
+      #   - !Ref Landscape
+      #   - vpc
       Tags:
       - Key: Name
         Value: buaws-wrh-ecs-ec2-test1.SG
@@ -545,24 +890,25 @@ Resources:
       - IpProtocol: tcp
         FromPort: 22
         ToPort: 22
-        CidrIp: 0.0.0.0/0
+        CidrIp: "0.0.0.0/0"
       - IpProtocol: tcp
         FromPort: 80
         ToPort: 80
-        CidrIp: 0.0.0.0/0
+        CidrIp: "0.0.0.0/0"
       - IpProtocol: tcp
-        FromPort: 3000
-        ToPort: 3000
-        CidrIp: 0.0.0.0/0
+        FromPort: 443
+        ToPort: 443
+        CidrIp: "0.0.0.0/0"
       - IpProtocol: tcp
-        FromPort: 27017
-        ToPort: 27017
-        CidrIp: 0.0.0.0/0
-      - IpProtocol: tcp
-        FromPort: 9229
-        ToPort: 9229
-        CidrIp: 0.0.0.0/0
+        FromPort: 1043
+        ToPort: 1043
+        CidrIp: "0.0.0.0/0"
 
+  MyEIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      InstanceId: !Ref MyEC2Instance
 
 Outputs:
   PublicIP:

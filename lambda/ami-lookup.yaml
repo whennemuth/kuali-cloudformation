@@ -27,13 +27,14 @@ Resources:
   #     ImageId:
   #       !GetAtt AMIInfo.Id
 
-  # AMIInfo:
-  #   Type: Custom::AMIInfo
-  #   Properties:
-  #     ServiceToken:
-  #       !GetAtt AMIInfoFunction.Arn
-  #     Region:
-  #       Ref: AWS::Region
+  AMIInfo:
+    Type: Custom::AMIInfo
+    Properties:
+      ServiceToken:
+        !GetAtt AMIInfoFunction.Arn
+      Region:
+        Ref: AWS::Region
+      InstanceType: m4.large
 
   LambdaExecutionRole:
     Type: AWS::IAM::Role
@@ -107,11 +108,13 @@ Resources:
               var responseStatus = "FAILED";
               var responseData = {};          
               var ec2 = new aws.EC2({region: event.ResourceProperties.Region});
+              var instanceType = event.ResourceProperties.instanceType;
+              var architecture = /^a\d+/.test(instanceType) ? "arm64" : "x86_64";
 
               var parms = {
                 Filters: [
                   {Name: "name",Values: [ "amzn2-ami-hvm*-gp2" ]},
-                  {Name: "architecture", Values: [ "arm64", "x86_64" ] },
+                  {Name: "architecture", Values: [ architecture ] },
                   {Name: "state",Values: [ "available" ]}
                 ],
                 Owners: [ "amazon" ]
@@ -127,21 +130,14 @@ Resources:
                   else {
                       var images = describeImagesResult.Images;
                       images.sort(function(x, y) { return getYoungerImage(x, y).Name==x.Name ? -1 : 1});
-                      var arm64Img = '';
-                      var x86_64Img = '';
+                      var image = '';
 
                       for (var j = 0; j < images.length; j++) {
                           if (isBeta(images[j])) continue;
-                          if (!arm64Img && images[j].Architecture == 'arm64') {
-                            arm64Img = images[j];
-                          }
-                          if (!x86_64Img && images[j].Architecture == 'x86_64') {
-                            x86_64Img = images[j];
-                          }
-                          if(arm64Img && x86_64Img) break;
+                          image = images[j];
+                          break;
                       }
 
-                      var image = getYoungerImage(arm64Img, x86_64Img);
                       if (image) {
                         responseStatus = "SUCCESS";
                         responseData["Id"] = image.ImageId;
@@ -218,10 +214,10 @@ Resources:
 
 
 Outputs:
-  # AMIID:
-  #   Description: The Amazon EC2 instance AMI ID.
-  #   Value:
-  #     !GetAtt AMIInfo.Id
+  AMIID:
+    Description: The Amazon EC2 instance AMI ID.
+    Value:
+      !GetAtt AMIInfo.Id
   AMIInfoFunctionArn:
     Value:
       !GetAtt AMIInfoFunction.Arn
