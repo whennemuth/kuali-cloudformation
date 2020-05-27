@@ -677,6 +677,7 @@ Resources:
             /opt/kuali/nginx/nginx.conf:
               content: !Sub |
                 # https://www.domysee.com/blogposts/reverse-proxy-nginx-docker-compose
+                # https://linuxize.com/post/nginx-reverse-proxy/
 
                 events { }
 
@@ -724,11 +725,12 @@ Resources:
 
                     # Paths to kc
                     location = / {
-                      proxy_pass http://docker-kc;
+                      proxy_pass http://docker-kc/kc;
                     }
                     location /kc {
+                      # proxy_set_header Host $host;
                       proxy_pass http://docker-kc;
-                      rewrite ^/kc(.*)$ $1 break;
+                      rewrite ^/(.*)$ /$1 break;
                     }
                     
                     # Paths to dashboard
