@@ -21,7 +21,7 @@ The search option in the dashboard menu is powered by Elasticsearch:
    The corresponding cloudformation template is currently located at:
 
    ```
-   https://s3.amazonaws.com/kuali-research-ec2-setup/ecs/cloudformation/related/es_for_kuali.yaml
+   https://s3.amazonaws.com/kuali-research-ec2-setup/cloudformation/kuali_peripherals/es_for_kuali.yaml
    ```
 
    Among other parameters, there is a landscape parameter to designate which environment the cluster is being created for (sb, ci, qa, stg, prod). You can create the stack from the AWS management console, or you can run it from the command line (provided you have a sufficient IAM role). The examples below specify the landscape parameter and use defaults for the rest (like cluster & ec2 size, etc.)
@@ -106,7 +106,7 @@ The search option in the dashboard menu is powered by Elasticsearch:
 
       ```
       bucket=s3.amazonaws.com/kuali-research-ec2-setup
-      yaml=ecs/cloudformation/related/es_for_kuali.yaml
+      yaml=cloudformation/kuali_peripherals/es_for_kuali.yaml
       environment=sb
       
       aws cloudformation create-stack \

@@ -111,7 +111,7 @@ Resources:
     Type: AWS::CloudFormation::Stack
     Properties:
       TemplateURL: 
-        !Sub https://s3.amazonaws.com/${ConfigBucket}/ecs/cloudformation/lambda/ami-lookup.yaml
+        !Sub https://s3.amazonaws.com/${ConfigBucket}/cloudformation/lambda/ami-lookup.yaml
       Parameters:
         GlobalPrefix:
           ECS-test
@@ -519,16 +519,16 @@ Resources:
                 }
 
                 export EC2_HOST=$(curl -s http://169.254.169.254/latest/meta-data/public-hostname)
-                SERVER=$(echo ${EC2_HOST} | cut -d'/' -f3) # Strips off the "http://" portion and trailing "/"
+                DOMAIN_NAME=$(echo ${EC2_HOST} | cut -d'/' -f3) # Strips off the "http://" portion and trailing "/"
 
                 # Perform a replacement in kc-config.xml of application.host parameter value with this ec2 public host name.
-                sed -i "s/APPLICATION_HOST/$SERVER/" /opt/kuali/s3/kuali/main/config/kc-config.xml
+                sed -i "s/APPLICATION_HOST/$DOMAIN_NAME/" /opt/kuali/s3/kuali/main/config/kc-config.xml
 
                 # Perform a replacement in all environment.variables.s3 files of existing application host entries with this ec2 public host name.
                 for f in $(env | grep 'ENV_FILE_FROM_S3') ; do
                   envfile="$(echo $f | cut -d'=' -f2)"
                   # Replace the standard kuali-research-[env].bu.edu references with the public host name of this ec2 instance.
-                  sed -i -r "s/kuali-research.*.bu.edu/$SERVER/g" "$envfile"
+                  sed -i -r "s/kuali-research.*.bu.edu/$DOMAIN_NAME/g" "$envfile"
                   # Create the export.sh file
                   createExportFile "$envfile"
                 done
@@ -725,7 +725,7 @@ Resources:
 
                     # Paths to kc
                     location = / {
-                      proxy_pass http://docker-kc/kc;
+                      return 301 https://$server_name/kc;
                     }
                     location /kc {
                       # proxy_set_header Host $host;
@@ -860,6 +860,13 @@ Resources:
             Resource: "arn:aws:ec2:*:*:instance/${ec2:SourceInstanceARN}"
             Action:
             - ec2:StopInstances
+          - Effect: Allow
+            Resource:
+            - arn:aws:s3:::kuali-research-ec2-setup*
+            - arn:aws:s3:::kuali-docker-run-stdout*
+            - arn:aws:s3:::kuali-research-pdf-*
+            Action: "*"
+
 
   MyEC2InstanceProfile:
     Type: AWS::IAM::InstanceProfile

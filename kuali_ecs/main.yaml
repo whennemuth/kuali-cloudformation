@@ -62,7 +62,7 @@ Resources:
   VPC:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: https://s3.amazonaws.com/kuali-research-ec2-setup/ecs/cloudformation/vpc.yaml
+      TemplateURL: https://s3.amazonaws.com/kuali-research-ec2-setup/cloudformation/kuali_ecs/vpc.yaml
       Parameters:
         Landscape:
           !Ref Landscape
@@ -72,7 +72,7 @@ Resources:
   SecurityGroups:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: https://s3.amazonaws.com/kuali-research-ec2-setup/ecs/cloudformation/security-group.yaml
+      TemplateURL: https://s3.amazonaws.com/kuali-research-ec2-setup/cloudformation/kuali_ecs/security-group.yaml
       Parameters:
         Landscape:
           !Ref Landscape
@@ -84,7 +84,7 @@ Resources:
   ALB:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: https://s3.amazonaws.com/kuali-research-ec2-setup/ecs/cloudformation/alb.yaml
+      TemplateURL: https://s3.amazonaws.com/kuali-research-ec2-setup/cloudformation/kuali_ecs/alb.yaml
       Parameters:
         Landscape:
           !Ref Landscape
@@ -100,7 +100,7 @@ Resources:
   ECS:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: https://s3.amazonaws.com/kuali-research-ec2-setup/ecs/cloudformation/cluster.yaml
+      TemplateURL: https://s3.amazonaws.com/kuali-research-ec2-setup/cloudformation/kuali_ecs/cluster.yaml
       Parameters:
         Landscape:
           !Ref Landscape
@@ -116,11 +116,13 @@ Resources:
           !GetAtt VPC.Outputs.PrivateSubnets
         SecurityGroup:
           !GetAtt SecurityGroups.Outputs.ECSHostSecurityGroup
+        LoadBalancerUrl:
+          !GetAtt ALB.Outputs.LoadBalancerUrl
 
   KualiCoreService:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: https://s3.amazonaws.com/kuali-research-ec2-setup/ecs/cloudformation/service-core.yaml
+      TemplateURL: https://s3.amazonaws.com/kuali-research-ec2-setup/cloudformation/kuali_ecs/service-core.yaml
       Parameters:
         GlobalPrefix:
           !Ref Landscape
@@ -147,7 +149,7 @@ Resources:
   KualiResearchService:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: https://s3.amazonaws.com/kuali-research-ec2-setup/ecs/cloudformation/service-research.yaml
+      TemplateURL: https://s3.amazonaws.com/kuali-research-ec2-setup/cloudformation/kuali_ecs/service-research.yaml
       Parameters:
         GlobalPrefix:
           !Ref Landscape
@@ -174,7 +176,7 @@ Resources:
   KualiDashboardService:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: https://s3.amazonaws.com/kuali-research-ec2-setup/ecs/cloudformation/service-dashboard.yaml
+      TemplateURL: https://s3.amazonaws.com/kuali-research-ec2-setup/cloudformation/kuali_ecs/service-dashboard.yaml
       Parameters:
         GlobalPrefix:
           !Ref Landscape
@@ -201,7 +203,7 @@ Resources:
   LifeCycleHook:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: https://s3.amazonaws.com/kuali-research-ec2-setup/ecs/cloudformation/lifecycle-hook.yaml
+      TemplateURL: https://s3.amazonaws.com/kuali-research-ec2-setup/cloudformation/kuali_ecs/lifecycle-hook.yaml
       Parameters:
         Cluster:
           !GetAtt ECS.Outputs.Cluster

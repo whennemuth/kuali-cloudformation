@@ -44,6 +44,7 @@ Parameters:
     Description: The security group to be applied to the application load balancer.
 
 
+# https://docs.aws.amazon.com/elasticloadbalancing/latest/application/introduction.html#application-load-balancer-components
 Resources:
 
   LoadBalancer:

@@ -32,7 +32,7 @@ build() {
 }
 
 pkg="mvn package shade:shade"
-s3="s3://kuali-research-ec2-setup/ecs/cloudformation/lambda/lambda-utils.jar"
+s3="s3://kuali-research-ec2-setup/cloudformation/lambda/lambda-utils.jar"
 
 prePublishCheck
 

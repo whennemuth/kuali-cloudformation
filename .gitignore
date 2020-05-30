@@ -1,15 +1,2 @@
-/*
-!/*.yaml
-!/*.template
-!/.gitignore
-!/*.md
-!/test
-!/test/*
-!/notes
-!/notes/*
-!/related/*
-!/related
-!/lambda/*
-!/lambda
-!/scripts/*
-!/scripts
+*.bak
+last-ecs-cmd.sh

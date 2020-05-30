@@ -35,7 +35,7 @@ Resources:
   Utils:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: https://s3.amazonaws.com/kuali-research-ec2-setup/ecs/cloudformation/lambda/lambda.yaml
+      TemplateURL: https://s3.amazonaws.com/kuali-research-ec2-setup/cloudformation/lambda/lambda.yaml
       Parameters:
         GlobalPrefix:
           Ref: GlobalPrefix

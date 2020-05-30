@@ -1,7 +1,7 @@
 #!/bin/bash
 
 declare -A defaults=(
-  [bucketPath]='s3://kuali-research-ec2-setup/ecs/cloudformation'
+  [bucketPath]='s3://kuali-research-ec2-setup/cloudformation'
   [templatePath]='/c/whennemuth/workspaces/ecs_workspace/cloud-formation/kuali'
   [templateType]='yaml'
   [ConfigBucket]='kuali-research-ec2-setup'
@@ -409,7 +409,7 @@ examples() {
 
     sh $templatePath/scripts/ecs.sh \\
       --task validate \\
-      --template-path $templatePath/test/ec2-test-2.yaml \\
+      --template-path $templatePath/kuali_ec2/ec2.yaml \\
 
     sh $templatePath/scripts/ecs.sh \\
       --task upload
@@ -417,8 +417,8 @@ examples() {
     sh $templatePath/scripts/ecs.sh \\
       --task create \\
       --stack-name kuali-ec2-for-ecs-test \\
-      --template-path $templatePath/test/ec2-test-2.yaml \\
-      --bucket-path s3://kuali-research-ec2-setup/ecs/cloudformation/test \\
+      --template-path $templatePath/kuali_ec2/ec2.yaml \\
+      --bucket-path s3://kuali-research-ec2-setup/cloudformation/test \\
       --config-bucket kuali-research-ec2-setup \\
       --docker-image-tag 2001.0040 \\
       --docker-repository-uri 730096353738.dkr.ecr.us-east-1.amazonaws.com/core \\
@@ -427,7 +427,7 @@ examples() {
 
     sh $templatePath/scripts/ecs.sh \\
       --task update \\
-      --template-path $templatePath/test/ec2-test-2.yaml \\
+      --template-path $templatePath/kuali_ec2/ec2.yaml \\
       --stack-name kuali-ec2-for-ecs-test
 
 EOF

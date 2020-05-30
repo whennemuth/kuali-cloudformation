@@ -121,6 +121,10 @@ Parameters:
     ConstraintDescription: Cluster size is limited between 1 and 10 instances.
     Default: 2
 
+  LoadBalancerUrl:
+    Type: String
+    Description: The public DNS address at which apps can be reached
+
   Subnets:
     Type: List<AWS::EC2::Subnet::Id>
     Description: The subnets this cluster should span.
@@ -141,7 +145,7 @@ Resources:
     Type: AWS::CloudFormation::Stack
     Properties:
       TemplateURL: 
-        !Sub https://s3.amazonaws.com/${ConfigBucket}/ecs/cloudformation/lambda/ami-lookup.yaml
+        !Sub https://s3.amazonaws.com/${ConfigBucket}/cloudformation/lambda/ami-lookup.yaml
       Parameters:
         GlobalPrefix:
           !Ref GlobalPrefix
@@ -487,7 +491,7 @@ Resources:
                         [ $until -gt $now ] && value=$deviation
                         local evalstr="$(cat <<EOF
                           aws cloudwatch put-metric-data \
-                            --region us-east-1 \
+                          --region ${AWS::Region} \
                             --dimensions Instance=$instanceId \
                             --namespace "$namespace" \
                             --metric-name $name \
@@ -570,20 +574,20 @@ Resources:
             /opt/kuali/scripts/s3.download.configs.sh:
               content: !Sub |
                 #!/bin/bash
-                echo "Downloading all configurations for containers from the s3 bucket"
+                echo "Downloading all configurations for containers from the s3 bucket, landscape ${!LANDSCAPE}"
                 
                 [ ! -d /opt/kuali/s3 ] && mkdir -p /opt/kuali/s3
                 cd /opt/kuali/s3
                 aws s3 sync --delete \
-                  --exclude * \
-                  --include core/* \
-                  --include portal/* \
-                  --include pdf/* \
-                  --include kuali/main/config/kc-config.xml \
-                  s3://${ConfigBucket}/${!LANDSCAPE}/ \
-                  /opt/kuali/s3
-                aws s3 cp s3://${ConfigBucket}/rice.cer /opt/kuali/s3/kuali/main/config
-                aws s3 cp s3://${ConfigBucket}/rice.keystore /opt/kuali/s3/kuali/main/config
+                  --exclude "*" \
+                  --include "core/*" \
+                  --include "portal/*" \
+                  --include "pdf/*" \
+                  --include "kuali/main/config/kc-config-rds.xml" \
+                  s3://${ConfigBucket}/${!LANDSCAPE}/ .
+                mv /opt/kuali/s3/kuali/main/config/kc-config-rds.xml /opt/kuali/s3/kuali/main/config/kc-config.xml
+                aws s3 cp s3://${ConfigBucket}/rice.cer /opt/kuali/s3/kuali/main/config/
+                aws s3 cp s3://${ConfigBucket}/rice.keystore /opt/kuali/s3/kuali/main/config/
               mode: "000775"
               owner: root
               group: root
@@ -629,19 +633,15 @@ Resources:
                   fi
                 }
 
-                export EC2_HOST=$(curl -s http://169.254.169.254/latest/meta-data/public-hostname)
-                # Perform a replacement in kc-config.xml of existing application host entries with this ec2 public host name
-                SERVER=$(echo ${EC2_HOST} | cut -d'/' -f3) # Strips off the "http://" portion and trailing "/"
-
                 for f in $(env | grep 'ENV_FILE_FROM_S3') ; do
                   envfile="$(echo $f | cut -d'=' -f2)"
-                  # Replace the standard kuali-research-[env].bu.edu references with the public host name of this ec2 instance.
-                  sed -i -r "s/kuali-research.*.bu.edu/$SERVER/g" "$envfile"
+                  # Replace the standard kuali-research-[env].bu.edu references with the dns address of this instances load balancer.
+                  sed -i -r "s/kuali-research.*.bu.edu/$LOAD_BALANCER_URL/g" "$envfile"
                   # Create the export.sh file
                   createExportFile "$envfile"
                 done
                   
-                  exit 0
+                exit 0
               mode: "000775"
               owner: root
               group: root
@@ -660,6 +660,7 @@ Resources:
                 ENV_FILE_FROM_S3_CORE: /opt/kuali/s3/core/environment.variables.s3
                 ENV_FILE_FROM_S3_PORTAL: /opt/kuali/s3/portal/environment.variables.s3
                 ENV_FILE_FROM_S3_PDF: /opt/kuali/s3/pdf/environment.variables.s3
+                LOAD_BALANCER_URL: "${LoadBalancerUrl}"
               command: bash process.env.file.sh
         03_add_instance_to_cluster:
           commands:
