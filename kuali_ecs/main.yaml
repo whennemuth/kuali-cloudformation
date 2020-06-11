@@ -138,8 +138,10 @@ Resources:
           !Join [ "/", [ !GetAtt ALB.Outputs.LoadBalancerUrl, "kc" ] ]
         KualiDashboardUrl:
           !Join [ "/", [ !GetAtt ALB.Outputs.LoadBalancerUrl, "dashboard" ] ]
-        Listener:
-          !GetAtt ALB.Outputs.Listener
+        Listener80:
+          !GetAtt ALB.Outputs.Listener80
+        Listener443:
+          !GetAtt ALB.Outputs.Listener443
         Path: "/"
         ECSServiceAutoScalingRoleARN:
           !GetAtt ECS.Outputs.ECSServiceAutoScalingRole
@@ -165,8 +167,10 @@ Resources:
           !GetAtt ALB.Outputs.LoadBalancerUrl
         KualiDashboardUrl:
           !Join [ "/", [ !GetAtt ALB.Outputs.LoadBalancerUrl, "dashboard" ] ]
-        Listener:
-          !GetAtt ALB.Outputs.Listener
+        Listener80:
+          !GetAtt ALB.Outputs.Listener80
+        Listener443:
+          !GetAtt ALB.Outputs.Listener443
         Path: "/kc"
         ECSServiceAutoScalingRoleARN:
           !GetAtt ECS.Outputs.ECSServiceAutoScalingRole
@@ -192,8 +196,10 @@ Resources:
           !GetAtt ALB.Outputs.LoadBalancerUrl
         KualiResearchUrl:
           !Join [ "/", [ !GetAtt ALB.Outputs.LoadBalancerUrl, "kc" ] ]
-        Listener:
-          !GetAtt ALB.Outputs.Listener
+        Listener80:
+          !GetAtt ALB.Outputs.Listener80
+        Listener443:
+          !GetAtt ALB.Outputs.Listener443
         Path: "/dashboard"
         ECSServiceAutoScalingRoleARN:
           !GetAtt ECS.Outputs.ECSServiceAutoScalingRole

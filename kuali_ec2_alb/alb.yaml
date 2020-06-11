@@ -1,0 +1,404 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+# References:
+# https://docs.aws.amazon.com/elasticloadbalancing/latest/application/introduction.html
+# https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_ElasticLoadBalancingV2.html
+
+Description: This template deploys an application load balancer that exposes the EC2 Instance (except for ssh access)
+
+Parameters:
+
+  GlobalTag:
+    Type: String
+    Description: >
+      A common value that all resources in this template will have prefixed to
+      their name and attached as a tag to establish a bundling through naming convention. If a nested stack,
+      this will most likely be the name of the top-most stack.
+    Default: kuali-ec2-alb
+
+  Landscape:
+    Description: Specify which landscape to build into the VPC
+    Type: String
+    AllowedValues:
+    - sb
+    - ci
+    - qa
+    - stg
+    - prod
+    ConstraintDescription: 'This parameter is restricted to the following values:
+      sb, ci, qa, stg, prod'
+    Default: sb
+
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: The security group to be applied to the application load balancer.
+
+  InstanceId:
+    Type: AWS::EC2::Instance::Id
+    Description: The id of the ec2 instance to register as a target with the target group
+
+
+Resources:
+
+  ALB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Description: The load balancer used as reverse proxy for the kuali ec2 instance
+    Properties:
+      Name: 
+        !Sub "${GlobalTag}-${Landscape}.ALB"
+      SecurityGroups:
+      - !Ref SecurityGroup
+      Tags:
+      - Key: Name
+        Value: 
+          !Sub "${GlobalTag}-${Landscape}.ALB"
+
+
+  ################################################
+  #               HTTP (PORT 80)
+  ################################################
+  TargetGroup80:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name:
+        !Sub "${GlobalTag}-${Landscape}-port80.TG"
+      Port: 80
+      Protocol: HTTP
+      Matcher:
+        HttpCode: 200-299
+      TargetGroupAttributes:
+      - Key: stickiness.enabled
+        Value: true
+      - Key: stickiness.type
+        Value: lb_cookie
+      - Key: stickiness.lb_cookie.duration_seconds
+        Value: 86400
+      - Key: deregistration_delay.timeout_seconds
+        Value: 300
+      - Key: slow_start.duration_seconds
+        Value: 0
+      Targets:
+      - Id: !Ref InstanceId
+        Port: 80
+      Tags:
+      - Key: Name
+        Value: 
+          !Sub "${GlobalTag}-${Landscape}-port80.TG"
+  Listener80:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    DependsOn: 
+    - TargetGroup80
+    Properties:
+      DefaultActions:
+      - TargetGroupArn:
+          !Ref TargetGroup80
+        Type: forward
+      LoadBalancerArn:
+        !Ref ALB
+      Port: 80
+      Protocol: HTTP
+  ListenerRule80:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    DependsOn: TargetGroup80
+    Description: >
+      When the cor-main institution provider type is switched from "kuali"
+      to "saml" as the institution provider value, the shibboleth configuration will
+      take over https redirection and this rule can be removed.
+    Properties:
+      # Don't need to specify the listener here because this rule is registered with TargetGroup80 which is the default for Listener80.
+      # ListenerArn:
+      #   !Ref Listener80
+      Priority: 5
+      Actions:
+      - Type: redirect
+        # NOTE: Target groups do not apply if action type is redirect
+        # TargetGroupArn:
+        #   !Ref TargetGroup80
+        RedirectConfig:
+          Host: "#{host}"
+          Path: "/#{path}"
+          Port: 443
+          Protocol: HTTPS
+          Query: "#{query}"
+          StatusCode: HTTP_301
+      Conditions:
+      - Field: path-pattern
+        Values:
+        - "/*"
+
+
+  ################################################
+  #                HTTPS (PORT 443)
+  ################################################
+  SSLCert:
+    Type: AWS::CertificateManager::Certificate
+    DependsOn: ALB
+    Properties:
+      DomainName:
+        !GetAtt ALB.DNSName
+      DomainValidationOptions:
+      - DomainName:
+          !GetAtt ALB.DNSName
+        ValidationDomain:
+          !GetAtt ALB.DNSName
+      Tags:
+      - Key: Name
+        Value: 
+          !Sub "${GlobalTag}-${Landscape}.CERT"
+  ListenerCert:
+    Type: AWS::ElasticLoadBalancingV2::ListenerCertificate
+    DependsOn: SSLCert
+    Properties: 
+      Certificates: 
+      - Certificate:
+          CertificateArn: !Ref SSLCert
+      ListenerArn: String
+      Tags:
+      - Key: Name
+        Value: 
+          !Sub "${GlobalTag}-${Landscape}.LISTENER.CERT"
+  Listener443:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    DependsOn:
+    - ALB
+    - ListenerCert
+    - TargetGroupCore
+    Properties:
+      Certificates:
+      - CertificateArn:
+          !Ref ListenerCert
+      DefaultActions:
+      - TargetGroupArn:
+          !Ref TargetGroupCore
+        Type: forward
+      LoadBalancerArn:
+        !Ref ALB
+      Port: 443
+      Protocol: HTTPS
+
+
+  ################################################
+  #                   COR-MAIN
+  ################################################
+  TargetGroupCore:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name:
+        !Sub "${GlobalTag}-${Landscape}-core.TG"
+      Port: 443
+      Protocol: HTTPS
+      Matcher:
+        HttpCode: 200-299
+      HealthCheckIntervalSeconds: 10
+      HealthCheckPath: "/apps/"
+      HealthCheckProtocol: HTTPS
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      TargetGroupAttributes:
+      - Key: stickiness.enabled
+        Value: true
+      - Key: stickiness.type
+        Value: lb_cookie
+      - Key: stickiness.lb_cookie.duration_seconds
+        Value: 86400
+      - Key: deregistration_delay.timeout_seconds
+        Value: 300
+      - Key: slow_start.duration_seconds
+        Value: 0
+      Targets:
+      - Id: !Ref InstanceId
+        Port: 3000
+      Tags:
+      - Key: Name
+        Value: 
+          !Sub "${GlobalTag}-${Landscape}-core.TG"
+  ListenerRuleCore:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    DependsOn: TargetGroupCore
+    Properties:
+      ListenerArn:
+        !Ref Listener443
+      Priority: 6
+      Actions:
+      - TargetGroupArn:
+          !Ref TargetGroupCore
+        Type: forward
+      Conditions: 
+      - { Field: path-pattern, Values: [ "/apps" ] }
+      - { Field: path-pattern, Values: [ "/api/v1/apps" ] }
+      - { Field: path-pattern, Values: [ "/users" ] }
+      - { Field: path-pattern, Values: [ "/api/v1/users" ] }
+      - { Field: path-pattern, Values: [ "/auth" ] }
+      - { Field: path-pattern, Values: [ "/api/v1/auth" ] }
+      - { Field: path-pattern, Values: [ "/api/v1/jobs" ] }
+      - { Field: path-pattern, Values: [ "/api/v1/notification-templates" ] }
+      - { Field: path-pattern, Values: [ "/api/v1/notifications" ] }
+      - { Field: path-pattern, Values: [ "/forms" ] }
+      - { Field: path-pattern, Values: [ "/api/v1/forms" ] }
+      - { Field: path-pattern, Values: [ "/groups" ] }
+      - { Field: path-pattern, Values: [ "/api/v1/groups" ] }
+      - { Field: path-pattern, Values: [ "/api/v1/categories" ] }
+      - { Field: path-pattern, Values: [ "/core-assets" ] }
+      - { Field: path-pattern, Values: [ "/css" ] }
+      - { Field: path-pattern, Values: [ "/img" ] }
+      - { Field: path-pattern, Values: [ "/font" ] }
+      - { Field: path-pattern, Values: [ "/js" ] }
+      Tags:
+      - Key: Name
+        Value: 
+          !Sub "${GlobalTag}-${Landscape}-core.ALB.LISTENER_RULE"
+
+
+  ################################################
+  #                   DASHBOARD
+  ################################################
+  TargetGroupDashboard:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name:
+        !Sub "${GlobalTag}-${Landscape}-dashboard.TG"
+      Port: 443
+      Protocol: HTTPS
+      Matcher:
+        HttpCode: 200-299
+      HealthCheckIntervalSeconds: 10
+      HealthCheckPath: "/dashboard/"
+      HealthCheckProtocol: HTTPS
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      TargetGroupAttributes:
+      - Key: stickiness.enabled
+        Value: true
+      - Key: stickiness.type
+        Value: lb_cookie
+      - Key: stickiness.lb_cookie.duration_seconds
+        Value: 86400
+      - Key: deregistration_delay.timeout_seconds
+        Value: 300
+      - Key: slow_start.duration_seconds
+        Value: 0
+      Targets:
+      - Id: !Ref InstanceId
+        Port: 3005
+      Tags:
+      - Key: Name
+        Value: 
+          !Sub "${GlobalTag}-${Landscape}-dashboard.TG"
+  ListenerRuleDashboard:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    DependsOn: TargetGroupDashboard
+    Properties:
+      ListenerArn:
+        !Ref Listener443
+      Priority: 4
+      Actions:
+      - TargetGroupArn:
+          !Ref TargetGroupDashboard
+        Type: forward
+      Conditions:
+      - { Field: path-pattern, Values: [ "/dashboard" ] }
+      - { Field: path-pattern, Values: [ "/dashboard/*" ] }
+
+
+  ################################################
+  #                      KC
+  ################################################
+  TargetGroupKC:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name:
+        !Sub "${GlobalTag}-${Landscape}-kc.TG"
+      Port: 443
+      Protocol: HTTPS
+      Matcher:
+        HttpCode: 200-299
+      HealthCheckIntervalSeconds: 10
+      HealthCheckPath: "/kc/"
+      HealthCheckProtocol: HTTPS
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      TargetGroupAttributes:
+      - Key: stickiness.enabled
+        Value: true
+      - Key: stickiness.type
+        Value: lb_cookie
+      - Key: stickiness.lb_cookie.duration_seconds
+        Value: 86400
+      - Key: deregistration_delay.timeout_seconds
+        Value: 300
+      - Key: slow_start.duration_seconds
+        Value: 0
+      Targets:
+      - Id: !Ref InstanceId
+        Port: 8080
+      Tags:
+      - Key: Name
+        Value: 
+          !Sub "${GlobalTag}-${Landscape}-kc.TG"          
+  ListenerRuleKC:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    DependsOn: TargetGroupKC
+    Properties:
+      ListenerArn:
+        !Ref Listener443
+      Priority: 2
+      Actions:
+      - TargetGroupArn:
+          !Ref TargetGroupKC
+        Type: forward
+      Conditions:
+      - { Field: path-pattern, Values: [ "/kc" ] }
+      - { Field: path-pattern, Values: [ "/kc/*" ] }
+
+
+  ################################################
+  #                     PDF
+  ################################################
+  TargetGroupPdf:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name:
+        !Sub "${GlobalTag}-${Landscape}-pdf.TG"
+      VpcId:
+        !Ref vpcid
+      Port: 443
+      Protocol: HTTPS
+      Matcher:
+        HttpCode: 200-299
+      HealthCheckIntervalSeconds: 10
+      HealthCheckPath: "/pdf/"
+      HealthCheckProtocol: HTTPS
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      TargetGroupAttributes:
+      - Key: stickiness.enabled
+        Value: true
+      - Key: stickiness.type
+        Value: lb_cookie
+      - Key: stickiness.lb_cookie.duration_seconds
+        Value: 86400
+      - Key: deregistration_delay.timeout_seconds
+        Value: 300
+      - Key: slow_start.duration_seconds
+        Value: 0
+      Targets:
+      - Id: !Ref InstanceId
+        Port: 3006
+      Tags:
+      - Key: Name
+        Value: 
+          !Sub "${GlobalTag}-${Landscape}-pdf.TG"
+  ListenerRulePdf:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    DependsOn: TargetGroupPdf
+    Properties:
+      ListenerArn:
+        !Ref Listener443
+      Priority: 3
+      Actions:
+      - TargetGroupArn:
+          !Ref TargetGroupPdf
+        Type: forward
+      Conditions:
+      - { Field: path-pattern, Values: [ "/pdf" ] }
+      - { Field: path-pattern, Values: [ "/pdf/*" ] }

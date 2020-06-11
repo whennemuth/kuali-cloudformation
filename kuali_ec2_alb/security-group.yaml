@@ -1,0 +1,89 @@
+Description: Establishes an ALB and an EC2 security group.
+
+Parameters:
+
+  GlobalTag:
+    Type: String
+    Description: >
+      A common value that all resources in this template will have prefixed to
+      their name and attached as a tag to establish a bundling through naming convention. If a nested stack,
+      this will most likely be the name of the top-most stack.
+    Default: kuali-ec2-alb
+
+  Landscape:
+    Description: Specify which landscape the security group is for.
+    Type: String
+    AllowedValues:
+    - sb
+    - ci
+    - qa
+    - stg
+    - prod
+    ConstraintDescription: 'This parameter is restricted to the following values:
+      sb, ci, qa, stg, prod'
+    Default: sb
+
+Resources:
+
+  EC2SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    DependsOn: ALBSecurityGroup
+    Properties:
+      GroupName:
+        !Join [ '', [ !Ref GlobalTag, "-ec2-load-balancer-sg-", !Ref Landscape ] ]
+      GroupDescription:
+        !Join
+        - " "
+        - - !Sub Defines who/where is allowed to access the ${Landscape} landscape EC2 Host directly.
+          - 'This includes allowing access from: '
+          - 1) The application load balancer
+          - 2) SSH access into the ec2 hosts
+      Tags:
+      - Key: Name
+        Value: 
+          !Join [ '', [ !Ref GlobalTag, "-ec2-", !Ref Landscape, ".SG" ] ]
+      SecurityGroupIngress:
+      - IpProtocol: -1
+        SourceSecurityGroupId:
+          !Ref ALBSecurityGroup
+        Description: Allows inbound access to the EC2 instance from the ALB only.
+      - IpProtocol: tcp
+        FromPort: '22'
+        ToPort: '22'
+        CidrIp: 0.0.0.0/0
+        Description: Allows SSH access to ECS host instances directly without requiring it originate from the ALB.
+
+  ALBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName:
+        !Join [ '', [ !Ref GlobalTag, "-alb-load-balancer-sg-", !Ref Landscape ] ]
+      GroupDescription:
+        !Join 
+        - " "
+        - - This security group defines who/where is allowed to access the application
+            load balancer that sits in front of EC2 instance. Currently open to the public 
+            internet (0.0.0.0/0) but can be restricted to certain ports.
+          - 'Landscape:'
+          - !Ref Landscape
+      Tags:
+      - Key: Name
+        Value: 
+          !Join [ '', [ !Ref GlobalTag, "-alb-", !Ref Landscape, ".SG" ] ]
+      SecurityGroupIngress:
+      - CidrIp: 0.0.0.0/0
+        IpProtocol: -1
+        Description: Allow for the ALB to send over any port by opening them all up to it.
+        # This does not effectively open all ports up - the ALB itself is only configured to route over a handful of them.
+
+
+Outputs:
+  EC2SecurityGroupId:
+    Description: A reference to the security group for the EC2 instance
+    Value:
+      # Need the Id, not the ARN, so passing the groupId attribute (ie: sg-94b3a1f6)
+      !GetAtt  EC2SecurityGroup.GroupId
+  ALBSecurityGroup:
+    Description: A reference to the security group for load balancer
+    Value:
+      !Ref ALBSecurityGroup

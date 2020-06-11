@@ -37,7 +37,7 @@ Parameters:
 
   Subnets:
     Type: List<AWS::EC2::Subnet::Id>
-    Description: The subnets the application load balancer is to be deployed to.
+    Description: The subnets the application load balancer routes traffic to.
 
   SecurityGroup:
     Type: AWS::EC2::SecurityGroup::Id
@@ -62,7 +62,32 @@ Resources:
         Value:
           !Join [ '', [ !Ref GlobalPrefix, "-alb" ] ]
 
-  ECSTestSSLCert:
+  Default80TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Description: Since a target group is a mandatory parameter for an application
+      load balancer, a default target group is included here. It's just a dummy target
+      group - the actual target group(s) are established in the service template(s).
+    Properties:
+      Name:
+        !Join [ '', [ !Ref GlobalPrefix, "-default-80-target-group" ] ] 
+      Port: 80
+      Protocol: HTTP
+      VpcId:
+        !Ref vpcid
+  Listener80:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    DependsOn: Default80TargetGroup
+    Properties:
+      DefaultActions:
+      - TargetGroupArn:
+          !Ref Default80TargetGroup
+        Type: forward
+      LoadBalancerArn:
+        !Ref LoadBalancer
+      Port: 80
+      Protocol: HTTP
+
+  SSLCert:
     Type: AWS::CertificateManager::Certificate
     DependsOn: LoadBalancer
     Properties:
@@ -73,35 +98,52 @@ Resources:
           !GetAtt LoadBalancer.DNSName
         ValidationDomain:
           !GetAtt LoadBalancer.DNSName
-
-  LoadBalancerListener:
-    Type: AWS::ElasticLoadBalancingV2::Listener
-    DependsOn: ECSTestSSLCert
-    Properties:
-      Certificates:
-      - CertificateArn:
-          !Ref ECSTestSSLCert
-      DefaultActions:
-      - TargetGroupArn:
-          !Ref DefaultTargetGroup
-        Type: forward
-      LoadBalancerArn:
-        !Ref LoadBalancer
-      Port: 80
-      Protocol: HTTP
-
-  DefaultTargetGroup:
+      Tags:
+      - Key: Name
+        Value: 
+          !Sub "${GlobalPrefix}-${Landscape}.CERT"
+  ListenerCert:
+    Type: AWS::ElasticLoadBalancingV2::ListenerCertificate
+    DependsOn: SSLCert
+    Properties: 
+      Certificates: 
+      - Certificate:
+          CertificateArn: !Ref SSLCert
+      ListenerArn: String
+      Tags:
+      - Key: Name
+        Value: 
+          !Sub "${GlobalPrefix}-${Landscape}.LISTENER.CERT"
+  Default443TargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Description: Since a target group is a mandatory parameter for an application
       load balancer, a default target group is included here. It's just a dummy target
       group - the actual target group(s) are established in the service template(s).
     Properties:
       Name:
-        !Join [ '', [ !Ref GlobalPrefix, "-default-target-group" ] ] 
-      Port: 80
-      Protocol: HTTP
+        !Join [ '', [ !Ref GlobalPrefix, "-default-443-target-group" ] ] 
+      Port: 443
+      Protocol: HTTPS
       VpcId:
         !Ref vpcid
+  Listener443:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    DependsOn:
+    - LoadBalancer
+    - ListenerCert
+    - Default443TargetGroup
+    Properties:
+      Certificates:
+      - CertificateArn:
+          !Ref ListenerCert
+      DefaultActions:
+      - TargetGroupArn:
+          !Ref Default443TargetGroup
+        Type: forward
+      LoadBalancerArn:
+        !Ref LoadBalancer
+      Port: 443
+      Protocol: HTTPS
 
 Outputs:
   LoadBalancer:
@@ -112,7 +154,11 @@ Outputs:
     Description: The URL of the ALB
     Value:
       !GetAtt LoadBalancer.DNSName
-  Listener:
+  Listener80:
     Value:
-      !Ref LoadBalancerListener
+      !Ref Listener80
     Description: A reference to a port 80 Listener
+  Listener443:
+    Value:
+      !Ref Listener443
+    Description: A reference to a port 443 Listener

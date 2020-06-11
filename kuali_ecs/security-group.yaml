@@ -42,10 +42,13 @@ Resources:
         !Join
         - " "
         - - !Sub Defines who/where is allowed to access the ECS hosts in the ${Landscape}
-              landscape and the tasks/containers that run on them directly.
+            landscape and the tasks/containers that run on them directly.
           - 'This includes allowing access from: '
           - 1) The load balancer
           - 2) SSH access into the ec2 hosts
+      # This security group defines who/where is allowed to access the ECS hosts directly.
+      # By default we're just allowing access from the load balancer.  If you want to SSH
+      # into the hosts, or expose non-load balanced services you can open their ports here.
       SecurityGroupIngress:
       - IpProtocol: -1
         SourceSecurityGroupId:

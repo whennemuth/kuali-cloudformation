@@ -1,0 +1,168 @@
+Description: >
+  Create a new ec2 instance with the kuali suite of modules deployed as containers and proxied with an application load balancer.
+
+Metadata: 
+  AWS::CloudFormation::Interface: 
+    ParameterGroups: 
+      - Label: 
+          default: Environment
+        Parameters: 
+          - GlobalTag
+          - Landscape
+      - Label: 
+          default: "Amazon EC2 Configuration"
+        Parameters: 
+          - EC2InstanceType
+      - Label: 
+          default: "Kuali Services / Docker configuration"
+        Parameters: 
+          - CoreImage
+          - KcImage
+          - PortalImage
+          - PdfImage
+      - Label: 
+          default: "Logging"
+        Parameters: 
+          - EnableNewRelicAPM
+          - EnableNewRelicInfrastructure
+
+Parameters:
+
+  GlobalTag:
+    Type: String
+    Description: >
+      A common value that all resources in this template will have prefixed to
+      their name and attached as a tag to establish a bundling through naming convention. If a nested stack,
+      this will most likely be the name of the top-most stack.
+    Default: kuali-ec2-alb
+
+  Landscape:
+    Description: Specify which landscape to build for.
+    Type: String
+    AllowedValues:
+    - sb
+    - ci
+    - qa
+    - stg
+    - prod
+    ConstraintDescription: >
+      This parameter is restricted to the following values: sb, ci, qa, stg, prod
+    Default: sb
+
+  EC2InstanceType:
+    Type: String
+    Description: What type of EC2 instance should be used for hosting?
+    AllowedValues:
+    - t2.small
+    - t2.medium
+    - t2.large
+    - t2.xlarge
+    - t3.small
+    - t3.medium
+    - t3.large
+    - t3.xlarge
+    - m4.large
+    - m4.xlarge
+    - m5.large
+    - m5.xlarge
+    ConstraintDescription: Specified instance type is not within selection list.
+    Default: m4.large
+
+  ConfigBucket:
+    Type: String
+    Description: The S3 bucket where our config files, keys, etc. are stored
+    Default: kuali-research-ec2-setup
+
+  CoreImage:
+    Type: String
+    Description: The docker image for cor-main. Will indicate the docker registry address.
+    Default: 730096353738.dkr.ecr.us-east-1.amazonaws.com/core:2001.0040
+
+  KcImage:
+    Type: String
+    Description: The docker image for cor-main. Will indicate the docker registry address.
+    Default: 730096353738.dkr.ecr.us-east-1.amazonaws.com/coeus:2001.0040
+
+  PortalImage:
+    Type: String
+    Description: The docker image for cor-main. Will indicate the docker registry address.
+    Default: 730096353738.dkr.ecr.us-east-1.amazonaws.com/portal:2001.0040
+
+  PdfImage:
+    Type: String
+    Description: The docker image for cor-main. Will indicate the docker registry address.
+    Default: 730096353738.dkr.ecr.us-east-1.amazonaws.com/research-pdf:2002.0003
+
+  EnableNewRelicAPM:
+    Type: String
+    Description: Is newrelic APM to be enabled for this landscape?
+    Default: "false"
+    AllowedValues:
+    - "true"
+    - "false"
+    ConstraintDescription: Enter "true" or "false" only.
+    Default: "false"
+
+  EnableNewRelicInfrastructure:
+    Type: String
+    Description: Is newrelic infrastructure (with logging) to be enabled for this landscape?
+    Default: "false"
+    AllowedValues:
+    - "true"
+    - "false"
+    ConstraintDescription: Enter "true" or "false" only.
+
+
+Resources:
+
+  SecurityGroups:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://s3.amazonaws.com/kuali-research-ec2-setup/cloudformation/kuali_ec2_alb/security-group.yaml
+      Parameters:
+        GlobalTag:
+          !Ref GlobalTag
+        Landscape:
+          !Ref Landscape
+
+  EC2:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://s3.amazonaws.com/kuali-research-ec2-setup/cloudformation/kuali_ec2_alb/ec2.yaml
+      Parameters:
+        GlobalTag:
+          !Ref GlobalTag
+        Landscape:
+          !Ref Landscape
+        InstanceType:
+          !Ref EC2InstanceType
+        SecurityGroupId:
+          !GetAtt SecurityGroups.Outputs.EC2SecurityGroupId
+        LoadBalancerUrl:
+          !GetAtt ALB.Outputs.LoadBalancerUrl
+        CoreImage:
+          !Ref CoreImage
+        KcImage:
+          !Ref KcImage
+        PortalImage:
+          !Ref PortalImage
+        PdfImage:
+          !Ref PdfImage
+        EnableNewRelicAPM:
+          !Ref EnableNewRelicAPM
+        EnableNewRelicInfrastructure:
+          !Ref EnableNewRelicInfrastructure
+
+  ALB:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://s3.amazonaws.com/kuali-research-ec2-setup/cloudformation/kuali_ec2_alb/alb.yaml
+      Parameters:
+        GlobalTag:
+          !Ref GlobalTag
+        Landscape:
+          !Ref Landscape
+        SecurityGroup: 
+          !GetAtt SecurityGroups.Outputs.ALBSecurityGroup
+        InstanceId:
+          !GetAtt EC2.Outputs.InstanceId

@@ -48,9 +48,13 @@ Parameters:
     ConstraintDescription: Cluster size is limited between 1 and 10 instances.
     Default: 5
 
-  Listener:
+  Listener80:
     Type: String
-    Description: The Application Load Balancer listener to register with.
+    Description: The Application Load Balancer listener to register with on port 80.
+
+  Listener443:
+    Type: String
+    Description: The Application Load Balancer listener to register with on port 443.
 
   Path:
     Type: String
@@ -175,6 +179,7 @@ Resources:
         !Ref DesiredCount
       TaskDefinition:
         !Ref TaskDefinition
+      # How this service traces back to its load balancer: Service > TargetGroup > ListenerRule > Listener > ALB
       LoadBalancers:
       - ContainerName: kuali-research
         ContainerPort: 8080
@@ -212,12 +217,13 @@ Resources:
       take over https redirection and this rule can be removed.
     Properties:
       ListenerArn:
-        !Ref Listener
+        !Ref Listener80
       Priority: 1
       Actions:
-      - TargetGroupArn:
-          !Ref TargetGroup80
-        Type: redirect
+      - Type: redirect
+        # NOTE: Target groups do not apply if action type is redirect
+        # TargetGroupArn:
+        #   !Ref TargetGroup80
         RedirectConfig:
           Host: "#{host}"
           Path: "/#{path}"
@@ -241,6 +247,7 @@ Resources:
         !Ref DesiredCount
       TaskDefinition:
         !Ref TaskDefinition
+      # How this service traces back to its load balancer: Service > TargetGroup > ListenerRule > Listener > ALB
       LoadBalancers:
       - ContainerName: kuali-research
         ContainerPort: 443
@@ -279,7 +286,7 @@ Resources:
     Type: AWS::ElasticLoadBalancingV2::ListenerRule
     Properties:
       ListenerArn:
-        !Ref Listener
+        !Ref Listener443
       Priority: 2
       Actions:
       - TargetGroupArn:

@@ -2,20 +2,13 @@ AWSTemplateFormatVersion: 2010-09-09
 
 
 Description: >
-  Create a new ec2 instance with the kuali suite of modules deployed as containers and proxied with nginx.
+  Create a new ec2 instance with the kuali suite of modules deployed as containers and proxied with an application load balancer.
 
 
 Parameters:
 
-  GlobalTag:
-    Type: String
-    Description: >
-      A common value that all resources in this template will have prefixed to
-      their name and attached as a tag to establish a bundling through naming convention.
-    Default: kuali-ec2
-
   Landscape:
-    Description: Specify which landscape to build into the VPC (currently just a label - kc-config.xml is hard-coded for now)
+    Description: Specify which landscape to build into the VPC
     Type: String
     AllowedValues:
     - sb
@@ -46,10 +39,6 @@ Parameters:
     ConstraintDescription: Specified instance type is not within selection list.
     Default: m4.large
 
-  EC2KeypairName:
-    Type: String
-    Description: The keypair for ssh use against the ec2 instance
-
   ConfigBucket:
     Type: String
     Description: The S3 bucket where our config files, keys, etc. are stored
@@ -57,19 +46,23 @@ Parameters:
 
   CoreImage:
     Type: String
-    Description: 'Example: 730096353738.dkr.ecr.us-east-1.amazonaws.com/core:2001.0040'
+    Description: The docker image for cor-main. Will indicate the docker registry address.
+    Default: 730096353738.dkr.ecr.us-east-1.amazonaws.com/core:2001.0040
 
   KcImage:
     Type: String
-    Description: 'Example: 730096353738.dkr.ecr.us-east-1.amazonaws.com/coeus:2001.0040'
+    Description: The docker image for cor-main. Will indicate the docker registry address.
+    Default: 730096353738.dkr.ecr.us-east-1.amazonaws.com/coeus:2001.0040
 
   PortalImage:
     Type: String
-    Description: 'Example: 730096353738.dkr.ecr.us-east-1.amazonaws.com/portal:2001.0040'
+    Description: The docker image for cor-main. Will indicate the docker registry address.
+    Default: 730096353738.dkr.ecr.us-east-1.amazonaws.com/portal:2001.0040
 
   PdfImage:
     Type: String
-    Description: 'Example: 730096353738.dkr.ecr.us-east-1.amazonaws.com/research-pdf:2002.0003'
+    Description: The docker image for cor-main. Will indicate the docker registry address.
+    Default: 730096353738.dkr.ecr.us-east-1.amazonaws.com/research-pdf:2002.0003
 
   EnableNewRelicAPM:
     Type: String
@@ -89,28 +82,10 @@ Parameters:
     - "true"
     - "false"
     ConstraintDescription: Enter "true" or "false" only.
-    Default: "false"
 
-# Each of these subnets will get the ec2 instance into the proper BU VPC.
-# This is necessary to gain access to the oracle databases, which cannot be accessed from outside the VPC
-# Also, you need to apply the specific vpc id to the security group being created here so it does not land in the default VPC.
-# Mappings:
-#   SubnetIdMap:
-#     sb:
-#       vpc: "vpc-abdf0ccc"
-#       subnet: "subnet-61377139"
-#     ci:
-#       vpc: "vpc-abdf0ccc"
-#       subnet: "subnet-86f2d8f0"
-#     qa:
-#       vpc: "vpc-abdf0ccc"
-#       subnet: "subnet-3a215b10"
-#     stg:
-#       vpc: "vpc-abdf0ccc"
-#       subnet: "subnet-28235902"
-#     prod:
-#       vpc: "vpc-27114f40"
-#       subnet: "subnet-7dfb1350"
+  SecurityGroupId:
+    Type: String
+    Description: Id that identifies the security group for the ec2 instance
 
 Resources:
 
@@ -133,34 +108,28 @@ Resources:
       InstanceType:
         !Ref EC2InstanceType   
 
-  EC2Instance:
+  MyEC2Instance:
     Type: AWS::EC2::Instance
     Description: EC2 instance for hosting kuali research modules.
-    DependsOn: EC2InstanceSecurityGroup
 
     Properties:
       Tags:
       - Key: Name
-        Value: !Sub ${GlobalTag}-instance
+        Value: buaws-wrh-ecs-ec2-test1
       ImageId: 
-        # ami-00129b193dc81bc31
         !GetAtt AMIInfo.Id
       InstanceType:
         !Ref EC2InstanceType
       SecurityGroupIds:
-      - !GetAtt  EC2InstanceSecurityGroup.GroupId
-      KeyName: !Ref EC2KeypairName
+      - !Ref SecurityGroupId
+      KeyName: buaws-kuali-rsa-warren
       IamInstanceProfile:
-        !Ref EC2InstanceProfile
+        !Ref MyEC2InstanceProfile
       BlockDeviceMappings:
         - DeviceName: /dev/xvda
           Ebs:
             VolumeSize: 64
             DeleteOnTermination: true
-      # SubnetId: !FindInMapn
-      #   - SubnetIdMap
-      #   - !Ref Landscape
-      #   - subnet
 
       UserData: 
         "Fn::Base64": !Sub |
@@ -185,34 +154,23 @@ Resources:
           chmod +x /usr/local/bin/docker-compose
           ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose
           
-          # # Modify the sudoers file so that anyone in the wheel group can be a sudoer
-          # chmod u+w /etc/sudoers && \
-          # echo -e "%wheel\tALL=(ALL)\tNOPASSWD: ALL" >> /etc/sudoers && \
-          # chmod u-w /etc/sudoers && \
+          # Modify the sudoers file so that anyone in the wheel group can be a sudoer
+          chmod u+w /etc/sudoers && \
+          echo -e "%wheel\tALL=(ALL)\tNOPASSWD: ALL" >> /etc/sudoers && \
+          chmod u-w /etc/sudoers && \
           
-          # # NOTE: Creating users here and not in Metadata.AWS::CloudFormation::Init.config.users due to restrictions: 
-          # # Users are created as non-interactive system users with a shell of /sbin/nologin. This is by design and cannot be modified.
-          # for user in wrh mukadder dhaywood mkousheh ; do
-          #   adduser -m $user && \
-          #   usermod -aG root $user && \
-          #   usermod -aG docker $user && \
-          #   usermod -aG wheel $user && \
-          #   mkdir /home/$user/.ssh && \
-          #   chmod 700 /home/$user/.ssh && \
-          #   chown -R $user:$user /home/$user
-          # done
+          # NOTE: Creating users here and not in Metadata.AWS::CloudFormation::Init.config.users due to restrictions: 
+          # Users are created as non-interactive system users with a shell of /sbin/nologin. This is by design and cannot be modified.
+          for user in wrh mukadder dhaywood mkousheh ; do
+            adduser -m $user && \
+            usermod -aG root $user && \
+            usermod -aG docker $user && \
+            usermod -aG wheel $user && \
+            mkdir /home/$user/.ssh && \
+            chmod 700 /home/$user/.ssh && \
+            chown -R $user:$user /home/$user
+          done
           
-          # Create certificates for ssl
-          mkdir -p /opt/kuali/nginx/certs
-          openssl req -newkey rsa:4096 \
-            -x509 \
-            -sha256 \
-            -days 3650 \
-            -nodes \
-            -out /opt/kuali/nginx/certs/myec2.crt \
-            -keyout /opt/kuali/nginx/certs/myec2.key \
-            -subj "/C=US/ST=MA/L=Boston/O=BU/OU=IST/CN=Ec2Instance"
-
           # Install required packages for scripts that will monitor and upload custom metrics to cloudwatch.
           curl https://aws-cloudwatch.s3.amazonaws.com/downloads/CloudWatchMonitoringScripts-1.2.2.zip \
             -o /var/lib/ && CloudWatchMonitoringScripts-1.2.2.zip
@@ -225,21 +183,21 @@ Resources:
             --configsets AllConfigs \
             --region ${AWS::Region} \
             --stack ${AWS::StackName} \
-            --resource EC2Instance
+            --resource MyEC2Instance
             
           # Now that all initialization is done signal success
           /opt/aws/bin/cfn-signal \
             -e $? \
             --region ${AWS::Region} \
             --stack ${AWS::StackName} \
-            --resource EC2Instance
+            --resource MyEC2Instance
 
     Metadata:
       AWS::CloudFormation::Authentication:
         S3AccessCreds:
           type: S3
           roleName:
-            !Ref EC2Role
+            !Ref MyEC2Role
           buckets:
           - !Ref ConfigBucket
       AWS::CloudFormation::Init:
@@ -267,36 +225,30 @@ Resources:
             yum:
               awslogs: []
           files:
-            # /home/wrh/.ssh/authorized_keys:
-            #   mode: "000600"
-            #   owner: wrh
-            #   group: wrh
-            #   source:
-            #     !Sub https://s3.amazonaws.com/${ConfigBucket}/ecs/ssh-keys/rsa-key-wrh.pub
-            # /home/mkousheh/.ssh/authorized_keys:
-            #   mode: "000600"
-            #   owner: mkousheh
-            #   group: mkousheh
-            #   source:
-            #     !Sub https://s3.amazonaws.com/${ConfigBucket}/ecs/ssh-keys/rsa-key-mkousheh.pub
-            # /home/mukadder/.ssh/authorized_keys:
-            #   mode: "000600"
-            #   owner: mukadder
-            #   group: mukadder
-            #   source:
-            #     !Sub https://s3.amazonaws.com/${ConfigBucket}/ecs/ssh-keys/rsa-key-mukadder.pub
-            # /home/dhaywood/.ssh/authorized_keys:
-            #   mode: "000600"
-            #   owner: dhaywood
-            #   group: dhaywood
-            #   source:
-            #     !Sub https://s3.amazonaws.com/${ConfigBucket}/ecs/ssh-keys/rsa-key-dhaywood.pub
-            # /root/.ssh/git_rsa_key:
-            #   mode: "000600"
-            #   owner: root
-            #   group: root
-            #   source:
-            #     !Sub https://s3.amazonaws.com/${ConfigBucket}/bu_github_id_docker_rsa
+            /home/wrh/.ssh/authorized_keys:
+              mode: "000600"
+              owner: wrh
+              group: wrh
+              source:
+                !Sub https://s3.amazonaws.com/${ConfigBucket}/ecs/ssh-keys/rsa-key-wrh.pub
+            /home/mkousheh/.ssh/authorized_keys:
+              mode: "000600"
+              owner: mkousheh
+              group: mkousheh
+              source:
+                !Sub https://s3.amazonaws.com/${ConfigBucket}/ecs/ssh-keys/rsa-key-mkousheh.pub
+            /home/mukadder/.ssh/authorized_keys:
+              mode: "000600"
+              owner: mukadder
+              group: mukadder
+              source:
+                !Sub https://s3.amazonaws.com/${ConfigBucket}/ecs/ssh-keys/rsa-key-mukadder.pub
+            /home/dhaywood/.ssh/authorized_keys:
+              mode: "000600"
+              owner: dhaywood
+              group: dhaywood
+              source:
+                !Sub https://s3.amazonaws.com/${ConfigBucket}/ecs/ssh-keys/rsa-key-dhaywood.pub
             /opt/kuali/README.txt:
               content: !Sub |
                 This directory contains the "environment" for each app to run
@@ -306,6 +258,12 @@ Resources:
               mode: "000775"
               owner: root
               group: root
+            /root/.ssh/git_rsa_key:
+              mode: "000600"
+              owner: root
+              group: root
+              source:
+                !Sub https://s3.amazonaws.com/${ConfigBucket}/bu_github_id_docker_rsa
             /opt/kuali/scripts/crontab:
               content: |
                 SHELL=/bin/bash
@@ -434,8 +392,8 @@ Resources:
               content: !Sub |
                 [cfn-auto-reloader-hook]
                 triggers=post.update
-                path=Resources.EC2Instance.Metadata.AWS::CloudFormation::Init
-                action=/opt/aws/bin/cfn-init -v --region ${AWS::Region} --stack ${AWS::StackName} --resource EC2Instance
+                path=Resources.MyEC2Instance.Metadata.AWS::CloudFormation::Init
+                action=/opt/aws/bin/cfn-init -v --region ${AWS::Region} --stack ${AWS::StackName} --resource MyEC2Instance --configsets AllConfigs
             /etc/awslogs/awscli.conf:
               content: !Sub |
                 [plugins]
@@ -449,18 +407,18 @@ Resources:
                 
                 [/var/log/dmesg]
                 file = /var/log/dmesg
-                log_group_name = EC2InstanceLogsGroup
+                log_group_name = MyEC2InstanceLogsGroup
                 log_stream_name = /var/log/dmesg
                 
                 [/var/log/messages]
                 file = /var/log/messages
-                log_group_name = EC2InstanceLogsGroup
+                log_group_name = MyEC2InstanceLogsGroup
                 log_stream_name = /var/log/messages
                 datetime_format = %b %d %H:%M:%S
                 
                 # [/var/log/docker]
                 # file = /var/log/docker
-                # log_group_name = EC2InstanceLogsGroup
+                # log_group_name = MyEC2InstanceLogsGroup
                 # log_stream_name = /var/log/docker
                 # datetime_format = %Y-%m-%dT%H:%M:%S.%f
             /opt/kuali/scripts/s3.download.configs.sh:
@@ -564,18 +522,11 @@ Resources:
                 # But not this one, so set it here:
                 export EC2_HOST=$(curl -s http://169.254.169.254/latest/meta-data/public-hostname)
 
-                # Perform a placeholder replacement in nginx.conf with this ec2 public host name
-                sed -i "s/EC2_HOST/$(echo ${!EC2_HOST} | sed 's/\//\\\//g')/g" /opt/kuali/nginx/nginx.conf
-
                 # Remove all existing containers
                 /usr/local/bin/docker-compose down 2> /dev/null || true
 
                 # Log into the docker registry
                 $(aws ecr get-login --no-include-email --region ${AWS::Region})
-
-                # Create the nginx log files to mount to if none exist
-                [ ! -f /opt/kuali/nginx/error.log ] && touch /opt/kuali/nginx/error.log
-                [ ! -f /opt/kuali/nginx/access.log ] && touch /opt/kuali/nginx/access.log
 
                 /usr/local/bin/docker-compose up --detach
                 
@@ -586,19 +537,6 @@ Resources:
               content: !Sub |
                 version: '3'
                 services:
-
-                  proxy: 
-                    image: nginx:latest
-                    container_name: reverse-proxy
-                    restart: unless-stopped
-                    volumes:
-                      - /opt/kuali/nginx/nginx.conf:/etc/nginx/nginx.conf
-                      - /opt/kuali/nginx/error.log:/etc/nginx/error.log
-                      - /opt/kuali/nginx/access.log:/etc/nginx/access.log
-                      - /opt/kuali/nginx/certs/:/etc/nginx/ssl/
-                    ports:
-                      - 80:80
-                      - 443:443
 
                   cor-main:
                     image: ${!CORE_IMAGE}
@@ -611,7 +549,7 @@ Resources:
                       driver: awslogs
                       options:
                         awslogs-region: ${AWS::Region}
-                        awslogs-group: EC2InstanceLogsGroup
+                        awslogs-group: MyEC2InstanceLogsGroup
                         awslogs-stream: core-docker-container
                         awslogs-create-group: "true"
                     expose:
@@ -637,7 +575,7 @@ Resources:
                       driver: awslogs
                       options:
                         awslogs-region: ${AWS::Region}
-                        awslogs-group: EC2InstanceLogsGroup
+                        awslogs-group: MyEC2InstanceLogsGroup
                         awslogs-stream: kc-docker-container
                         awslogs-create-group: "true"
                     expose:
@@ -657,7 +595,7 @@ Resources:
                       driver: awslogs
                       options:
                         awslogs-region: ${AWS::Region}
-                        awslogs-group: EC2InstanceLogsGroup
+                        awslogs-group: MyEC2InstanceLogsGroup
                         awslogs-stream: portal-docker-container
                         awslogs-create-group: "true"
                     expose:
@@ -672,7 +610,7 @@ Resources:
                       driver: awslogs
                       options:
                         awslogs-region: ${AWS::Region}
-                        awslogs-group: EC2InstanceLogsGroup
+                        awslogs-group: MyEC2InstanceLogsGroup
                         awslogs-stream: pdf-docker-container
                         awslogs-create-group: "true"
                     expose:
@@ -681,99 +619,6 @@ Resources:
               mode: "000775"
               owner: root
               group: root
-            /opt/kuali/nginx/nginx.conf:
-              content: !Sub |
-                # https://www.domysee.com/blogposts/reverse-proxy-nginx-docker-compose
-                # https://linuxize.com/post/nginx-reverse-proxy/
-
-                events { }
-
-                http {
-                  access_log /etc/nginx/access.log;
-                  error_log /etc/nginx/error.log warn;
-                  client_max_body_size 20m;
-                  include mime.types;
-
-                  upstream docker-kc {
-                    server kuali-research:8080;
-                  }
-                  upstream docker-core {
-                    server cor-main:3000;
-                  }
-                  upstream docker-portal {
-                    server research-portal:3005;
-                  }
-                  upstream docker-pdf {
-                    server research-pdf:3006;
-                  }
-
-                  server { 
-                    # Example: http://ec2-3-91-98-11.compute-1.amazonaws.com/ 
-                    server_name EC2_HOST;
-                    listen 80;
-
-                    # Handle health check requests directly 
-                    location /health-check {
-                      proxy_pass http://docker-kc/index.jsp;
-                    }
-
-                    # Redirect all remaining http requests to https  
-                    location / {  
-                        return 301 https://$server_name$request_uri;  
-                    }
-                  }
-
-                  server {
-                    server_name EC2_HOST;
-                    listen 443 ssl http2;
-                    ssl on;
-                    ssl_certificate /etc/nginx/ssl/myec2.crt;
-                    ssl_certificate_key /etc/nginx/ssl/myec2.key;
-
-                    # Paths to kc
-                    location = / {
-                      return 301 https://$server_name/kc;
-                    }
-                    location /kc {
-                      # proxy_set_header Host $host;
-                      proxy_pass http://docker-kc;
-                      rewrite ^/(.*)$ /$1 break;
-                    }
-                    
-                    # Paths to dashboard
-                    location ~ ^/dashboard/?$ {
-                      # Redirect basic dashboard uri to 
-                      return 301 https://$server_name/dashboard/common-tasks;
-                    }
-                    location /dashboard {
-                      proxy_pass http://docker-portal;
-                    }
-                    location /api/v1/dashboard {
-                      proxy_pass http://docker-portal;
-                    }
-
-                    # Paths to research-pdf
-                    location /pdf {
-                      proxy_pass http://docker-pdf;
-                    }
-                    location /api/v1/pdf {
-                      proxy_pass http://docker-pdf;
-                    }
-
-                    # Path to core
-                    location = /apps {
-                      proxy_pass http://docker-core/cor/main/?p=/apps;
-                    }
-                    location ~ ^/((img)|(js)|(css)|(font))$ {
-                      proxy_pass http://docker-core;
-                      rewrite ^/(.*)$ /cor/main/$1 break;
-                    }
-                    location / {
-                      # Anything left over goes to cor-main
-                      proxy_pass http://docker-core;
-                    }
-                  }                  
-                }
             /opt/kuali/scripts/stopinstance.sh:
               content: !Sub |
                 #!/bin/bash
@@ -841,11 +686,11 @@ Resources:
               env:
                 LANDSCAPE: !Sub "${Landscape}"
 
-  EC2Role:
+  MyEC2Role:
     Type: AWS::IAM::Role
     Properties:
       Path: "/"
-      RoleName: !Sub ${GlobalTag}-role
+      RoleName: MyEC2Role
       AssumeRolePolicyDocument:
         Statement:
         - Action:
@@ -876,61 +721,34 @@ Resources:
             Action: "*"
 
 
-  EC2InstanceProfile:
+  MyEC2InstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:
-      InstanceProfileName: !Sub ${GlobalTag}-profile
+      InstanceProfileName: Profile-for-MyEC2Role
       Path: "/"
       Roles:
-      - !Ref EC2Role
+      - !Ref MyEC2Role
 
-  EC2InstanceLogsGroup:
+  MyEC2InstanceLogsGroup:
     Type: AWS::Logs::LogGroup
     DeletionPolicy: Delete
     Properties:
-      LogGroupName: !Sub ${GlobalTag}-LG
+      LogGroupName: MyEC2InstanceLogsGroup
       RetentionInDays: 30
       
-  EC2InstanceSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: Warrens security group for a test t2 ec2 instance
-      GroupName: !Sub ${GlobalTag}-SG1
-      # VpcId: !FindInMap
-      #   - SubnetIdMap
-      #   - !Ref Landscape
-      #   - vpc
-      Tags:
-      - Key: Name
-        Value: !Sub ${GlobalTag}.SG
-      SecurityGroupIngress:
-      - IpProtocol: tcp
-        FromPort: 22
-        ToPort: 22
-        CidrIp: "0.0.0.0/0"
-      - IpProtocol: tcp
-        FromPort: 80
-        ToPort: 80
-        CidrIp: "0.0.0.0/0"
-      - IpProtocol: tcp
-        FromPort: 443
-        ToPort: 443
-        CidrIp: "0.0.0.0/0"
-      - IpProtocol: tcp
-        FromPort: 1043
-        ToPort: 1043
-        CidrIp: "0.0.0.0/0"
-
-  EIP:
+  MyEIP:
     Type: AWS::EC2::EIP
     Properties:
       Domain: vpc
-      InstanceId: !Ref EC2Instance
+      InstanceId: !Ref MyEC2Instance
 
 Outputs:
+  InstanceId:
+    Value:
+      !Ref MyEC2Instance
   PublicIP:
     Value:
-      !GetAtt EC2Instance.PublicIp
+      !GetAtt MyEC2Instance.PublicIp
   PublicDnsName:
     Value:
-      !GetAtt EC2Instance.PublicDnsName
+      !GetAtt MyEC2Instance.PublicDnsName

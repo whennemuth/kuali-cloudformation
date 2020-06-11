@@ -706,7 +706,7 @@ Resources:
             Service:
             - ec2.amazonaws.com
       ManagedPolicyArns:
-      - arn:aws:iam::aws:policy/AmazonEC2RoleforSSM
+      - arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM
       Policies:
       - PolicyName:
           !Sub "${GlobalPrefix}-${Landscape}-ecs-service-policy"

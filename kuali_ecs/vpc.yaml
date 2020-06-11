@@ -92,7 +92,7 @@ Resources:
       AllocationId:
         !GetAtt NatGateway1EIP.AllocationId
       SubnetId:
-        GetAtt Subnets.Outputs.PublicSubnet1
+        !GetAtt Subnets.Outputs.PublicSubnet1
       Tags:
       - Key: Name
         Value: !Join [ '', [!Ref GlobalPrefix, "-nat-gateway1-", !Ref Landscape] ]
