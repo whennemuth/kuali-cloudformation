@@ -14,7 +14,7 @@ Use this template to perform the simplest form of deployment for kuali research,
    Create, update, or delete the cloud formation stack for the infrastructure and app deployment.
    Resources created are the EC2 instance (with profile, role, security group, log group, & elastic IP) as shown below.
        
-   ![layout](./ec2.PNG)
+   ![layout](./ec2.png)
 
 
 
