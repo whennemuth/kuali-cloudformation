@@ -29,13 +29,33 @@ Parameters:
       sb, ci, qa, stg, prod'
     Default: sb
 
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: The id of the vpc to deploy to.
+
   SecurityGroup:
     Type: AWS::EC2::SecurityGroup::Id
     Description: The security group to be applied to the application load balancer.
 
-  InstanceId:
+  InstanceId1:
     Type: AWS::EC2::Instance::Id
-    Description: The id of the ec2 instance to register as a target with the target group
+    Description: The id of the first ec2 instance to register as a target with the target group
+
+  InstanceId2:
+    Type: AWS::EC2::Instance::Id
+    Description: The id of the second ec2 instance to register as a target with the target group
+
+  Subnet1:
+    Type: AWS::EC2::Subnet::Id
+    Description: One of the subnets the ALB routes traffic to.
+      
+  Subnet2:
+    Type: AWS::EC2::Subnet::Id
+    Description: One of the subnets the ALB routes traffic to.
+
+  CertificateArn:
+    Type: String
+    Description: The amazon resource name of a certificate that has already been put in IAM/ACM
 
 
 Resources:
@@ -45,53 +65,67 @@ Resources:
     Description: The load balancer used as reverse proxy for the kuali ec2 instance
     Properties:
       Name: 
-        !Sub "${GlobalTag}-${Landscape}.ALB"
+        # Make this short enough so that the derived DNS name is under 64 characters"
+        !Sub "${GlobalTag}-${Landscape}-ALB"
+      Subnets:
+      - !Ref Subnet1
+      - !Ref Subnet2
       SecurityGroups:
       - !Ref SecurityGroup
+      # LoadBalancerAttributes:
+      # - Key: access_logs.s3.enabled
+      #   Value: "true"
+      # - Key: access_logs.s3.bucket
+      #   Value: !Sub ${GlobalTag}-alb-logs
+      # - Key: access_logs.s3.prefix
+      #   Value: alb
       Tags:
       - Key: Name
         Value: 
-          !Sub "${GlobalTag}-${Landscape}.ALB"
+          !Sub "${GlobalTag}-${Landscape}-ALB"
 
 
   ################################################
   #               HTTP (PORT 80)
   ################################################
-  TargetGroup80:
-    Type: AWS::ElasticLoadBalancingV2::TargetGroup
-    Properties:
-      Name:
-        !Sub "${GlobalTag}-${Landscape}-port80.TG"
-      Port: 80
-      Protocol: HTTP
-      Matcher:
-        HttpCode: 200-299
-      TargetGroupAttributes:
-      - Key: stickiness.enabled
-        Value: true
-      - Key: stickiness.type
-        Value: lb_cookie
-      - Key: stickiness.lb_cookie.duration_seconds
-        Value: 86400
-      - Key: deregistration_delay.timeout_seconds
-        Value: 300
-      - Key: slow_start.duration_seconds
-        Value: 0
-      Targets:
-      - Id: !Ref InstanceId
-        Port: 80
-      Tags:
-      - Key: Name
-        Value: 
-          !Sub "${GlobalTag}-${Landscape}-port80.TG"
+  # TargetGroup80:
+  #   Type: AWS::ElasticLoadBalancingV2::TargetGroup
+  #   Properties:
+  #     Name:
+  #       !Sub "${GlobalTag}-${Landscape}-port80-TG"
+  #     VpcId: !Ref VpcId
+  #     Port: 80
+  #     Protocol: HTTP
+  #     Matcher:
+  #       HttpCode: 200-299
+  #     TargetGroupAttributes:
+  #     - Key: stickiness.enabled
+  #       Value: true
+  #     - Key: stickiness.type
+  #       Value: lb_cookie
+  #     - Key: stickiness.lb_cookie.duration_seconds
+  #       Value: 86400
+  #     - Key: deregistration_delay.timeout_seconds
+  #       Value: 300
+  #     - Key: slow_start.duration_seconds
+  #       Value: 0
+  #     Targets:
+  #     - Id: !Ref InstanceId1
+  #       Port: 80
+  #     - Id: !Ref InstanceId2
+  #       Port: 80
+  #     Tags:
+  #     - Key: Name
+  #       Value: 
+  #         !Sub "${GlobalTag}-${Landscape}-port80-TG"
   Listener80:
     Type: AWS::ElasticLoadBalancingV2::Listener
-    DependsOn: 
-    - TargetGroup80
     Properties:
       DefaultActions:
       - TargetGroupArn:
-          !Ref TargetGroup80
+          # Arbitrarily using TargetGroupCore as default. Nothing actually makes 
+          # it to that group over port 80 because the listener rule redirects to port 443
+          !Ref TargetGroupCore
         Type: forward
       LoadBalancerArn:
         !Ref ALB
@@ -99,21 +133,19 @@ Resources:
       Protocol: HTTP
   ListenerRule80:
     Type: AWS::ElasticLoadBalancingV2::ListenerRule
-    DependsOn: TargetGroup80
     Description: >
       When the cor-main institution provider type is switched from "kuali"
       to "saml" as the institution provider value, the shibboleth configuration will
       take over https redirection and this rule can be removed.
     Properties:
-      # Don't need to specify the listener here because this rule is registered with TargetGroup80 which is the default for Listener80.
-      # ListenerArn:
-      #   !Ref Listener80
-      Priority: 5
+      ListenerArn:
+        !Ref Listener80
+      Priority: 1
       Actions:
       - Type: redirect
         # NOTE: Target groups do not apply if action type is redirect
         # TargetGroupArn:
-        #   !Ref TargetGroup80
+        #   !Ref TargetGroupCore
         RedirectConfig:
           Host: "#{host}"
           Path: "/#{path}"
@@ -122,51 +154,21 @@ Resources:
           Query: "#{query}"
           StatusCode: HTTP_301
       Conditions:
-      - Field: path-pattern
-        Values:
-        - "/*"
+      - { Field: path-pattern, Values: [ "/*" ] }
 
 
   ################################################
   #                HTTPS (PORT 443)
   ################################################
-  SSLCert:
-    Type: AWS::CertificateManager::Certificate
-    DependsOn: ALB
-    Properties:
-      DomainName:
-        !GetAtt ALB.DNSName
-      DomainValidationOptions:
-      - DomainName:
-          !GetAtt ALB.DNSName
-        ValidationDomain:
-          !GetAtt ALB.DNSName
-      Tags:
-      - Key: Name
-        Value: 
-          !Sub "${GlobalTag}-${Landscape}.CERT"
-  ListenerCert:
-    Type: AWS::ElasticLoadBalancingV2::ListenerCertificate
-    DependsOn: SSLCert
-    Properties: 
-      Certificates: 
-      - Certificate:
-          CertificateArn: !Ref SSLCert
-      ListenerArn: String
-      Tags:
-      - Key: Name
-        Value: 
-          !Sub "${GlobalTag}-${Landscape}.LISTENER.CERT"
   Listener443:
     Type: AWS::ElasticLoadBalancingV2::Listener
-    DependsOn:
-    - ALB
-    - ListenerCert
-    - TargetGroupCore
     Properties:
       Certificates:
+      # WARNING!
+      # For some reason cloudformation returns a "CertificateNotFound" error when the arn of a certificate uploaded to acm
+      # is used to configure the listener for ssl. However, it has no problem with an arn of uploaded iam server certificates.  
       - CertificateArn:
-          !Ref ListenerCert
+          !Ref CertificateArn
       DefaultActions:
       - TargetGroupArn:
           !Ref TargetGroupCore
@@ -175,78 +177,6 @@ Resources:
         !Ref ALB
       Port: 443
       Protocol: HTTPS
-
-
-  ################################################
-  #                   COR-MAIN
-  ################################################
-  TargetGroupCore:
-    Type: AWS::ElasticLoadBalancingV2::TargetGroup
-    Properties:
-      Name:
-        !Sub "${GlobalTag}-${Landscape}-core.TG"
-      Port: 443
-      Protocol: HTTPS
-      Matcher:
-        HttpCode: 200-299
-      HealthCheckIntervalSeconds: 10
-      HealthCheckPath: "/apps/"
-      HealthCheckProtocol: HTTPS
-      HealthCheckTimeoutSeconds: 5
-      HealthyThresholdCount: 2
-      TargetGroupAttributes:
-      - Key: stickiness.enabled
-        Value: true
-      - Key: stickiness.type
-        Value: lb_cookie
-      - Key: stickiness.lb_cookie.duration_seconds
-        Value: 86400
-      - Key: deregistration_delay.timeout_seconds
-        Value: 300
-      - Key: slow_start.duration_seconds
-        Value: 0
-      Targets:
-      - Id: !Ref InstanceId
-        Port: 3000
-      Tags:
-      - Key: Name
-        Value: 
-          !Sub "${GlobalTag}-${Landscape}-core.TG"
-  ListenerRuleCore:
-    Type: AWS::ElasticLoadBalancingV2::ListenerRule
-    DependsOn: TargetGroupCore
-    Properties:
-      ListenerArn:
-        !Ref Listener443
-      Priority: 6
-      Actions:
-      - TargetGroupArn:
-          !Ref TargetGroupCore
-        Type: forward
-      Conditions: 
-      - { Field: path-pattern, Values: [ "/apps" ] }
-      - { Field: path-pattern, Values: [ "/api/v1/apps" ] }
-      - { Field: path-pattern, Values: [ "/users" ] }
-      - { Field: path-pattern, Values: [ "/api/v1/users" ] }
-      - { Field: path-pattern, Values: [ "/auth" ] }
-      - { Field: path-pattern, Values: [ "/api/v1/auth" ] }
-      - { Field: path-pattern, Values: [ "/api/v1/jobs" ] }
-      - { Field: path-pattern, Values: [ "/api/v1/notification-templates" ] }
-      - { Field: path-pattern, Values: [ "/api/v1/notifications" ] }
-      - { Field: path-pattern, Values: [ "/forms" ] }
-      - { Field: path-pattern, Values: [ "/api/v1/forms" ] }
-      - { Field: path-pattern, Values: [ "/groups" ] }
-      - { Field: path-pattern, Values: [ "/api/v1/groups" ] }
-      - { Field: path-pattern, Values: [ "/api/v1/categories" ] }
-      - { Field: path-pattern, Values: [ "/core-assets" ] }
-      - { Field: path-pattern, Values: [ "/css" ] }
-      - { Field: path-pattern, Values: [ "/img" ] }
-      - { Field: path-pattern, Values: [ "/font" ] }
-      - { Field: path-pattern, Values: [ "/js" ] }
-      Tags:
-      - Key: Name
-        Value: 
-          !Sub "${GlobalTag}-${Landscape}-core.ALB.LISTENER_RULE"
 
 
   ################################################
@@ -256,9 +186,10 @@ Resources:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
       Name:
-        !Sub "${GlobalTag}-${Landscape}-dashboard.TG"
-      Port: 443
-      Protocol: HTTPS
+        !Sub "${GlobalTag}-${Landscape}-dashboard-TG"
+      VpcId: !Ref VpcId
+      Port: 80
+      Protocol: HTTP
       Matcher:
         HttpCode: 200-299
       HealthCheckIntervalSeconds: 10
@@ -278,26 +209,52 @@ Resources:
       - Key: slow_start.duration_seconds
         Value: 0
       Targets:
-      - Id: !Ref InstanceId
+      - Id: !Ref InstanceId1
+        Port: 3005
+      - Id: !Ref InstanceId2
         Port: 3005
       Tags:
       - Key: Name
         Value: 
-          !Sub "${GlobalTag}-${Landscape}-dashboard.TG"
+          !Sub "${GlobalTag}-${Landscape}-dashboard-TG"
+  ListenerRuleDashboardCommonTasks:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    DependsOn: TargetGroupDashboard
+    Description: >
+      If the user navigates to the basic portal link, we don't want them presented with the 
+      it's own dashboard, but rather its common-tasks view. Hence this rule for a redirect.
+    Properties:
+      ListenerArn:
+        !Ref Listener443
+      Priority: 2
+      Actions:
+      - Type: redirect
+        RedirectConfig:
+          Host: "#{host}"
+          Path: "/dashboard/common-tasks"
+          Port: 443
+          Protocol: HTTPS
+          Query: "#{query}"
+          StatusCode: HTTP_301
+      Conditions:
+      - { Field: path-pattern, Values: [ "/dashboard", "/dashboard/" ] }
   ListenerRuleDashboard:
     Type: AWS::ElasticLoadBalancingV2::ListenerRule
     DependsOn: TargetGroupDashboard
     Properties:
       ListenerArn:
         !Ref Listener443
-      Priority: 4
+      Priority: 3
       Actions:
       - TargetGroupArn:
           !Ref TargetGroupDashboard
         Type: forward
       Conditions:
-      - { Field: path-pattern, Values: [ "/dashboard" ] }
-      - { Field: path-pattern, Values: [ "/dashboard/*" ] }
+      - Field: path-pattern
+        Values:
+        - "/dashboard/*"
+        - "/api/v1/dashboard"
+        - "/api/v1/dashboard/*"
 
 
   ################################################
@@ -307,9 +264,10 @@ Resources:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
       Name:
-        !Sub "${GlobalTag}-${Landscape}-kc.TG"
-      Port: 443
-      Protocol: HTTPS
+        !Sub "${GlobalTag}-${Landscape}-kc-TG"
+      VpcId: !Ref VpcId
+      Port: 80
+      Protocol: HTTP
       Matcher:
         HttpCode: 200-299
       HealthCheckIntervalSeconds: 10
@@ -329,26 +287,48 @@ Resources:
       - Key: slow_start.duration_seconds
         Value: 0
       Targets:
-      - Id: !Ref InstanceId
+      - Id: !Ref InstanceId1
+        Port: 8080
+      - Id: !Ref InstanceId2
         Port: 8080
       Tags:
       - Key: Name
         Value: 
-          !Sub "${GlobalTag}-${Landscape}-kc.TG"          
+          !Sub "${GlobalTag}-${Landscape}-kc-TG"          
+  ListenerRuleKcDefault:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    DependsOn: TargetGroupKC
+    Description: >
+      If the user navigates to the website with no path, we want them presented with the research app
+      as a default, not the portal selection view as would otherwise be presented.
+    Properties:
+      ListenerArn:
+        !Ref Listener443
+      Priority: 4
+      Actions:
+      - Type: redirect
+        RedirectConfig:
+          Host: "#{host}"
+          Path: "/kc"
+          Port: 443
+          Protocol: HTTPS
+          Query: "#{query}"
+          StatusCode: HTTP_301
+      Conditions:
+      - { Field: path-pattern, Values: [ "/" ] }
   ListenerRuleKC:
     Type: AWS::ElasticLoadBalancingV2::ListenerRule
     DependsOn: TargetGroupKC
     Properties:
       ListenerArn:
         !Ref Listener443
-      Priority: 2
+      Priority: 5
       Actions:
       - TargetGroupArn:
           !Ref TargetGroupKC
         Type: forward
       Conditions:
-      - { Field: path-pattern, Values: [ "/kc" ] }
-      - { Field: path-pattern, Values: [ "/kc/*" ] }
+      - { Field: path-pattern, Values: [ "/kc", "/kc/*" ] }
 
 
   ################################################
@@ -358,11 +338,10 @@ Resources:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
       Name:
-        !Sub "${GlobalTag}-${Landscape}-pdf.TG"
-      VpcId:
-        !Ref vpcid
-      Port: 443
-      Protocol: HTTPS
+        !Sub "${GlobalTag}-${Landscape}-pdf-TG"
+      VpcId: !Ref VpcId
+      Port: 80
+      Protocol: HTTP
       Matcher:
         HttpCode: 200-299
       HealthCheckIntervalSeconds: 10
@@ -382,23 +361,90 @@ Resources:
       - Key: slow_start.duration_seconds
         Value: 0
       Targets:
-      - Id: !Ref InstanceId
+      - Id: !Ref InstanceId1
+        Port: 3006
+      - Id: !Ref InstanceId2
         Port: 3006
       Tags:
       - Key: Name
         Value: 
-          !Sub "${GlobalTag}-${Landscape}-pdf.TG"
+          !Sub "${GlobalTag}-${Landscape}-pdf-TG"
   ListenerRulePdf:
     Type: AWS::ElasticLoadBalancingV2::ListenerRule
     DependsOn: TargetGroupPdf
     Properties:
       ListenerArn:
         !Ref Listener443
-      Priority: 3
+      Priority: 6
       Actions:
       - TargetGroupArn:
           !Ref TargetGroupPdf
         Type: forward
       Conditions:
-      - { Field: path-pattern, Values: [ "/pdf" ] }
-      - { Field: path-pattern, Values: [ "/pdf/*" ] }
+      - Field: path-pattern
+        Values:
+        - "/pdf"
+        - "/pdf/*"
+        - "/api/v1/pdf"
+        - "/api/v1/pdf/*"
+
+
+  ################################################
+  #                   COR-MAIN
+  ################################################
+  TargetGroupCore:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name:
+        !Sub "${GlobalTag}-${Landscape}-core-TG"
+      VpcId: !Ref VpcId
+      Port: 80
+      Protocol: HTTP
+      Matcher:
+        HttpCode: 200-299
+      HealthCheckIntervalSeconds: 10
+      HealthCheckPath: "/apps/"
+      HealthCheckProtocol: HTTPS
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      TargetGroupAttributes:
+      - Key: stickiness.enabled
+        Value: true
+      - Key: stickiness.type
+        Value: lb_cookie
+      - Key: stickiness.lb_cookie.duration_seconds
+        Value: 86400
+      - Key: deregistration_delay.timeout_seconds
+        Value: 300
+      - Key: slow_start.duration_seconds
+        Value: 0
+      Targets:
+      - Id: !Ref InstanceId1
+        Port: 3000
+      - Id: !Ref InstanceId2
+        Port: 3000
+      Tags:
+      - Key: Name
+        Value: 
+          !Sub "${GlobalTag}-${Landscape}-core-TG"
+  ListenerRuleCore:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    DependsOn: TargetGroupCore
+    Properties:
+      ListenerArn:
+        !Ref Listener443
+      Priority: 7
+      Actions:
+      - TargetGroupArn:
+          !Ref TargetGroupCore
+        Type: forward
+      Conditions: 
+      # Since core is last in priority, it handles all remaining paths, as it should.
+      - { Field: path-pattern, Values: [ "/*" ] }
+
+
+Outputs:
+
+  LoadBalancerUrl:
+    Description: This will be the url that the app is publicly addressable on
+    Value: !GetAtt ALB.DNSName

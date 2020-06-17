@@ -15,7 +15,7 @@ Parameters:
     Default: kuali-ec2
 
   Landscape:
-    Description: Specify which landscape to build into the VPC (currently just a label - kc-config.xml is hard-coded for now)
+    Description: Specify which landscape to build into the VPC (currently just a label - kc-config.xml is hard-coded for now).
     Type: String
     AllowedValues:
     - sb
@@ -50,7 +50,7 @@ Parameters:
     Type: String
     Description: The keypair for ssh use against the ec2 instance
 
-  ConfigBucket:
+  BucketName:
     Type: String
     Description: The S3 bucket where our config files, keys, etc. are stored
     Default: kuali-research-ec2-setup
@@ -118,7 +118,7 @@ Resources:
     Type: AWS::CloudFormation::Stack
     Properties:
       TemplateURL: 
-        !Sub https://s3.amazonaws.com/${ConfigBucket}/cloudformation/lambda/ami-lookup.yaml
+        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/lambda/ami-lookup.yaml
       Parameters:
         GlobalPrefix:
           ECS-test
@@ -241,7 +241,7 @@ Resources:
           roleName:
             !Ref EC2Role
           buckets:
-          - !Ref ConfigBucket
+          - !Ref BucketName
       AWS::CloudFormation::Init:
         configSets:
           AllConfigs:
@@ -272,31 +272,31 @@ Resources:
             #   owner: wrh
             #   group: wrh
             #   source:
-            #     !Sub https://s3.amazonaws.com/${ConfigBucket}/ecs/ssh-keys/rsa-key-wrh.pub
+            #     !Sub https://s3.amazonaws.com/${BucketName}/ecs/ssh-keys/rsa-key-wrh.pub
             # /home/mkousheh/.ssh/authorized_keys:
             #   mode: "000600"
             #   owner: mkousheh
             #   group: mkousheh
             #   source:
-            #     !Sub https://s3.amazonaws.com/${ConfigBucket}/ecs/ssh-keys/rsa-key-mkousheh.pub
+            #     !Sub https://s3.amazonaws.com/${BucketName}/ecs/ssh-keys/rsa-key-mkousheh.pub
             # /home/mukadder/.ssh/authorized_keys:
             #   mode: "000600"
             #   owner: mukadder
             #   group: mukadder
             #   source:
-            #     !Sub https://s3.amazonaws.com/${ConfigBucket}/ecs/ssh-keys/rsa-key-mukadder.pub
+            #     !Sub https://s3.amazonaws.com/${BucketName}/ecs/ssh-keys/rsa-key-mukadder.pub
             # /home/dhaywood/.ssh/authorized_keys:
             #   mode: "000600"
             #   owner: dhaywood
             #   group: dhaywood
             #   source:
-            #     !Sub https://s3.amazonaws.com/${ConfigBucket}/ecs/ssh-keys/rsa-key-dhaywood.pub
+            #     !Sub https://s3.amazonaws.com/${BucketName}/ecs/ssh-keys/rsa-key-dhaywood.pub
             # /root/.ssh/git_rsa_key:
             #   mode: "000600"
             #   owner: root
             #   group: root
             #   source:
-            #     !Sub https://s3.amazonaws.com/${ConfigBucket}/bu_github_id_docker_rsa
+            #     !Sub https://s3.amazonaws.com/${BucketName}/bu_github_id_docker_rsa
             /opt/kuali/README.txt:
               content: !Sub |
                 This directory contains the "environment" for each app to run
@@ -381,7 +381,7 @@ Resources:
                 # a scale-in or scale-out policy for auto-scaling activity.
                 sendDummyMetrics() {
                   # local json=$(cat /c/whennemuth/workspaces/ecs_workspace/dummy-metrics/dummy-ec2-metrics.json)
-                  local json=$(aws s3 cp s3://${ConfigBucket}/dummydata/dummy-ec2-metrics.json)
+                  local json=$(aws s3 cp s3://${BucketName}/dummydata/dummy-ec2-metrics.json)
                   local namespace=$(echo "$json" | jq -r '.Namespace')
                   local instances=$(echo $json | jq -r -c '.Instances[]')
                   local evals=()
@@ -430,12 +430,14 @@ Resources:
                 [main]
                 stack=${AWS::StackId}
                 region=${AWS::Region}
+                # Change interval from default 15 minutes to 5
+                interval=5
             /etc/cfn/hooks.d/cfn-auto-reloader.conf:
               content: !Sub |
                 [cfn-auto-reloader-hook]
                 triggers=post.update
                 path=Resources.EC2Instance.Metadata.AWS::CloudFormation::Init
-                action=/opt/aws/bin/cfn-init -v --region ${AWS::Region} --stack ${AWS::StackName} --resource EC2Instance
+                action=/opt/aws/bin/cfn-init -v --region ${AWS::Region} --stack ${AWS::StackName} --resource EC2Instance --configsets AllConfigs
             /etc/awslogs/awscli.conf:
               content: !Sub |
                 [plugins]
@@ -443,24 +445,24 @@ Resources:
                 [default]
                 region = ${AWS::Region}
             /etc/awslogs/awslogs.conf:
-              content: |
+              content: !Sub |
                 [general]
                 state_file = /var/lib/awslogs/agent-state
                 
                 [/var/log/dmesg]
                 file = /var/log/dmesg
-                log_group_name = EC2InstanceLogsGroup
+                log_group_name = ${GlobalTag}-LG
                 log_stream_name = /var/log/dmesg
                 
                 [/var/log/messages]
                 file = /var/log/messages
-                log_group_name = EC2InstanceLogsGroup
+                log_group_name = ${GlobalTag}-LG
                 log_stream_name = /var/log/messages
                 datetime_format = %b %d %H:%M:%S
                 
                 # [/var/log/docker]
                 # file = /var/log/docker
-                # log_group_name = EC2InstanceLogsGroup
+                # log_group_name = ${GlobalTag}-LG
                 # log_stream_name = /var/log/docker
                 # datetime_format = %Y-%m-%dT%H:%M:%S.%f
             /opt/kuali/scripts/s3.download.configs.sh:
@@ -476,10 +478,10 @@ Resources:
                   --include "portal/*" \
                   --include "pdf/*" \
                   --include "kuali/main/config/kc-config-rds.xml" \
-                  s3://${ConfigBucket}/${!LANDSCAPE}/ .
+                  s3://${BucketName}/${!LANDSCAPE}/ .
                 mv /opt/kuali/s3/kuali/main/config/kc-config-rds.xml /opt/kuali/s3/kuali/main/config/kc-config.xml
-                aws s3 cp s3://${ConfigBucket}/rice.cer /opt/kuali/s3/kuali/main/config/
-                aws s3 cp s3://${ConfigBucket}/rice.keystore /opt/kuali/s3/kuali/main/config/
+                aws s3 cp s3://${BucketName}/rice.cer /opt/kuali/s3/kuali/main/config/
+                aws s3 cp s3://${BucketName}/rice.keystore /opt/kuali/s3/kuali/main/config/
               mode: "000775"
               owner: root
               group: root
@@ -611,7 +613,7 @@ Resources:
                       driver: awslogs
                       options:
                         awslogs-region: ${AWS::Region}
-                        awslogs-group: EC2InstanceLogsGroup
+                        awslogs-group: ${GlobalTag}-LG
                         awslogs-stream: core-docker-container
                         awslogs-create-group: "true"
                     expose:
@@ -637,7 +639,7 @@ Resources:
                       driver: awslogs
                       options:
                         awslogs-region: ${AWS::Region}
-                        awslogs-group: EC2InstanceLogsGroup
+                        awslogs-group: ${GlobalTag}-LG
                         awslogs-stream: kc-docker-container
                         awslogs-create-group: "true"
                     expose:
@@ -657,7 +659,7 @@ Resources:
                       driver: awslogs
                       options:
                         awslogs-region: ${AWS::Region}
-                        awslogs-group: EC2InstanceLogsGroup
+                        awslogs-group: ${GlobalTag}-LG
                         awslogs-stream: portal-docker-container
                         awslogs-create-group: "true"
                     expose:
@@ -672,7 +674,7 @@ Resources:
                       driver: awslogs
                       options:
                         awslogs-region: ${AWS::Region}
-                        awslogs-group: EC2InstanceLogsGroup
+                        awslogs-group: ${GlobalTag}-LG
                         awslogs-stream: pdf-docker-container
                         awslogs-create-group: "true"
                     expose:
@@ -828,6 +830,8 @@ Resources:
                 files:
                 - /etc/cfn/cfn-hup.conf
                 - /etc/cfn/hooks.d/cfn-auto-reloader.conf
+              # awslogs:
+              # NOTE: If you are using Amazon Linux 2, the awslogs service is now called "awslogsd"
               awslogs:
                 enabled: true
                 ensureRunning: true
@@ -855,7 +859,8 @@ Resources:
             Service:
             - ec2.amazonaws.com
       ManagedPolicyArns:
-      - arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM
+      - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
       - arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
       - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
       - arn:aws:iam::aws:policy/CloudWatchFullAccess

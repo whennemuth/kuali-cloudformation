@@ -1,0 +1,82 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+
+Description: Establishes NAT and default public routes.
+
+
+Parameters:
+
+  GlobalTag:
+    Type: String
+    Description: >
+      A common value that all resources in this template will have prefixed to
+      their name and attached as a tag to establish a bundling through naming convention.
+    Default: kuali-ec2-alb
+
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: The id of the vpc to deploy to.
+
+  InternetGatewayId:
+    Type: String
+    Description: The id of the internet gateway for the vpc.
+  
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet::Id
+    Description: The public subnets for the load balancer.
+
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet::Id
+    Description: The private subnets for the ec2 instances.
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet::Id
+    Description: The public subnets for the load balancer.
+
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet::Id
+    Description: The private subnets for the ec2 instances.
+    
+
+Resources:
+  
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Description: The table for routes that lead to the InternetGateway.
+    Properties:
+      VpcId: !Ref VpcId
+      Tags:
+      - Key: Name
+        Value: !Sub ${GlobalTag}-public-route-table
+
+  DefaultPublicRoute:
+    Type: AWS::EC2::Route
+    Description: The public route that leads to the InternetGateway.
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      RouteTableId: !Ref PublicRouteTable
+      GatewayId: !Ref InternetGatewayId
+
+  Nat1:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://s3.amazonaws.com/kuali-research-ec2-setup/cloudformation/kuali_ec2_alb/nat.yaml
+      Parameters:
+        GlobalTag: !Ref GlobalTag
+        VpcId: !Ref VpcId
+        NatIndex: '1'
+        PublicRouteTable: !Ref PublicRouteTable
+        PublicSubnet: !Ref PublicSubnet1
+        PrivateSubnet: !Ref PrivateSubnet1
+
+  Nat2:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://s3.amazonaws.com/kuali-research-ec2-setup/cloudformation/kuali_ec2_alb/nat.yaml
+      Parameters:
+        GlobalTag: !Ref GlobalTag
+        VpcId: !Ref VpcId
+        NatIndex: '2'
+        PublicRouteTable: !Ref PublicRouteTable
+        PublicSubnet: !Ref PublicSubnet2
+        PrivateSubnet: !Ref PrivateSubnet2

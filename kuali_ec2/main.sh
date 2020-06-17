@@ -1,5 +1,23 @@
 #!/bin/bash
 
+declare -A defaults=(
+  [STACK_NAME]='kuali-ec2'
+  [LANDSCAPE]='sb'
+  [BUCKET_PATH]='s3://kuali-research-ec2-setup/cloudformation/kuali_ec2'
+  [TEMPLATE_PATH]='.'
+  [KC_IMAGE]='730096353738.dkr.ecr.us-east-1.amazonaws.com/coeus-sandbox:2001.0040'
+  [CORE_IMAGE]='730096353738.dkr.ecr.us-east-1.amazonaws.com/core:2001.0040'
+  [PORTAL_IMAGE]='730096353738.dkr.ecr.us-east-1.amazonaws.com/portal:2001.0040'
+  [PDF_IMAGE]='730096353738.dkr.ecr.us-east-1.amazonaws.com/research-pdf:2002.0003'
+  # ----- Most of the following are defaulted in the yaml file itself:
+  # [GLOBAL_TAG]='kuali-ec2'
+  # [EC2_INSTANCE_TYPE]='m4.medium'
+  # [TEMPLATE]='ec2.yaml'
+  # [LOGICAL_RESOURCE_ID]='???'
+  # [ENABLE_NEWRELIC_APM]='false'
+  # [ENABLE_NEWRELIC_INFRASTRUCTURE]='false'
+)
+
 run() {
   if [ "$(pwd | grep -oP '[^/]+$')" != "kuali_ec2" ] ; then
     echo "You must run this script from the kuali_ec2 subdirectory!."
@@ -13,30 +31,12 @@ run() {
 
   parseArgs $@
 
-  setCustomDefaults
-
-  setGeneralDefaults
+  setDefaults
 
   runTask
 }
 
-setCustomDefaults() {
-  # GLOBAL_TAG
-  # TEMPLATE
-  # EC2_INSTANCE_TYPE
-  # LOGICAL_RESOURCE_ID
-  [ -z "$STACK_NAME" ] && STACK_NAME='kuali-ec2'
-  [ -z "$LANDSCAPE" ] && LANDSCAPE='sb'
-  [ -z "$BUCKET_PATH" ] && BUCKET_PATH='s3://kuali-research-ec2-setup/cloudformation/kuali_ec2'
-  [ -z "$CONFIG_BUCKET" ] && CONFIG_BUCKET='kuali-research-ec2-setup'
-  [ -z "$TEMPLATE_PATH" ] && TEMPLATE_PATH='.'
-  [ -z "$KC_IMAGE" ] && KC_IMAGE='730096353738.dkr.ecr.us-east-1.amazonaws.com/coeus-sandbox:2001.0040'
-  [ -z "$CORE_IMAGE" ] && CORE_IMAGE='730096353738.dkr.ecr.us-east-1.amazonaws.com/core:2001.0040'
-  [ -z "$PORTAL_IMAGE" ] && PORTAL_IMAGE='730096353738.dkr.ecr.us-east-1.amazonaws.com/portal:2001.0040'
-  [ -z "$PDF_IMAGE" ] && PDF_IMAGE='730096353738.dkr.ecr.us-east-1.amazonaws.com/research-pdf:2002.0003'
-}
-
-# Create, update, or delete the cloudformation stack for course schedule planner.
+# Create, update, or delete the cloudformation stack for kuali research.
 stackAction() {  
   local action=$1
 
@@ -66,7 +66,6 @@ stackAction() {
       --parameters '[
 EOF
 
-    addParameter $cmdfile 'ConfigBucket' $CONFIG_BUCKET
     addParameter $cmdfile 'KcImage' $KC_IMAGE
     addParameter $cmdfile 'CoreImage' $CORE_IMAGE
     addParameter $cmdfile 'PortalImage' $PORTAL_IMAGE
@@ -113,8 +112,8 @@ runTask() {
       stackAction "delete-stack" ;;
     refresh)
       metaRefresh ;;
-    examples)
-      examples ;;
+    test)
+      test ;;
     *)
       if [ -n "$task" ] ; then
         echo "INVALID PARAMETER: No such task: $task"

@@ -1,0 +1,285 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+
+Description: >
+  Deploys 2 instances behind a load balancer running a dockerized kuali research application suite.
+  Assumes that the subnets already exist.
+
+Metadata: 
+  AWS::CloudFormation::Interface: 
+    ParameterGroups: 
+      - Label: 
+          default: Labelling
+        Parameters: 
+          - GlobalTag
+          - Landscape
+      - Label:
+          default: Network/Load-balancing
+        Parameters:
+          - VpcId
+          - InternetGatewayId
+          - PrivateSubnet1
+          - PublicSubnet1
+          - PrivateSubnet2
+          - PublicSubnet2
+          - CertificateArn
+      - Label: 
+          default: "Amazon EC2 Configuration"
+        Parameters: 
+          - EC2InstanceType
+          - BucketName
+      - Label: 
+          default: "Kuali Services / Docker images"
+        Parameters: 
+          - CoreImage
+          - KcImage
+          - PortalImage
+          - PdfImage
+      - Label: 
+          default: "Logging"
+        Parameters: 
+          - EnableNewRelicAPM
+          - EnableNewRelicInfrastructure
+
+Parameters:
+
+  GlobalTag:
+    Type: String
+    Description: >
+      A common value that all resources in this template will have prefixed to
+      their name and attached as a tag to establish a bundling through naming convention.
+    Default: kuali-ec2-alb
+
+  Landscape:
+    Description: Specify which landscape to build for.
+    Type: String
+    AllowedValues:
+    - sb
+    - ci
+    - qa
+    - stg
+    - prod
+    ConstraintDescription: >
+      This parameter is restricted to the following values: sb, ci, qa, stg, prod
+    Default: sb
+
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: The id of the vpc to deploy to.
+
+  InternetGatewayId:
+    Type: String
+    Description: The id of the internet gateway for the vpc.
+    
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet::Id
+    Description: The public subnets for the load balancer.
+
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet::Id
+    Description: The private subnets for the ec2 instances.
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet::Id
+    Description: The public subnets for the load balancer.
+
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet::Id
+    Description: The private subnets for the ec2 instances.
+        
+  InstanceType:
+    Type: String
+    Description: What type of EC2 instance should be used for hosting?
+    AllowedValues:
+    - t2.small
+    - t2.medium
+    - t2.large
+    - t2.xlarge
+    - t3.small
+    - t3.medium
+    - t3.large
+    - m4.large
+    - m4.xlarge
+    - m5.large
+    ConstraintDescription: Specified instance type is not within selection list.
+    Default: m4.large
+  
+  BucketName:
+    Type: String
+    Description: The S3 bucket kuali research config files, keys, etc. are stored
+    Default: kuali-research-ec2-setup
+
+  CoreImage:
+    Type: String
+    Description: 'Example: 730096353738.dkr.ecr.us-east-1.amazonaws.com/core:2001.0040'
+
+  KcImage:
+    Type: String
+    Description: 'Example: 730096353738.dkr.ecr.us-east-1.amazonaws.com/coeus:2001.0040'
+
+  PortalImage:
+    Type: String
+    Description: 'Example: 730096353738.dkr.ecr.us-east-1.amazonaws.com/portal:2001.0040'
+
+  PdfImage:
+    Type: String
+    Description: 'Example: 730096353738.dkr.ecr.us-east-1.amazonaws.com/research-pdf:2002.0003'
+
+  CertificateArn:
+    Type: String
+    Description: The amazon resource name of a certificate that has already been put in ACM
+
+  EnableNewRelicAPM:
+    Type: String
+    Description: Is newrelic APM to be enabled for this landscape?
+    Default: "false"
+    AllowedValues:
+    - "true"
+    - "false"
+    ConstraintDescription: Enter "true" or "false" only.
+    Default: "false"
+
+  EnableNewRelicInfrastructure:
+    Type: String
+    Description: Is newrelic infrastructure (with logging) to be enabled for this landscape?
+    Default: "false"
+    AllowedValues:
+    - "true"
+    - "false"
+    ConstraintDescription: Enter "true" or "false" only.
+    Default: "false"
+  
+
+Resources:
+
+  Routing:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://s3.amazonaws.com/kuali-research-ec2-setup/cloudformation/kuali_ec2_alb/route.yaml
+      Parameters:
+        GlobalTag:
+          !Ref GlobalTag
+        VpcId:
+          !Ref VpcId
+        InternetGatewayId:
+          !Ref InternetGatewayId
+        PublicSubnet1:
+          !Ref PublicSubnet1
+        PrivateSubnet1:
+          !Ref PrivateSubnet1
+        PublicSubnet2:
+          !Ref PublicSubnet2
+        PrivateSubnet2:
+          !Ref PrivateSubnet2
+      
+  SecurityGroup:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: Routing
+    Properties:
+      TemplateURL: https://s3.amazonaws.com/kuali-research-ec2-setup/cloudformation/kuali_ec2_alb/security-group.yaml
+      Parameters:
+        GlobalTag:
+          !Ref GlobalTag
+        VpcId:
+          !Ref VpcId
+    
+  Instance1:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: SecurityGroup
+    Properties:
+      TemplateURL: https://s3.amazonaws.com/kuali-research-ec2-setup/cloudformation/kuali_ec2_alb/ec2.yaml
+      Parameters:
+        GlobalTag:
+          !Ref GlobalTag
+        Landscape:
+          !Ref Landscape
+        SecurityGroupId:
+          !GetAtt SecurityGroup.Outputs.EC2SecurityGroupId
+        PrivateSubnet:
+          !Ref PrivateSubnet1
+        EC2InstanceType:
+          !Ref InstanceType
+        BucketName:
+          !Ref BucketName
+        CoreImage:
+          !Ref CoreImage
+        KcImage:
+          !Ref KcImage
+        PortalImage:
+          !Ref PortalImage
+        PdfImage:
+          !Ref PdfImage
+        EnableNewRelicAPM:
+          !Ref EnableNewRelicAPM
+        EnableNewRelicInfrastructure:
+          !Ref EnableNewRelicInfrastructure
+
+  Instance2:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: Instance1
+    Properties:
+      TemplateURL: https://s3.amazonaws.com/kuali-research-ec2-setup/cloudformation/kuali_ec2_alb/ec2.yaml
+      Parameters:
+        GlobalTag:
+          !Ref GlobalTag
+        SecurityGroupId:
+          !GetAtt SecurityGroup.Outputs.EC2SecurityGroupId
+        PrivateSubnet:
+          !Ref PrivateSubnet2
+        EC2InstanceType:
+          !Ref InstanceType
+        BucketName:
+          !Ref BucketName
+        CoreImage:
+          !Ref CoreImage
+        KcImage:
+          !Ref KcImage
+        PortalImage:
+          !Ref PortalImage
+        PdfImage:
+          !Ref PdfImage
+        EnableNewRelicAPM:
+          !Ref EnableNewRelicAPM
+        EnableNewRelicInfrastructure:
+          !Ref EnableNewRelicInfrastructure
+        InstanceProfile:
+          !GetAtt Instance1.Outputs.EC2InstanceProfile
+        InstanceRole:
+          !GetAtt Instance1.Outputs.EC2Role
+        AMIInfoFunctionArn:
+          !GetAtt Instance1.Outputs.AMIInfoFunctionArn
+        EC2InstanceLogsGroupArn:
+          !GetAtt Instance1.Outputs.EC2InstanceLogsGroupArn
+    
+  ALB:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: Instance2
+    Properties:
+      TemplateURL: https://s3.amazonaws.com/kuali-research-ec2-setup/cloudformation/kuali_ec2_alb/alb.yaml
+      Parameters:
+        GlobalTag:
+          !Ref GlobalTag
+        VpcId:
+          !Ref VpcId
+        # Subnets:
+        #   Value: !Join [",", [!Ref PublicSubnet1, !Ref PublicSubnet2]]
+        Subnet1: 
+          !Ref PublicSubnet1
+        Subnet2: 
+          !Ref PublicSubnet2
+        SecurityGroup: 
+          !GetAtt SecurityGroup.Outputs.ALBSecurityGroup
+        InstanceId1:
+          !GetAtt Instance1.Outputs.InstanceId
+        InstanceId2:
+          !GetAtt Instance2.Outputs.InstanceId
+        CertificateArn:
+          !Ref CertificateArn
+            
+
+Outputs:
+
+  LoadBalancerUrl:
+    Description: This will be the url that the app is publicly addressable on
+    Value: !GetAtt ALB.Outputs.LoadBalancerUrl
+    

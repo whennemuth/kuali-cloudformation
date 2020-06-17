@@ -10,18 +10,10 @@ Parameters:
       this will most likely be the name of the top-most stack.
     Default: kuali-ec2-alb
 
-  Landscape:
-    Description: Specify which landscape the security group is for.
-    Type: String
-    AllowedValues:
-    - sb
-    - ci
-    - qa
-    - stg
-    - prod
-    ConstraintDescription: 'This parameter is restricted to the following values:
-      sb, ci, qa, stg, prod'
-    Default: sb
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: The id of the vpc to deploy to.
+    
 
 Resources:
 
@@ -29,19 +21,21 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     DependsOn: ALBSecurityGroup
     Properties:
+      VpcId:
+        !Ref VpcId
       GroupName:
-        !Join [ '', [ !Ref GlobalTag, "-ec2-load-balancer-sg-", !Ref Landscape ] ]
+        !Sub ${GlobalTag}-ec2-security-group
       GroupDescription:
         !Join
         - " "
-        - - !Sub Defines who/where is allowed to access the ${Landscape} landscape EC2 Host directly.
+        - - Defines who/where is allowed to access the EC2 Host directly.
           - 'This includes allowing access from: '
           - 1) The application load balancer
           - 2) SSH access into the ec2 hosts
       Tags:
       - Key: Name
         Value: 
-          !Join [ '', [ !Ref GlobalTag, "-ec2-", !Ref Landscape, ".SG" ] ]
+          !Sub ${GlobalTag}-ec2-security-group
       SecurityGroupIngress:
       - IpProtocol: -1
         SourceSecurityGroupId:
@@ -56,20 +50,18 @@ Resources:
   ALBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
+      VpcId:
+        !Ref VpcId
       GroupName:
-        !Join [ '', [ !Ref GlobalTag, "-alb-load-balancer-sg-", !Ref Landscape ] ]
+        !Sub ${GlobalTag}-alb-security-group
       GroupDescription:
-        !Join 
-        - " "
-        - - This security group defines who/where is allowed to access the application
-            load balancer that sits in front of EC2 instance. Currently open to the public 
-            internet (0.0.0.0/0) but can be restricted to certain ports.
-          - 'Landscape:'
-          - !Ref Landscape
+        This security group defines who/where is allowed to access the application
+        load balancer that sits in front of the private subnets. Currently open to the public 
+        internet (0.0.0.0/0) but can be restricted to certain ports.
       Tags:
       - Key: Name
         Value: 
-          !Join [ '', [ !Ref GlobalTag, "-alb-", !Ref Landscape, ".SG" ] ]
+          !Sub ${GlobalTag}-alb-security-group
       SecurityGroupIngress:
       - CidrIp: 0.0.0.0/0
         IpProtocol: -1

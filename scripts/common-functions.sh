@@ -11,14 +11,22 @@ parseArgs() {
   done
 }
 
-setGeneralDefaults() {
+setDefaults() {
+  # Set explicit defaults first
+  echo "START..."
+  for k in ${!defaults[@]} ; do
+    local evalstr="[ -z \"\$$k\" ] && $k=\"${defaults[$k]}\""
+    eval "$evalstr"
+    echo "$k = ${defaults[$k]}"
+  done
+
+  # Set contingent defaults second
   tempath="$(dirname "$TEMPLATE")"
   if [ "$tempath" != "." ] ; then
     TEMPLATE_PATH=$tempath
     # Strip off the directory path and reduce down to file name only.
     TEMPLATE=$(echo "$TEMPLATE" | grep -oP '[^/]+$')
   fi
-
   # Trim off any trailing forward slashes
   TEMPLATE_PATH=$(echo "$TEMPLATE_PATH" | sed 's/\/*$//')
   # Get the http location of the bucket path 
@@ -206,4 +214,109 @@ createEc2KeyPair() {
   else
     chmod 600 $keyname
   fi
+}
+
+# Create and upload to ACM a self-signed certificate in preparation for stack creation (will be used by the application load balancer)
+createSelfSignedCertificate() {
+  # Create the key pair
+  openssl req -newkey rsa:2048 \
+    -x509 \
+    -sha256 \
+    -days 3650 \
+    -nodes \
+    -out ./${GLOBAL_TAG}-self-signed.crt \
+    -keyout ./${GLOBAL_TAG}-self-signed.key \
+    -subj "/C=US/ST=MA/L=Boston/O=BU/OU=IST/CN=*.amazonaws.com"
+
+  # openssl req -new -x509 -nodes -sha256 -days 365 -key my-private-key.pem -outform PEM -out my-certificate.pem
+
+  # Upload to ACM and record the arn of the resulting resource
+  if [ -n "$GLOBAL_TAG" ] ; then
+    local certname="${GLOBAL_TAG}-cert"
+  else
+    local certname="kuali-ec2-alb-cert"
+  fi
+
+  # WARNING!
+  # For some reason cloudformation returns a "CertificateNotFound" error when the arn of a certificate uploaded to acm
+  # is used to configure the listener for ssl. However, it has no problem with an arn of uploaded iam server certificates.
+  # 
+  # aws acm import-certificate \
+  #   --certificate file://${GLOBAL_TAG}-self-signed.crt \
+  #   --private-key file://${GLOBAL_TAG}-self-signed.key \
+  #   --tags Key=Name,Value=${certname} \
+  #   --output text| grep -Po 'arn:aws:acm[^\s]*' > ${GLOBAL_TAG}-self-signed.arn
+
+  # Before uploading the certificate, you can check if it exists already:
+  #    aws iam list-server-certificates
+  # And delete it if found:
+  #    aws iam delete-server-certificate --server-certificate-name [cert name]
+  aws iam upload-server-certificate \
+    --server-certificate-name ${certname} \
+    --certificate-body file://${GLOBAL_TAG}-self-signed.crt \
+    --private-key file://${GLOBAL_TAG}-self-signed.key \
+    --output text | grep -Po 'arn:aws:iam[^\s]*' > ${GLOBAL_TAG}-self-signed.arn
+
+  # Create an s3 bucket for the app if it doesn't already exist
+  if [ -z "$(aws s3 ls $BUCKET_NAME 2> /dev/null)" ] ; then
+    aws s3 mb s3://$BUCKET_NAME
+  fi
+  # Upload the arn and keyset to the s3 bucket
+  aws s3 cp ./${GLOBAL_TAG}-self-signed.arn $BUCKET_PATH/
+  aws s3 cp ./${GLOBAL_TAG}-self-signed.crt $BUCKET_PATH/
+  aws s3 cp ./${GLOBAL_TAG}-self-signed.key $BUCKET_PATH/  
+}
+
+# Print out the arn of the self signed certificate if it exists.
+getSelfSignedArn() {
+  if [ -n "$CERTIFICATE_ARN" ] ; then
+    echo "$CERTIFICATE_ARN"
+  elif [ -f ${GLOBAL_TAG}-self-signed.arn ] ; then
+    cat ${GLOBAL_TAG}-self-signed.arn
+  else
+    if [ -n "$(aws s3 ls $BUCKET_NAME 2> /dev/null)" ] ; then
+      aws s3 cp s3://$BUCKET_PATH/${GLOBAL_TAG}-self-signed.arn - 2> /dev/null
+    fi
+  fi
+}
+
+# Get the id of the default vpc in the account. (Assumes there is only one default)
+getDefaultVpcId() {
+  local id=$(aws ec2 describe-vpcs \
+    --output text \
+    --filters "Name=is-default,Values=true" \
+    --query 'Vpcs[0].VpcId' 2> /dev/null)
+  [ ! "$id" ] && return 1
+  [ "${id,,}" == 'none' ] && return 1
+  echo $id
+}
+
+# Get the id of the internet gateway within the specified vpc
+getInternetGatewayId() {
+  local vpcid="$1"
+  if [ -n "$vpcid" ] ; then
+    local gw=$(aws ec2 describe-internet-gateways \
+      --output text \
+      --query 'InternetGateways[].[InternetGatewayId, Attachments[].VpcId]' \
+      | grep -B 1 $vpcid \
+      | grep 'igw' 2> /dev/null)
+  fi
+  [ ! "$gw" ] && return 1
+  [ "${gw,,}" == 'none' ] && return 1
+  echo $gw
+}
+
+# Get a "Y/y" or "N/n" response from the user to a question.
+askYesNo() {
+  local answer="n";
+  while true; do
+    printf "$1 [y/n]: "
+    read yn
+    case $yn in
+      [Yy]* ) answer="y"; break;;
+      [Nn]* ) break;;
+      * ) echo "Please answer yes or no.";;
+    esac
+  done
+  if [ $answer = "y" ] ; then true; else false; fi
 }

@@ -1,0 +1,94 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+
+Description: >
+  Deploys 2 instances behind a load balancer running kuali-research as a set of dockerized modules.  
+
+
+Parameters:
+
+  GlobalTag:
+    Type: String
+    Description: >
+      A common value that all resources in this template will have prefixed to
+      their name and attached as a tag to establish a bundling through naming convention.
+    Default: kuali-ec2-alb
+
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: The id of the vpc to deploy to.
+
+  NatIndex:
+    Type: String
+    Description: Distinguishes between first and second nat resource sets.
+    AllowedValues: ['1', '2']
+
+  PublicRouteTable:
+    Type: String
+    Description: The table for routes that lead to the internet gateway.
+
+  PublicSubnet:
+    Type: AWS::EC2::Subnet::Id
+    Description: The public subnet for the load balancer.
+
+  PrivateSubnet:
+    Type: AWS::EC2::Subnet::Id
+    Description: The private subnet for the ec2 instances.
+
+Resources:
+
+  NatGatewayEIP:
+    Type: AWS::EC2::EIP
+    Description: The elastic IP to associate with the NatGateway of the public subnet
+    Properties:
+      Domain: vpc
+
+  NatGateway:
+    Type: AWS::EC2::NatGateway
+    Description: Gateway for preventing unsolicited inbound connections from the internet to the private subnet.
+    Properties:
+      AllocationId:
+        !GetAtt NatGatewayEIP.AllocationId
+      SubnetId:
+        !Ref PublicSubnet
+      Tags:
+      - Key: Name
+        Value: !Sub ${GlobalTag}-nat-gateway-${NatIndex}
+
+  PublicSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Description: Associates the public subnet with the single default public route table.
+    Properties:
+      RouteTableId:
+        !Ref PublicRouteTable
+      SubnetId:
+        !Ref PublicSubnet
+
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Description: >
+      The table for routes that lead between the private subnet 
+      through the NatGateway to the internet gateway.
+    Properties:
+      VpcId:
+        !Ref VpcId
+      Tags:
+      - Key: Name
+        Value: !Sub ${GlobalTag}-private-route-table-${NatIndex}
+
+  DefaultPrivateRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      RouteTableId:
+        !Ref PrivateRouteTable
+      NatGatewayId:
+        !Ref NatGateway
+
+  PrivateSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId:
+        !Ref PrivateRouteTable
+      SubnetId:
+        !Ref PrivateSubnet

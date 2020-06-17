@@ -30,7 +30,7 @@ Parameters:
       This parameter is restricted to the following values: sb, ci, qa, stg, prod
     Default: sb
 
-  ConfigBucket:
+  BucketName:
     Type: String
     Description: The S3 bucket where our config files, keys, etc. are stored
     Default: kuali-research-ec2-setup
@@ -93,7 +93,7 @@ Resources:
           roleName:
             !Ref MyMicroS3Role
           buckets:
-          - !Ref ConfigBucket
+          - !Ref BucketName
       AWS::CloudFormation::Init:
         configSets:
           AllConfigs:
@@ -109,25 +109,25 @@ Resources:
               owner: wrh
               group: wrh
               source:
-                Fn::Sub: https://s3.amazonaws.com/${ConfigBucket}/ecs/ssh-keys/rsa-key-wrh.pub
+                Fn::Sub: https://s3.amazonaws.com/${BucketName}/ecs/ssh-keys/rsa-key-wrh.pub
             /home/mkousheh/.ssh/authorized_keys:
               mode: 000600
               owner: mkousheh
               group: mkousheh
               source:
-                Fn::Sub: https://s3.amazonaws.com/${ConfigBucket}/ecs/ssh-keys/rsa-key-mkousheh.pub
+                Fn::Sub: https://s3.amazonaws.com/${BucketName}/ecs/ssh-keys/rsa-key-mkousheh.pub
             /home/mukadder/.ssh/authorized_keys:
               mode: 000600
               owner: mukadder
               group: mukadder
               source:
-                Fn::Sub: https://s3.amazonaws.com/${ConfigBucket}/ecs/ssh-keys/rsa-key-mukadder.pub
+                Fn::Sub: https://s3.amazonaws.com/${BucketName}/ecs/ssh-keys/rsa-key-mukadder.pub
             /home/dhaywood/.ssh/authorized_keys:
               mode: 000600
               owner: dhaywood
               group: dhaywood
               source:
-                Fn::Sub: https://s3.amazonaws.com/${ConfigBucket}/ecs/ssh-keys/rsa-key-dhaywood.pub
+                Fn::Sub: https://s3.amazonaws.com/${BucketName}/ecs/ssh-keys/rsa-key-dhaywood.pub
             /var/kuali/README.txt:
               content: !Sub |
                 This directory contains the "environment" for each app to run

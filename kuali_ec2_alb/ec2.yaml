@@ -7,6 +7,13 @@ Description: >
 
 Parameters:
 
+  GlobalTag:
+    Type: String
+    Description: >
+      A common value that all resources in this template will have prefixed to
+      their name and attached as a tag to establish a bundling through naming convention.
+    Default: kuali-ec2-alb
+
   Landscape:
     Description: Specify which landscape to build into the VPC
     Type: String
@@ -39,30 +46,26 @@ Parameters:
     ConstraintDescription: Specified instance type is not within selection list.
     Default: m4.large
 
-  ConfigBucket:
+  BucketName:
     Type: String
     Description: The S3 bucket where our config files, keys, etc. are stored
     Default: kuali-research-ec2-setup
 
   CoreImage:
     Type: String
-    Description: The docker image for cor-main. Will indicate the docker registry address.
-    Default: 730096353738.dkr.ecr.us-east-1.amazonaws.com/core:2001.0040
+    Description: 'Example: 730096353738.dkr.ecr.us-east-1.amazonaws.com/core:2001.0040'
 
   KcImage:
     Type: String
-    Description: The docker image for cor-main. Will indicate the docker registry address.
-    Default: 730096353738.dkr.ecr.us-east-1.amazonaws.com/coeus:2001.0040
+    Description: 'Example: 730096353738.dkr.ecr.us-east-1.amazonaws.com/coeus:2001.0040'
 
   PortalImage:
     Type: String
-    Description: The docker image for cor-main. Will indicate the docker registry address.
-    Default: 730096353738.dkr.ecr.us-east-1.amazonaws.com/portal:2001.0040
+    Description: 'Example: 730096353738.dkr.ecr.us-east-1.amazonaws.com/portal:2001.0040'
 
   PdfImage:
     Type: String
-    Description: The docker image for cor-main. Will indicate the docker registry address.
-    Default: 730096353738.dkr.ecr.us-east-1.amazonaws.com/research-pdf:2002.0003
+    Description: 'Example: 730096353738.dkr.ecr.us-east-1.amazonaws.com/research-pdf:2002.0003'
 
   EnableNewRelicAPM:
     Type: String
@@ -82,49 +85,143 @@ Parameters:
     - "true"
     - "false"
     ConstraintDescription: Enter "true" or "false" only.
+    Default: "false"
 
   SecurityGroupId:
     Type: String
     Description: Id that identifies the security group for the ec2 instance
 
+  PrivateSubnet:
+    Type: AWS::EC2::Subnet::Id
+    Description: The private subnets for the ec2 instances.
+
+  InstanceProfile:
+    Type: String
+    Description: If the instance profile already exists, provide its name here.
+    Default: "create"
+  
+  InstanceRole:
+    Type: String
+    Description: If the role for the instance profile already exists, provide it here.
+    Default: "create"
+
+  AMIInfoFunctionArn:
+    Type: String
+    Description: If the ami lookup lambda function already exists, provide its arn here.
+    Default: "create"
+
+  EC2InstanceLogsGroupArn:
+    Type: String
+    Description: If the logs group already exists, provide its arn here.
+    Default: "create"
+
+
+Conditions: 
+  CreateProfile: !Equals [ !Ref InstanceProfile, "create" ]
+  CreateRole: !Equals [ !Ref InstanceRole, "create" ]
+  CreateAMIInfoFunction: !Equals [ !Ref AMIInfoFunctionArn, "create" ]
+  CreateLogsGroup: !Equals [ !Ref EC2InstanceLogsGroupArn, "create" ]
+
+
 Resources:
+
+  EC2Role:
+    Type: AWS::IAM::Role
+    Condition: CreateRole
+    Properties:
+      Path: "/"
+      RoleName: !Sub ${GlobalTag}-role
+      AssumeRolePolicyDocument:
+        Statement:
+        - Action:
+          - sts:AssumeRole
+          Effect: Allow
+          Principal:
+            Service:
+            - ec2.amazonaws.com
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      - arn:aws:iam::aws:policy/AWSCloudFormationReadOnlyAccess
+      - arn:aws:iam::aws:policy/ElasticLoadBalancingReadOnly
+      - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
+      - arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
+      - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+      - arn:aws:iam::aws:policy/CloudWatchFullAccess
+      Policies:
+      - PolicyName:
+          !Sub "stop-ec2-instance-policy"
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Resource: "arn:aws:ec2:*:*:instance/${ec2:SourceInstanceARN}"
+            Action:
+            - ec2:StopInstances
+          - Effect: Allow
+            Resource:
+            - arn:aws:s3:::kuali-research-ec2-setup*
+            - arn:aws:s3:::kuali-docker-run-stdout*
+            - arn:aws:s3:::kuali-research-pdf-*
+            Action: "*"
+
+  EC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Condition: CreateProfile
+    Properties:
+      InstanceProfileName: !Sub ${GlobalTag}-profile
+      Path: "/"
+      Roles:
+      - !If [CreateRole, !Ref EC2Role, !Ref InstanceRole]
+
+  EC2InstanceLogsGroup:
+    Type: AWS::Logs::LogGroup
+    Condition: CreateLogsGroup
+    DeletionPolicy: Delete
+    Properties:
+      LogGroupName: !Sub ${GlobalTag}-LG
+      RetentionInDays: 30
 
   Utils:
     Type: AWS::CloudFormation::Stack
+    Condition: CreateAMIInfoFunction
     Properties:
       TemplateURL: 
-        !Sub https://s3.amazonaws.com/${ConfigBucket}/cloudformation/lambda/ami-lookup.yaml
+        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/lambda/ami-lookup.yaml
       Parameters:
         GlobalPrefix:
-          ECS-test
+          !Sub ${GlobalTag}-ami-lookup
 
   AMIInfo:
     Type: Custom::AMIInfo
     Properties:
       ServiceToken:
-        !GetAtt Utils.Outputs.AMIInfoFunctionArn
+        !If 
+        - CreateAMIInfoFunction
+        - !GetAtt Utils.Outputs.AMIInfoFunctionArn
+        - !Ref AMIInfoFunctionArn        
       Region:
         Ref: AWS::Region
       InstanceType:
         !Ref EC2InstanceType   
-
-  MyEC2Instance:
+      
+  EC2Instance:
     Type: AWS::EC2::Instance
     Description: EC2 instance for hosting kuali research modules.
-
     Properties:
       Tags:
       - Key: Name
-        Value: buaws-wrh-ecs-ec2-test1
+        Value: !If [CreateProfile, !Sub "${GlobalTag}-ec2-1", !Sub "${GlobalTag}-ec2-2"]
       ImageId: 
+        # ami-00129b193dc81bc31
         !GetAtt AMIInfo.Id
       InstanceType:
         !Ref EC2InstanceType
       SecurityGroupIds:
       - !Ref SecurityGroupId
-      KeyName: buaws-kuali-rsa-warren
+      # KeyName: EC2KeypairName
+      SubnetId: 
+        !Ref PrivateSubnet
       IamInstanceProfile:
-        !Ref MyEC2InstanceProfile
+        !If [CreateProfile, !Ref EC2InstanceProfile, !Ref InstanceProfile]
       BlockDeviceMappings:
         - DeviceName: /dev/xvda
           Ebs:
@@ -135,6 +232,7 @@ Resources:
         "Fn::Base64": !Sub |
           #!/bin/bash
           yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
+
           yum install -y aws-cfn-bootstrap
           yum install -y git
           # Add perl and zip libraries needed to unpack and run custom metric monitoring for cloudwatch.
@@ -154,23 +252,6 @@ Resources:
           chmod +x /usr/local/bin/docker-compose
           ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose
           
-          # Modify the sudoers file so that anyone in the wheel group can be a sudoer
-          chmod u+w /etc/sudoers && \
-          echo -e "%wheel\tALL=(ALL)\tNOPASSWD: ALL" >> /etc/sudoers && \
-          chmod u-w /etc/sudoers && \
-          
-          # NOTE: Creating users here and not in Metadata.AWS::CloudFormation::Init.config.users due to restrictions: 
-          # Users are created as non-interactive system users with a shell of /sbin/nologin. This is by design and cannot be modified.
-          for user in wrh mukadder dhaywood mkousheh ; do
-            adduser -m $user && \
-            usermod -aG root $user && \
-            usermod -aG docker $user && \
-            usermod -aG wheel $user && \
-            mkdir /home/$user/.ssh && \
-            chmod 700 /home/$user/.ssh && \
-            chown -R $user:$user /home/$user
-          done
-          
           # Install required packages for scripts that will monitor and upload custom metrics to cloudwatch.
           curl https://aws-cloudwatch.s3.amazonaws.com/downloads/CloudWatchMonitoringScripts-1.2.2.zip \
             -o /var/lib/ && CloudWatchMonitoringScripts-1.2.2.zip
@@ -183,23 +264,23 @@ Resources:
             --configsets AllConfigs \
             --region ${AWS::Region} \
             --stack ${AWS::StackName} \
-            --resource MyEC2Instance
+            --resource EC2Instance
             
-          # Now that all initialization is done signal success
+          # Now that all initialization is done signal its success
           /opt/aws/bin/cfn-signal \
             -e $? \
             --region ${AWS::Region} \
             --stack ${AWS::StackName} \
-            --resource MyEC2Instance
+            --resource EC2Instance
 
     Metadata:
       AWS::CloudFormation::Authentication:
         S3AccessCreds:
           type: S3
           roleName:
-            !Ref MyEC2Role
+            !If [CreateProfile, !Ref EC2Role, !Ref InstanceRole]
           buckets:
-          - !Ref ConfigBucket
+          - !Ref BucketName
       AWS::CloudFormation::Init:
         configSets:
           AllConfigs:
@@ -225,30 +306,6 @@ Resources:
             yum:
               awslogs: []
           files:
-            /home/wrh/.ssh/authorized_keys:
-              mode: "000600"
-              owner: wrh
-              group: wrh
-              source:
-                !Sub https://s3.amazonaws.com/${ConfigBucket}/ecs/ssh-keys/rsa-key-wrh.pub
-            /home/mkousheh/.ssh/authorized_keys:
-              mode: "000600"
-              owner: mkousheh
-              group: mkousheh
-              source:
-                !Sub https://s3.amazonaws.com/${ConfigBucket}/ecs/ssh-keys/rsa-key-mkousheh.pub
-            /home/mukadder/.ssh/authorized_keys:
-              mode: "000600"
-              owner: mukadder
-              group: mukadder
-              source:
-                !Sub https://s3.amazonaws.com/${ConfigBucket}/ecs/ssh-keys/rsa-key-mukadder.pub
-            /home/dhaywood/.ssh/authorized_keys:
-              mode: "000600"
-              owner: dhaywood
-              group: dhaywood
-              source:
-                !Sub https://s3.amazonaws.com/${ConfigBucket}/ecs/ssh-keys/rsa-key-dhaywood.pub
             /opt/kuali/README.txt:
               content: !Sub |
                 This directory contains the "environment" for each app to run
@@ -258,12 +315,6 @@ Resources:
               mode: "000775"
               owner: root
               group: root
-            /root/.ssh/git_rsa_key:
-              mode: "000600"
-              owner: root
-              group: root
-              source:
-                !Sub https://s3.amazonaws.com/${ConfigBucket}/bu_github_id_docker_rsa
             /opt/kuali/scripts/crontab:
               content: |
                 SHELL=/bin/bash
@@ -339,7 +390,7 @@ Resources:
                 # a scale-in or scale-out policy for auto-scaling activity.
                 sendDummyMetrics() {
                   # local json=$(cat /c/whennemuth/workspaces/ecs_workspace/dummy-metrics/dummy-ec2-metrics.json)
-                  local json=$(aws s3 cp s3://${ConfigBucket}/dummydata/dummy-ec2-metrics.json)
+                  local json=$(aws s3 cp s3://${BucketName}/dummydata/dummy-ec2-metrics.json)
                   local namespace=$(echo "$json" | jq -r '.Namespace')
                   local instances=$(echo $json | jq -r -c '.Instances[]')
                   local evals=()
@@ -388,12 +439,14 @@ Resources:
                 [main]
                 stack=${AWS::StackId}
                 region=${AWS::Region}
+                # Change interval from default 15 minutes to 5
+                interval=5
             /etc/cfn/hooks.d/cfn-auto-reloader.conf:
               content: !Sub |
                 [cfn-auto-reloader-hook]
                 triggers=post.update
-                path=Resources.MyEC2Instance.Metadata.AWS::CloudFormation::Init
-                action=/opt/aws/bin/cfn-init -v --region ${AWS::Region} --stack ${AWS::StackName} --resource MyEC2Instance --configsets AllConfigs
+                path=Resources.EC2Instance.Metadata.AWS::CloudFormation::Init
+                action=/opt/aws/bin/cfn-init -v --region ${AWS::Region} --stack ${AWS::StackName} --resource EC2Instance --configsets AllConfigs
             /etc/awslogs/awscli.conf:
               content: !Sub |
                 [plugins]
@@ -401,24 +454,24 @@ Resources:
                 [default]
                 region = ${AWS::Region}
             /etc/awslogs/awslogs.conf:
-              content: |
+              content: !Sub |
                 [general]
                 state_file = /var/lib/awslogs/agent-state
                 
                 [/var/log/dmesg]
                 file = /var/log/dmesg
-                log_group_name = MyEC2InstanceLogsGroup
+                log_group_name = ${GlobalTag}-LG
                 log_stream_name = /var/log/dmesg
                 
                 [/var/log/messages]
                 file = /var/log/messages
-                log_group_name = MyEC2InstanceLogsGroup
+                log_group_name = ${GlobalTag}-LG
                 log_stream_name = /var/log/messages
                 datetime_format = %b %d %H:%M:%S
                 
                 # [/var/log/docker]
                 # file = /var/log/docker
-                # log_group_name = MyEC2InstanceLogsGroup
+                # log_group_name = ${GlobalTag}-LG
                 # log_stream_name = /var/log/docker
                 # datetime_format = %Y-%m-%dT%H:%M:%S.%f
             /opt/kuali/scripts/s3.download.configs.sh:
@@ -434,10 +487,33 @@ Resources:
                   --include "portal/*" \
                   --include "pdf/*" \
                   --include "kuali/main/config/kc-config-rds.xml" \
-                  s3://${ConfigBucket}/${!LANDSCAPE}/ .
+                  s3://${BucketName}/${!LANDSCAPE}/ .
                 mv /opt/kuali/s3/kuali/main/config/kc-config-rds.xml /opt/kuali/s3/kuali/main/config/kc-config.xml
-                aws s3 cp s3://${ConfigBucket}/rice.cer /opt/kuali/s3/kuali/main/config/
-                aws s3 cp s3://${ConfigBucket}/rice.keystore /opt/kuali/s3/kuali/main/config/
+                aws s3 cp s3://${BucketName}/rice.cer /opt/kuali/s3/kuali/main/config/
+                aws s3 cp s3://${BucketName}/rice.keystore /opt/kuali/s3/kuali/main/config/
+              mode: "000775"
+              owner: root
+              group: root
+            /opt/kuali/scripts/lookup.alb.dns.sh:
+              content: !Sub |
+                #!/bin/bash
+
+                # Keep pinging with the aws cli for the ALB DNS value until one is returned.
+                # Give it 2 minutes and then give up.
+                i=1
+                ready=""
+                while ((i<24)) ; do
+                  dns=$(aws elbv2 describe-load-balancers \
+                    --region ${AWS::Region} \
+                    --output text \
+                    --no-paginate \
+                    --query 'LoadBalancers[?LoadBalancerName==`${GlobalTag}-${Landscape}-ALB`].{DNSName:DNSName}' 2> /dev/null)
+
+                  [ -n "$dns" ] && break;
+                  ((i+=1))
+                  sleep 5
+                done
+                echo "$dns"
               mode: "000775"
               owner: root
               group: root
@@ -483,7 +559,7 @@ Resources:
                   fi
                 }
 
-                export EC2_HOST=$(curl -s http://169.254.169.254/latest/meta-data/public-hostname)
+                export EC2_HOST="$(sh /opt/kuali/scripts/lookup.alb.dns.sh)"
                 DOMAIN_NAME=$(echo ${EC2_HOST} | cut -d'/' -f3) # Strips off the "http://" portion and trailing "/"
 
                 # Perform a replacement in kc-config.xml of application.host parameter value with this ec2 public host name.
@@ -520,7 +596,7 @@ Resources:
                 #  - NEW_RELIC_AGENT_ENABLED
                 #  - JAVA_ENV
                 # But not this one, so set it here:
-                export EC2_HOST=$(curl -s http://169.254.169.254/latest/meta-data/public-hostname)
+                export EC2_HOST="$(sh /opt/kuali/scripts/lookup.alb.dns.sh)"
 
                 # Remove all existing containers
                 /usr/local/bin/docker-compose down 2> /dev/null || true
@@ -549,11 +625,11 @@ Resources:
                       driver: awslogs
                       options:
                         awslogs-region: ${AWS::Region}
-                        awslogs-group: MyEC2InstanceLogsGroup
+                        awslogs-group: ${GlobalTag}-LG
                         awslogs-stream: core-docker-container
                         awslogs-create-group: "true"
-                    expose:
-                      - "3000"
+                    ports:
+                    - 3000:3000
 
                   kuali-research:
                     image: ${!KC_IMAGE}
@@ -575,14 +651,11 @@ Resources:
                       driver: awslogs
                       options:
                         awslogs-region: ${AWS::Region}
-                        awslogs-group: MyEC2InstanceLogsGroup
+                        awslogs-group: ${GlobalTag}-LG
                         awslogs-stream: kc-docker-container
                         awslogs-create-group: "true"
-                    expose:
-                      - "8080"
-                    # ports:
-                    #   - 8080:8080
-                    #   - 8009:8009
+                    ports:
+                    - 8080:8080
 
                   research-portal:
                     image: ${!PORTAL_IMAGE}
@@ -595,11 +668,11 @@ Resources:
                       driver: awslogs
                       options:
                         awslogs-region: ${AWS::Region}
-                        awslogs-group: MyEC2InstanceLogsGroup
+                        awslogs-group: ${GlobalTag}-LG
                         awslogs-stream: portal-docker-container
                         awslogs-create-group: "true"
-                    expose:
-                    - "3005"
+                    ports:
+                    - 3005:3005
 
                   research-pdf:
                     image: ${!PDF_IMAGE}
@@ -610,11 +683,11 @@ Resources:
                       driver: awslogs
                       options:
                         awslogs-region: ${AWS::Region}
-                        awslogs-group: MyEC2InstanceLogsGroup
+                        awslogs-group: ${GlobalTag}-LG
                         awslogs-stream: pdf-docker-container
                         awslogs-create-group: "true"
-                    expose:
-                    - "3006"
+                    ports:
+                    - 3006:3006
 
               mode: "000775"
               owner: root
@@ -673,7 +746,9 @@ Resources:
                 files:
                 - /etc/cfn/cfn-hup.conf
                 - /etc/cfn/hooks.d/cfn-auto-reloader.conf
-              awslogs:
+              # awslogs:
+              # NOTE: If you are using Amazon Linux 2, the awslogs service is now called "awslogsd"
+              awslogsd:
                 enabled: true
                 ensureRunning: true
                 files:
@@ -686,69 +761,32 @@ Resources:
               env:
                 LANDSCAPE: !Sub "${Landscape}"
 
-  MyEC2Role:
-    Type: AWS::IAM::Role
-    Properties:
-      Path: "/"
-      RoleName: MyEC2Role
-      AssumeRolePolicyDocument:
-        Statement:
-        - Action:
-          - sts:AssumeRole
-          Effect: Allow
-          Principal:
-            Service:
-            - ec2.amazonaws.com
-      ManagedPolicyArns:
-      - arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM
-      - arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
-      - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
-      - arn:aws:iam::aws:policy/CloudWatchFullAccess
-      Policies:
-      - PolicyName:
-          !Sub "stop-ec2-instance-policy"
-        PolicyDocument:
-          Statement:
-          - Effect: Allow
-            Resource: "arn:aws:ec2:*:*:instance/${ec2:SourceInstanceARN}"
-            Action:
-            - ec2:StopInstances
-          - Effect: Allow
-            Resource:
-            - arn:aws:s3:::kuali-research-ec2-setup*
-            - arn:aws:s3:::kuali-docker-run-stdout*
-            - arn:aws:s3:::kuali-research-pdf-*
-            Action: "*"
-
-
-  MyEC2InstanceProfile:
-    Type: AWS::IAM::InstanceProfile
-    Properties:
-      InstanceProfileName: Profile-for-MyEC2Role
-      Path: "/"
-      Roles:
-      - !Ref MyEC2Role
-
-  MyEC2InstanceLogsGroup:
-    Type: AWS::Logs::LogGroup
-    DeletionPolicy: Delete
-    Properties:
-      LogGroupName: MyEC2InstanceLogsGroup
-      RetentionInDays: 30
-      
-  MyEIP:
-    Type: AWS::EC2::EIP
-    Properties:
-      Domain: vpc
-      InstanceId: !Ref MyEC2Instance
-
 Outputs:
+
   InstanceId:
+    Description: The id of the ec2 instance
     Value:
-      !Ref MyEC2Instance
-  PublicIP:
+      !Ref EC2Instance
+  
+  EC2InstanceProfile:
+    Description: The profile applied to the ec2 instance
     Value:
-      !GetAtt MyEC2Instance.PublicIp
-  PublicDnsName:
+      !If [CreateProfile, !Ref EC2InstanceProfile, !Ref InstanceProfile]
+
+  EC2Role:
+    Description: The profile arn applied to the ec2 instance
     Value:
-      !GetAtt MyEC2Instance.PublicDnsName
+      !If [CreateRole, !Ref EC2Role, !Ref InstanceRole]
+
+  AMIInfoFunctionArn:
+    Description: The ARN of the lambda function for AMI lookups.
+    Value:
+      !If 
+      - CreateAMIInfoFunction
+      - !GetAtt Utils.Outputs.AMIInfoFunctionArn
+      - !Ref AMIInfoFunctionArn        
+
+  EC2InstanceLogsGroupArn:
+    Description: The ARN of the logs group create for kuali-research
+    Value: 
+      !If [CreateLogsGroup, !Ref EC2InstanceLogsGroup, !Ref EC2InstanceLogsGroupArn]

@@ -1,4 +1,4 @@
-## Kuali Research EC2 instance creation
+## Kuali Research Single EC2 instance creation
 
 Use this template to perform the simplest form of deployment for kuali research, a single publicly addressable ec2 instance application host.
 

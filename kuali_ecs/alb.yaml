@@ -1,164 +1,187 @@
----
 AWSTemplateFormatVersion: '2010-09-09'
 
+# References:
+# https://docs.aws.amazon.com/elasticloadbalancing/latest/application/introduction.html
+# https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_ElasticLoadBalancingV2.html
 
-Description: >
-  This template deploys an application load balancer that exposes the ECS
-  services. It is assumed this is a nested template whose output is consumed by other
-  nested templates.
-
+Description: This template deploys an application load balancer that exposes the EC2 Instance (except for ssh access)
 
 Parameters:
 
-  Landscape:
-    Description: Specify which landscape to build into the VPC
-    Type: String
-    AllowedValues:
-    - sb
-    - ci
-    - qa
-    - stg
-    - prod
-    ConstraintDescription: 'This parameter is restricted to the following values:
-      sb, ci, qa, stg, prod'
-    Default: sb
-
-  GlobalPrefix:
+  GlobalTag:
     Type: String
     Description: >
-      A common value that all resources in this template will prefix to
-      their name to establish a bundling through naming convention. If a nested stack,
+      A common value that all resources in this template will have prefixed to
+      their name and attached as a tag to establish a bundling through naming convention. If a nested stack,
       this will most likely be the name of the top-most stack.
-    Default: ECS-test
+    Default: kuali-ecs
 
-  vpcid:
+  VpcId:
     Type: AWS::EC2::VPC::Id
-    Description: The id of the VPC the application load balancer is to be deployed to.
-
-  Subnets:
-    Type: List<AWS::EC2::Subnet::Id>
-    Description: The subnets the application load balancer routes traffic to.
-
+    Description: The id of the vpc to deploy to.
+  
   SecurityGroup:
     Type: AWS::EC2::SecurityGroup::Id
     Description: The security group to be applied to the application load balancer.
 
+  InstanceId1:
+    Type: AWS::EC2::Instance::Id
+    Description: The id of the first ec2 instance to register as a target with the target group
 
-# https://docs.aws.amazon.com/elasticloadbalancing/latest/application/introduction.html#application-load-balancer-components
+  InstanceId2:
+    Type: AWS::EC2::Instance::Id
+    Description: The id of the second ec2 instance to register as a target with the target group
+
+  Subnet1:
+    Type: AWS::EC2::Subnet::Id
+    Description: One of the subnets the ALB routes traffic to.
+      
+  Subnet2:
+    Type: AWS::EC2::Subnet::Id
+    Description: One of the subnets the ALB routes traffic to.
+
+  CertificateArn:
+    Type: String
+    Description: The amazon resource name of a certificate that has already been put in ACM
+  
 Resources:
 
-  LoadBalancer:
+  ALB:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
-    Description: The load balancer for applications running in our private subnets
+    Description: The load balancer used as reverse proxy for the kuali ec2 instance
     Properties:
-      Name:
-        !Join [ '', [ !Ref GlobalPrefix, "-alb" ] ]
-      Subnets: 
-        !Ref Subnets
+      Name: 
+        # Gotta abbreviate this value enough to get the resulting DNS name to be under 64 characters for the SSL cert.
+        # !Sub "${GlobalTag}-ALB"
+        !Sub "course-shed-plan-ALB"
+      # Subnets: 
+      #   !Ref Subnets
+      Subnets:
+      - !Ref Subnet1
+      - !Ref Subnet2
       SecurityGroups:
       - !Ref SecurityGroup
+      # LoadBalancerAttributes:
+      # - Key: access_logs.s3.enabled
+      #   Value: "true"
+      # - Key: access_logs.s3.bucket
+      #   Value: !Sub ${GlobalTag}-alb-logs
+      # - Key: access_logs.s3.prefix
+      #   Value: alb
       Tags:
       - Key: Name
-        Value:
-          !Join [ '', [ !Ref GlobalPrefix, "-alb" ] ]
+        Value: 
+          !Sub "${GlobalTag}-application-load-balancer"
 
-  Default80TargetGroup:
+
+  TargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
-    Description: Since a target group is a mandatory parameter for an application
-      load balancer, a default target group is included here. It's just a dummy target
-      group - the actual target group(s) are established in the service template(s).
     Properties:
+      VpcId: !Ref VpcId
       Name:
-        !Join [ '', [ !Ref GlobalPrefix, "-default-80-target-group" ] ] 
+        !Sub "${GlobalTag}-http-TG"
       Port: 80
       Protocol: HTTP
-      VpcId:
-        !Ref vpcid
+      Matcher:
+        HttpCode: 200-299
+      HealthCheckIntervalSeconds: 10
+      HealthCheckPath: "/apps/"
+      HealthCheckProtocol: HTTPS
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      Targets:
+      - Id: !Ref InstanceId1
+        Port: 3000
+      - Id: !Ref InstanceId2
+        Port: 3000
+      Tags:
+      - Key: Name
+        Value: 
+          !Sub "${GlobalTag}-http-target-group"
+
   Listener80:
     Type: AWS::ElasticLoadBalancingV2::Listener
-    DependsOn: Default80TargetGroup
+    DependsOn: 
+    - ALB
+    - TargetGroup
     Properties:
       DefaultActions:
       - TargetGroupArn:
-          !Ref Default80TargetGroup
+          !Ref TargetGroup
         Type: forward
       LoadBalancerArn:
-        !Ref LoadBalancer
+        !Ref ALB
       Port: 80
       Protocol: HTTP
 
-  SSLCert:
-    Type: AWS::CertificateManager::Certificate
-    DependsOn: LoadBalancer
+  ListenerRule80:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    DependsOn: TargetGroup
+    Description:  After Shibboleth integration, this forwarding can be removed as it would then be delegated.
     Properties:
-      DomainName:
-        !GetAtt LoadBalancer.DNSName
-      DomainValidationOptions:
-      - DomainName:
-          !GetAtt LoadBalancer.DNSName
-        ValidationDomain:
-          !GetAtt LoadBalancer.DNSName
-      Tags:
-      - Key: Name
-        Value: 
-          !Sub "${GlobalPrefix}-${Landscape}.CERT"
-  ListenerCert:
-    Type: AWS::ElasticLoadBalancingV2::ListenerCertificate
-    DependsOn: SSLCert
-    Properties: 
-      Certificates: 
-      - Certificate:
-          CertificateArn: !Ref SSLCert
-      ListenerArn: String
-      Tags:
-      - Key: Name
-        Value: 
-          !Sub "${GlobalPrefix}-${Landscape}.LISTENER.CERT"
-  Default443TargetGroup:
-    Type: AWS::ElasticLoadBalancingV2::TargetGroup
-    Description: Since a target group is a mandatory parameter for an application
-      load balancer, a default target group is included here. It's just a dummy target
-      group - the actual target group(s) are established in the service template(s).
-    Properties:
-      Name:
-        !Join [ '', [ !Ref GlobalPrefix, "-default-443-target-group" ] ] 
-      Port: 443
-      Protocol: HTTPS
-      VpcId:
-        !Ref vpcid
+      ListenerArn:
+        !Ref Listener80
+      Priority: 1
+      Actions:
+      - Type: redirect
+        # NOTE: Target groups do not apply if action type is redirect
+        # TargetGroupArn:
+        #   !Ref TargetGroup
+        RedirectConfig:
+          Host: "#{host}"
+          Path: "/#{path}"
+          Port: 443
+          Protocol: HTTPS
+          Query: "#{query}"
+          StatusCode: HTTP_301
+      Conditions:
+      - Field: path-pattern
+        Values:
+        - "/*"
+
   Listener443:
     Type: AWS::ElasticLoadBalancingV2::Listener
     DependsOn:
-    - LoadBalancer
-    - ListenerCert
-    - Default443TargetGroup
+    - ALB
+    - TargetGroup
     Properties:
       Certificates:
+      # WARNING!
+      # For some reason cloudformation returns a "CertificateNotFound" error when the arn of a certificate uploaded to acm
+      # is used to configure the listener for ssl. However, it has no problem with an arn of uploaded iam server certificates.  
       - CertificateArn:
-          !Ref ListenerCert
+          !Ref CertificateArn
       DefaultActions:
       - TargetGroupArn:
-          !Ref Default443TargetGroup
+          !Ref TargetGroup
         Type: forward
       LoadBalancerArn:
-        !Ref LoadBalancer
+        !Ref ALB
       Port: 443
       Protocol: HTTPS
 
+  ListenerRule443:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    DependsOn: TargetGroup
+    Properties:
+      ListenerArn:
+        !Ref Listener443
+      Priority: 2
+      Actions:
+      - TargetGroupArn:
+          !Ref TargetGroup
+        Type: forward
+      Conditions: 
+      - { Field: path-pattern, Values: [ "/*" ] }
+
+      
 Outputs:
+
   LoadBalancer:
-    Value:
-      !Ref LoadBalancer
-    Description: A reference to the ALB
+    Description: A reference to the load balancer
+    Value: !Ref ALB
+
   LoadBalancerUrl:
-    Description: The URL of the ALB
-    Value:
-      !GetAtt LoadBalancer.DNSName
-  Listener80:
-    Value:
-      !Ref Listener80
-    Description: A reference to a port 80 Listener
-  Listener443:
-    Value:
-      !Ref Listener443
-    Description: A reference to a port 443 Listener
+    Description: This will be the url that the app is publicly addressable on
+    Value: !GetAtt ALB.DNSName
+    
