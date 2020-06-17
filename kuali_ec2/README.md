@@ -14,7 +14,7 @@ Use this template to perform the simplest form of deployment for kuali research,
    Create, update, or delete the cloud formation stack for the infrastructure and app deployment.
    Resources created are the EC2 instance (with profile, role, security group, log group, & elastic IP) as shown below.
        
-   ![layout](ec2.PNG)
+   ![layout](./ec2.PNG)
 
 
 
@@ -30,7 +30,7 @@ Use this template to perform the simplest form of deployment for kuali research,
   - Clone the repo on a linux box (ie: an ec2 instance), install the other prerequisites and run there.
   - Download [gitbash](https://git-scm.com/downloads)
 - **Docker Images:**
-  Before creating the cloudformation stack, it is assumed that each Docker image (kc, core, dashboard/ pdf) has already been built and uploaded to their respective repositories in the elastic container registry of you account.
+  Before creating the cloudformation stack, it is assumed that each Docker image (kc, core, dashboard, pdf) has already been built and uploaded to their respective repositories in the elastic container registry of you account.
 
 
 
@@ -75,9 +75,14 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
    The method below includes automatically uploading the template to s3.
 
    ```
+   # Scenario 1) One or more templates have changed, but none of the parameters have
    sh main.sh update-stack
-   ```
 
+   # Scenario 2) A parameter has changed (upgrading kuali-research)
+   sh main.sh update-stack \
+   	kc_image=730096353738.dkr.ecr.us-east-1.amazonaws.com/coeus-sandbox:2001.0040
+   ```
+   
 5. **Shell into the EC2 instance:**
    Part of stack creation included the generation of a ssh key pair. The public key was assigned to the ec2 instance for the default user (ec2-user).
    You should find the public and private key in the root directory.
