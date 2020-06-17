@@ -91,6 +91,10 @@ Parameters:
     Type: String
     Description: Id that identifies the security group for the ec2 instance
 
+  LoadBalancerUrl:
+    Type: String
+    Description: The DNS name for the ALB. The app is publicly reachable at this address.
+
   PrivateSubnet:
     Type: AWS::EC2::Subnet::Id
     Description: The private subnets for the ec2 instances.
@@ -494,29 +498,6 @@ Resources:
               mode: "000775"
               owner: root
               group: root
-            /opt/kuali/scripts/lookup.alb.dns.sh:
-              content: !Sub |
-                #!/bin/bash
-
-                # Keep pinging with the aws cli for the ALB DNS value until one is returned.
-                # Give it 2 minutes and then give up.
-                i=1
-                ready=""
-                while ((i<24)) ; do
-                  dns=$(aws elbv2 describe-load-balancers \
-                    --region ${AWS::Region} \
-                    --output text \
-                    --no-paginate \
-                    --query 'LoadBalancers[?LoadBalancerName==`${GlobalTag}-${Landscape}-ALB`].{DNSName:DNSName}' 2> /dev/null)
-
-                  [ -n "$dns" ] && break;
-                  ((i+=1))
-                  sleep 5
-                done
-                echo "$dns"
-              mode: "000775"
-              owner: root
-              group: root
             /opt/kuali/scripts/process.env.file.sh:
               content: |
                 #!/bin/bash                
@@ -559,7 +540,7 @@ Resources:
                   fi
                 }
 
-                export EC2_HOST="$(sh /opt/kuali/scripts/lookup.alb.dns.sh)"
+                export EC2_HOST="${LOADBALANCER_URL}"
                 DOMAIN_NAME=$(echo ${EC2_HOST} | cut -d'/' -f3) # Strips off the "http://" portion and trailing "/"
 
                 # Perform a replacement in kc-config.xml of application.host parameter value with this ec2 public host name.
@@ -596,7 +577,7 @@ Resources:
                 #  - NEW_RELIC_AGENT_ENABLED
                 #  - JAVA_ENV
                 # But not this one, so set it here:
-                export EC2_HOST="$(sh /opt/kuali/scripts/lookup.alb.dns.sh)"
+                export EC2_HOST="${!LOADBALANCER_URL}"
 
                 # Remove all existing containers
                 /usr/local/bin/docker-compose down 2> /dev/null || true
@@ -722,6 +703,7 @@ Resources:
                 ENV_FILE_FROM_S3_CORE: /opt/kuali/s3/core/environment.variables.s3
                 ENV_FILE_FROM_S3_PORTAL: /opt/kuali/s3/portal/environment.variables.s3
                 ENV_FILE_FROM_S3_PDF: /opt/kuali/s3/pdf/environment.variables.s3
+                LOADBALANCER_URL: !Sub "${LoadBalancerUrl}"
               command: bash process.env.file.sh
         03_docker_run_container:
           commands:
@@ -737,6 +719,7 @@ Resources:
                 CORE_IMAGE: !Sub "${CoreImage}"
                 PORTAL_IMAGE: !Sub "${PortalImage}"
                 PDF_IMAGE: !Sub "${PdfImage}"
+                LOADBALANCER_URL: !Sub "${LoadBalancerUrl}"
               command: bash start.docker.containers.sh
           services:
             sysvinit:

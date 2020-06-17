@@ -73,17 +73,9 @@ Parameters:
     Type: String
     Description: The url where the kuali dashboard app can be reached.
 
-  DockerImageVersion:
+  CoreImage:
     Type: String
-    Description: >
-      The maven verion number for the kuali-research application that
-      is to be deployed to the cluster. Example: 1808.0044. All other modules (dashboard,
-      coi, etc.) that run along with kuali-research borrow the same tag when they
-      are pushed as docker images into the elastic container registry. This way, all
-      container definitions of every task are grouped because the docker images on
-      which they are based will conform with eachother in terms of api cross-compatiblility,
-      equivalent release, etc.
-    Default: 1909.0036
+    Description: 'Example: 730096353738.dkr.ecr.us-east-1.amazonaws.com/core:2001.0040'
 
     
 # NOTES:
@@ -135,8 +127,7 @@ Resources:
       - Name: core
         User: root
         Essential: true
-        Image:
-         !Sub 730096353738.dkr.ecr.us-east-1.amazonaws.com/core:${DockerImageVersion}
+        Image: !Ref CoreImage
         Memory: 256
         Environment:
         - Name: LANDSCAPE

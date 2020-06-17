@@ -52,7 +52,7 @@ Parameters:
 
   BucketName:
     Type: String
-    Description: The S3 bucket where our config files, keys, etc. are stored
+    Description: The S3 bucket kuali research cloudformation templates, config files, keys, etc. are stored
     Default: kuali-research-ec2-setup
 
   CoreImage:

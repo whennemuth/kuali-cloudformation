@@ -275,7 +275,7 @@ getSelfSignedArn() {
     cat ${GLOBAL_TAG}-self-signed.arn
   else
     if [ -n "$(aws s3 ls $BUCKET_NAME 2> /dev/null)" ] ; then
-      aws s3 cp s3://$BUCKET_PATH/${GLOBAL_TAG}-self-signed.arn - 2> /dev/null
+      aws s3 cp $BUCKET_PATH/${GLOBAL_TAG}-self-signed.arn - 2> /dev/null
     fi
   fi
 }

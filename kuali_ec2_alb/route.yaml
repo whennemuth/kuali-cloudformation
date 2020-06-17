@@ -36,6 +36,11 @@ Parameters:
   PrivateSubnet2:
     Type: AWS::EC2::Subnet::Id
     Description: The private subnets for the ec2 instances.
+  
+  BucketName:
+    Type: String
+    Description: The S3 bucket kuali research cloudformation templates, config files, keys, etc. are stored
+    Default: kuali-research-ec2-setup
     
 
 Resources:
@@ -60,7 +65,8 @@ Resources:
   Nat1:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: https://s3.amazonaws.com/kuali-research-ec2-setup/cloudformation/kuali_ec2_alb/nat.yaml
+      TemplateURL: 
+        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_ec2_alb/nat.yaml
       Parameters:
         GlobalTag: !Ref GlobalTag
         VpcId: !Ref VpcId
@@ -72,7 +78,8 @@ Resources:
   Nat2:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: https://s3.amazonaws.com/kuali-research-ec2-setup/cloudformation/kuali_ec2_alb/nat.yaml
+      TemplateURL: 
+        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_ec2_alb/nat.yaml
       Parameters:
         GlobalTag: !Ref GlobalTag
         VpcId: !Ref VpcId

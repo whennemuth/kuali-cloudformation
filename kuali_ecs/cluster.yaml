@@ -138,6 +138,16 @@ Parameters:
     Description: The S3 bucket where our config files, keys, etc. are stored
     Default: kuali-research-ec2-setup
 
+  EnableNewRelicInfrastructure:
+    Type: String
+    Description: Is newrelic infrastructure (with logging) to be enabled for this landscape?
+    Default: "false"
+    AllowedValues:
+    - "true"
+    - "false"
+    ConstraintDescription: Enter "true" or "false" only.
+    Default: "false"
+
 
 Resources:
 

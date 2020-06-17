@@ -5,6 +5,18 @@ Description: >
 
 Parameters:
 
+  GlobalTag:
+    Type: String
+    Description: >
+      A common value that all resources in this template will have prefixed to
+      their name and attached as a tag to establish a bundling through naming convention.
+    Default: kuali-ecs
+  
+  BucketName:
+    Type: String
+    Description: The S3 bucket kuali research cloudformation templates, config files, keys, etc. are stored
+    Default: kuali-research-ec2-setup
+
   Landscape:
     Description: Specify a landscape (sandbox, qa, etc... )
     Type: String
@@ -23,17 +35,16 @@ Parameters:
     Type: String
     Description: What type of EC2 instance should be used for ECS hosting?
     AllowedValues:
-    - t2.medium
     - t2.large
     - t2.xlarge
-    - m4.small
-    - m4.medium
+    - t3.large
+    - t3.xlarge
     - m4.large
     - m4.xlarge
-    - m4.2xlarge
     - m5.large
     - m5.xlarge
-    - m5.2xlarge
+    - c5.large
+    - c5.xlarge
     ConstraintDescription: Specified instance type is not within selection list.
     Default: m4.small
 
@@ -45,16 +56,41 @@ Parameters:
     ConstraintDescription: Cluster size is limited between 1 and 10 instances.
     Default: '2'
 
-  MavenVersion:
+  CoreImage:
     Type: String
-    Description: >
-      'The maven verion number for the kuali-research application that
-      is to be deployed to the cluster. Example: 1812.0024. This also happens to be
-      how all other modules (core, coi, etc.) that run along with kuali-research are
-      tagged as docker images in the elastic container registry. Using this value
-      is how we select the correct images from the registry for each ecr task being
-      deployed in a service throughout the cluster.'
-    Default: '1906.0021'
+    Description: 'Example: 730096353738.dkr.ecr.us-east-1.amazonaws.com/core:2001.0040'
+
+  KcImage:
+    Type: String
+    Description: 'Example: 730096353738.dkr.ecr.us-east-1.amazonaws.com/coeus:2001.0040'
+
+  PortalImage:
+    Type: String
+    Description: 'Example: 730096353738.dkr.ecr.us-east-1.amazonaws.com/portal:2001.0040'
+
+  PdfImage:
+    Type: String
+    Description: 'Example: 730096353738.dkr.ecr.us-east-1.amazonaws.com/research-pdf:2002.0003'
+
+  EnableNewRelicAPM:
+    Type: String
+    Description: Is newrelic APM to be enabled for this landscape?
+    Default: "false"
+    AllowedValues:
+    - "true"
+    - "false"
+    ConstraintDescription: Enter "true" or "false" only.
+    Default: "false"
+
+  EnableNewRelicInfrastructure:
+    Type: String
+    Description: Is newrelic infrastructure (with logging) to be enabled for this landscape?
+    Default: "false"
+    AllowedValues:
+    - "true"
+    - "false"
+    ConstraintDescription: Enter "true" or "false" only.
+    Default: "false"
 
 
 Resources:
@@ -62,34 +98,37 @@ Resources:
   VPC:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: https://s3.amazonaws.com/kuali-research-ec2-setup/cloudformation/kuali_ecs/vpc.yaml
+      TemplateURL: 
+        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_ecs/vpc.yaml
       Parameters:
         Landscape:
           !Ref Landscape
-        GlobalPrefix:
-          !Ref AWS::StackName
+        GlobalTag:
+          !Ref GlobalTag
 
   SecurityGroups:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: https://s3.amazonaws.com/kuali-research-ec2-setup/cloudformation/kuali_ecs/security-group.yaml
+      TemplateURL: 
+        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_ecs/security-group.yaml
       Parameters:
         Landscape:
           !Ref Landscape
-        GlobalPrefix:
-          !Ref AWS::StackName
+        GlobalTag:
+          !Ref GlobalTag
         vpcid: 
           !GetAtt VPC.Outputs.VPC
 
   ALB:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: https://s3.amazonaws.com/kuali-research-ec2-setup/cloudformation/kuali_ecs/alb.yaml
+      TemplateURL: 
+        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_ecs/alb.yaml
       Parameters:
         Landscape:
           !Ref Landscape
-        GlobalPrefix:
-          !Ref AWS::StackName
+        GlobalTag:
+          !Ref GlobalTag
         vpcid: 
           !GetAtt VPC.Outputs.VPC
         Subnets: 
@@ -100,12 +139,13 @@ Resources:
   ECS:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: https://s3.amazonaws.com/kuali-research-ec2-setup/cloudformation/kuali_ecs/cluster.yaml
+      TemplateURL: 
+        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_ecs/cluster.yaml
       Parameters:
         Landscape:
           !Ref Landscape
-        GlobalPrefix:
-          !Ref AWS::StackName
+        GlobalTag:
+          !Ref GlobalTag
         vpcid:
           !GetAtt VPC.Outputs.VPC
         InstanceType:
@@ -118,13 +158,16 @@ Resources:
           !GetAtt SecurityGroups.Outputs.ECSHostSecurityGroup
         LoadBalancerUrl:
           !GetAtt ALB.Outputs.LoadBalancerUrl
+        EnableNewRelicInfrastructure:
+          !Ref EnableNewRelicInfrastructure
 
   KualiCoreService:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: https://s3.amazonaws.com/kuali-research-ec2-setup/cloudformation/kuali_ecs/service-core.yaml
+      TemplateURL: 
+        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_ecs/service-core.yaml
       Parameters:
-        GlobalPrefix:
+        GlobalTag:
           !Ref Landscape
         Landscape:
           !Ref Landscape
@@ -145,15 +188,16 @@ Resources:
         Path: "/"
         ECSServiceAutoScalingRoleARN:
           !GetAtt ECS.Outputs.ECSServiceAutoScalingRole
-        DockerImageVersion:
-          !Ref MavenVersion
+        CoreImage:
+          !Ref CoreImage
 
   KualiResearchService:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: https://s3.amazonaws.com/kuali-research-ec2-setup/cloudformation/kuali_ecs/service-research.yaml
+      TemplateURL: 
+        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_ecs/service-research.yaml
       Parameters:
-        GlobalPrefix:
+        GlobalTag:
           !Ref Landscape
         Landscape:
           !Ref Landscape
@@ -174,15 +218,18 @@ Resources:
         Path: "/kc"
         ECSServiceAutoScalingRoleARN:
           !GetAtt ECS.Outputs.ECSServiceAutoScalingRole
-        DockerImageVersion:
-          !Ref MavenVersion
+        KcImage:
+          !Ref KcImage
+        EnableNewRelicAPM:
+          !Ref EnableNewRelicAPM
 
   KualiDashboardService:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: https://s3.amazonaws.com/kuali-research-ec2-setup/cloudformation/kuali_ecs/service-dashboard.yaml
+      TemplateURL: 
+        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_ecs/service-dashboard.yaml
       Parameters:
-        GlobalPrefix:
+        GlobalTag:
           !Ref Landscape
         Landscape:
           !Ref Landscape
@@ -203,13 +250,44 @@ Resources:
         Path: "/dashboard"
         ECSServiceAutoScalingRoleARN:
           !GetAtt ECS.Outputs.ECSServiceAutoScalingRole
-        DockerImageVersion:
-          !Ref MavenVersion
+        PortalImage:
+          !Ref PortalImage
+
+  KualiPdfService:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: 
+        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_ecs/service-pdf.yaml
+      Parameters:
+        GlobalTag:
+          !Ref Landscape
+        Landscape:
+          !Ref Landscape
+        vpcid:
+          !GetAtt VPC.Outputs.VPC
+        clusterid:
+          !GetAtt ECS.Outputs.Cluster
+        DesiredCount: '2'
+        MaxCount: '3'
+        KualiCoreUrl:
+          !GetAtt ALB.Outputs.LoadBalancerUrl
+        KualiResearchUrl:
+          !Join [ "/", [ !GetAtt ALB.Outputs.LoadBalancerUrl, "kc" ] ]
+        Listener80:
+          !GetAtt ALB.Outputs.Listener80
+        Listener443:
+          !GetAtt ALB.Outputs.Listener443
+        Path: "/pdf"
+        ECSServiceAutoScalingRoleARN:
+          !GetAtt ECS.Outputs.ECSServiceAutoScalingRole
+        PdfImage:
+          !Ref PdfImage
 
   LifeCycleHook:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: https://s3.amazonaws.com/kuali-research-ec2-setup/cloudformation/kuali_ecs/lifecycle-hook.yaml
+      TemplateURL: 
+        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_ecs/lifecycle-hook.yaml
       Parameters:
         Cluster:
           !GetAtt ECS.Outputs.Cluster

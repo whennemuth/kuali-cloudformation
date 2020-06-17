@@ -83,22 +83,22 @@ Parameters:
     Type: String
     Description: What type of EC2 instance should be used for hosting?
     AllowedValues:
-    - t2.small
-    - t2.medium
     - t2.large
     - t2.xlarge
-    - t3.small
-    - t3.medium
     - t3.large
+    - t3.xlarge
     - m4.large
     - m4.xlarge
     - m5.large
+    - m5.xlarge
+    - c5.large
+    - c5.xlarge
     ConstraintDescription: Specified instance type is not within selection list.
     Default: m4.large
   
   BucketName:
     Type: String
-    Description: The S3 bucket kuali research config files, keys, etc. are stored
+    Description: The S3 bucket kuali research cloudformation templates, config files, keys, etc. are stored
     Default: kuali-research-ec2-setup
 
   CoreImage:
@@ -210,7 +210,8 @@ Resources:
   Main:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: https://s3.amazonaws.com/kuali-research-ec2-setup/cloudformation/kuali_ec2_alb/main-existing-subnets.yaml
+      TemplateURL: 
+        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_ec2_alb/main-existing-subnets.yaml
       Parameters:
         GlobalTag:
           !Ref GlobalTag

@@ -37,14 +37,6 @@ Parameters:
     Type: AWS::EC2::SecurityGroup::Id
     Description: The security group to be applied to the application load balancer.
 
-  InstanceId1:
-    Type: AWS::EC2::Instance::Id
-    Description: The id of the first ec2 instance to register as a target with the target group
-
-  InstanceId2:
-    Type: AWS::EC2::Instance::Id
-    Description: The id of the second ec2 instance to register as a target with the target group
-
   Subnet1:
     Type: AWS::EC2::Subnet::Id
     Description: One of the subnets the ALB routes traffic to.
@@ -86,38 +78,19 @@ Resources:
 
 
   ################################################
-  #               HTTP (PORT 80)
+  #                HTTP (PORT 80)
   ################################################
-  # TargetGroup80:
-  #   Type: AWS::ElasticLoadBalancingV2::TargetGroup
-  #   Properties:
-  #     Name:
-  #       !Sub "${GlobalTag}-${Landscape}-port80-TG"
-  #     VpcId: !Ref VpcId
-  #     Port: 80
-  #     Protocol: HTTP
-  #     Matcher:
-  #       HttpCode: 200-299
-  #     TargetGroupAttributes:
-  #     - Key: stickiness.enabled
-  #       Value: true
-  #     - Key: stickiness.type
-  #       Value: lb_cookie
-  #     - Key: stickiness.lb_cookie.duration_seconds
-  #       Value: 86400
-  #     - Key: deregistration_delay.timeout_seconds
-  #       Value: 300
-  #     - Key: slow_start.duration_seconds
-  #       Value: 0
-  #     Targets:
-  #     - Id: !Ref InstanceId1
-  #       Port: 80
-  #     - Id: !Ref InstanceId2
-  #       Port: 80
-  #     Tags:
-  #     - Key: Name
-  #       Value: 
-  #         !Sub "${GlobalTag}-${Landscape}-port80-TG"
+  TargetGroup80:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub ${GlobalTag}-${Landscape}-http-TG
+      VpcId: !Ref VpcId
+      Port: 80
+      Protocol: HTTP
+      Tags:
+      - Key: Name
+        Value: 
+          !Sub ${GlobalTag}-${Landscape}-http-TG
   Listener80:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
@@ -125,7 +98,7 @@ Resources:
       - TargetGroupArn:
           # Arbitrarily using TargetGroupCore as default. Nothing actually makes 
           # it to that group over port 80 because the listener rule redirects to port 443
-          !Ref TargetGroupCore
+          !Ref TargetGroup80
         Type: forward
       LoadBalancerArn:
         !Ref ALB
@@ -145,7 +118,7 @@ Resources:
       - Type: redirect
         # NOTE: Target groups do not apply if action type is redirect
         # TargetGroupArn:
-        #   !Ref TargetGroupCore
+        #   !Ref TargetGroup80
         RedirectConfig:
           Host: "#{host}"
           Path: "/#{path}"
@@ -171,7 +144,11 @@ Resources:
           !Ref CertificateArn
       DefaultActions:
       - TargetGroupArn:
-          !Ref TargetGroupCore
+          # A target group is a mandatory parameter when creating a listener for an application load balancer.
+          # So, to temporarily satisfy this requirement, "borrow" the http target group here for now.
+          # This target group won't actually be used by this listener, instead a target group is created per-service
+          # in the services template and each registered then with this listener. (Conflicting protocols don't seem to matter)
+          !Ref TargetGroup80
         Type: forward
       LoadBalancerArn:
         !Ref ALB
@@ -179,272 +156,16 @@ Resources:
       Protocol: HTTPS
 
 
-  ################################################
-  #                   DASHBOARD
-  ################################################
-  TargetGroupDashboard:
-    Type: AWS::ElasticLoadBalancingV2::TargetGroup
-    Properties:
-      Name:
-        !Sub "${GlobalTag}-${Landscape}-dashboard-TG"
-      VpcId: !Ref VpcId
-      Port: 80
-      Protocol: HTTP
-      Matcher:
-        HttpCode: 200-299
-      HealthCheckIntervalSeconds: 10
-      HealthCheckPath: "/dashboard/"
-      HealthCheckProtocol: HTTPS
-      HealthCheckTimeoutSeconds: 5
-      HealthyThresholdCount: 2
-      TargetGroupAttributes:
-      - Key: stickiness.enabled
-        Value: true
-      - Key: stickiness.type
-        Value: lb_cookie
-      - Key: stickiness.lb_cookie.duration_seconds
-        Value: 86400
-      - Key: deregistration_delay.timeout_seconds
-        Value: 300
-      - Key: slow_start.duration_seconds
-        Value: 0
-      Targets:
-      - Id: !Ref InstanceId1
-        Port: 3005
-      - Id: !Ref InstanceId2
-        Port: 3005
-      Tags:
-      - Key: Name
-        Value: 
-          !Sub "${GlobalTag}-${Landscape}-dashboard-TG"
-  ListenerRuleDashboardCommonTasks:
-    Type: AWS::ElasticLoadBalancingV2::ListenerRule
-    DependsOn: TargetGroupDashboard
-    Description: >
-      If the user navigates to the basic portal link, we don't want them presented with the 
-      it's own dashboard, but rather its common-tasks view. Hence this rule for a redirect.
-    Properties:
-      ListenerArn:
-        !Ref Listener443
-      Priority: 2
-      Actions:
-      - Type: redirect
-        RedirectConfig:
-          Host: "#{host}"
-          Path: "/dashboard/common-tasks"
-          Port: 443
-          Protocol: HTTPS
-          Query: "#{query}"
-          StatusCode: HTTP_301
-      Conditions:
-      - { Field: path-pattern, Values: [ "/dashboard", "/dashboard/" ] }
-  ListenerRuleDashboard:
-    Type: AWS::ElasticLoadBalancingV2::ListenerRule
-    DependsOn: TargetGroupDashboard
-    Properties:
-      ListenerArn:
-        !Ref Listener443
-      Priority: 3
-      Actions:
-      - TargetGroupArn:
-          !Ref TargetGroupDashboard
-        Type: forward
-      Conditions:
-      - Field: path-pattern
-        Values:
-        - "/dashboard/*"
-        - "/api/v1/dashboard"
-        - "/api/v1/dashboard/*"
-
-
-  ################################################
-  #                      KC
-  ################################################
-  TargetGroupKC:
-    Type: AWS::ElasticLoadBalancingV2::TargetGroup
-    Properties:
-      Name:
-        !Sub "${GlobalTag}-${Landscape}-kc-TG"
-      VpcId: !Ref VpcId
-      Port: 80
-      Protocol: HTTP
-      Matcher:
-        HttpCode: 200-299
-      HealthCheckIntervalSeconds: 10
-      HealthCheckPath: "/kc/"
-      HealthCheckProtocol: HTTPS
-      HealthCheckTimeoutSeconds: 5
-      HealthyThresholdCount: 2
-      TargetGroupAttributes:
-      - Key: stickiness.enabled
-        Value: true
-      - Key: stickiness.type
-        Value: lb_cookie
-      - Key: stickiness.lb_cookie.duration_seconds
-        Value: 86400
-      - Key: deregistration_delay.timeout_seconds
-        Value: 300
-      - Key: slow_start.duration_seconds
-        Value: 0
-      Targets:
-      - Id: !Ref InstanceId1
-        Port: 8080
-      - Id: !Ref InstanceId2
-        Port: 8080
-      Tags:
-      - Key: Name
-        Value: 
-          !Sub "${GlobalTag}-${Landscape}-kc-TG"          
-  ListenerRuleKcDefault:
-    Type: AWS::ElasticLoadBalancingV2::ListenerRule
-    DependsOn: TargetGroupKC
-    Description: >
-      If the user navigates to the website with no path, we want them presented with the research app
-      as a default, not the portal selection view as would otherwise be presented.
-    Properties:
-      ListenerArn:
-        !Ref Listener443
-      Priority: 4
-      Actions:
-      - Type: redirect
-        RedirectConfig:
-          Host: "#{host}"
-          Path: "/kc"
-          Port: 443
-          Protocol: HTTPS
-          Query: "#{query}"
-          StatusCode: HTTP_301
-      Conditions:
-      - { Field: path-pattern, Values: [ "/" ] }
-  ListenerRuleKC:
-    Type: AWS::ElasticLoadBalancingV2::ListenerRule
-    DependsOn: TargetGroupKC
-    Properties:
-      ListenerArn:
-        !Ref Listener443
-      Priority: 5
-      Actions:
-      - TargetGroupArn:
-          !Ref TargetGroupKC
-        Type: forward
-      Conditions:
-      - { Field: path-pattern, Values: [ "/kc", "/kc/*" ] }
-
-
-  ################################################
-  #                     PDF
-  ################################################
-  TargetGroupPdf:
-    Type: AWS::ElasticLoadBalancingV2::TargetGroup
-    Properties:
-      Name:
-        !Sub "${GlobalTag}-${Landscape}-pdf-TG"
-      VpcId: !Ref VpcId
-      Port: 80
-      Protocol: HTTP
-      Matcher:
-        HttpCode: 200-299
-      HealthCheckIntervalSeconds: 10
-      HealthCheckPath: "/pdf/"
-      HealthCheckProtocol: HTTPS
-      HealthCheckTimeoutSeconds: 5
-      HealthyThresholdCount: 2
-      TargetGroupAttributes:
-      - Key: stickiness.enabled
-        Value: true
-      - Key: stickiness.type
-        Value: lb_cookie
-      - Key: stickiness.lb_cookie.duration_seconds
-        Value: 86400
-      - Key: deregistration_delay.timeout_seconds
-        Value: 300
-      - Key: slow_start.duration_seconds
-        Value: 0
-      Targets:
-      - Id: !Ref InstanceId1
-        Port: 3006
-      - Id: !Ref InstanceId2
-        Port: 3006
-      Tags:
-      - Key: Name
-        Value: 
-          !Sub "${GlobalTag}-${Landscape}-pdf-TG"
-  ListenerRulePdf:
-    Type: AWS::ElasticLoadBalancingV2::ListenerRule
-    DependsOn: TargetGroupPdf
-    Properties:
-      ListenerArn:
-        !Ref Listener443
-      Priority: 6
-      Actions:
-      - TargetGroupArn:
-          !Ref TargetGroupPdf
-        Type: forward
-      Conditions:
-      - Field: path-pattern
-        Values:
-        - "/pdf"
-        - "/pdf/*"
-        - "/api/v1/pdf"
-        - "/api/v1/pdf/*"
-
-
-  ################################################
-  #                   COR-MAIN
-  ################################################
-  TargetGroupCore:
-    Type: AWS::ElasticLoadBalancingV2::TargetGroup
-    Properties:
-      Name:
-        !Sub "${GlobalTag}-${Landscape}-core-TG"
-      VpcId: !Ref VpcId
-      Port: 80
-      Protocol: HTTP
-      Matcher:
-        HttpCode: 200-299
-      HealthCheckIntervalSeconds: 10
-      HealthCheckPath: "/apps/"
-      HealthCheckProtocol: HTTPS
-      HealthCheckTimeoutSeconds: 5
-      HealthyThresholdCount: 2
-      TargetGroupAttributes:
-      - Key: stickiness.enabled
-        Value: true
-      - Key: stickiness.type
-        Value: lb_cookie
-      - Key: stickiness.lb_cookie.duration_seconds
-        Value: 86400
-      - Key: deregistration_delay.timeout_seconds
-        Value: 300
-      - Key: slow_start.duration_seconds
-        Value: 0
-      Targets:
-      - Id: !Ref InstanceId1
-        Port: 3000
-      - Id: !Ref InstanceId2
-        Port: 3000
-      Tags:
-      - Key: Name
-        Value: 
-          !Sub "${GlobalTag}-${Landscape}-core-TG"
-  ListenerRuleCore:
-    Type: AWS::ElasticLoadBalancingV2::ListenerRule
-    DependsOn: TargetGroupCore
-    Properties:
-      ListenerArn:
-        !Ref Listener443
-      Priority: 7
-      Actions:
-      - TargetGroupArn:
-          !Ref TargetGroupCore
-        Type: forward
-      Conditions: 
-      # Since core is last in priority, it handles all remaining paths, as it should.
-      - { Field: path-pattern, Values: [ "/*" ] }
-
-
 Outputs:
 
   LoadBalancerUrl:
     Description: This will be the url that the app is publicly addressable on
     Value: !GetAtt ALB.DNSName
+
+  LoadBalancer:
+    Description: A reference to the Application Load Balancer
+    Value: !Ref ALB
+
+  Listener:
+    Description: A reference to a port 80 listener
+    Value: !Ref Listener443
