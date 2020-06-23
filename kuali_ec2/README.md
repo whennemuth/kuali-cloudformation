@@ -31,7 +31,7 @@ Use this template to perform the simplest form of deployment for kuali research,
 - **Docker Images:**
   Before creating the cloudformation stack, it is assumed that each Docker image (kc, core, dashboard, pdf) has already been built and uploaded to their respective repositories in the elastic container registry of you account.
 
-
+<IFrame src="../notes/prerequisites.md"></IFrame>
 
 ### Steps:
 
