@@ -12,7 +12,7 @@ Use these template to perform the median form of deployment for kuali research, 
    [Reverse proxying](https://medium.com/commutatus/how-to-configure-a-reverse-proxy-in-aws-b164de91176e) is accomplished through the [application load balancer](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/introduction.html) that takes in all traffic bound for the ec2 instances over ports 80 (http) and 443 (https) and routes according to path-based rules to the appropriate ports on the EC2 hosts . The corresponding docker container is published on the appropriate ec2 host port. This removes the need for an [apache ](https://httpd.apache.org/docs/2.4/howto/reverse_proxy.html) or [nginx reverse proxy](https://docs.nginx.com/nginx/admin-guide/web-server/reverse-proxy/) running inside the ec2 host.
 4. **Cloudformation:**
    Create, update, or delete the cloud formation stack for the infrastructure and app deployment.
-   Resources created are the EC2 instance (with profile, role, security group, log group, & application load balancer) as shown below.
+   Resources created are the EC2 instances (with profile, role, security group, log group, & application load balancer) as shown below.
 
 ![layount](./diagram1.png)
 
@@ -83,11 +83,10 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
           portal_image=730096353738.dkr.ecr.us-east-1.amazonaws.com/portal:2001.0040 \
           pdf_image=730096353738.dkr.ecr.us-east-1.amazonaws.com/research-pdf:2002.0003
           
-      ```
-   # Example 3): Same as scenario 1, except create/use a custom S3 bucket, and overrides default ec2 instance size
+      # Example 3): Same as scenario 1, except create/use a custom S3 bucket, and overrides default ec2 instance size
       sh main.sh create-stack \
-      	bucket_path=s3://my_bucket/some/directory \
-      	ec2_instance_type=m4.xlarge \
+          bucket_path=s3://my_bucket/some/directory \
+          ec2_instance_type=m4.xlarge \
           kc_image=730096353738.dkr.ecr.us-east-1.amazonaws.com/coeus-sandbox:2001.0040 \
           core_image=730096353738.dkr.ecr.us-east-1.amazonaws.com/core:2001.0040 \
           portal_image=730096353738.dkr.ecr.us-east-1.amazonaws.com/portal:2001.0040 \
@@ -95,30 +94,30 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
           
       # Example 4) Same as scenario 1, except overriding default availability zones of us-east-1a and us-east-1b
       sh main.sh create-stack \
-      	availability_zone1=us-west-1a \
-      	availability_zone2=us-west-1b \
+          availability_zone1=us-west-1a \
+          availability_zone2=us-west-1b \
           kc_image=730096353738.dkr.ecr.us-east-1.amazonaws.com/coeus-sandbox:2001.0040 \
           core_image=730096353738.dkr.ecr.us-east-1.amazonaws.com/core:2001.0040 \
           portal_image=730096353738.dkr.ecr.us-east-1.amazonaws.com/portal:2001.0040 \
           pdf_image=730096353738.dkr.ecr.us-east-1.amazonaws.com/research-pdf:2002.0003
-   
+          
       # Example 5) Comprehensive parameters, avoiding all defaults.
-      	landscape=ci \
+          landscape=ci \
           stack_name=my-kuali-with-ALB \
           global_tag=my-kuali-alb-ec2 \
           ec2_instance_type=m5.large \
-      	availability_zone1=us-west-1a \
-      	availability_zone2=us-west-1b \
-      	bucket_path=s3://my_bucket/some/directory \
-      	certificate_arn=arn:aws:iam::730096353738:server-certificate/kuali-ec2-alb-cert \
+          availability_zone1=us-west-1a \
+          availability_zone2=us-west-1b \
+          bucket_path=s3://my_bucket/some/directory \
+          certificate_arn=arn:aws:iam::730096353738:server-certificate/kuali-ec2-alb-cert \
           kc_image=730096353738.dkr.ecr.us-east-1.amazonaws.com/coeus-sandbox:2001.0040 \
           core_image=730096353738.dkr.ecr.us-east-1.amazonaws.com/core:2001.0040 \
           portal_image=730096353738.dkr.ecr.us-east-1.amazonaws.com/portal:2001.0040 \
-          pdf_image=730096353738.dkr.ecr.us-east-1.amazonaws.com/research-pdf:2002.0003
+          pdf_image=730096353738.dkr.ecr.us-east-1.amazonaws.com/research-pdf:2002.0003       
       ```
       
-   2. **"Injected":**
-   This scenario assumes that you are "injecting" the load balancer and ec2 instances into subnets that have already been set aside for them, perhaps by network administrators, cloud team, etc.
+   2. **"Injected"**:
+      This scenario assumes that you are "injecting" the load balancer and ec2 instances into subnets that have already been set aside for them, perhaps by network administrators, cloud team, etc.
    
       ```
       # Example 1): Create the infrastructure in a specific VPC using existing subnets:
@@ -128,12 +127,9 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
           private_subnet1=subnet-07e780de2660d726d \
           private_subnet2=subnet-0a14cd05d7e822b8a \
           public_subnet1=subnet-01b7baf7ed9fe8b4e \
-          public_subnet2=subnet-0ed0feaf1187d9ed9 \
+          public_subnet2=subnet-0ed0feaf1187d9ed9
+      ```
 
-      ```
-   
-      ```
-   
 4. **Browse the app:**
    Once the stack has been created, you can visit the Course Schedule Planner app in your browser.
 

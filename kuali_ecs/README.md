@@ -1,12 +1,33 @@
-## AWS ECS Cloud formation stack for Kuali-Research
+## Kuali Research Elastic Container Services (ECS) Cluster Creation
 
-### <u>Overview</u>
+Use these template to build an AWS cloud formation stack where all Kuali research modules are hosted through elastic container services (ECS).
 
-These json files comprise the templates for building an AWS cloud formation stack where all Kuali research modules are hosted through elastic container services (ECS).
-For a starting point, all that is needed is:
+![layount](./diagram1.png)
 
-1. An AWS account
-2. An administrative IAM user with sufficient privileges to access these templates through the S3 service and create the resources called for in each one.
+### Features:
+
+1. **Auto Scaling:**
+   Much of the direct control of docker containers and the EC2 instances they run on is ceded to the elastic container service which creates and destroys these items dynamically in response to changes in load determined from logged metrics of resource consumption on the application host servers.
+2. **Application Load Balancer:**
+   [Reverse proxying](https://medium.com/commutatus/how-to-configure-a-reverse-proxy-in-aws-b164de91176e) is accomplished through the [application load balancer](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/introduction.html) that takes in all traffic bound for the ec2 instances over ports 80 (http) and 443 (https) and routes according to path-based rules to the appropriate ports on the EC2 hosts . The corresponding docker container is published on the appropriate ec2 host port. This removes the need for an [apache ](https://httpd.apache.org/docs/2.4/howto/reverse_proxy.html) or [nginx reverse proxy](https://docs.nginx.com/nginx/admin-guide/web-server/reverse-proxy/) running inside the ec2 host.
+3. **Cloudformation:**
+   Create, update, or delete the cloud formation stack for the infrastructure and app deployment.
+   Resources created are the ECS cluster (with VPC, instances, roles, security groups, log groups, & application load balancer) as shown below.
+
+### Prerequisites:
+
+- **AWS CLI:** 
+  If you don't have the AWS commandline iterface, you can download it here:
+  [https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html)
+- **IAM User/Role:**
+  The cli needs to be configured with the [access key ID and secret access key](https://docs.aws.amazon.com/general/latest/gr/aws-sec-cred-types.html#access-keys-and-secret-access-keys) of an (your) IAM user. This user needs to have a role with policies sufficient to cover all of the actions to be carried out (ECR access, stack creation, certificate upload, ssm sessions, etc.). Preferably your user will have an admin role and all policies will be covered.
+- **Bash:**
+  You will need the ability to run bash scripts. Natively, you can do this on a mac, though there may be some minor syntax/version differences that will prevent the scripts from working correctly. In that event, or if running windows, you can either:
+  - Clone the repo on a linux box (ie: an ec2 instance), install the other prerequisites and run there.
+  - Download [gitbash](https://git-scm.com/downloads)
+- **Docker Images:**
+  Before creating the cloudformation stack, it is assumed that each Docker image (kc, core, dashboard, pdf) has already been built and uploaded to their respective repositories in the elastic container registry of you account.
+      
 
 ### <u>Steps</u>
 
