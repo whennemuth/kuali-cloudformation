@@ -320,3 +320,16 @@ askYesNo() {
   done
   if [ $answer = "y" ] ; then true; else false; fi
 }
+
+subnetsProvided() {
+  local subnets=0
+  [ -n "$PRIVATE_SUBNET1" ] && ((subnets++))
+  [ -n "$PUBLIC_SUBNET2" ] && ((subnets++))
+  [ -n "$PRIVATE_SUBNET1" ] && ((subnets++))
+  [ -n "$PUBLIC_SUBNET2" ] && ((subnets++))
+  if [ $subnets -gt 0 ] && [ $subnets -lt 4 ] ; then
+    echo "INVALID PARAMETERS! Either all 4 subnets need to be provided, or none (invokes creation of subnets by default)"
+    exit 1
+  fi
+  [ $subnets -eq 4 ]
+}

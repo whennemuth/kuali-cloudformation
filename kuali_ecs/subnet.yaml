@@ -12,6 +12,13 @@ Description: >
 
 Parameters:
 
+  GlobalTag:
+    Type: String
+    Description: >
+      A common value that all resources in this template will have prefixed to
+      their name and attached as a tag to establish a bundling through naming convention.
+    Default: kuali-ecs
+
   Landscape:
     Type: String
     AllowedValues:
@@ -23,16 +30,10 @@ Parameters:
     ConstraintDescription: >
       This parameter is restricted to the following values: sb, ci, qa, stg, prod
     Default: sb
-  vpcid:
+
+  VpcId:
     Type: AWS::EC2::VPC::Id
     Description: The id of the vpc this is a subnet of.
-  GlobalPrefix:
-    Type: String
-    Description: >
-      A common value that all resources in this template will prefix to
-      their name to establish a bundling through naming convention. If a nested stack,
-      this will most likely be the name of the top-most stack.
-    Default: ECS-test
 
 
 Mappings:
@@ -96,11 +97,11 @@ Resources:
         - pubCIDR1
       MapPublicIpOnLaunch: true
       VpcId:
-        !Ref vpcid
+        !Ref VpcId
       Tags:
       - Key: Name
         Value:
-         !Sub "${GlobalPrefix}-public-subnet1-${Landscape}"
+         !Sub ${GlobalTag}-${Landscape}-public-subnet-1
       - Key: Created-by
         Value: Warren Hennemuth
 
@@ -125,11 +126,11 @@ Resources:
         - priCIDR1
       MapPublicIpOnLaunch: false
       VpcId:
-        !Ref vpcid
+        !Ref VpcId
       Tags:
       - Key: Name
         Value:
-          !Sub "${GlobalPrefix}-private-subnet1-${Landscape}"
+          !Sub ${GlobalTag}-${Landscape}-private-subnet-1
       - Key: Created-by
         Value: Warren Hennemuth
 
@@ -154,11 +155,11 @@ Resources:
         - pubCIDR2
       MapPublicIpOnLaunch: true
       VpcId:
-        !Ref vpcid
+        !Ref VpcId
       Tags:
       - Key: Name
         Value:
-          !Sub "${GlobalPrefix}-public-subnet2-${Landscape}"
+          !Sub ${GlobalTag}-${Landscape}-public-subnet-2
       - Key: Created-by
         Value: Warren Hennemuth
 
@@ -183,11 +184,11 @@ Resources:
         - priCIDR2
       MapPublicIpOnLaunch: false
       VpcId:
-        !Ref vpcid
+        !Ref VpcId
       Tags:
       - Key: Name
         Value:
-          !Sub "${GlobalPrefix}-private-subnet2-${Landscape}"
+          !Sub ${GlobalTag}-${Landscape}-private-subnet-2
       - Key: Created-by
         Value: Warren Hennemuth
 

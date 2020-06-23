@@ -39,12 +39,12 @@ Use these template to perform the median form of deployment for kuali research, 
 Included is a bash helper script (main.sh) that serves to simplify many of the command line steps that would otherwise include a fair amount of manual entry. 
 
 2. **Clone this repository**
-   
+  
 ```
    git clone https://github.com/bu-ist/kuali-cloudformation.git
    cd kuali-cloudformation/kuali_ec2
-   ```
-   
+```
+
 2. **Certificate creation:**
    The load balancer will be configured to redirect all http traffic to https. This means that it needs to have an ssl certificate to decrypt all incoming traffic on port 443 before forwarding on to the application hosts. You may already have a certificate uploaded to IAM or ACM.
    However, you can also call this script to create and upload a self-signed certificate for you:
@@ -83,6 +83,7 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
           portal_image=730096353738.dkr.ecr.us-east-1.amazonaws.com/portal:2001.0040 \
           pdf_image=730096353738.dkr.ecr.us-east-1.amazonaws.com/research-pdf:2002.0003
           
+      ```
    # Example 3): Same as scenario 1, except create/use a custom S3 bucket, and overrides default ec2 instance size
       sh main.sh create-stack \
       	bucket_path=s3://my_bucket/some/directory \
@@ -100,7 +101,7 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
           core_image=730096353738.dkr.ecr.us-east-1.amazonaws.com/core:2001.0040 \
           portal_image=730096353738.dkr.ecr.us-east-1.amazonaws.com/portal:2001.0040 \
           pdf_image=730096353738.dkr.ecr.us-east-1.amazonaws.com/research-pdf:2002.0003
-      
+   
       # Example 5) Comprehensive parameters, avoiding all defaults.
       	landscape=ci \
           stack_name=my-kuali-with-ALB \
@@ -117,8 +118,8 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
       ```
       
    2. **"Injected":**
-      This scenario assumes that you are "injecting" the load balancer and ec2 instances into subnets that have already been set aside for them, perhaps by network administrators, cloud team, etc.
-
+   This scenario assumes that you are "injecting" the load balancer and ec2 instances into subnets that have already been set aside for them, perhaps by network administrators, cloud team, etc.
+   
       ```
       # Example 1): Create the infrastructure in a specific VPC using existing subnets:
       sh main.sh \
@@ -128,8 +129,11 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
           private_subnet2=subnet-0a14cd05d7e822b8a \
           public_subnet1=subnet-01b7baf7ed9fe8b4e \
           public_subnet2=subnet-0ed0feaf1187d9ed9 \
-      ```
 
+      ```
+   
+      ```
+   
 4. **Browse the app:**
    Once the stack has been created, you can visit the Course Schedule Planner app in your browser.
 

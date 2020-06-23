@@ -147,5 +147,133 @@ Upgrades/releases to kuali modules as well as scheduled system maintenance or up
 
    NOTES:
 
-   - NONE
+   - ```
+     # NOTES:
+     #   EC2:
+     #     image_name: amzn-ami-2018.03.a-amazon-ecs-optimized
+     #     os: Amazon Linux
+     #     ecs_runtime_version: Docker version 17.12.1-ce
+     #     ecs_agent_version: 1.18.0
+     #    
+     #     The mappings included in this template are for the latest ECS optimized AMIs as of June 2018.
+     #     They only include those AMIs for US regions. To query for the latest AMI per region, use the 
+     #     following command in the aws CLI:
+     #       aws ssm get-parameters --names /aws/service/ecs/optimized-ami/amazon-linux/recommended/image_id --region [REGION]
+     #     where REGION is us-east-1, us-west-2, etc.
+     
+     #   AUTO-SCALING:
+     #     In this template we define EC2 auto-scaling as distinct from application auto-scaling employed 
+     #     by the service(s) for ECS. The difference is that EC2 auto-scaling uses properties like MinSize,
+     #     MaxSize, DesiredCapacity, etc. to refer to the number of EC2 instances need to run in order to 
+     #     meet targets for metric thresholds. ECS auto-scaling uses these properties to refer to docker 
+     #     containers (tasks) and how many of them should be running across the ECS cluster (can span one 
+     #     or more EC2 instances) to meet targets for metric thresholds. Combined, these two auto-scaling 
+     #     types define the overall auto-scaling strategy. This implies a certain amount of orchestration
+     #     to make sure the two types collaborate with each other instead of clash.
+     #     SEE: https://www.reddit.com/r/aws/comments/5swd80/ec2_vs_ecs_autoscaling_question/
+     
+     #   AUTO_SCALING-GROUP:
+     #     The ECSContainerInstanceAutoScalingGroup resource will not go into a CREATE_COMPLETE state until 
+     #     enough EC2 instances are heard back from to say they are running. The userdata defined to run on 
+     #     EC2 startup will call the cfn-signal function that comes packaged in the aws optimized ami to signal 
+     #     that the instance is running. We are requiring that a minimum of 1 such signals are received by 
+     #     setting the ECSContainerInstanceAutoScalingGroup.CreationPolicy.ResourceSignal.Count property. 
+     #     Currently the signal is sent upon startup, but it could be made contingent on further conditions 
+     #     written into the EC2 userdata, like a test that a task(s) is running must also succeed (you could 
+     #     send more than one signal and up CreationPolicy.ResourceSignal.Count property correspondingly).
+      
+     #   AMI_MAPPINGS:
+     #     TODO: In order to not have to maintain and ami mapping (see below), delegate ami lookup to a lambda 
+     #     function:
+     #       https://github.com/awsdocs/aws-cloudformation-user-guide/blob/master/doc_source/walkthrough-custom-resources-lambda-lookup-amiids.md
+     
+     #   CONTENT_FROM_S3_BUCKET:
+     #     Typically to place files where they need to go, you would declare their content inline using 
+     #     AWS::CloudFormation::Init.file.[filename].content. However, you can use the 
+     #     AWS::CloudFormation::Init.file.[filename].source instead and specify a file in an S3 bucket. Example here:
+     #       https://aws.amazon.com/blogs/devops/authenticated-file-downloads-with-cloudformation/
+     
+     #   USERDATA_VS_CFN-INIT:
+     #     UserData is run only once upon creation of the ec2 instance and will call cfn-init for the first time as 
+     #     one of its last commands. Instead of being procedural like UserData, cfn-init is state-based in that it 
+     #     comprises only commands that deposit/replace files, set environment variables, update packages, etc. But 
+     #     the biggest difference is that cfn-init can be run again after the initial ec2 creation either by modifying
+     #     anything in the AWS::CloudFormation::Init resource of the cfn stack template and performing a stack update, 
+     #     or shelling into the ec2 instance and running:
+     # 
+     #       /opt/aws/bin/cfn-init \
+     #         -v --region ${AWS::Region} \
+     #         --stack ${AWS::StackName} \
+     #         --resource YourResourceName \
+     #         --configsets ...
+     #
+     #     If you make a modification to UserData cloudformation will REPLACE that EC2 instance during a stack update.
+     #     If you make a modification to AWS::CloudFormation::Init, cloudformation will UPDATE that ec2 instance in place 
+     #     during a stack update. So, rule of thumb: Don't put anything in UserData that you want to be "refreshable" 
+     #     with a stack update
+     
+     
+         Metadata:
+           # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-init.html
+           # 1) If your template calls the cfn-init script, the script looks for resource
+           #    metadata rooted in the AWS::CloudFormation::Init metadata key.
+           # 2) The cfn-hup helper is a daemon that detects changes in resource metadata
+           #    and runs user-specified actions when a change is detected.
+           #    This allows you to make configuration updates on your running Amazon
+           #    EC2 instances through the UpdateStack API action
+           # 3) The user actions that the cfn-hup daemon calls periodically are defined
+           #    in the hooks.conf configuration file.
+           #    To support composition of several applications deploying change notification
+           #    hooks, cfn-hup supports a directory named hooks.d that 
+           #    is located in the hooks configuration directory. You can place one
+           #    or more additional hooks configuration files in the hooks.d directory.
+           #    The additional hooks files must use the same layout as the hooks.conf file.
+           # 4) services.sysvinit.servicename.files: A list of files. If cfn-init
+           #    changes one directly via the files block, this service will be restarted.'
+           # 5) The cfn-init helper script processes these configuration sections
+           #    in the following order: packages, groups, users, sources, files, commands, '
+           #    and then services. If you require a different order, separate your
+           #    sections into different config keys, and then use a configset that 
+           #    specifies the order in which the config keys should be processed.
+           
+           
+     # NOTES:
+     # AWS::ECS::Service:
+     #   https://docs.aws.amazon.com/AmazonECS/latest/developerguide/service-load-balancing.html
+     #   Currently, Amazon ECS services can only specify a single load balancer or target group. 
+     #   If your service requires access to multiple load balanced ports (for example, port 80 and 
+     #   port 443 for an HTTP/HTTPS service), you must use a Classic Load Balancer with multiple 
+     #   listeners. To use an Application Load Balancer, separate the single HTTP/HTTPS service 
+     #   into two services, where each handles requests for different ports. Then, each service 
+     #   could use a different  target group behind a single Application Load Balancer.
+     #
+     # AWS::ElasticLoadBalancingV2::ListenerRule:
+     #   https://forums.aws.amazon.com/thread.jspa?threadID=286855&start=25&tstart=0
+     #   Recently released HTTPS redirection
+     #
+     # AWS::ECS::TaskDefinition:
+     #   The docker containers launched for the core TaskDefinition use HostPorts that are dynamically 
+     #   mapped. This allows for more granular auto-scaling where more than one instance of the same 
+     #   container can be run on the same ContainerHost (ec2 instance).
+     #   To do this, the ContainerDefinitions must:
+     #     - Use the bridge NetworkMode setting
+     #     - Use PortMappings where the HostPort is left blank (or set to 0)
+     #   https://docs.aws.amazon.com/AmazonECS/latest/APIReference/API_PortMapping.html
+     #   https://docs.aws.amazon.com/AmazonECS/latest/APIReference/API_RegisterTaskDefinition.html
+     #   https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_definition_parameters.html#network_mode
+     #
+     # AWS::ApplicationAutoScaling::ScalingPolicy:
+     #   Not using a target tracking scaling policy because aws creates and manages the cloudformation 
+     #   alarms, which prevents the opportunity for you to create your own custom metric based alarms and 
+     #   have more control in general.
+     #
+     # AWS::CloudWatch::Alarm:
+     #   How cloudwatch metrics are aggregated across the cluster/service in order to properly trigger 
+     #   scaleout/scalein alarms: 
+     #     https://docs.aws.amazon.com/AmazonECS/latest/developerguide/cloudwatch-metrics.html
+     #     https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/AlarmThatSendsEmail.html
+           
+     ```
+
+     
 

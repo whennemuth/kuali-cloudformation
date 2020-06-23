@@ -1,15 +1,15 @@
 #!/bin/bash
 
 declare -A defaults=(
-  [STACK_NAME]='kuali-ec2-alb'
+  [STACK_NAME]='kuali-ecs'
   [LANDSCAPE]='sb'
-  [BUCKET_PATH]='s3://kuali-research-ec2-setup/cloudformation/kuali_ec2_alb'
+  [BUCKET_PATH]='s3://kuali-research-ec2-setup/cloudformation/kuali_ecs'
   [TEMPLATE_PATH]='.'
   [KC_IMAGE]='730096353738.dkr.ecr.us-east-1.amazonaws.com/coeus-sandbox:2001.0040'
   [CORE_IMAGE]='730096353738.dkr.ecr.us-east-1.amazonaws.com/core:2001.0040'
   [PORTAL_IMAGE]='730096353738.dkr.ecr.us-east-1.amazonaws.com/portal:2001.0040'
   [PDF_IMAGE]='730096353738.dkr.ecr.us-east-1.amazonaws.com/research-pdf:2002.0003'
-  [GLOBAL_TAG]='kuali-ec2-alb'
+  [GLOBAL_TAG]='kuali-ecs'
   # ----- Most of the following are defaulted in the yaml file itself:
   # [EC2_INSTANCE_TYPE]='m4.medium'
   # [AVAILABILITY_ZONE1]='us-east-1a'
@@ -25,11 +25,12 @@ declare -A defaults=(
   # [LOGICAL_RESOURCE_ID]='???'
   # [ENABLE_NEWRELIC_APM]='false'
   # [ENABLE_NEWRELIC_INFRASTRUCTURE]='false'
+  # [CLUSTER_SIZE]='2'
 )
 
 run() {
-  if [ "$(pwd | grep -oP '[^/]+$')" != "kuali_ec2_alb" ] ; then
-    echo "You must run this script from the kuali_ec2_alb subdirectory!."
+  if [ "$(pwd | grep -oP '[^/]+$')" != "kuali_ecs" ] ; then
+    echo "You must run this script from the kuali_ecs subdirectory!."
     exit 1
   fi
 
@@ -81,12 +82,12 @@ EOF
     fi
     echo "Using certificate: $certArn"
 
-    # Get the default vpc id if needed, and get the id of the internet gateway in the vpc
-    [ -z "$VPC_ID" ] && VPC_ID=$(getDefaultVpcId)
-    echo "Using default vpc: $VPC_ID"
-    [ -z "$INTERNET_GATEWAY_ID" ] && INTERNET_GATEWAY_ID=$(getInternetGatewayId $VPC_ID)
-    [ -z "$INTERNET_GATEWAY_ID" ] && echo "ERROR! Cannot determine internet gateway id" && exit 1
-    echo "Using default vpc internet gateway: $INTERNET_GATEWAY_ID"
+    # # Get the default vpc id if needed, and get the id of the internet gateway in the vpc
+    # [ -z "$VPC_ID" ] && VPC_ID=$(getDefaultVpcId)
+    # echo "Using default vpc: $VPC_ID"
+    # [ -z "$INTERNET_GATEWAY_ID" ] && INTERNET_GATEWAY_ID=$(getInternetGatewayId $VPC_ID)
+    # [ -z "$INTERNET_GATEWAY_ID" ] && echo "ERROR! Cannot determine internet gateway id" && exit 1
+    # echo "Using default vpc internet gateway: $INTERNET_GATEWAY_ID"
 
     # Upload the yaml files to s3
     uploadStack silent
@@ -101,24 +102,25 @@ EOF
       --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \\
       --parameters '[
 EOF
-    addParameter $cmdfile 'VpcId' $VPC_ID
-    addParameter $cmdfile 'InternetGatewayId' $INTERNET_GATEWAY_ID
+    # addParameter $cmdfile 'VpcId' $VPC_ID
+    # addParameter $cmdfile 'InternetGatewayId' $INTERNET_GATEWAY_ID
     addParameter $cmdfile 'CertificateArn' $certArn
     addParameter $cmdfile 'KcImage' $KC_IMAGE
     addParameter $cmdfile 'CoreImage' $CORE_IMAGE
     addParameter $cmdfile 'PortalImage' $PORTAL_IMAGE
     addParameter $cmdfile 'PdfImage' $PDF_IMAGE
 
-    # Chose which yaml starting point to use for the stack creation/update.
-    if subnetsProvided ; then
-      sed -i 's/YAML/main-existing-subnets.yaml/' $cmdfile
-      addParameter $cmdfile 'PublicSubnet1' $PUBLIC_SUBNET1
-      addParameter $cmdfile 'PrivateSubnet1' $PRIVATE_SUBNET1
-      addParameter $cmdfile 'PublicSubnet2' $PUBLIC_SUBNET2
-      addParameter $cmdfile 'PrivateSubnet2' $PRIVATE_SUBNET2
-    else
-      sed -i 's/YAML/main-create-subnets.yaml/' $cmdfile
-    fi
+    # # Chose which yaml starting point to use for the stack creation/update.
+    # if subnetsProvided ; then
+    #   sed -i 's/YAML/main-existing-subnets.yaml/' $cmdfile
+    #   addParameter $cmdfile 'PublicSubnet1' $PUBLIC_SUBNET1
+    #   addParameter $cmdfile 'PrivateSubnet1' $PRIVATE_SUBNET1
+    #   addParameter $cmdfile 'PublicSubnet2' $PUBLIC_SUBNET2
+    #   addParameter $cmdfile 'PrivateSubnet2' $PRIVATE_SUBNET2
+    # else
+    #   sed -i 's/YAML/main-create-subnets.yaml/' $cmdfile
+    # fi
+    sed -i 's/YAML/main.yaml/' $cmdfile
 
     # Add on any other parameters that were explicitly provided
     [ -n "$LANDSCAPE" ] && \
@@ -137,6 +139,8 @@ EOF
       addParameter $cmdfile 'AvailabilityZone1' $AVAILABILITY_ZONE1
     [ -n "$AVAILABILITY_ZONE2" ] && \
       addParameter $cmdfile 'AvailabilityZone2' $AVAILABILITY_ZONE2
+    [ -n "$CLUSTER_SIZE" ] && \
+      addParameter $cmdfile 'ClusterSize' $CLUSTER_SIZE
 
     echo "      ]'" >> $cmdfile
 

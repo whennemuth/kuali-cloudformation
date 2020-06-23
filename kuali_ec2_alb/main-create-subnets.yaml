@@ -23,7 +23,7 @@ Metadata:
       - Label: 
           default: "Amazon EC2 Configuration"
         Parameters: 
-          - EC2InstanceType
+          - InstanceType
           - BucketName
       - Label: 
           default: "Kuali Services / Docker images"
@@ -157,7 +157,7 @@ Resources:
       Tags:
       - Key: Name
         Value:
-         !Sub "${GlobalTag}-public-subnet1"
+         !Sub "${GlobalTag}-${Landscape}-public-subnet1"
 
   PrivateSubnet1:
     Type: AWS::EC2::Subnet
@@ -173,7 +173,7 @@ Resources:
       Tags:
       - Key: Name
         Value:
-          !Sub "${GlobalTag}-private-subnet1"
+          !Sub "${GlobalTag}-${Landscape}-private-subnet1"
 
   PublicSubnet2:
     Type: AWS::EC2::Subnet
@@ -189,7 +189,7 @@ Resources:
       Tags:
       - Key: Name
         Value:
-          !Sub "${GlobalTag}-public-subnet2"
+          !Sub "${GlobalTag}-${Landscape}-public-subnet2"
 
   PrivateSubnet2:
     Type: AWS::EC2::Subnet
@@ -205,7 +205,7 @@ Resources:
       Tags:
       - Key: Name
         Value:
-          !Sub "${GlobalTag}-private-subnet2"
+          !Sub "${GlobalTag}-${Landscape}-private-subnet2"
 
   Main:
     Type: AWS::CloudFormation::Stack

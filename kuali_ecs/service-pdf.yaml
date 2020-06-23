@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: 2010-09-09
 
-Description: This service contains one task that runs the kuali cor-main application
+Description: This service contains one task that runs the kuali pdf application
 
 Parameters:
 
@@ -55,38 +55,37 @@ Parameters:
     Type: String
     Description: The ECS service auto scaling role ARN.
 
-  CoreImage:
+  PdfImage:
     Type: String
-    Description: 'Example: 730096353738.dkr.ecr.us-east-1.amazonaws.com/core:2001.0040'
+    Description: 'Example: 730096353738.dkr.ecr.us-east-1.amazonaws.com/research-pdf:2002.0003'
 
     
 Resources:
 
   TaskDefinition:
     Type: AWS::ECS::TaskDefinition
-    Description: Definition for the Task that runs the cor-main application for kuali-research
+    Description: Definition for the Task that runs the pdf application for kuali-research
     Properties:
-      Family: core
+      Family: pdf
       NetworkMode: bridge
       RequiresCompatibilities:
       - EC2
       Volumes:
-      - Name: Core-Config-Bind-Mount
+      - Name: Pdf-Config-Bind-Mount
         Host:
-          SourcePath: /opt/kuali/s3/core
+          SourcePath: /opt/kuali/s3/pdf/export.sh
       ContainerDefinitions:
-      - Name: kuali-core
+      - Name: kuali-pdf
         User: root
         Essential: true
-        Image: !Ref CoreImage
-        MemoryReservation: 200
+        Image: !Ref PdfImage
+        MemoryReservation: 800
         Environment:
         - Name: LANDSCAPE
-          Value:
-            !Ref Landscape
+          Value: !Ref Landscape
         PortMappings:
         - HostPort: 0
-          ContainerPort: 3000
+          ContainerPort: 3006
         LogConfiguration:
           LogDriver: awslogs
           Options:
@@ -98,16 +97,23 @@ Resources:
               !Ref AWS::StackName
             # awslogs-create-group: false
         MountPoints:
-        - SourceVolume: Core-Config-Bind-Mount
-          ContainerPath: /var/core-config
-          ReadOnly: false
+        - SourceVolume: Pdf-Config-Bind-Mount
+          ContainerPath: /app/res/pdf/export.sh
+          ReadOnly: true
+        EntryPoint:
+          - /bin/bash
+          - -c
+          - |
+            cd /app/res/pdf
+            source export.sh
+            java -jar res-pdf.jar
 
   LogGroup:
     Type: AWS::Logs::LogGroup
     DeletionPolicy: Delete
     Properties:
       LogGroupName:
-        !Sub ${GlobalTag}-${Landscape}-core
+        !Sub ${GlobalTag}-${Landscape}-pdf
       RetentionInDays: 90
 
   Service:
@@ -125,8 +131,8 @@ Resources:
       HealthCheckGracePeriodSeconds: 60
       # How this service traces back to its load balancer: Service > TargetGroup > ListenerRule > Listener > ALB
       LoadBalancers:
-      - ContainerName: kuali-core
-        ContainerPort: 3000
+      - ContainerName: kuali-pdf
+        ContainerPort: 3006
         TargetGroupArn:
           !Ref TargetGroup
 
@@ -134,14 +140,14 @@ Resources:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
       Name:
-        !Sub ${GlobalTag}-${Landscape}-TG-core
+        !Sub ${GlobalTag}-${Landscape}-TG-pdf
       VpcId: !Ref VpcId
-      Port: 3000
+      Port: 3006
       Protocol: HTTP
       Matcher:
         HttpCode: 200-299
       HealthCheckIntervalSeconds: 40
-      HealthCheckPath: "/cor/main/#/apps/"
+      HealthCheckPath: "/pdf/health"
       HealthCheckProtocol: HTTP
       HealthCheckTimeoutSeconds: 30
       HealthyThresholdCount: 2
@@ -159,27 +165,31 @@ Resources:
       Tags:
       - Key: Name
         Value: 
-          !Sub ${GlobalTag}-${Landscape}-TG-core
+          !Sub ${GlobalTag}-${Landscape}-TG-pdf
 
   ListenerRule:
     Type: AWS::ElasticLoadBalancingV2::ListenerRule
     Properties:
       ListenerArn:
         !Ref Listener
-      Priority: 7
+      Priority: 6
       Actions:
       - TargetGroupArn:
           !Ref TargetGroup
         Type: forward
-      Conditions: 
-      # Since core is last in priority, it handles all remaining paths, as it should.
-      - { Field: path-pattern, Values: [ "/*" ] }
+      Conditions:
+      - Field: path-pattern
+        Values:
+        - "/pdf"
+        - "/pdf/*"
+        - "/api/v1/pdf"
+        - "/api/v1/pdf/*"
 
   ServiceRole:
     Type: AWS::IAM::Role
     Properties:
       RoleName:
-       !Sub ${GlobalTag}-${Landscape}-service-core
+       !Sub ${GlobalTag}-${Landscape}-service-pdf
       AssumeRolePolicyDocument:
         Statement:
         - Effect: Allow
@@ -190,7 +200,7 @@ Resources:
           - sts:AssumeRole
       Policies:
       - PolicyName:
-         !Sub ${GlobalTag}-${Landscape}-host-policy-core
+         !Sub ${GlobalTag}-${Landscape}-host-policy-pdf
         PolicyDocument:
           Statement:
           - Effect: Allow
@@ -224,7 +234,7 @@ Resources:
     Type: AWS::ApplicationAutoScaling::ScalingPolicy
     Properties:
       PolicyName:
-       !Sub ${GlobalTag}-${Landscape}-target-scale-in-policy-core
+       !Sub ${GlobalTag}-${Landscape}-target-scale-in-policy-pdf
       PolicyType: StepScaling
       ScalingTargetId:
         !Ref ServiceScalableTarget
@@ -240,7 +250,7 @@ Resources:
     Type: AWS::ApplicationAutoScaling::ScalingPolicy
     Properties:
       PolicyName:
-       !Sub ${GlobalTag}-${Landscape}-target-scale-out-policy-core
+       !Sub ${GlobalTag}-${Landscape}-target-scale-out-policy-pdf
       PolicyType: StepScaling
       ScalingTargetId:
         !Ref ServiceScalableTarget
@@ -256,7 +266,7 @@ Resources:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmName:
-       !Sub ${GlobalTag}-${Landscape}-scale-out-alarm-core
+       !Sub ${GlobalTag}-${Landscape}-scale-out-alarm-pdf
       AlarmDescription: Alarm triggered when average cpu utilization across the service exceeds 85%
       Namespace: AWS/ECS
       MetricName: CPUUtilization
@@ -279,7 +289,7 @@ Resources:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmName:
-       !Sub ${GlobalTag}-${Landscape}-scale-in-alarm-core
+       !Sub ${GlobalTag}-${Landscape}-scale-in-alarm-pdf
       AlarmDescription: Alarm triggered when average cpu utilization across the service falls below 85%
       Namespace: AWS/ECS
       MetricName: CPUUtilization
@@ -297,5 +307,5 @@ Resources:
       Threshold: 70
       AlarmActions:
       - !Ref ServiceScaleInPolicy
-
+      
 Outputs: {}

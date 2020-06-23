@@ -23,8 +23,8 @@ Parameters:
     - qa
     - stg
     - prod
-    ConstraintDescription: 'This parameter is restricted to the following values:
-      sb, ci, qa, stg, prod'
+    ConstraintDescription: >
+      This parameter is restricted to the following values: sb, ci, qa, stg, prod
     Default: sb
 
   VpcId:
@@ -84,6 +84,7 @@ Resources:
       - Key: Name
         Value: 
           !Sub "${GlobalTag}-${Landscape}-dashboard-TG"
+
   ListenerRuleDashboardCommonTasks:
     Type: AWS::ElasticLoadBalancingV2::ListenerRule
     DependsOn: TargetGroupDashboard
@@ -105,6 +106,7 @@ Resources:
           StatusCode: HTTP_301
       Conditions:
       - { Field: path-pattern, Values: [ "/dashboard", "/dashboard/" ] }
+
   ListenerRuleDashboard:
     Type: AWS::ElasticLoadBalancingV2::ListenerRule
     DependsOn: TargetGroupDashboard
@@ -161,7 +163,8 @@ Resources:
       Tags:
       - Key: Name
         Value: 
-          !Sub "${GlobalTag}-${Landscape}-kc-TG"          
+          !Sub "${GlobalTag}-${Landscape}-kc-TG" 
+
   ListenerRuleKcDefault:
     Type: AWS::ElasticLoadBalancingV2::ListenerRule
     DependsOn: TargetGroupKC
@@ -183,6 +186,7 @@ Resources:
           StatusCode: HTTP_301
       Conditions:
       - { Field: path-pattern, Values: [ "/" ] }
+
   ListenerRuleKC:
     Type: AWS::ElasticLoadBalancingV2::ListenerRule
     DependsOn: TargetGroupKC
@@ -236,6 +240,7 @@ Resources:
       - Key: Name
         Value: 
           !Sub "${GlobalTag}-${Landscape}-pdf-TG"
+
   ListenerRulePdf:
     Type: AWS::ElasticLoadBalancingV2::ListenerRule
     DependsOn: TargetGroupPdf
@@ -294,6 +299,7 @@ Resources:
       - Key: Name
         Value: 
           !Sub "${GlobalTag}-${Landscape}-core-TG"
+          
   ListenerRuleCore:
     Type: AWS::ElasticLoadBalancingV2::ListenerRule
     DependsOn: TargetGroupCore

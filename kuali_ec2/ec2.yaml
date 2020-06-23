@@ -120,8 +120,8 @@ Resources:
       TemplateURL: 
         !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/lambda/ami-lookup.yaml
       Parameters:
-        GlobalPrefix:
-          ECS-test
+        GlobalTag:
+          kuali-ec2
 
   AMIInfo:
     Type: Custom::AMIInfo

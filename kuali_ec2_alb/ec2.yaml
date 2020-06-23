@@ -27,7 +27,7 @@ Parameters:
       This parameter is restricted to the following values: sb, ci, qa, stg, prod
     Default: sb
 
-  EC2InstanceType:
+  InstanceType:
     Type: String
     Description: What type of EC2 instance should be used for hosting?
     AllowedValues:
@@ -88,7 +88,7 @@ Parameters:
     Default: "false"
 
   SecurityGroupId:
-    Type: String
+    Type: AWS::EC2::SecurityGroup::Id
     Description: Id that identifies the security group for the ec2 instance
 
   LoadBalancerUrl:
@@ -132,9 +132,13 @@ Resources:
   EC2Role:
     Type: AWS::IAM::Role
     Condition: CreateRole
+    Description: >
+      This IAM Role is attached to all of the ECS hosts. Add other IAM
+      policy statements here to allow access from your ECS hosts to other AWS services.
+      This role will be used by ALL containers running on the ECS host.
     Properties:
       Path: "/"
-      RoleName: !Sub ${GlobalTag}-role
+      RoleName: !Sub ${GlobalTag}-${Landscape}-ec2-role
       AssumeRolePolicyDocument:
         Statement:
         - Action:
@@ -171,7 +175,7 @@ Resources:
     Type: AWS::IAM::InstanceProfile
     Condition: CreateProfile
     Properties:
-      InstanceProfileName: !Sub ${GlobalTag}-profile
+      InstanceProfileName: !Sub ${GlobalTag}-${Landscape}-profile
       Path: "/"
       Roles:
       - !If [CreateRole, !Ref EC2Role, !Ref InstanceRole]
@@ -181,7 +185,7 @@ Resources:
     Condition: CreateLogsGroup
     DeletionPolicy: Delete
     Properties:
-      LogGroupName: !Sub ${GlobalTag}-LG
+      LogGroupName: !Sub ${GlobalTag}-${Landscape}-LG
       RetentionInDays: 30
 
   Utils:
@@ -191,8 +195,8 @@ Resources:
       TemplateURL: 
         !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/lambda/ami-lookup.yaml
       Parameters:
-        GlobalPrefix:
-          !Sub ${GlobalTag}-ami-lookup
+        GlobalTag:
+          !Sub ${GlobalTag}-${Landscape}-ami-lookup
 
   AMIInfo:
     Type: Custom::AMIInfo
@@ -205,7 +209,7 @@ Resources:
       Region:
         Ref: AWS::Region
       InstanceType:
-        !Ref EC2InstanceType   
+        !Ref InstanceType   
       
   EC2Instance:
     Type: AWS::EC2::Instance
@@ -213,15 +217,14 @@ Resources:
     Properties:
       Tags:
       - Key: Name
-        Value: !If [CreateProfile, !Sub "${GlobalTag}-ec2-1", !Sub "${GlobalTag}-ec2-2"]
+        Value: !If [CreateProfile, !Sub "${GlobalTag}-${Landscape}-ec2-1", !Sub "${GlobalTag}-${Landscape}-ec2-2"]
       ImageId: 
         # ami-00129b193dc81bc31
         !GetAtt AMIInfo.Id
       InstanceType:
-        !Ref EC2InstanceType
+        !Ref InstanceType
       SecurityGroupIds:
       - !Ref SecurityGroupId
-      # KeyName: EC2KeypairName
       SubnetId: 
         !Ref PrivateSubnet
       IamInstanceProfile:
@@ -236,7 +239,6 @@ Resources:
         "Fn::Base64": !Sub |
           #!/bin/bash
           yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
-
           yum install -y aws-cfn-bootstrap
           yum install -y git
           # Add perl and zip libraries needed to unpack and run custom metric monitoring for cloudwatch.
@@ -270,7 +272,7 @@ Resources:
             --stack ${AWS::StackName} \
             --resource EC2Instance
             
-          # Now that all initialization is done signal its success
+          # Now that all initialization is done signal success
           /opt/aws/bin/cfn-signal \
             -e $? \
             --region ${AWS::Region} \
@@ -285,6 +287,7 @@ Resources:
             !If [CreateProfile, !Ref EC2Role, !Ref InstanceRole]
           buckets:
           - !Ref BucketName
+
       AWS::CloudFormation::Init:
         configSets:
           AllConfigs:
@@ -464,20 +467,20 @@ Resources:
                 
                 [/var/log/dmesg]
                 file = /var/log/dmesg
-                log_group_name = ${GlobalTag}-LG
+                log_group_name = ${GlobalTag}-${Landscape}-LG
                 log_stream_name = /var/log/dmesg
                 
                 [/var/log/messages]
                 file = /var/log/messages
-                log_group_name = ${GlobalTag}-LG
+                log_group_name = ${GlobalTag}-${Landscape}-LG
                 log_stream_name = /var/log/messages
                 datetime_format = %b %d %H:%M:%S
                 
-                # [/var/log/docker]
-                # file = /var/log/docker
-                # log_group_name = ${GlobalTag}-LG
-                # log_stream_name = /var/log/docker
-                # datetime_format = %Y-%m-%dT%H:%M:%S.%f
+                [/var/log/docker]
+                file = /var/log/docker
+                log_group_name = ${GlobalTag}-${Landscape}-LG
+                log_stream_name = /var/log/docker
+                datetime_format = %Y-%m-%dT%H:%M:%S.%f
             /opt/kuali/scripts/s3.download.configs.sh:
               content: !Sub |
                 #!/bin/bash                
@@ -549,7 +552,7 @@ Resources:
                 # Perform a replacement in all environment.variables.s3 files of existing application host entries with this ec2 public host name.
                 for f in $(env | grep 'ENV_FILE_FROM_S3') ; do
                   envfile="$(echo $f | cut -d'=' -f2)"
-                  # Replace the standard kuali-research-[env].bu.edu references with the public host name of this ec2 instance.
+                  # Replace the standard kuali-research-[env].bu.edu references with the dns address of this instances load balancer.
                   sed -i -r "s/kuali-research.*.bu.edu/$DOMAIN_NAME/g" "$envfile"
                   # Create the export.sh file
                   createExportFile "$envfile"
@@ -606,7 +609,7 @@ Resources:
                       driver: awslogs
                       options:
                         awslogs-region: ${AWS::Region}
-                        awslogs-group: ${GlobalTag}-LG
+                        awslogs-group: ${GlobalTag}-${Landscape}-LG
                         awslogs-stream: core-docker-container
                         awslogs-create-group: "true"
                     ports:
@@ -632,7 +635,7 @@ Resources:
                       driver: awslogs
                       options:
                         awslogs-region: ${AWS::Region}
-                        awslogs-group: ${GlobalTag}-LG
+                        awslogs-group: ${GlobalTag}-${Landscape}-LG
                         awslogs-stream: kc-docker-container
                         awslogs-create-group: "true"
                     ports:
@@ -649,7 +652,7 @@ Resources:
                       driver: awslogs
                       options:
                         awslogs-region: ${AWS::Region}
-                        awslogs-group: ${GlobalTag}-LG
+                        awslogs-group: ${GlobalTag}-${Landscape}-LG
                         awslogs-stream: portal-docker-container
                         awslogs-create-group: "true"
                     ports:
@@ -664,7 +667,7 @@ Resources:
                       driver: awslogs
                       options:
                         awslogs-region: ${AWS::Region}
-                        awslogs-group: ${GlobalTag}-LG
+                        awslogs-group: ${GlobalTag}-${Landscape}-LG
                         awslogs-stream: pdf-docker-container
                         awslogs-create-group: "true"
                     ports:
@@ -743,6 +746,7 @@ Resources:
               command: crontab -u root /opt/kuali/scripts/crontab
               env:
                 LANDSCAPE: !Sub "${Landscape}"
+
 
 Outputs:
 

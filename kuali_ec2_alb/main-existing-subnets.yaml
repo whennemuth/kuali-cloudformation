@@ -26,7 +26,7 @@ Metadata:
       - Label: 
           default: "Amazon EC2 Configuration"
         Parameters: 
-          - EC2InstanceType
+          - InstanceType
           - BucketName
       - Label: 
           default: "Kuali Services / Docker images"
@@ -73,19 +73,19 @@ Parameters:
     
   PublicSubnet1:
     Type: AWS::EC2::Subnet::Id
-    Description: The public subnets for the load balancer.
+    Description: The first public subnet for the load balancer.
 
   PrivateSubnet1:
     Type: AWS::EC2::Subnet::Id
-    Description: The private subnets for the ec2 instances.
+    Description: The first private subnet for one of the ec2 instances.
 
   PublicSubnet2:
     Type: AWS::EC2::Subnet::Id
-    Description: The public subnets for the load balancer.
+    Description: The second public subnet for the load balancer.
 
   PrivateSubnet2:
     Type: AWS::EC2::Subnet::Id
-    Description: The private subnets for the ec2 instances.
+    Description: The second private subnet for one of the ec2 instances.
         
   InstanceType:
     Type: String
@@ -160,6 +160,8 @@ Resources:
       Parameters:
         GlobalTag:
           !Ref GlobalTag
+        Landscape:
+          !Ref Landscape
         VpcId:
           !Ref VpcId
         InternetGatewayId:
@@ -184,6 +186,8 @@ Resources:
       Parameters:
         GlobalTag:
           !Ref GlobalTag
+        Landscape:
+          !Ref Landscape
         VpcId:
           !Ref VpcId
     
@@ -196,10 +200,10 @@ Resources:
       Parameters:
         GlobalTag:
           !Ref GlobalTag
+        Landscape:
+          !Ref Landscape
         VpcId:
           !Ref VpcId
-        # Subnets:
-        #   Value: !Join [",", [!Ref PublicSubnet1, !Ref PublicSubnet2]]
         Subnet1: 
           !Ref PublicSubnet1
         Subnet2: 
@@ -224,10 +228,10 @@ Resources:
           !GetAtt SecurityGroup.Outputs.EC2SecurityGroupId
         LoadBalancerUrl:
           !GetAtt ALB.Outputs.LoadBalancerUrl
+        InstanceType:
+          !Ref InstanceType
         PrivateSubnet:
           !Ref PrivateSubnet1
-        EC2InstanceType:
-          !Ref InstanceType
         BucketName:
           !Ref BucketName
         CoreImage:
@@ -260,7 +264,7 @@ Resources:
           !GetAtt ALB.Outputs.LoadBalancerUrl
         PrivateSubnet:
           !Ref PrivateSubnet2
-        EC2InstanceType:
+        InstanceType:
           !Ref InstanceType
         BucketName:
           !Ref BucketName

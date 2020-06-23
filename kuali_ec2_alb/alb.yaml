@@ -25,8 +25,8 @@ Parameters:
     - qa
     - stg
     - prod
-    ConstraintDescription: 'This parameter is restricted to the following values:
-      sb, ci, qa, stg, prod'
+    ConstraintDescription: >
+      This parameter is restricted to the following values: sb, ci, qa, stg, prod
     Default: sb
 
   VpcId:
@@ -68,7 +68,7 @@ Resources:
       # - Key: access_logs.s3.enabled
       #   Value: "true"
       # - Key: access_logs.s3.bucket
-      #   Value: !Sub ${GlobalTag}-alb-logs
+      #   Value: !Sub ${GlobalTag}-${Landscape}-alb-logs
       # - Key: access_logs.s3.prefix
       #   Value: alb
       Tags:

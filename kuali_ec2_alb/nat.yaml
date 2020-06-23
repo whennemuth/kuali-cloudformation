@@ -14,6 +14,19 @@ Parameters:
       their name and attached as a tag to establish a bundling through naming convention.
     Default: kuali-ec2-alb
 
+  Landscape:
+    Description: Specify which landscape to build for.
+    Type: String
+    AllowedValues:
+    - sb
+    - ci
+    - qa
+    - stg
+    - prod
+    ConstraintDescription: >
+      This parameter is restricted to the following values: sb, ci, qa, stg, prod
+    Default: sb
+
   VpcId:
     Type: AWS::EC2::VPC::Id
     Description: The id of the vpc to deploy to.
@@ -53,7 +66,7 @@ Resources:
         !Ref PublicSubnet
       Tags:
       - Key: Name
-        Value: !Sub ${GlobalTag}-nat-gateway-${NatIndex}
+        Value: !Sub ${GlobalTag}-${Landscape}-nat-gateway-${NatIndex}
 
   PublicSubnetRouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
@@ -74,7 +87,7 @@ Resources:
         !Ref VpcId
       Tags:
       - Key: Name
-        Value: !Sub ${GlobalTag}-private-route-table-${NatIndex}
+        Value: !Sub ${GlobalTag}-${Landscape}-private-route-table-${NatIndex}
 
   DefaultPrivateRoute:
     Type: AWS::EC2::Route

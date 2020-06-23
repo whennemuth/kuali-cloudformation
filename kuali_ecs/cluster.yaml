@@ -1,74 +1,18 @@
-# NOTES:
-#   EC2:
-#     image_name: amzn-ami-2018.03.a-amazon-ecs-optimized
-#     os: Amazon Linux
-#     ecs_runtime_version: Docker version 17.12.1-ce
-#     ecs_agent_version: 1.18.0
-#    
-#     The mappings included in this template are for the latest ECS optimized AMIs as of June 2018.
-#     They only include those AMIs for US regions. To query for the latest AMI per region, use the 
-#     following command in the aws CLI:
-#       aws ssm get-parameters --names /aws/service/ecs/optimized-ami/amazon-linux/recommended/image_id --region [REGION]
-#     where REGION is us-east-1, us-west-2, etc.
-
-#   AUTO-SCALING:
-#     In this template we define EC2 auto-scaling as distinct from application auto-scaling employed 
-#     by the service(s) for ECS. The difference is that EC2 auto-scaling uses properties like MinSize,
-#     MaxSize, DesiredCapacity, etc. to refer to the number of EC2 instances need to run in order to 
-#     meet targets for metric thresholds. ECS auto-scaling uses these properties to refer to docker 
-#     containers (tasks) and how many of them should be running across the ECS cluster (can span one 
-#     or more EC2 instances) to meet targets for metric thresholds. Combined, these two auto-scaling 
-#     types define the overall auto-scaling strategy. This implies a certain amount of orchestration
-#     to make sure the two types collaborate with each other instead of clash.
-#     SEE: https://www.reddit.com/r/aws/comments/5swd80/ec2_vs_ecs_autoscaling_question/
-
-#   AUTO_SCALING-GROUP:
-#     The ECSContainerInstanceAutoScalingGroup resource will not go into a CREATE_COMPLETE state until 
-#     enough EC2 instances are heard back from to say they are running. The userdata defined to run on 
-#     EC2 startup will call the cfn-signal function that comes packaged in the aws optimized ami to signal 
-#     that the instance is running. We are requiring that a minimum of 1 such signals are received by 
-#     setting the ECSContainerInstanceAutoScalingGroup.CreationPolicy.ResourceSignal.Count property. 
-#     Currently the signal is sent upon startup, but it could be made contingent on further conditions 
-#     written into the EC2 userdata, like a test that a task(s) is running must also succeed (you could 
-#     send more than one signal and up CreationPolicy.ResourceSignal.Count property correspondingly).
- 
-#   AMI_MAPPINGS:
-#     TODO: In order to not have to maintain and ami mapping (see below), delegate ami lookup to a lambda 
-#     function:
-#       https://github.com/awsdocs/aws-cloudformation-user-guide/blob/master/doc_source/walkthrough-custom-resources-lambda-lookup-amiids.md
-
-#   CONTENT_FROM_S3_BUCKET:
-#     Typically to place files where they need to go, you would declare their content inline using 
-#     AWS::CloudFormation::Init.file.[filename].content. However, you can use the 
-#     AWS::CloudFormation::Init.file.[filename].source instead and specify a file in an S3 bucket. Example here:
-#       https://aws.amazon.com/blogs/devops/authenticated-file-downloads-with-cloudformation/
-
-#   USERDATA_VS_CFN-INIT:
-#     UserData is run only once upon creation of the ec2 instance and will call cfn-init for the first time as 
-#     one of its last commands. Instead of being procedural like UserData, cfn-init is state-based in that it 
-#     comprises only commands that deposit/replace files, set environment variables, update packages, etc. But 
-#     the biggest difference is that cfn-init can be run again after the initial ec2 creation either by modifying
-#     anything in the AWS::CloudFormation::Init resource of the cfn stack template and performing a stack update, 
-#     or shelling into the ec2 instance and running:
-# 
-#       /opt/aws/bin/cfn-init \
-#         -v --region ${AWS::Region} \
-#         --stack ${AWS::StackName} \
-#         --resource YourResourceName \
-#         --configsets ...
-#
-#     If you make a modification to UserData cloudformation will REPLACE that EC2 instance during a stack update.
-#     If you make a modification to AWS::CloudFormation::Init, cloudformation will UPDATE that ec2 instance in place 
-#     during a stack update. So, rule of thumb: Don't put anything in UserData that you want to be "refreshable" 
-#     with a stack update
-
 AWSTemplateFormatVersion: 2010-09-09
+
 
 Description: >
   Deploys an ECS cluster to the specified VPC and subnets using an auto scaling group.
 
 
 Parameters:
+
+  GlobalTag:
+    Type: String
+    Description: >
+      A common value that all resources in this template will have prefixed to
+      their name and attached as a tag to establish a bundling through naming convention.
+    Default: kuali-ec2-alb
 
   Landscape:
     Description: Specify which landscape to build into the VPC
@@ -83,7 +27,7 @@ Parameters:
       This parameter is restricted to the following values: sb, ci, qa, stg, prod
     Default: sb
 
-  EC2InstanceType:
+  InstanceType:
     Type: String
     Description: What type of EC2 instance should be used for hosting?
     AllowedValues:
@@ -102,37 +46,6 @@ Parameters:
     ConstraintDescription: Specified instance type is not within selection list.
     Default: m4.large
 
-  GlobalPrefix:
-    Type: String
-    Description: > 
-      A common value that all resources in this template will prefix to
-      their name to establish a bundling through naming convention. If a nested stack,
-      this will most likely be the name of the top-most stack.
-    Default: ECS-test
-
-  vpcid:
-    Type: AWS::EC2::VPC::Id
-    Description: The id of the vpc this is a subnet of.
-
-  ClusterSize:
-    Type: Number
-    Description: How many EC2 instances are to be initially deployed as ECS hosts?
-    AllowedValues: [ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 ]
-    ConstraintDescription: Cluster size is limited between 1 and 10 instances.
-    Default: 2
-
-  LoadBalancerUrl:
-    Type: String
-    Description: The public DNS address at which apps can be reached
-
-  Subnets:
-    Type: List<AWS::EC2::Subnet::Id>
-    Description: The subnets this cluster should span.
-
-  SecurityGroup:
-    Type: AWS::EC2::SecurityGroup::Id
-    Description: The security group to use for ECS cluster hosts.
-
   BucketName:
     Type: String
     Description: The S3 bucket where our config files, keys, etc. are stored
@@ -148,31 +61,174 @@ Parameters:
     ConstraintDescription: Enter "true" or "false" only.
     Default: "false"
 
+  SecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: The security group to use for ECS cluster hosts.
+
+  LoadBalancerUrl:
+    Type: String
+    Description: The public DNS address at which apps can be reached
+
+  Subnets:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: The subnets this cluster should span.
+
+  InstanceProfile:
+    Type: String
+    Description: If the instance profile already exists, provide its name here.
+    Default: "create"
+  
+  InstanceRole:
+    Type: String
+    Description: If the role for the instance profile already exists, provide it here.
+    Default: "create"
+
+  AMIInfoFunctionArn:
+    Type: String
+    Description: If the ami lookup lambda function already exists, provide its arn here.
+    Default: "create"
+
+  ClusterSize:
+    Type: Number
+    Description: How many EC2 instances are to be initially deployed as ECS hosts?
+    AllowedValues: [ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 ]
+    ConstraintDescription: Cluster size is limited between 1 and 10 instances.
+    Default: 2
+
+  # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/retrieve-ecs-optimized_AMI.html
+  ECSAMI:
+    Description: AMI ID
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id
+
+    
+Conditions: 
+  CreateProfile: !Equals [ !Ref InstanceProfile, "create" ]
+  CreateRole: !Equals [ !Ref InstanceRole, "create" ]
+  CreateAMIInfoFunction: !Equals [ !Ref AMIInfoFunctionArn, "create" ]
+
 
 Resources:
 
-  Utils:
-    Type: AWS::CloudFormation::Stack
+  EC2Role:
+    Type: AWS::IAM::Role
+    Condition: CreateRole
+    Description: >
+      This IAM Role is attached to all of the EC2 hosts. Add other IAM
+      policy statements here to allow access from your EC2 hosts to other AWS services.
+      This role will be used by ALL containers running on the EC2 host.
     Properties:
-      TemplateURL: 
-        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/lambda/ami-lookup.yaml
-      Parameters:
-        GlobalPrefix:
-          !Ref GlobalPrefix
+      Path: "/"
+      RoleName: !Sub ${GlobalTag}-${Landscape}-ec2-role
+      AssumeRolePolicyDocument:
+        Statement:
+        - Action:
+          - sts:AssumeRole
+          Effect: Allow
+          Principal:
+            Service:
+            - ec2.amazonaws.com
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      - arn:aws:iam::aws:policy/AWSCloudFormationReadOnlyAccess
+      - arn:aws:iam::aws:policy/ElasticLoadBalancingReadOnly
+      - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
+      - arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
+      - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+      - arn:aws:iam::aws:policy/CloudWatchFullAccess
+      Policies:
+      - PolicyName:
+          !Sub ${GlobalTag}-${Landscape}-ecs-service-policy
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Resource: "*"
+            Action:
+            - ecs:CreateCluster
+            - ecs:DeregisterContainerInstance
+            - ecs:DiscoverPollEndpoint
+            - ecs:Poll
+            - ecs:RegisterContainerInstance
+            - ecs:StartTelemetrySession
+            - ecs:Submit*
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            - ecr:BatchCheckLayerAvailability
+            - ecr:BatchGetImage
+            - ecr:GetDownloadUrlForLayer
+            - ecr:GetAuthorizationToken
+            - ec2messages:AcknowledgeMessage
+            - ec2messages:DeleteMessage
+            - ec2messages:FailMessage
+            - ec2messages:GetEndpoint
+            - ec2messages:GetMessages
+            - ec2messages:SendReply
+            - cloudwatch:PutMetricData
+            - cloudwatch:GetMetricStatistics
+            - cloudwatch:ListMetrics
+            - ec2:DescribeInstanceStatus
+            - ec2:DescribeTags
+            - ds:CreateComputer
+            - ds:DescribeDirectories
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:DescribeLogGroups
+            - logs:DescribeLogStreams
+            - logs:PutLogEvents
+            - s3:PutObject
+            - s3:GetObject
+            - s3:AbortMultipartUpload
+            - s3:ListMultipartUploadParts
+            - s3:ListBucket
+            - s3:ListBucketMultipartUploads
 
-  AMIInfo:
-    Type: Custom::AMIInfo
+  EC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Condition: CreateProfile
     Properties:
-      ServiceToken:
-        !GetAtt Utils.Outputs.AMIInfoFunctionArn
-      Region:
-        Ref: AWS::Region    
+      InstanceProfileName: !Sub ${GlobalTag}-${Landscape}-profile
+      Path: "/"
+      Roles:
+      - !If [CreateRole, !Ref EC2Role, !Ref InstanceRole]
+
+  ECSContainerInstanceAutoScalingRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: "/"
+      RoleName:
+        !Sub ${GlobalTag}-${Landscape}-ECS-Autoscale-Role
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Action:
+          - sts:AssumeRole
+          Effect: Allow
+          Principal:
+            Service:
+            - application-autoscaling.amazonaws.com
+
+      Policies:
+      - PolicyName:
+          !Sub ${GlobalTag}-${Landscape}-ecs-autoscale-service-policy
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Resource: "*"
+            Action:
+            - application-autoscaling:*
+            - cloudwatch:DescribeAlarms
+            - cloudwatch:PutMetricAlarm
+            - ecs:DescribeServices
+            - ecs:UpdateService
 
   ECSCluster:
     Type: AWS::ECS::Cluster
     Properties:
       ClusterName:
-        !Join [ "-", [ !Ref GlobalPrefix, "ecs-cluster" ] ]
+        !Sub ${GlobalTag}-${Landscape}-cluster
+      Tags:
+      - Key: Name
+        Value: !Sub ${GlobalTag}-${Landscape}-cluster
 
   ECSContainerInstanceAutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
@@ -183,14 +239,16 @@ Resources:
         !Ref Subnets
       LaunchConfigurationName:
         !Ref ECSLaunchConfiguration
-      MaxSize: 10
-      MinSize: 1
+      # Don't go beyond 3 instances (If we do, it's probable that there's a scaling/metrics flaw, and not truly a legitimate, sustained increase in load)
+      MaxSize: 3
+      # Don't allow instance count to go below 2, otherwise you lose high availability.
+      MinSize: 2
       DesiredCapacity:
         !Ref ClusterSize
       Tags:
       - Key: Name
         Value:
-          !Sub "${GlobalPrefix}-${Landscape}-${AWS::StackName}-auto-scaling-group"
+          !Sub ${GlobalTag}-${Landscape}-auto-scaling-group
         PropagateAtLaunch: true
     CreationPolicy:
       ResourceSignal:
@@ -216,8 +274,8 @@ Resources:
         !Ref ECSContainerInstanceAutoScalingGroup
       AdjustmentType: ChangeInCapacity
       Cooldown: 60
-      EstimatedInstanceWarmup: 30
-      MetricAggregationType: Average
+      # EstimatedInstanceWarmup: 30
+      # MetricAggregationType: Average
       ScalingAdjustment: 1
       PolicyType: SimpleScaling
 
@@ -228,7 +286,7 @@ Resources:
         !Ref ECSContainerInstanceAutoScalingGroup
       AdjustmentType: ChangeInCapacity
       Cooldown: 60
-      MetricAggregationType: Average
+      # MetricAggregationType: Average
       ScalingAdjustment: -1
 
   ECSContainerInstanceScaleUpAlarm:
@@ -247,14 +305,14 @@ Resources:
     Type: AWS::AutoScaling::LaunchConfiguration
     Properties:
       ImageId:
-        !GetAtt AMIInfo.Id
-        # !FindInMap [ RegionMap, !Ref 'AWS::Region', AMI ]
-      EC2InstanceType:
-        !Ref EC2InstanceType
+        # !GetAtt AMIInfo.Id
+        !Ref ECSAMI
+      InstanceType:
+        !Ref InstanceType
       SecurityGroups:
-      - !Ref SecurityGroup
+      - !Ref SecurityGroupId
       IamInstanceProfile:
-        !Ref ECSInstanceProfile
+        !If [CreateProfile, !Ref EC2InstanceProfile, !Ref InstanceProfile]
       BlockDeviceMappings:
         - DeviceName: /dev/xvda
           Ebs:
@@ -273,23 +331,6 @@ Resources:
           yum install -y sysstat
           yum install -y jq
           
-          # Modify the sudoers file so that anyone in the wheel group can be a sudoer
-          chmod u+w /etc/sudoers && \
-          echo -e "%wheel\tALL=(ALL)\tNOPASSWD: ALL" >> /etc/sudoers && \
-          chmod u-w /etc/sudoers && \
-          
-          # NOTE: Creating users here and not in Metadata.AWS::CloudFormation::Init.config.users due to restrictions: 
-          # Users are created as non-interactive system users with a shell of /sbin/nologin. This is by design and cannot be modified.
-          for user in wrh mukadder dhaywood mkousheh ; do
-              adduser -m $user && \
-              usermod -aG root $user && \
-              usermod -aG docker $user && \
-              usermod -aG wheel $user && \
-              mkdir /home/$user/.ssh && \
-              chmod 700 /home/$user/.ssh && \
-              chown -R $user:$user /home/$user
-          done
-          
           # Install required packages for scripts that will monitor and upload custom metrics to cloudwatch.
           curl https://aws-cloudwatch.s3.amazonaws.com/downloads/CloudWatchMonitoringScripts-1.2.2.zip \
             -o /var/lib/ && CloudWatchMonitoringScripts-1.2.2.zip
@@ -304,40 +345,19 @@ Resources:
               --stack ${AWS::StackName} \
               --resource ECSLaunchConfiguration
           
-          # Now that all initialization is done signal success
+          # Now that all initialization is done signal the result of the cfn-init attempt
           /opt/aws/bin/cfn-signal \
               -e $? \
               --region ${AWS::Region} \
               --stack ${AWS::StackName} \
               --resource ECSContainerInstanceAutoScalingGroup
+
     Metadata:
-      # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-init.html
-      # 1) If your template calls the cfn-init script, the script looks for resource
-      #    metadata rooted in the AWS::CloudFormation::Init metadata key.
-      # 2) The cfn-hup helper is a daemon that detects changes in resource metadata
-      #    and runs user-specified actions when a change is detected.
-      #    This allows you to make configuration updates on your running Amazon
-      #    EC2 instances through the UpdateStack API action
-      # 3) The user actions that the cfn-hup daemon calls periodically are defined
-      #    in the hooks.conf configuration file.
-      #    To support composition of several applications deploying change notification
-      #    hooks, cfn-hup supports a directory named hooks.d that 
-      #    is located in the hooks configuration directory. You can place one
-      #    or more additional hooks configuration files in the hooks.d directory.
-      #    The additional hooks files must use the same layout as the hooks.conf file.
-      # 4) services.sysvinit.servicename.files: A list of files. If cfn-init
-      #    changes one directly via the files block, this service will be restarted.'
-      # 5) The cfn-init helper script processes these configuration sections
-      #    in the following order: packages, groups, users, sources, files, commands, '
-      #    and then services. If you require a different order, separate your
-      #    sections into different config keys, and then use a configset that 
-      #    specifies the order in which the config keys should be processed.
-      
       AWS::CloudFormation::Authentication:
         S3AccessCreds:
           type: S3
           roleName:
-            !Ref ECSRole
+            !If [CreateProfile, !Ref EC2Role, !Ref InstanceRole]
           buckets:
           - !Ref BucketName
 
@@ -352,7 +372,7 @@ Resources:
           - ConfigSet: cmd01
           - ConfigSet: cmd02
           - ConfigSet: cmd03
-          - ConfigSet: cmd04
+          # - ConfigSet: cmd04
           cmd01:
           - 01_get_configs_from_s3
           cmd02:
@@ -361,36 +381,11 @@ Resources:
           - 03_add_instance_to_cluster
           cmd04:
           - 04_start_cron_for_custom_cloudwatch_metrics
-
         getFiles:
           packages:
             yum:
               awslogs: []
           files:
-            /home/wrh/.ssh/authorized_keys:
-              mode: "000600"
-              owner: wrh
-              group: wrh
-              source:
-                !Sub https://s3.amazonaws.com/${BucketName}/ecs/ssh-keys/rsa-key-wrh.pub
-            /home/mkousheh/.ssh/authorized_keys:
-              mode: "000600"
-              owner: mkousheh
-              group: mkousheh
-              source:
-                !Sub https://s3.amazonaws.com/${BucketName}/ecs/ssh-keys/rsa-key-mkousheh.pub
-            /home/mukadder/.ssh/authorized_keys:
-              mode: "000600"
-              owner: mukadder
-              group: mukadder
-              source:
-                !Sub https://s3.amazonaws.com/${BucketName}/ecs/ssh-keys/rsa-key-mukadder.pub
-            /home/dhaywood/.ssh/authorized_keys:
-              mode: "000600"
-              owner: dhaywood
-              group: dhaywood
-              source:
-                !Sub https://s3.amazonaws.com/${BucketName}/ecs/ssh-keys/rsa-key-dhaywood.pub
             /opt/kuali/README.txt:
               content: !Sub |
                 This directory contains the "environment" for each app to run
@@ -400,12 +395,6 @@ Resources:
               mode: "000775"
               owner: root
               group: root
-            /root/.ssh/git_rsa_key:
-              mode: "000600"
-              owner: root
-              group: root
-              source:
-                !Sub https://s3.amazonaws.com/${BucketName}/bu_github_id_docker_rsa
             /opt/kuali/scripts/crontab:
               content: |
                 SHELL=/bin/bash
@@ -537,7 +526,7 @@ Resources:
                 [cfn-auto-reloader-hook]
                 triggers=post.update
                 path=Resources.ECSLaunchConfiguration.Metadata.AWS::CloudFormation::Init
-                action=/opt/aws/bin/cfn-init -v --region ${AWS::Region} --stack ${AWS::StackName} --resource ECSLaunchConfiguration 
+                action=/opt/aws/bin/cfn-init -v --region ${AWS::Region} --stack ${AWS::StackName} --resource ECSLaunchConfiguration --configsets AllConfigs 
             /etc/awslogs/awscli.conf:
               content: !Sub |
                 [plugins]
@@ -551,36 +540,36 @@ Resources:
                 
                 [/var/log/dmesg]
                 file = /var/log/dmesg
-                log_group_name = ${GlobalPrefix}-${Landscape}-${ECSCluster}
+                log_group_name = ${GlobalTag}-${Landscape}
                 log_stream_name = /var/log/dmesg
                 
                 [/var/log/messages]
                 file = /var/log/messages
-                log_group_name = ${GlobalPrefix}-${Landscape}-${ECSCluster}
+                log_group_name = ${GlobalTag}-${Landscape}
                 log_stream_name = /var/log/messages
                 datetime_format = %b %d %H:%M:%S
                 
                 [/var/log/docker]
                 file = /var/log/docker
-                log_group_name = ${GlobalPrefix}-${Landscape}-${ECSCluster}-docker
+                log_group_name = ${GlobalTag}-${Landscape}
                 log_stream_name = /var/log/docker
                 datetime_format = %Y-%m-%dT%H:%M:%S.%f
                 
                 [/var/log/ecs/ecs-init.log]
-                file = /var/log/ecs/ecs-init.log.*
-                log_group_name = ${GlobalPrefix}-${Landscape}-${ECSCluster}-ecs
+                file = /var/log/ecs/ecs-init.log
+                log_group_name = ${GlobalTag}-${Landscape}
                 log_stream_name = /var/log/ecs/ecs-init.log
                 datetime_format = %Y-%m-%dT%H:%M:%SZ
                 
                 [/var/log/ecs/ecs-agent.log]
-                file = /var/log/ecs/ecs-agent.log.*
-                log_group_name = ${GlobalPrefix}-${Landscape}-${ECSCluster}-ecs
+                file = /var/log/ecs/ecs-agent.log
+                log_group_name = ${GlobalTag}-${Landscape}
                 log_stream_name = /var/log/ecs/ecs-agent.log
                 datetime_format = %Y-%m-%dT%H:%M:%SZ
                 
                 [/var/log/ecs/audit.log]
-                file = /var/log/ecs/audit.log.*
-                log_group_name = ${GlobalPrefix}-${Landscape}-${ECSCluster}-ecs
+                file = /var/log/ecs/audit.log
+                log_group_name = ${GlobalTag}-${Landscape}
                 log_stream_name = /var/log/ecs/audit.log
                 datetime_format = %Y-%m-%dT%H:%M:%SZ
             /opt/kuali/scripts/s3.download.configs.sh:
@@ -645,10 +634,17 @@ Resources:
                   fi
                 }
 
+                export EC2_HOST="${LOADBALANCER_URL}"
+                DOMAIN_NAME=$(echo ${EC2_HOST} | cut -d'/' -f3) # Strips off the "http://" portion and trailing "/"
+
+                # Perform a replacement in kc-config.xml of application.host parameter value with this ec2 public host name.
+                sed -i "s/APPLICATION_HOST/$DOMAIN_NAME/" /opt/kuali/s3/kuali/main/config/kc-config.xml
+
+                # Perform a replacement in all environment.variables.s3 files of existing application host entries with this ec2 public host name.
                 for f in $(env | grep 'ENV_FILE_FROM_S3') ; do
                   envfile="$(echo $f | cut -d'=' -f2)"
                   # Replace the standard kuali-research-[env].bu.edu references with the dns address of this instances load balancer.
-                  sed -i -r "s/kuali-research.*.bu.edu/$LOAD_BALANCER_URL/g" "$envfile"
+                  sed -i -r "s/kuali-research.*.bu.edu/$DOMAIN_NAME/g" "$envfile"
                   # Create the export.sh file
                   createExportFile "$envfile"
                 done
@@ -672,7 +668,7 @@ Resources:
                 ENV_FILE_FROM_S3_CORE: /opt/kuali/s3/core/environment.variables.s3
                 ENV_FILE_FROM_S3_PORTAL: /opt/kuali/s3/portal/environment.variables.s3
                 ENV_FILE_FROM_S3_PDF: /opt/kuali/s3/pdf/environment.variables.s3
-                LOAD_BALANCER_URL: "${LoadBalancerUrl}"
+                LOADBALANCER_URL: !Sub "${LoadBalancerUrl}"
               command: bash process.env.file.sh
         03_add_instance_to_cluster:
           commands:
@@ -701,115 +697,20 @@ Resources:
               command: crontab -u root /opt/kuali/scripts/crontab
               env:
                 LANDSCAPE: !Sub "${Landscape}"
-  ECSRole:
-    Type: AWS::IAM::Role
-    Description: >
-      This IAM Role is attached to all of the ECS hosts. Add other IAM
-      policy statements here to allow access from your ECS hosts to other AWS services.
-      This role will be used by ALL containers running on the ECS host.
-    Properties:
-      Path: "/"
-      RoleName:
-        !Sub "${GlobalPrefix}-ECSRole-${Landscape}-${AWS::Region}"
-      AssumeRolePolicyDocument:
-        Statement:
-        - Action:
-          - sts:AssumeRole
-          Effect: Allow
-          Principal:
-            Service:
-            - ec2.amazonaws.com
-      ManagedPolicyArns:
-      - arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM
-      Policies:
-      - PolicyName:
-          !Sub "${GlobalPrefix}-${Landscape}-ecs-service-policy"
-        PolicyDocument:
-          Statement:
-          - Effect: Allow
-            Resource: "*"
-            Action:
-            - ecs:CreateCluster
-            - ecs:DeregisterContainerInstance
-            - ecs:DiscoverPollEndpoint
-            - ecs:Poll
-            - ecs:RegisterContainerInstance
-            - ecs:StartTelemetrySession
-            - ecs:Submit*
-            - logs:CreateLogStream
-            - logs:PutLogEvents
-            - ecr:BatchCheckLayerAvailability
-            - ecr:BatchGetImage
-            - ecr:GetDownloadUrlForLayer
-            - ecr:GetAuthorizationToken
-            - ec2messages:AcknowledgeMessage
-            - ec2messages:DeleteMessage
-            - ec2messages:FailMessage
-            - ec2messages:GetEndpoint
-            - ec2messages:GetMessages
-            - ec2messages:SendReply
-            - cloudwatch:PutMetricData
-            - cloudwatch:GetMetricStatistics
-            - cloudwatch:ListMetrics
-            - ec2:DescribeInstanceStatus
-            - ec2:DescribeTags
-            - ds:CreateComputer
-            - ds:DescribeDirectories
-            - logs:CreateLogGroup
-            - logs:CreateLogStream
-            - logs:DescribeLogGroups
-            - logs:DescribeLogStreams
-            - logs:PutLogEvents
-            - s3:PutObject
-            - s3:GetObject
-            - s3:AbortMultipartUpload
-            - s3:ListMultipartUploadParts
-            - s3:ListBucket
-            - s3:ListBucketMultipartUploads
-  ECSInstanceProfile:
-    Type: AWS::IAM::InstanceProfile
-    Properties:
-      InstanceProfileName: Profile-for-ECS-Role
-      Path: "/"
-      Roles:
-      - !Ref ECSRole
-  ECSContainerInstanceAutoScalingRole:
-    Type: AWS::IAM::Role
-    Properties:
-      Path: "/"
-      RoleName:
-        !Sub "${GlobalPrefix}-ECS-Autoscale-Role-${Landscape}-${AWS::Region}"
-      AssumeRolePolicyDocument:
-        Version: 2012-10-17
-        Statement:
-        - Action:
-          - sts:AssumeRole
-          Effect: Allow
-          Principal:
-            Service:
-            - application-autoscaling.amazonaws.com
-      Policies:
-      - PolicyName:
-          !Sub "${GlobalPrefix}-${Landscape}-ecs-autoscale-service-policy"
-        PolicyDocument:
-          Statement:
-          - Effect: Allow
-            Resource: "*"
-            Action:
-            - application-autoscaling:*
-            - cloudwatch:DescribeAlarms
-            - cloudwatch:PutMetricAlarm
-            - ecs:DescribeServices
-            - ecs:UpdateService
+
+
 Outputs:
+
   Cluster:
     Description: A reference to the ECS cluster
     Value:
       !Ref ECSCluster
-  ECSContainerInstanceAutoScalingRole:
+
+  ECSContainerInstanceAutoScalingRoleARN:
     Description: A reference to ECS service auto scaling role
     Value:
       !GetAtt ECSContainerInstanceAutoScalingRole.Arn
+      
   ECSContainerInstanceAutoScalingGroupName:
     Description: A reference to ECS AutoScaling Group Name
     Value:

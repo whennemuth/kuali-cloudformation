@@ -46,7 +46,7 @@ Parameters:
     - c5.large
     - c5.xlarge
     ConstraintDescription: Specified instance type is not within selection list.
-    Default: m4.small
+    Default: m4.large
 
   ClusterSize:
     Type: Number
@@ -71,6 +71,10 @@ Parameters:
   PdfImage:
     Type: String
     Description: 'Example: 730096353738.dkr.ecr.us-east-1.amazonaws.com/research-pdf:2002.0003'
+
+  CertificateArn:
+    Type: String
+    Description: The amazon resource name of a certificate that has already been put in ACM
 
   EnableNewRelicAPM:
     Type: String
@@ -116,7 +120,7 @@ Resources:
           !Ref Landscape
         GlobalTag:
           !Ref GlobalTag
-        vpcid: 
+        VpcId: 
           !GetAtt VPC.Outputs.VPC
 
   ALB:
@@ -129,12 +133,14 @@ Resources:
           !Ref Landscape
         GlobalTag:
           !Ref GlobalTag
-        vpcid: 
+        VpcId: 
           !GetAtt VPC.Outputs.VPC
         Subnets: 
           !GetAtt VPC.Outputs.PublicSubnets
         SecurityGroup: 
-          !GetAtt SecurityGroups.Outputs.LoadBalancerSecurityGroup
+          !GetAtt SecurityGroups.Outputs.ALBSecurityGroup
+        CertificateArn:
+          !Ref CertificateArn
 
   ECS:
     Type: AWS::CloudFormation::Stack
@@ -142,22 +148,22 @@ Resources:
       TemplateURL: 
         !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_ecs/cluster.yaml
       Parameters:
-        Landscape:
-          !Ref Landscape
         GlobalTag:
           !Ref GlobalTag
-        vpcid:
-          !GetAtt VPC.Outputs.VPC
-        InstanceType:
-          !Ref InstanceType
-        ClusterSize:
-          !Ref ClusterSize
-        Subnets:
-          !GetAtt VPC.Outputs.PrivateSubnets
-        SecurityGroup:
+        Landscape:
+          !Ref Landscape
+        SecurityGroupId:
           !GetAtt SecurityGroups.Outputs.ECSHostSecurityGroup
         LoadBalancerUrl:
           !GetAtt ALB.Outputs.LoadBalancerUrl
+        InstanceType:
+          !Ref InstanceType
+        Subnets:
+          !GetAtt VPC.Outputs.PrivateSubnets
+        ClusterSize:
+          !Ref ClusterSize
+        BucketName:
+          !Ref BucketName
         EnableNewRelicInfrastructure:
           !Ref EnableNewRelicInfrastructure
 
@@ -168,26 +174,19 @@ Resources:
         !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_ecs/service-core.yaml
       Parameters:
         GlobalTag:
-          !Ref Landscape
+          !Ref GlobalTag
         Landscape:
           !Ref Landscape
-        vpcid:
+        VpcId:
           !GetAtt VPC.Outputs.VPC
-        clusterid:
+        ClusterId:
           !GetAtt ECS.Outputs.Cluster
         DesiredCount: '2'
-        MaxCount: '3'
-        KualiResearchUrl:
-          !Join [ "/", [ !GetAtt ALB.Outputs.LoadBalancerUrl, "kc" ] ]
-        KualiDashboardUrl:
-          !Join [ "/", [ !GetAtt ALB.Outputs.LoadBalancerUrl, "dashboard" ] ]
-        Listener80:
-          !GetAtt ALB.Outputs.Listener80
-        Listener443:
-          !GetAtt ALB.Outputs.Listener443
-        Path: "/"
-        ECSServiceAutoScalingRoleARN:
-          !GetAtt ECS.Outputs.ECSServiceAutoScalingRole
+        MaxCount: '4'
+        Listener:
+          !GetAtt ALB.Outputs.Listener
+        ECSContainerInstanceAutoScalingRoleARN:
+          !GetAtt ECS.Outputs.ECSContainerInstanceAutoScalingRoleARN
         CoreImage:
           !Ref CoreImage
 
@@ -198,26 +197,19 @@ Resources:
         !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_ecs/service-research.yaml
       Parameters:
         GlobalTag:
-          !Ref Landscape
+          !Ref GlobalTag
         Landscape:
           !Ref Landscape
-        vpcid:
+        VpcId:
           !GetAtt VPC.Outputs.VPC
-        clusterid:
+        ClusterId:
           !GetAtt ECS.Outputs.Cluster
         DesiredCount: '2'
-        MaxCount: '3'
-        KualiCoreUrl:
-          !GetAtt ALB.Outputs.LoadBalancerUrl
-        KualiDashboardUrl:
-          !Join [ "/", [ !GetAtt ALB.Outputs.LoadBalancerUrl, "dashboard" ] ]
-        Listener80:
-          !GetAtt ALB.Outputs.Listener80
-        Listener443:
-          !GetAtt ALB.Outputs.Listener443
-        Path: "/kc"
-        ECSServiceAutoScalingRoleARN:
-          !GetAtt ECS.Outputs.ECSServiceAutoScalingRole
+        MaxCount: !Ref ClusterSize
+        Listener:
+          !GetAtt ALB.Outputs.Listener
+        ECSContainerInstanceAutoScalingRoleARN:
+          !GetAtt ECS.Outputs.ECSContainerInstanceAutoScalingRoleARN
         KcImage:
           !Ref KcImage
         EnableNewRelicAPM:
@@ -230,26 +222,19 @@ Resources:
         !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_ecs/service-dashboard.yaml
       Parameters:
         GlobalTag:
-          !Ref Landscape
+          !Ref GlobalTag
         Landscape:
           !Ref Landscape
-        vpcid:
+        VpcId:
           !GetAtt VPC.Outputs.VPC
-        clusterid:
+        ClusterId:
           !GetAtt ECS.Outputs.Cluster
         DesiredCount: '2'
-        MaxCount: '3'
-        KualiCoreUrl:
-          !GetAtt ALB.Outputs.LoadBalancerUrl
-        KualiResearchUrl:
-          !Join [ "/", [ !GetAtt ALB.Outputs.LoadBalancerUrl, "kc" ] ]
-        Listener80:
-          !GetAtt ALB.Outputs.Listener80
-        Listener443:
-          !GetAtt ALB.Outputs.Listener443
-        Path: "/dashboard"
-        ECSServiceAutoScalingRoleARN:
-          !GetAtt ECS.Outputs.ECSServiceAutoScalingRole
+        MaxCount: '4'
+        Listener:
+          !GetAtt ALB.Outputs.Listener
+        ECSContainerInstanceAutoScalingRoleARN:
+          !GetAtt ECS.Outputs.ECSContainerInstanceAutoScalingRoleARN
         PortalImage:
           !Ref PortalImage
 
@@ -260,26 +245,19 @@ Resources:
         !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_ecs/service-pdf.yaml
       Parameters:
         GlobalTag:
-          !Ref Landscape
+          !Ref GlobalTag
         Landscape:
           !Ref Landscape
-        vpcid:
+        VpcId:
           !GetAtt VPC.Outputs.VPC
-        clusterid:
+        ClusterId:
           !GetAtt ECS.Outputs.Cluster
         DesiredCount: '2'
-        MaxCount: '3'
-        KualiCoreUrl:
-          !GetAtt ALB.Outputs.LoadBalancerUrl
-        KualiResearchUrl:
-          !Join [ "/", [ !GetAtt ALB.Outputs.LoadBalancerUrl, "kc" ] ]
-        Listener80:
-          !GetAtt ALB.Outputs.Listener80
-        Listener443:
-          !GetAtt ALB.Outputs.Listener443
-        Path: "/pdf"
-        ECSServiceAutoScalingRoleARN:
-          !GetAtt ECS.Outputs.ECSServiceAutoScalingRole
+        MaxCount: '4'
+        Listener:
+          !GetAtt ALB.Outputs.Listener
+        ECSContainerInstanceAutoScalingRoleARN:
+          !GetAtt ECS.Outputs.ECSContainerInstanceAutoScalingRoleARN
         PdfImage:
           !Ref PdfImage
 
@@ -289,24 +267,19 @@ Resources:
       TemplateURL: 
         !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_ecs/lifecycle-hook.yaml
       Parameters:
+        GlobalTag:
+          !Ref GlobalTag
+        Landscape:
+          !Ref Landscape
         Cluster:
           !GetAtt ECS.Outputs.Cluster
         ECSAutoScalingGroupName:
-          !GetAtt ECS.Outputs.ECSAutoScalingGroupName
+          !GetAtt ECS.Outputs.ECSContainerInstanceAutoScalingGroupName
 
 
 Outputs:
 
-  KualiCoreUrl:
-    Description: The URL endpoint for the kuali cor-main service
-    Value: !GetAtt ALB.Outputs.Listener
-
   KualiResearchUrl:
     Description: The URL endpoint for the kuali research service
     Value: 
-      !Join [ "/", [ !GetAtt ALB.Outputs.LoadBalancerUrl, "kc" ] ]
-
-  KualiDashboardUrl:
-    Description: The URL endpoint for the kuali research service
-    Value: 
-      !Join [ "/", [ !GetAtt ALB.Outputs.LoadBalancerUrl, "dashboard" ] ]
+      !GetAtt ALB.Outputs.LoadBalancerUrl

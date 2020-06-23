@@ -10,6 +10,19 @@ Parameters:
       this will most likely be the name of the top-most stack.
     Default: kuali-ec2-alb
 
+  Landscape:
+    Description: Specify which landscape to build for.
+    Type: String
+    AllowedValues:
+    - sb
+    - ci
+    - qa
+    - stg
+    - prod
+    ConstraintDescription: >
+      This parameter is restricted to the following values: sb, ci, qa, stg, prod
+    Default: sb
+
   VpcId:
     Type: AWS::EC2::VPC::Id
     Description: The id of the vpc to deploy to.
@@ -17,6 +30,9 @@ Parameters:
 
 Resources:
 
+  # This security group defines who/where is allowed to access the ECS hosts directly.
+  # By default we're just allowing access from the load balancer.  If you want to SSH
+  # into the hosts, or expose non-load balanced services you can open their ports here.
   EC2SecurityGroup:
     Type: AWS::EC2::SecurityGroup
     DependsOn: ALBSecurityGroup
@@ -24,7 +40,7 @@ Resources:
       VpcId:
         !Ref VpcId
       GroupName:
-        !Sub ${GlobalTag}-ec2-security-group
+        !Sub ${GlobalTag}-${Landscape}-ec2-security-group
       GroupDescription:
         !Join
         - " "
@@ -35,7 +51,7 @@ Resources:
       Tags:
       - Key: Name
         Value: 
-          !Sub ${GlobalTag}-ec2-security-group
+          !Sub ${GlobalTag}-${Landscape}-ec2-security-group
       SecurityGroupIngress:
       - IpProtocol: -1
         SourceSecurityGroupId:
@@ -53,7 +69,7 @@ Resources:
       VpcId:
         !Ref VpcId
       GroupName:
-        !Sub ${GlobalTag}-alb-security-group
+        !Sub ${GlobalTag}-${Landscape}-alb-sg
       GroupDescription:
         This security group defines who/where is allowed to access the application
         load balancer that sits in front of the private subnets. Currently open to the public 
@@ -61,7 +77,7 @@ Resources:
       Tags:
       - Key: Name
         Value: 
-          !Sub ${GlobalTag}-alb-security-group
+          !Sub ${GlobalTag}-${Landscape}-alb-sg
       SecurityGroupIngress:
       - CidrIp: 0.0.0.0/0
         IpProtocol: -1

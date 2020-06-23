@@ -1,10 +1,17 @@
-Description: Establishes the security groups required throughout the VPC
-
+Description: Establishes an ALB and an EC2 security group.
 
 Parameters:
 
+  GlobalTag:
+    Type: String
+    Description: >
+      A common value that all resources in this template will have prefixed to
+      their name and attached as a tag to establish a bundling through naming convention. If a nested stack,
+      this will most likely be the name of the top-most stack.
+    Default: kuali-ecs
+
   Landscape:
-    Description: Specify which landscape to build into the VPC
+    Description: Specify which landscape to build for.
     Type: String
     AllowedValues:
     - sb
@@ -12,68 +19,66 @@ Parameters:
     - qa
     - stg
     - prod
-    ConstraintDescription: 'This parameter is restricted to the following values:
-      sb, ci, qa, stg, prod'
+    ConstraintDescription: >
+      This parameter is restricted to the following values: sb, ci, qa, stg, prod
     Default: sb
 
-  GlobalPrefix:
-    Type: String
-    Description: >
-      A common value that all resources in this template will prefix to
-      their name to establish a bundling through naming convention. If a nested stack,
-      this will most likely be the name of the top-most stack.
-    Default: ECS-test
-
-  vpcid:
+  VpcId:
     Type: AWS::EC2::VPC::Id
-    Description: The id of the vpc this is a subnet of.
+    Description: The id of the vpc to deploy to.
 
 
 Resources:
 
+  # This security group defines who/where is allowed to access the ECS hosts directly.
+  # By default we're just allowing access from the load balancer.  If you want to SSH
+  # into the hosts, or expose non-load balanced services you can open their ports here.
   ECSHostSecurityGroup:
     Type: AWS::EC2::SecurityGroup
+    DependsOn: ALBSecurityGroup
     Properties:
       VpcId:
-        !Ref vpcid
+        !Ref VpcId
       GroupName:
-        !Join [ '', [ !Ref GlobalPrefix, "-ecs-host-sg-", !Ref Landscape ] ]
+        !Sub ${GlobalTag}-${Landscape}-ec2-security-group
       GroupDescription:
         !Join
         - " "
-        - - !Sub Defines who/where is allowed to access the ECS hosts in the ${Landscape}
-            landscape and the tasks/containers that run on them directly.
+        - - Defines who/where is allowed to access the EC2 Host directly.
           - 'This includes allowing access from: '
-          - 1) The load balancer
+          - 1) The application load balancer
           - 2) SSH access into the ec2 hosts
-      # This security group defines who/where is allowed to access the ECS hosts directly.
-      # By default we're just allowing access from the load balancer.  If you want to SSH
-      # into the hosts, or expose non-load balanced services you can open their ports here.
+      Tags:
+      - Key: Name
+        Value: 
+          !Sub ${GlobalTag}-${Landscape}-ec2-security-group
       SecurityGroupIngress:
       - IpProtocol: -1
         SourceSecurityGroupId:
-          !Ref LoadBalancerSecurityGroup
-        Description: Allows inbound access to ECS instances from the ALB only.
-      - IpProtocol: tcp
-        FromPort: '22'
-        ToPort: '22'
-        CidrIp: 0.0.0.0/0
-        Description: Allows SSH access to ECS host instances directly without requiring it originate from the ALB.
+          !Ref ALBSecurityGroup
+        Description: Allows inbound access to the EC2 instance from the ALB only.
+      # SSH access to the instance is not possible due to being in a private subnet. Use ssm session instead.
+      # - IpProtocol: tcp
+      #   FromPort: '22'
+      #   ToPort: '22'
+      #   CidrIp: 0.0.0.0/0
+      #   Description: Allows SSH access to ECS host instances directly without requiring it originate from the ALB.
 
-  LoadBalancerSecurityGroup:
+  ALBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
       VpcId:
-        !Ref vpcid
+        !Ref VpcId
       GroupName:
-        !Join [ '', [ !Ref GlobalPrefix, "-load-balancer-sg-", !Ref Landscape ] ]
+        !Sub ${GlobalTag}-${Landscape}-alb-sg
       GroupDescription:
-        !Join 
-        - " "
-        - - This security group defines who/where is allowed to access the application
-            load balancer that sits in front of ECS
-          - !Ref Landscape
-          - landscape
+        This security group defines who/where is allowed to access the application
+        load balancer that sits in front of the private subnets. Currently open to the public 
+        internet (0.0.0.0/0) but can be restricted to certain ports.
+      Tags:
+      - Key: Name
+        Value: 
+          !Sub ${GlobalTag}-${Landscape}-alb-sg
       SecurityGroupIngress:
       - CidrIp: 0.0.0.0/0
         IpProtocol: -1
@@ -81,11 +86,13 @@ Resources:
 
 
 Outputs:
+
   ECSHostSecurityGroup:
     Description: A reference to the security group for ECS hosts
     Value:
       !Ref ECSHostSecurityGroup
-  LoadBalancerSecurityGroup:
-    Description: A reference to the security group for load balancers
+
+  ALBSecurityGroup:
+    Description: A reference to the security group for load balancer
     Value:
-      !Ref LoadBalancerSecurityGroup
+      !Ref ALBSecurityGroup

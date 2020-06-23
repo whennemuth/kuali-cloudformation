@@ -15,6 +15,19 @@ Parameters:
       their name and attached as a tag to establish a bundling through naming convention. If a nested stack,
       this will most likely be the name of the top-most stack.
     Default: kuali-ecs
+    
+  Landscape:
+    Description: Specify which landscape to build into the VPC
+    Type: String
+    AllowedValues:
+    - sb
+    - ci
+    - qa
+    - stg
+    - prod
+    ConstraintDescription: >
+      This parameter is restricted to the following values: sb, ci, qa, stg, prod
+    Default: sb
 
   VpcId:
     Type: AWS::EC2::VPC::Id
@@ -24,25 +37,14 @@ Parameters:
     Type: AWS::EC2::SecurityGroup::Id
     Description: The security group to be applied to the application load balancer.
 
-  InstanceId1:
-    Type: AWS::EC2::Instance::Id
-    Description: The id of the first ec2 instance to register as a target with the target group
-
-  InstanceId2:
-    Type: AWS::EC2::Instance::Id
-    Description: The id of the second ec2 instance to register as a target with the target group
-
-  Subnet1:
-    Type: AWS::EC2::Subnet::Id
-    Description: One of the subnets the ALB routes traffic to.
-      
-  Subnet2:
-    Type: AWS::EC2::Subnet::Id
-    Description: One of the subnets the ALB routes traffic to.
+  Subnets:
+    Description: The public subnets the ALB is deployed to
+    Type: List<AWS::EC2::Subnet::Id>
 
   CertificateArn:
     Type: String
-    Description: The amazon resource name of a certificate that has already been put in ACM
+    Description: The amazon resource name of a certificate that has already been put in IAM/ACM
+
   
 Resources:
 
@@ -51,73 +53,58 @@ Resources:
     Description: The load balancer used as reverse proxy for the kuali ec2 instance
     Properties:
       Name: 
-        # Gotta abbreviate this value enough to get the resulting DNS name to be under 64 characters for the SSL cert.
-        # !Sub "${GlobalTag}-ALB"
-        !Sub "course-shed-plan-ALB"
-      # Subnets: 
-      #   !Ref Subnets
-      Subnets:
-      - !Ref Subnet1
-      - !Ref Subnet2
+        # Make this short enough so that the derived DNS name is under 64 characters"
+        !Sub "${GlobalTag}-${Landscape}-ALB"
+      Subnets: 
+        !Ref Subnets
       SecurityGroups:
       - !Ref SecurityGroup
       # LoadBalancerAttributes:
       # - Key: access_logs.s3.enabled
       #   Value: "true"
       # - Key: access_logs.s3.bucket
-      #   Value: !Sub ${GlobalTag}-alb-logs
+      #   Value: !Sub ${GlobalTag}-${Landscape}-alb-logs
       # - Key: access_logs.s3.prefix
       #   Value: alb
       Tags:
       - Key: Name
         Value: 
-          !Sub "${GlobalTag}-application-load-balancer"
+          !Sub "${GlobalTag}-${Landscape}-ALB"
 
 
-  TargetGroup:
+  ################################################
+  #                HTTP (PORT 80)
+  ################################################
+  TargetGroup80:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
+      Name: !Sub ${GlobalTag}-${Landscape}-http-TG
       VpcId: !Ref VpcId
-      Name:
-        !Sub "${GlobalTag}-http-TG"
       Port: 80
       Protocol: HTTP
-      Matcher:
-        HttpCode: 200-299
-      HealthCheckIntervalSeconds: 10
-      HealthCheckPath: "/apps/"
-      HealthCheckProtocol: HTTPS
-      HealthCheckTimeoutSeconds: 5
-      HealthyThresholdCount: 2
-      Targets:
-      - Id: !Ref InstanceId1
-        Port: 3000
-      - Id: !Ref InstanceId2
-        Port: 3000
       Tags:
       - Key: Name
         Value: 
-          !Sub "${GlobalTag}-http-target-group"
-
+          !Sub ${GlobalTag}-${Landscape}-http-TG
   Listener80:
     Type: AWS::ElasticLoadBalancingV2::Listener
-    DependsOn: 
-    - ALB
-    - TargetGroup
     Properties:
       DefaultActions:
       - TargetGroupArn:
-          !Ref TargetGroup
+          # Arbitrarily using TargetGroupCore as default. Nothing actually makes 
+          # it to that group over port 80 because the listener rule redirects to port 443
+          !Ref TargetGroup80
         Type: forward
       LoadBalancerArn:
         !Ref ALB
       Port: 80
       Protocol: HTTP
-
   ListenerRule80:
     Type: AWS::ElasticLoadBalancingV2::ListenerRule
-    DependsOn: TargetGroup
-    Description:  After Shibboleth integration, this forwarding can be removed as it would then be delegated.
+    Description: >
+      When the cor-main institution provider type is switched from "kuali"
+      to "saml" as the institution provider value, the shibboleth configuration will
+      take over https redirection and this rule can be removed.
     Properties:
       ListenerArn:
         !Ref Listener80
@@ -126,7 +113,7 @@ Resources:
       - Type: redirect
         # NOTE: Target groups do not apply if action type is redirect
         # TargetGroupArn:
-        #   !Ref TargetGroup
+        #   !Ref TargetGroup80
         RedirectConfig:
           Host: "#{host}"
           Path: "/#{path}"
@@ -135,15 +122,14 @@ Resources:
           Query: "#{query}"
           StatusCode: HTTP_301
       Conditions:
-      - Field: path-pattern
-        Values:
-        - "/*"
+      - { Field: path-pattern, Values: [ "/*" ] }
 
+
+  ################################################
+  #                HTTPS (PORT 443)
+  ################################################
   Listener443:
     Type: AWS::ElasticLoadBalancingV2::Listener
-    DependsOn:
-    - ALB
-    - TargetGroup
     Properties:
       Certificates:
       # WARNING!
@@ -153,35 +139,28 @@ Resources:
           !Ref CertificateArn
       DefaultActions:
       - TargetGroupArn:
-          !Ref TargetGroup
+          # A target group is a mandatory parameter when creating a listener for an application load balancer.
+          # So, to temporarily satisfy this requirement, "borrow" the http target group here for now.
+          # This target group won't actually be used by this listener, instead a target group is created per-service
+          # in the services template and each registered then with this listener. (Conflicting protocols don't seem to matter)
+          !Ref TargetGroup80
         Type: forward
       LoadBalancerArn:
         !Ref ALB
       Port: 443
       Protocol: HTTPS
 
-  ListenerRule443:
-    Type: AWS::ElasticLoadBalancingV2::ListenerRule
-    DependsOn: TargetGroup
-    Properties:
-      ListenerArn:
-        !Ref Listener443
-      Priority: 2
-      Actions:
-      - TargetGroupArn:
-          !Ref TargetGroup
-        Type: forward
-      Conditions: 
-      - { Field: path-pattern, Values: [ "/*" ] }
-
       
 Outputs:
-
-  LoadBalancer:
-    Description: A reference to the load balancer
-    Value: !Ref ALB
 
   LoadBalancerUrl:
     Description: This will be the url that the app is publicly addressable on
     Value: !GetAtt ALB.DNSName
     
+  LoadBalancer:
+    Description: A reference to the Application Load Balancer
+    Value: !Ref ALB
+
+  Listener:
+    Description: A reference to a port 80 listener
+    Value: !Ref Listener443

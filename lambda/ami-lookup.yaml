@@ -9,13 +9,13 @@ Description: >
 
 Parameters:
 
-  GlobalPrefix:
+  GlobalTag:
     Type: String
     Description: > 
       A common value that all resources in this template will prefix to
       their name to establish a bundling through naming convention. If a nested stack,
       this will most likely be the name of the top-most stack.
-    Default: ECS-test
+    Default: kuali
     
 
 Resources:
@@ -50,7 +50,7 @@ Resources:
           - sts:AssumeRole
       Path: "/"
       RoleName: 
-        !Join [ "-", [ !Ref GlobalPrefix, "lambda-ami-lookup-execution-role" ] ]
+        !Join [ "-", [ !Ref GlobalTag, "lambda-ami-lookup-execution-role" ] ]
       Policies:
       - PolicyName: root
         PolicyDocument:

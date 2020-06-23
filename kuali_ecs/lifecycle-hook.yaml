@@ -4,6 +4,28 @@ Description: >
 
 
 Parameters:
+
+  GlobalTag:
+    Type: String
+    Description: >
+      A common value that all resources in this template will have prefixed to
+      their name and attached as a tag to establish a bundling through naming convention. If a nested stack,
+      this will most likely be the name of the top-most stack.
+    Default: kuali-ecs
+
+  Landscape:
+    Description: Specify a landscape this deployment is for
+    Type: String
+    AllowedValues:
+    - sb
+    - ci
+    - qa
+    - stg
+    - prod
+    ConstraintDescription: >
+      This parameter is restricted to the following values: sb, ci, qa, stg, prod
+    Default: sb
+
   Cluster:
     Type: String
     Description: Name of ECS Cluster
@@ -14,17 +36,23 @@ Parameters:
 
 
 Resources:
+
   NotificationTopic:
-    Type: "AWS::SNS::Topic"
+    Type: AWS::SNS::Topic
     Properties:
+      TopicName: !Sub ${GlobalTag}-${Landscape}-lifecycle-hook-sns-topic
       Subscription:
         - Endpoint: !GetAtt LifecycleHandlerFunction.Arn
           Protocol: lambda
+      Tags:
+      - Key: Name
+        Value: !Sub ${GlobalTag}-${Landscape}-lifecycle-hook-sns-topic
     DependsOn: LifecycleHandlerFunction
     
   InstanceTerminatingHook:
-    Type: "AWS::AutoScaling::LifecycleHook"
+    Type: AWS::AutoScaling::LifecycleHook
     Properties:
+      LifecycleHookName: !Sub ${GlobalTag}-${Landscape}-lifecycle-hook
       AutoScalingGroupName: !Ref ECSAutoScalingGroupName
       DefaultResult: ABANDON
       HeartbeatTimeout: "900"
@@ -34,8 +62,12 @@ Resources:
     DependsOn: NotificationTopic
 
   AutoscalingNotificationRole:
-    Type: "AWS::IAM::Role"
+    Type: AWS::IAM::Role
     Properties:
+      RoleName: !Sub ${GlobalTag}-${Landscape}-${AWS::Region}-autoscaling-notification-role
+      Tags:
+      - Key: Name
+        Value: !Sub ${GlobalTag}-${Landscape}-${AWS::Region}-autoscaling-notification-role
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -49,8 +81,12 @@ Resources:
         - "arn:aws:iam::aws:policy/service-role/AutoScalingNotificationAccessRole"
 
   LambdaExecutionRole:
-    Type: "AWS::IAM::Role"
+    Type: AWS::IAM::Role
     Properties:
+      RoleName: !Sub ${GlobalTag}-${Landscape}-${AWS::Region}-lambda-execution-role
+      Tags:
+      - Key: Name
+        Value: !Sub ${GlobalTag}-${Landscape}-${AWS::Region}-lambda-execution-role
       Policies:
         - PolicyName: lambda-inline
           PolicyDocument:
@@ -89,7 +125,7 @@ Resources:
         - "arn:aws:iam::aws:policy/service-role/AutoScalingNotificationAccessRole"
 
   LambdaInvokePermission:
-    Type: "AWS::Lambda::Permission"
+    Type: AWS::Lambda::Permission
     Properties:
       FunctionName: !Ref LifecycleHandlerFunction
       Action: "lambda:InvokeFunction"
@@ -97,8 +133,11 @@ Resources:
       SourceArn: !Ref NotificationTopic
 
   LifecycleHandlerFunction:
-    Type: "AWS::Lambda::Function"
+    Type: AWS::Lambda::Function
     Properties:
+      Tags:
+      - Key: Name
+        Value: !Sub ${GlobalTag}-${Landscape}-${AWS::Region}-lifecycle-handler-function
       Environment:
         Variables:
           CLUSTER: !Ref Cluster

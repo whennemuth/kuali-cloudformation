@@ -8,6 +8,14 @@ Description: >
 
 
 Parameters:
+
+  GlobalTag:
+    Type: String
+    Description: >
+      A common value that all resources in this template will have prefixed to
+      their name and attached as a tag to establish a bundling through naming convention.
+    Default: kuali-ecs
+    
   Landscape:
     Description: Specify which landscape to build into the VPC
     Type: String
@@ -20,13 +28,6 @@ Parameters:
     ConstraintDescription: >
       This parameter is restricted to the following values: sb, ci, qa, stg, prod'
     Default: sb
-  GlobalPrefix:
-    Type: String
-    Description: >
-      A common value that all resources in this template will prefix to
-      their name to establish a bundling through naming convention. If a nested stack,
-      this will most likely be the name of the top-most stack.
-    Default: ECS-test
 
 
 Resources:
@@ -38,7 +39,7 @@ Resources:
       EnableDnsHostnames: true
       Tags:
       - Key: Name
-        Value: !Join [ '', [ !Ref GlobalPrefix, "-vpc" ] ]
+        Value: !Sub ${GlobalTag}-${Landscape}-vpc
       - Key: Notes
         Value: VPC for running ecs, part of cloud formation stack
       - Key: Created-by
@@ -49,7 +50,7 @@ Resources:
     Properties:
       Tags:
       - Key: name
-        Value: !Join [ '', [ !Ref GlobalPrefix, "-internet-gateway" ] ]
+        Value: !Sub ${GlobalTag}-${Landscape}-internet-gateway
 
   InternetGatewayAttachment:
     Type: AWS::EC2::VPCGatewayAttachment
@@ -64,11 +65,11 @@ Resources:
     Properties:
       TemplateURL: https://s3.amazonaws.com/kuali-research-ec2-setup/cloudformation/kuali_ecs/subnet.yaml
       Parameters:
-        GlobalPrefix:
-          !Ref GlobalPrefix
+        GlobalTag:
+          !Ref GlobalTag
         Landscape:
           !Ref Landscape
-        vpcid:
+        VpcId:
           !Ref VPC
           
   NatGateway1EIP:
@@ -77,6 +78,9 @@ Resources:
     DependsOn: InternetGatewayAttachment
     Properties:
       Domain: vpc
+      Tags:
+      - Key: Name
+        Value: !Sub ${GlobalTag}-${Landscape}-nat-gtwy-eip-1
 
   NatGateway2EIP:
     Type: AWS::EC2::EIP
@@ -84,6 +88,9 @@ Resources:
     DependsOn: InternetGatewayAttachment
     Properties:
       Domain: vpc
+      Tags:
+      - Key: Name
+        Value: !Sub ${GlobalTag}-${Landscape}-nat-gtwy-eip-2
 
   NatGateway1:
     Type: AWS::EC2::NatGateway
@@ -95,7 +102,7 @@ Resources:
         !GetAtt Subnets.Outputs.PublicSubnet1
       Tags:
       - Key: Name
-        Value: !Join [ '', [!Ref GlobalPrefix, "-nat-gateway1-", !Ref Landscape] ]
+        Value: !Sub ${GlobalTag}-${Landscape}-nat-gtwy-1
 
   NatGateway2:
     Type: AWS::EC2::NatGateway
@@ -107,8 +114,7 @@ Resources:
         !GetAtt Subnets.Outputs.PublicSubnet2
       Tags:
       - Key: Name
-        Value:
-          !Join [ '', [ !Ref GlobalPrefix, -nat-gateway2-", !Ref Landscape ] ]
+        Value: !Sub ${GlobalTag}-${Landscape}-nat-gtwy-2
 
   PublicRouteTable:
     Type: AWS::EC2::RouteTable
@@ -118,7 +124,7 @@ Resources:
         !Ref VPC
       Tags:
       - Key: Name
-        Value: !Join [ '', [ !Ref GlobalPrefix,  "-public-route-table-", !Ref Landscape ] ]
+        Value: !Sub ${GlobalTag}-${Landscape}-public-route-table
 
   DefaultPublicRoute:
     Type: AWS::EC2::Route
@@ -160,7 +166,7 @@ Resources:
         !Ref VPC
       Tags:
       - Key: Name
-        Value: !Join [ '', [!Ref GlobalPrefix, "-private-route-table1-", !Ref Landscape ] ]
+        Value: !Sub ${GlobalTag}-${Landscape}-private-route-table-1
 
   DefaultPrivateRoute1:
     Type: AWS::EC2::Route
@@ -189,7 +195,7 @@ Resources:
         !Ref VPC
       Tags:
       - Key: Name
-        Value: !Join [ '', [!Ref GlobalPrefix, "-private-route-table2-", !Ref Landscape] ]
+        Value: !Sub ${GlobalTag}-${Landscape}-private-route-table-2
 
   DefaultPrivateRoute2:
     Type: AWS::EC2::Route
