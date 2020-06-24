@@ -2,6 +2,8 @@
 
 Use these template to perform the median form of deployment for kuali research, two ec2 instances sitting behind a load balancer.
 
+![layount](./diagram1.png)
+
 ### Features:
 
 1. **EC2:**
@@ -13,10 +15,6 @@ Use these template to perform the median form of deployment for kuali research, 
 4. **Cloudformation:**
    Create, update, or delete the cloud formation stack for the infrastructure and app deployment.
    Resources created are the EC2 instances (with profile, role, security group, log group, & application load balancer) as shown below.
-
-![layount](./diagram1.png)
-
-
 
 ### Prerequisites:
 
@@ -31,18 +29,20 @@ Use these template to perform the median form of deployment for kuali research, 
   - Download [gitbash](https://git-scm.com/downloads)
 - **Docker Images:**
   Before creating the cloudformation stack, it is assumed that each Docker image (kc, core, dashboard, pdf) has already been built and uploaded to their respective repositories in the elastic container registry of you account.
-
-
+- **S3 Bucket**
+  This S3 Bucket must exist prior to stack creation and serves 2 purposes:
+  1. You must specify (either by default or explicit entry) an S3 bucket location where the yaml template(s) are to be uploaded and referenced as a parameter for stack creation.
+  2. In this same bucket must exist application configuration files, like kc-config.xml for the research app, and environment variable files for docker containers to reference (contain database connection details and other app parameters).
 
 ### Steps:
 
 Included is a bash helper script (main.sh) that serves to simplify many of the command line steps that would otherwise include a fair amount of manual entry. 
 
-2. **Clone this repository**
+2. **Clone this repository:**
   
 ```
    git clone https://github.com/bu-ist/kuali-cloudformation.git
-   cd kuali-cloudformation/kuali_ec2
+   cd kuali-cloudformation/kuali_ec2_alb
 ```
 
 2. **Certificate creation:**
@@ -104,6 +104,7 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
       # Example 5) Comprehensive parameters, avoiding all defaults.
           landscape=ci \
           stack_name=my-kuali-with-ALB \
+          no_rollback=true \
           global_tag=my-kuali-alb-ec2 \
           ec2_instance_type=m5.large \
           availability_zone1=us-west-1a \
@@ -129,7 +130,7 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
           public_subnet1=subnet-01b7baf7ed9fe8b4e \
           public_subnet2=subnet-0ed0feaf1187d9ed9
       ```
-
+   
 4. **Browse the app:**
    Once the stack has been created, you can visit the Course Schedule Planner app in your browser.
 
@@ -143,6 +144,8 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
    For example, there is currently no logging for the app, so adding cloudwatch log group and metrics and docker logging driver may be something to do soon.
 
    ```
+   cd kuali_ec2_alb
+   
    # Modify 1 or more yaml templates, but no new/modified parameters
    # then...
    sh main.sh update-stack
@@ -150,9 +153,9 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
    # The templates may not have changed, changing parameters to up the ec2 instance size and upgrade kuali-research to new release:
    sh main.sh update-stack \
    	ec2_instance_type=m4.xlarge \
-   	kc_image=730096353738.dkr.ecr.us-east-1.amazonaws.com/coeus-sandbox:2006.0038
+	kc_image=730096353738.dkr.ecr.us-east-1.amazonaws.com/coeus-sandbox:2006.0038
    ```
-
+   
 6. **Shell access:**
    Occasionally, log information is insufficient to determine the cause of an issue and it becomes necessary to shell into the application host to "poke around". However, for security reasons, the 2 ec2 instances reside in private subnets, and are protected from any access from the outside world that does not go through the load balancer.
         

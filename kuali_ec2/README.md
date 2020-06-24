@@ -30,21 +30,25 @@ Use this template to perform the simplest form of deployment for kuali research,
   - Download [gitbash](https://git-scm.com/downloads)
 - **Docker Images:**
   Before creating the cloudformation stack, it is assumed that each Docker image (kc, core, dashboard, pdf) has already been built and uploaded to their respective repositories in the elastic container registry of you account.
+- **S3 Bucket**
+  This S3 Bucket must exist prior to stack creation and serves 2 purposes:
+  1. You must specify (either by default or explicit entry) an S3 bucket location where the yaml template(s) are to be uploaded and referenced as a parameter for stack creation.
+  2. In this same bucket must exist application configuration files, like kc-config.xml for the research app, and environment variable files for docker containers to reference (contain database connection details and other app parameters).
 
-<IFrame src="../notes/prerequisites.md"></IFrame>
+
 
 ### Steps:
 
 Included is a bash helper script (main.sh) that serves to simplify many of the command line steps that would otherwise include a fair amount of manual entry. 
 
-1. **Clone this repository**
+1. **Clone this repository:**
 
    ```
    git clone https://github.com/bu-ist/kuali-cloudformation.git
    cd kuali-cloudformation/kuali_ec2
    ```
 
-2. **Create the stack**
+2. **Create the stack:**
 
    ```
    # Example 1) Create the stack with all the default values
@@ -54,6 +58,8 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
    sh main.sh create-stack
      stack_name=my-standalone-ec2-stack \
      global_tag=my-standalone-ec2 \
+     no_rollback=true \
+     bucket_path=s3://mybucket/stacks/kuali_ec2_alb \
      ec2_instance_type=m5.large \
      kc_image=730096353738.dkr.ecr.us-east-1.amazonaws.com/coeus-sandbox:2001.0040 \
      core_image=730096353738.dkr.ecr.us-east-1.amazonaws.com/core:2001.0040 \

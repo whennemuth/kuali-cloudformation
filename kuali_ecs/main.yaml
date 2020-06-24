@@ -48,13 +48,21 @@ Parameters:
     ConstraintDescription: Specified instance type is not within selection list.
     Default: m4.large
 
-  ClusterSize:
+  MinClusterSize:
     Type: Number
     Description: How many EC2 instances are to be initially deployed as ECS hosts
       accross your cluster?
-    AllowedValues: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-    ConstraintDescription: Cluster size is limited between 1 and 10 instances.
-    Default: '2'
+    AllowedValues: [ 2, 3, 4 ]
+    ConstraintDescription: Minimum cluster size is limited between 2 and 4 instances.
+    Default: 2
+
+  MaxClusterSize:
+    Type: Number
+    Description: How many EC2 instances are to be initially deployed as ECS hosts
+      accross your cluster?
+    AllowedValues: [ 2, 3, 4, 5, 6 ]
+    ConstraintDescription: Maximum cluster size is limited between 1 and 6 instances.
+    Default: 3
 
   CoreImage:
     Type: String
@@ -160,8 +168,10 @@ Resources:
           !Ref InstanceType
         Subnets:
           !GetAtt VPC.Outputs.PrivateSubnets
-        ClusterSize:
-          !Ref ClusterSize
+        MinClusterSize:
+          !Ref MinClusterSize
+        MaxClusterSize:
+          !Ref MaxClusterSize
         BucketName:
           !Ref BucketName
         EnableNewRelicInfrastructure:
@@ -181,8 +191,8 @@ Resources:
           !GetAtt VPC.Outputs.VPC
         ClusterId:
           !GetAtt ECS.Outputs.Cluster
-        DesiredCount: '2'
-        MaxCount: '4'
+        DesiredCount: !Ref MinClusterSize
+        MaxCount: !Ref MaxClusterSize
         Listener:
           !GetAtt ALB.Outputs.Listener
         ECSContainerInstanceAutoScalingRoleARN:
@@ -204,8 +214,8 @@ Resources:
           !GetAtt VPC.Outputs.VPC
         ClusterId:
           !GetAtt ECS.Outputs.Cluster
-        DesiredCount: '2'
-        MaxCount: !Ref ClusterSize
+        DesiredCount: !Ref MinClusterSize
+        MaxCount: !Ref MaxClusterSize
         Listener:
           !GetAtt ALB.Outputs.Listener
         ECSContainerInstanceAutoScalingRoleARN:
@@ -229,8 +239,8 @@ Resources:
           !GetAtt VPC.Outputs.VPC
         ClusterId:
           !GetAtt ECS.Outputs.Cluster
-        DesiredCount: '2'
-        MaxCount: '4'
+        DesiredCount: !Ref MinClusterSize
+        MaxCount: !Ref MaxClusterSize
         Listener:
           !GetAtt ALB.Outputs.Listener
         ECSContainerInstanceAutoScalingRoleARN:
@@ -252,8 +262,8 @@ Resources:
           !GetAtt VPC.Outputs.VPC
         ClusterId:
           !GetAtt ECS.Outputs.Cluster
-        DesiredCount: '2'
-        MaxCount: '4'
+        DesiredCount: !Ref MinClusterSize
+        MaxCount: !Ref MaxClusterSize
         Listener:
           !GetAtt ALB.Outputs.Listener
         ECSContainerInstanceAutoScalingRoleARN:

@@ -9,6 +9,7 @@ declare -A defaults=(
   [CORE_IMAGE]='730096353738.dkr.ecr.us-east-1.amazonaws.com/core:2001.0040'
   [PORTAL_IMAGE]='730096353738.dkr.ecr.us-east-1.amazonaws.com/portal:2001.0040'
   [PDF_IMAGE]='730096353738.dkr.ecr.us-east-1.amazonaws.com/research-pdf:2002.0003'
+  [NO_ROLLBACK]='true'
   # ----- Most of the following are defaulted in the yaml file itself:
   # [GLOBAL_TAG]='kuali-ec2'
   # [EC2_INSTANCE_TYPE]='m4.medium'
@@ -61,6 +62,7 @@ stackAction() {
       cloudformation $action \\
       --stack-name $STACK_NAME \\
       $([ $task != 'create-stack' ] && echo '--no-use-previous-template') \\
+      $([ "$NO_ROLLBACK" == 'true' ]) && echo '--on-failure DO_NOTHING') \\
       --template-url $BUCKET_URL/ec2.yaml \\
       --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \\
       --parameters '[

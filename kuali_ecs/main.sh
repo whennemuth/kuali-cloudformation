@@ -10,6 +10,7 @@ declare -A defaults=(
   [PORTAL_IMAGE]='730096353738.dkr.ecr.us-east-1.amazonaws.com/portal:2001.0040'
   [PDF_IMAGE]='730096353738.dkr.ecr.us-east-1.amazonaws.com/research-pdf:2002.0003'
   [GLOBAL_TAG]='kuali-ecs'
+  [NO_ROLLBACK]='true'
   # ----- Most of the following are defaulted in the yaml file itself:
   # [EC2_INSTANCE_TYPE]='m4.medium'
   # [AVAILABILITY_ZONE1]='us-east-1a'
@@ -25,7 +26,8 @@ declare -A defaults=(
   # [LOGICAL_RESOURCE_ID]='???'
   # [ENABLE_NEWRELIC_APM]='false'
   # [ENABLE_NEWRELIC_INFRASTRUCTURE]='false'
-  # [CLUSTER_SIZE]='2'
+  # [MIN_CLUSTER_SIZE]='2'
+  # [MAX_CLUSTER_SIZE]='3'
 )
 
 run() {
@@ -43,9 +45,18 @@ run() {
 
   setDefaults
 
+  validateParms
+
   runTask
 }
 
+validateParms() {
+  local msg=''
+  if [ $MIN_CLUSTER_SIZE -gt $MAX_CLUSTER_SIZE ] ; then
+    msg='Minimum cluster size cannot be greater than maximum cluster size.'
+    exit 1
+  fi
+}
 
 # Create, update, or delete the cloudformation stack.
 stackAction() {
@@ -98,6 +109,7 @@ EOF
       cloudformation $action \\
       --stack-name $STACK_NAME \\
       $([ $task != 'create-stack' ] && echo '--no-use-previous-template') \\
+      $([ "$NO_ROLLBACK" == 'true' ]) && echo '--on-failure DO_NOTHING') \\
       --template-url $BUCKET_URL/YAML \\
       --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \\
       --parameters '[
@@ -139,8 +151,10 @@ EOF
       addParameter $cmdfile 'AvailabilityZone1' $AVAILABILITY_ZONE1
     [ -n "$AVAILABILITY_ZONE2" ] && \
       addParameter $cmdfile 'AvailabilityZone2' $AVAILABILITY_ZONE2
-    [ -n "$CLUSTER_SIZE" ] && \
-      addParameter $cmdfile 'ClusterSize' $CLUSTER_SIZE
+    [ -n "$MIN_CLUSTER_SIZE" ] && \
+      addParameter $cmdfile 'MinClusterSize' $MIN_CLUSTER_SIZE
+    [ -n "$MAX_CLUSTER_SIZE" ] && \
+      addParameter $cmdfile 'MaxClusterSize' $MAX_CLUSTER_SIZE
 
     echo "      ]'" >> $cmdfile
 

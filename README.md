@@ -1,11 +1,17 @@
-## Kuali for Boston University on AWS
+## Kuali Research Cloud Deployments on AWS
 
-- kuali ec2
+This repository provides several folders, each corresponding to the creation of a cloudformation stack and containing the associated templates and helper scripts for their use.
 
-- kuali ec2 with alb
+Once created, a stack will have created a deployment of the kuali-research application and accompanying modules within the specified aws account.
 
-- kuali ecs
+These stacks are as follows, in order of increasing scope:
 
-- kuali peripherals
+- [kuali ec2](kuali_ec2/README.md)
+
+- [kuali ec2 with alb](kuali_ec2_alb/README.md)
+
+- [kuali ecs](kuali_ecs/README.md)
+
+- [kuali peripherals](kuali_peripherals/README.md)
 
   

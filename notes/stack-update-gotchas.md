@@ -1,4 +1,4 @@
-## NOTES: ECS cluster
+## Stack Updates to EC2 Instances: Info & Gotchas
 
 1. #### What does and does not get changed when an EC2 instance undergoes a stack update?
 
@@ -48,7 +48,7 @@
    If you were to perform the following steps:
 
    1. Modify the template to add another security group to SecurityGroups.
-   2. Modify the template so that the content of awscli.conf has a extra lines.
+   2. Modify the template so that the content of awscli.conf has extra lines.
    3. Upload the modified template to its S3 bucket.
    4. Run a stack update off the modified template.
 
@@ -108,6 +108,35 @@
             ...
       ```
    A service means a daemon process, and this one uses cfn-hup at regular intervals. If cfn-hup determines an update was made to the stack against the resource in question, cfn-init is called.
+          
 
-2. 
+2. #### What's the difference between Userdata and cfn-init?
 
+   UserData is run only once upon creation of the ec2 instance and will call cfn-init for the first time as one of its last commands. Instead of being procedural like UserData, cfn-init is state-based in that it comprises only commands that deposit/replace files, set environment variables, update packages, etc. But the biggest difference is that cfn-init can be run again after the initial ec2 creation either by modifying anything in the AWS::CloudFormation::Init resource of the cfn stack template and performing a stack update, or shelling into the ec2 instance and running:
+
+   ```
+   /opt/aws/bin/cfn-init \
+     -v --region ${AWS::Region} \
+     --stack ${AWS::StackName} \
+     --resource YourResourceName \
+     --configsets ...
+   ```
+
+   If you make a modification to UserData cloudformation will REPLACE that EC2 instance during a stack update.
+   If you make a modification to AWS::CloudFormation::Init, cloudformation will UPDATE that ec2 instance in place during a stack update. So, rule of thumb: Don't put anything in UserData that you want to be "refreshable" with a stack update
+       
+
+3. #### More on [Metadata](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/metadata-section-structure.html), [Initialization](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-init.html) and [Helper Scripts](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/cfn-helper-scripts-reference.html):
+  
+   You'll find a sufficient overview at the links provided above.
+   but a few random definitions and points:
+   
+   - If your template calls the cfn-init script, the script looks for resource metadata rooted in the AWS::CloudFormation::Init metadata key.
+   - The cfn-hup helper is a daemon that detects changes in resource metadata and runs user-specified actions when a change is detected. This allows you to make configuration updates on your running Amazon EC2 instances through the UpdateStack API action.
+   - The user actions that the cfn-hup daemon calls periodically are defined in the hooks.conf configuration file. To support composition of several applications deploying change notification hooks, cfn-hup supports a directory named hooks.d that is located in the hooks configuration directory. You can place one or more additional hooks configuration files in the hooks.d directory. The additional hooks files must use the same layout as the hooks.conf file. 
+   - services.sysvinit.servicename.files: A list of files. If cfn-init changes one directly via the files block, this service will be restarted.'
+   - The cfn-init helper script processes these configuration sections and then services. If you require a different order, separate your sections into different config keys, and then use a configset that specifies the order in which the config keys should be processed.
+   
+   
+   
+   
