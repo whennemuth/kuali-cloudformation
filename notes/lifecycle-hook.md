@@ -25,7 +25,7 @@
       We use the V2 ELB, but in either case, the timeout setting specifies how long to wait for in-flight requests to complete and the de-registration to proceed.
 
    - [Container Instance Draining](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/container-instance-draining.html):
-      Connection draining essentially prevents the client from experiencing the server being cut off in mid-reply to a request that was made to one of its tasks. But container instance draining involves a special transitional state applied to a container instance having to do with its lifecycle.
+      Unlike connection draining, which essentially prevents the client from experiencing the server being cut off in mid-reply to a request that was made to one of its tasks, container instance draining involves a special transitional state applied to a container instance having to do with its lifecycle.
       You put the container instance into a DRAINING state, which prevents new tasks from being launched and signals ECS to put replacement tasks on other instances in the cluster.
       You would then watch while the container instance is "drained" of its tasks as ECS attempts to maintain capacity, as defined in the minimum/maximum HealthyPercent configuration of the service, by redistributing it on the non-draining instances in the cluster.
       Terminating the instance without draining it could cause a disruption to this process - ECS would be unable ensure the proper capacity of the service (at least for a while).

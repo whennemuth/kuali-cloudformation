@@ -4,6 +4,8 @@ Use this template to perform the simplest form of deployment for kuali research,
     
 ![layout](./diagram1.png)
 
+[TOC]
+
 ### Features:
 
 1. **EC2:**
@@ -14,7 +16,7 @@ Use this template to perform the simplest form of deployment for kuali research,
    Reverse proxying is accomplished with an additional docker container running nginx that takes in all traffic coming into the ec2 instance over ports 80 (http) and 443 (https) and routes to the appropriate app in one of the other docker containers.
 4. **Cloudformation:**
    Create, update, or delete the cloud formation stack for the infrastructure and app deployment.
-   Resources created are the EC2 instance (with profile, role, security group, log group, & elastic IP) as shown below.
+   Resources created are the EC2 instance (with profile, role, security group, log group, & elastic IP) as shown above.
        
 
 ### Prerequisites:

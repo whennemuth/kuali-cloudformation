@@ -4,6 +4,8 @@ Use these template to perform the median form of deployment for kuali research, 
 
 ![layount](./diagram1.png)
 
+[TOC]
+
 ### Features:
 
 1. **EC2:**
@@ -14,7 +16,7 @@ Use these template to perform the median form of deployment for kuali research, 
    [Reverse proxying](https://medium.com/commutatus/how-to-configure-a-reverse-proxy-in-aws-b164de91176e) is accomplished through the [application load balancer](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/introduction.html) that takes in all traffic bound for the ec2 instances over ports 80 (http) and 443 (https) and routes according to path-based rules to the appropriate ports on the EC2 hosts . The corresponding docker container is published on the appropriate ec2 host port. This removes the need for an [apache ](https://httpd.apache.org/docs/2.4/howto/reverse_proxy.html) or [nginx reverse proxy](https://docs.nginx.com/nginx/admin-guide/web-server/reverse-proxy/) running inside the ec2 host.
 4. **Cloudformation:**
    Create, update, or delete the cloud formation stack for the infrastructure and app deployment.
-   Resources created are the EC2 instances (with profile, role, security group, log group, & application load balancer) as shown below.
+   Resources created are the EC2 instances (with profile, role, security group, log group, & application load balancer) as shown above.
 
 ### Prerequisites:
 
@@ -38,34 +40,35 @@ Use these template to perform the median form of deployment for kuali research, 
 
 Included is a bash helper script (main.sh) that serves to simplify many of the command line steps that would otherwise include a fair amount of manual entry. 
 
-2. **Clone this repository:**
-  
-```
+1. **Clone this repository:**
+
+   ```
    git clone https://github.com/bu-ist/kuali-cloudformation.git
    cd kuali-cloudformation/kuali_ec2_alb
-```
+   ```
 
 2. **Certificate creation:**
    The load balancer will be configured to redirect all http traffic to https. This means that it needs to have an ssl certificate to decrypt all incoming traffic on port 443 before forwarding on to the application hosts. You may already have a certificate uploaded to IAM or ACM.
    However, you can also call this script to create and upload a self-signed certificate for you:
 
    1. Generates certificate
+
    2. Imports certificate to IAM
+
    3. Uploads certificate file, private key file, and the ARN of the imported certificate to an S3 bucket.
 
-   ```
-   # Example 1): Certificate will be uploaded to "s3://kuali-research-ec2-setup/cloudformation/kuali_ec2_alb"
-   sh main.sh cert
-   
-   # Example 2): Upload certificate to another bucket path (bucke will be created if it does not already exist).
-   sh main.sh cert bucket_path=s3://my_bucket/some/directory
-   ```
+      ```
+      # Example 1): Certificate will be uploaded to "s3://kuali-research-ec2-setup/cloudformation/kuali_ec2_alb"
+      sh main.sh cert
+      
+      # Example 2): Upload certificate to another bucket path (bucke will be created if it does not already exist).
+      sh main.sh cert bucket_path=s3://my_bucket/some/directory
+      ```
 
-   *IMPORTANT: When creating the stack, for some reason cloudformation returns a "CertificateNotFound" error when the arn of a certificate uploaded to ACM is used to configure the listener for ssl. However, it has no problem with an arn of uploaded iam server certificates. This may have something to do with the self-signed certificates being considered invalid. Put your certificates (at least, your self-signed certificates) in IAM for now until more is known about the issue.*
+      *IMPORTANT: When creating the stack, for some reason cloudformation returns a "CertificateNotFound" error when the arn of a certificate uploaded to ACM is used to configure the listener for ssl. However, it has no problem with an arn of uploaded iam server certificates. This may have something to do with the self-signed certificates being considered invalid. Put your certificates (at least, your self-signed certificates) in IAM for now until more is known about the issue.*
 
 3. **Create the stack:**
    The creation of the cloudformation stack can be run in one of two ways:
-
    1. **Default:**
       All subnets will be created from scratch inside the default VPC with its internet gateway. The ids of the default VPC and internet gateway need not be provided as these can be dynamically looked up.
 
@@ -119,7 +122,7 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
       
    2. **"Injected"**:
       This scenario assumes that you are "injecting" the load balancer and ec2 instances into subnets that have already been set aside for them, perhaps by network administrators, cloud team, etc.
-   
+
       ```
       # Example 1): Create the infrastructure in a specific VPC using existing subnets:
       sh main.sh \
@@ -130,8 +133,8 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
           public_subnet1=subnet-01b7baf7ed9fe8b4e \
           public_subnet2=subnet-0ed0feaf1187d9ed9
       ```
-   
-4. **Browse the app:**
+
+2. **Browse the app:**
    Once the stack has been created, you can visit the Course Schedule Planner app in your browser.
 
    1. Go to the stack in the [AWS Console](https://console.aws.amazon.com/cloudformation/home?region=us-east-1). Click on the new stack in the list and go to the "Outputs" tab.
@@ -139,7 +142,7 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
    3. If you used a self-signed certificate, you should be presented with a security warning. Click to proceed despite the warning.
    4. You should now see the app.
 
-5. **Update the stack:**
+3. **Update the stack:**
    You may decide to modify the stack to add, remove, or adjust resources.
    For example, there is currently no logging for the app, so adding cloudwatch log group and metrics and docker logging driver may be something to do soon.
 
@@ -153,10 +156,10 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
    # The templates may not have changed, changing parameters to up the ec2 instance size and upgrade kuali-research to new release:
    sh main.sh update-stack \
    	ec2_instance_type=m4.xlarge \
-	kc_image=730096353738.dkr.ecr.us-east-1.amazonaws.com/coeus-sandbox:2006.0038
+   kc_image=730096353738.dkr.ecr.us-east-1.amazonaws.com/coeus-sandbox:2006.0038
    ```
-   
-6. **Shell access:**
+
+4. **Shell access:**
    Occasionally, log information is insufficient to determine the cause of an issue and it becomes necessary to shell into the application host to "poke around". However, for security reasons, the 2 ec2 instances reside in private subnets, and are protected from any access from the outside world that does not go through the load balancer.
         
    Traditionally, the way to accommodate access to the private subnet was to place another ec2 instance in the public subnet to act as a bastion or "jump" server. You'd have to know what you are doing in order to harden up the bastion server to ensure that it limited access properly and did not expose security holes.

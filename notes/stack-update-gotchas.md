@@ -1,5 +1,7 @@
 ## Stack Updates to EC2 Instances: Info & Gotchas
 
+The following are a collection of noteworthy points and caveats about EC2 Instances when stack updates apply.
+
 1. #### What does and does not get changed when an EC2 instance undergoes a stack update?
 
    <u>QUESTION</u>: 

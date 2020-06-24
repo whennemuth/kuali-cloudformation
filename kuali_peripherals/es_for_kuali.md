@@ -128,7 +128,7 @@ The search option in the dashboard menu is powered by Elasticsearch:
       ```
 
       The stack creation will take between 15 and 20 minutes.
-      
+         
 
 2. #### **Configuration**
 
@@ -159,50 +159,50 @@ The search option in the dashboard menu is powered by Elasticsearch:
 
       Restart the kuali-research docker container(s).
       
-
-   2. **Parameter Lookup**
-
-      Navigate to the parameter screen in the dashboard frontend:
-
-      `All Links > System Administration > Parameter`
-
-      Search for `*elasticsearch*`
-
-      Set each result as follows:
-
-      - **Elasticsearch_Index_Job_Cron_Expression**: The cron expression to determine the schedule of the Elasticsearch document indexing job. Default is nightly at midnight (0 0 0 * * ?)." 
+2. **Parameter Lookup**
+   
+   Navigate to the parameter screen in the dashboard frontend:
+   
+   `All Links > System Administration > Parameter`
+   
+   Search for `*elasticsearch*`
+   
+   Set each result as follows:
+   
+   - **Elasticsearch_Index_Job_Cron_Expression**: The cron expression to determine the schedule of the Elasticsearch document indexing job. Default is nightly at midnight (0 0 0 * * ?)." 
         *(Arbitrarily leaving at midnight for now)*
-
-      - **Elasticsearch_Index_Job_Enabled**: Determines if the Elasticsearch document indexing job is enabled. Default is false.
+   
+   - **Elasticsearch_Index_Job_Enabled**: Determines if the Elasticsearch document indexing job is enabled. Default is false.
         *(Set to True)*
-
-      - **Elasticsearch_Index_Job_Skip_Misfire:**  In the event that the Elasticsearch document indexing failed to run at its scheduled time (due to KC being offline, for instance), determines whether the job should run right away (false) or wait until the next scheduled run(true). Default is false. 
+   
+   - **Elasticsearch_Index_Job_Skip_Misfire:**  In the event that the Elasticsearch document indexing failed to run at its scheduled time (due to KC being offline, for instance), determines whether the job should run right away (false) or wait until the next scheduled run(true). Default is false. 
         *(Set to True. This means that the cron schedule is observed even if the last run encountered error.)*
-
-      - **Elasticsearch_Index_Skip_Default_And_Unit_Roles:**  Whether or not to skip indexing individual role memberships for default and unit-qualified roles, instead using unit memberships for Dashboard access control. Default is false.
+   
+   - **Elasticsearch_Index_Skip_Default_And_Unit_Roles:**  Whether or not to skip indexing individual role memberships for default and unit-qualified roles, instead using unit memberships for Dashboard access control. Default is false.
         *(Set to False. Setting to true tightens restrictions on which items in the search results you are allowed to see. It's not fully understood yet how exactly how this parameter operates.)*
-
-        *<u>**IMPORTANT!**</u>*
+   
+     *<u>**IMPORTANT!**</u>*
         *IF YOU HAVE ALREADY INDEXED THE ELASTICSEARCH CLUSTER AND YOU SWITCH THIS SETTING, YOU WILL NEED TO REINDEX THE ENTIRE CLUSTER AGAIN. This is because each indexed document maintains a "viewers" list of who is authorized to see it as a search result, and resetting this parameter will change that list*
-
-   3. **Dashboard Environment variables**
-
-      The docker container running the dashboard application will need to be restarted, having added the following environment variables (Again, the first value is just an example value):
-
-      - `ELASTICSEARCH_URL=https://vpc-kuali-elasticsearch-sb-db24x4yzmvesxlcsw5mrcym2py.us-east-1.es.amazonaws.com`
+   
+3. **Dashboard Environment variables**
+   
+   The docker container running the dashboard application will need to be restarted, having added the following environment variables (Again, the first value is just an example value):
+   
+   - `ELASTICSEARCH_URL=https://vpc-kuali-elasticsearch-sb-db24x4yzmvesxlcsw5mrcym2py.us-east-1.es.amazonaws.com`
       - `ELASTICSEARCH_INDEX_NAME=documents`
       - `OMNISEARCH_ENABLED=true`
       - `USE_LEGACY_APIS=false`
-
-      Remove the dashboard docker containers and re-run with these environment variables included.
-
-      Currently all environment variables are stored in "environment.variables.s3" files in our kuali-research-ec2-setup bucket and are automatically downloaded as part of the jenkins job for running the dashboard app.
-
-      Then when you navigate to the dashboard in the browser you should see the "Search" menu item to the left.
-
-      However, if you click the down arrow for the "Search Everywhere" button, you will see no options.
+   
+   Remove the dashboard docker containers and re-run with these environment variables included.
+   
+   Currently all environment variables are stored in "environment.variables.s3" files in our kuali-research-ec2-setup bucket and are automatically downloaded as part of the jenkins job for running the dashboard app.
+   
+   Then when you navigate to the dashboard in the browser you should see the "Search" menu item to the left.
+   
+   However, if you click the down arrow for the "Search Everywhere" button, you will see no options.
       You will not be able to see any search results yet either.
       You must perform an initial indexing of the elasticsearch cluster first.
+         
 
 3. #### Index the cluster
 

@@ -4,15 +4,21 @@ Use these template to build an AWS cloud formation stack where all Kuali researc
 
 ![layount](./diagram1.png)
 
+[TOC]
+
 ### Features:
 
 1. **Auto Scaling:**
    Much of the direct control of docker containers and the EC2 instances they run on is ceded to the elastic container service which creates and destroys these items dynamically in response to changes in load determined from logged metrics of resource consumption on the application host servers.
 2. **Application Load Balancer:**
    [Reverse proxying](https://medium.com/commutatus/how-to-configure-a-reverse-proxy-in-aws-b164de91176e) is accomplished through the [application load balancer](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/introduction.html) that takes in all traffic bound for the ec2 instances over ports 80 (http) and 443 (https) and routes according to path-based rules to the appropriate ports on the EC2 hosts . The corresponding docker container is published on the appropriate ec2 host port. This removes the need for an [apache ](https://httpd.apache.org/docs/2.4/howto/reverse_proxy.html) or [nginx reverse proxy](https://docs.nginx.com/nginx/admin-guide/web-server/reverse-proxy/) running inside the ec2 host.
-3. **Cloudformation:**
+3. **Lifecycle Hook:**
+   A lifecycle hook enables the gradual removal of EC2 instances due to maintenance or scale-downs so as to prevent abrupt interuption in the operation of whatever tasks may be running on them and allow a graceful transition. 
+   Link: [How to Automate Container Instance Draining in Amazon ECS](https://aws.amazon.com/blogs/compute/how-to-automate-container-instance-draining-in-amazon-ecs/)
+4. **Cloudformation:**
    Create, update, or delete the cloud formation stack for the infrastructure and app deployment.
-   Resources created are the ECS cluster (with VPC, instances, roles, security groups, log groups, & application load balancer) as shown below.
+   Resources created are the ECS cluster (with VPC, instances, roles, security groups, log groups, & application load balancer) as shown above.
+   
 
 ### Prerequisites:
 
@@ -31,6 +37,7 @@ Use these template to build an AWS cloud formation stack where all Kuali researc
   This S3 Bucket must exist prior to stack creation and serves 2 purposes:
   1. You must specify (either by default or explicit entry) an S3 bucket location where the yaml template(s) are to be uploaded and referenced as a parameter for stack creation.
   2. In this same bucket must exist application configuration files, like kc-config.xml for the research app, and environment variable files for docker containers to reference (contain database connection details and other app parameters).
+        
 
 ### Steps:
 
@@ -40,7 +47,7 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
 
 ```
    git clone https://github.com/bu-ist/kuali-cloudformation.git
-   cd kuali-cloudformation/kuali_ec2
+   cd kuali-cloudformation/kuali_ecs
 ```
 
 2. **Certificate creation:**
@@ -52,7 +59,7 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
    3. Uploads certificate file, private key file, and the ARN of the imported certificate to an S3 bucket.
 
    ```
-   # Example 1): Certificate will be uploaded to "s3://kuali-research-ec2-setup/cloudformation/kuali_ec2_alb"
+   # Example 1): Certificate will be uploaded to "s3://kuali-research-ec2-setup/cloudformation/kuali_ecs"
    sh main.sh cert
    
    # Example 2): Upload certificate to another bucket path (bucke will be created if it does not already exist).
@@ -132,12 +139,22 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
 
 ### Notes:
 
-The following are some notes on general operating principle for certain stack resources, lessons learned along, and caveats. 
+The following are some notes and links on general operating principle for certain stack resources, lessons learned along the way, and caveats. 
 
-1. **Stack Inventory**
-   Breakdown of resources that comprise the stack: [Stack Inventory](stack_inventory.md)
+1. [**Stack Inventory**](stack_inventory.md)
+   A breakdown of resources that comprise the stack
 
-2. **Latest image ID**
+2. [**Stack Updates involving EC2 Instances: Info & Gotchas**](../notes/stack-update-gotchas.md)
+   A collection of noteworthy points and caveats about EC2 Instances when stack updates apply.
+
+3. [**Notes on Services**](../notes/services.md)
+   A few links and noteworthy points encountered while developing the service portion of the ECS cluster stack creation
+
+4. **Lifecycle Hook**
+   [How to Automate Container Instance Draining in Amazon ECS](https://aws.amazon.com/blogs/compute/how-to-automate-container-instance-draining-in-amazon-ecs/)
+   [NOTES: Lifecycle Hook](..notes/lifecycle-hook.md)
+
+5. **Latest image ID**
    The ECSAMI parameter for the cluster.yaml template has a default that invokes a lookup for the latest ecs-optimized linux ami for ec2 instances to be based on. You can provide a specific image id to override this. However, if you want the latest (recommended), the lookup will fetch for you the same image id as returned by the following CLI call:
 
    ```
@@ -153,39 +170,7 @@ The following are some notes on general operating principle for certain stack re
        Default: /aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id
    ```
 
-3.  [**Stack Updates involving EC2 Instances: Gotchas**](../notes/stack-update-gotchas.md)
-
-4. **Services**
-
-   - `AWS::ECS::Service`
-      [Service Load Balancing](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/service-load-balancing.html): Currently, Amazon ECS services can only specify a single load balancer or target group. If your service requires access to multiple load balanced ports (for example, port 80 and port 443 for an HTTP/HTTPS service), you must use a Classic Load Balancer with multiple listeners. To use an Application Load Balancer, separate the single HTTP/HTTPS service into two services, where each handles requests for different ports. Then, each service could use a different target group behind a single Application Load Balancer.
-
-   - `AWS::ElasticLoadBalancingV2::ListenerRule`
-      Recently released: [HTTPS redirection](https://forums.aws.amazon.com/thread.jspa?threadID=286855&start=25&tstart=0)
-
-   - `AWS::ECS::TaskDefinition`
-      The docker containers launched for the core TaskDefinition use HostPorts that are dynamically mapped. This allows for more granular auto-scaling where more than one instance of the same container can be run on the same ContainerHost (ec2 instance).
-      To do this, the ContainerDefinitions must:
-
-      - Use the bridge NetworkMode setting
-      - Use PortMappings where the HostPort is left blank (or set to 0)
-
-      Links:
-
-      - [API: Port Mapping](https://docs.aws.amazon.com/AmazonECS/latest/APIReference/API_PortMapping.html)
-      - [API: Register Task Definition](https://docs.aws.amazon.com/AmazonECS/latest/APIReference/API_RegisterTaskDefinition.html)
-      - [Task Definition Parms: Network Mode](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_definition_parameters.html#network_mode)
-
-   - `AWS::ApplicationAutoScaling::ScalingPolicy`
-      We are using step scaling policy and not target tracking scaling policy. While target tracking is a simple, aws creates and manages the cloudformation alarms, which prevents the opportunity for you to create your own custom metric based alarms and have more control in general.
-
-   - AWS::CloudWatch::Alarm
-      If you're looking for documentation on how cloudwatch metrics are aggregated across the cluster/service in order to properly trigger scaleout/scalein alarms, you can find it here:
-
-      - [Cloudwatch Metrics](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/cloudwatch-metrics.html)
-      - [Alarms that send email](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/AlarmThatSendsEmail.html)
-
-5. **Auto-Scaling**
+6. **Auto-Scaling**
    There are a couple of useful tidbits to know about autoscaling.
 
    - **EC2 vs Application auto-scaling**
