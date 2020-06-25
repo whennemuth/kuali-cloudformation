@@ -183,8 +183,8 @@ Resources:
       Matcher:
         HttpCode: 200-299
       HealthCheckIntervalSeconds: 40
-      # HealthCheckPath: "/kc/research-sys/"
-      HealthCheckPath: "/index.jsp"
+      HealthCheckPath: "/kc/healthCheck/"
+      # HealthCheckPath: "/index.jsp"
       HealthCheckProtocol: HTTP
       HealthCheckTimeoutSeconds: 30
       HealthyThresholdCount: 2
@@ -238,7 +238,8 @@ Resources:
           !Ref TargetGroup
         Type: forward
       Conditions:
-      - { Field: path-pattern, Values: [ "/kc", "/kc/*",  "/index.jsp" ] }
+      # - { Field: path-pattern, Values: [ "/kc", "/kc/*", "/index.jsp" ] }
+      - { Field: path-pattern, Values: [ "/kc", "/kc/*" ] }
 
   ServiceRole:
     Type: AWS::IAM::Role
