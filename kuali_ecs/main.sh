@@ -52,9 +52,21 @@ run() {
 
 validateParms() {
   local msg=''
-  if [ $MIN_CLUSTER_SIZE -gt $MAX_CLUSTER_SIZE ] ; then
-    msg='Minimum cluster size cannot be greater than maximum cluster size.'
-    exit 1
+  if [ -z "$MIN_CLUSTER_SIZE" ] && [ -z "$MAX_CLUSTER_SIZE" ] ; then
+    # Invoke the parameter defaults of the main.yaml template for cluster size
+    return 0
+  elif [ -n "$MIN_CLUSTER_SIZE" ] && [ -n "$MAX_CLUSTER_SIZE" ] ; then
+    if [ $MIN_CLUSTER_SIZE -gt $MAX_CLUSTER_SIZE ] ; then
+      msg='Minimum cluster size cannot be greater than maximum cluster size.'
+      exit 1
+    fi  
+  elif [ -z "$MIN_CLUSTER_SIZE" ] ; then
+    MIN_CLUSTER_SIZE=$((MAX_CLUSTER_SIZE-1))
+  elif [ -z "$MAX_CLUSTER_SIZE "] ; then
+    MAX_CLUSTER_SIZE=$((MIN_CLUSTER_SIZE+1))
+  fi
+  if [ $MIN_CLUSTER_SIZE -eq 0 ] ; then
+    $((MIN_CLUSTER_SIZE++))
   fi
 }
 
@@ -109,7 +121,7 @@ EOF
       cloudformation $action \\
       --stack-name $STACK_NAME \\
       $([ $task != 'create-stack' ] && echo '--no-use-previous-template') \\
-      $([ "$NO_ROLLBACK" == 'true' ]) && echo '--on-failure DO_NOTHING') \\
+      $([ "$NO_ROLLBACK" == 'true' ] && echo '--on-failure DO_NOTHING') \\
       --template-url $BUCKET_URL/YAML \\
       --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \\
       --parameters '[

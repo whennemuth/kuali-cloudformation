@@ -1,3 +1,4 @@
 *.crt
 *.arn
 *.key
+last-cmd.sh
