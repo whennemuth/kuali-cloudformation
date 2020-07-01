@@ -2,6 +2,10 @@
 
 This repository provides several folders, each corresponding to the creation of a cloudformation stack and containing the associated templates and helper scripts for their use.
 
+> **Vanilla**: This branch is a "vanilla" version of cloud deployments for Kuali Research.
+> That is, it is not specific to Boston University and does not assume a pre-existing infrastructure or exterior dependencies.
+> Exceptions to that are s3 buckets, databases, and the proper IAM presence for you to cloud-form, but aside from those, the account in which you are running these stacks can be brand new and bare of anything else.
+
 Once created, a stack will have created a deployment of the kuali-research application and accompanying modules within the specified aws account.
 
 These stacks are as follows, in order of increasing scope:
