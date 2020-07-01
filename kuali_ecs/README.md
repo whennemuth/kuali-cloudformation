@@ -4,7 +4,6 @@ Use these template to build an AWS cloud formation stack where all Kuali researc
 
 ![layount](./diagram1.png)
 
-[TOC]
 
 ### Features:
 
@@ -75,7 +74,7 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
    # Example 1) Use defaults:
    sh main.sh create-stack
    
-   # Example 5) Comprehensive parameters, avoiding all defaults.
+   # Example 2) Comprehensive parameters, avoiding all defaults.
        landscape=ci \
        stack_name=my-kuali-with-autoscaling \
        no_rollback=true \
