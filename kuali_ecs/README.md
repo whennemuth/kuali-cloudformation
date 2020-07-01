@@ -45,8 +45,8 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
 2. **Clone this repository**:
 
 ```
-   git clone https://github.com/bu-ist/kuali-cloudformation.git
-   cd kuali-cloudformation/kuali_ecs
+   git clone https://github.com/bu-ist/kuali-infrastructure.git
+   cd kuali-infrastructure/kuali_ecs
 ```
 
 2. **Certificate creation:**

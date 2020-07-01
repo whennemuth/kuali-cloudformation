@@ -46,8 +46,8 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
 1. **Clone this repository:**
 
    ```
-   git clone https://github.com/bu-ist/kuali-cloudformation.git
-   cd kuali-cloudformation/kuali_ec2
+   git clone https://github.com/bu-ist/kuali-infrastructure.git
+   cd kuali-infrastructure/kuali_ec2
    ```
 
 2. **Create the stack:**
