@@ -27,6 +27,12 @@ Parameters:
       This parameter is restricted to the following values: sb, ci, qa, stg, prod
     Default: sb
 
+  # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/retrieve-ecs-optimized_AMI.html
+  ECSAMI:
+    Description: AMI ID
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id
+
   EC2InstanceType:
     Type: String
     Description: What type of EC2 instance should be used for hosting?
@@ -91,47 +97,7 @@ Parameters:
     ConstraintDescription: Enter "true" or "false" only.
     Default: "false"
 
-# Each of these subnets will get the ec2 instance into the proper BU VPC.
-# This is necessary to gain access to the oracle databases, which cannot be accessed from outside the VPC
-# Also, you need to apply the specific vpc id to the security group being created here so it does not land in the default VPC.
-# Mappings:
-#   SubnetIdMap:
-#     sb:
-#       vpc: "vpc-abdf0ccc"
-#       subnet: "subnet-61377139"
-#     ci:
-#       vpc: "vpc-abdf0ccc"
-#       subnet: "subnet-86f2d8f0"
-#     qa:
-#       vpc: "vpc-abdf0ccc"
-#       subnet: "subnet-3a215b10"
-#     stg:
-#       vpc: "vpc-abdf0ccc"
-#       subnet: "subnet-28235902"
-#     prod:
-#       vpc: "vpc-27114f40"
-#       subnet: "subnet-7dfb1350"
-
 Resources:
-
-  Utils:
-    Type: AWS::CloudFormation::Stack
-    Properties:
-      TemplateURL: 
-        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/lambda/ami-lookup.yaml
-      Parameters:
-        GlobalTag:
-          kuali-ec2
-
-  AMIInfo:
-    Type: Custom::AMIInfo
-    Properties:
-      ServiceToken:
-        !GetAtt Utils.Outputs.AMIInfoFunctionArn
-      Region:
-        Ref: AWS::Region
-      InstanceType:
-        !Ref EC2InstanceType   
 
   EC2Instance:
     Type: AWS::EC2::Instance
@@ -143,8 +109,7 @@ Resources:
       - Key: Name
         Value: !Sub ${GlobalTag}-instance
       ImageId: 
-        # ami-00129b193dc81bc31
-        !GetAtt AMIInfo.Id
+        !Ref ECSAMI
       InstanceType:
         !Ref EC2InstanceType
       SecurityGroupIds:
@@ -269,36 +234,6 @@ Resources:
             yum:
               awslogs: []
           files:
-            # /home/wrh/.ssh/authorized_keys:
-            #   mode: "000600"
-            #   owner: wrh
-            #   group: wrh
-            #   source:
-            #     !Sub https://s3.amazonaws.com/${BucketName}/ecs/ssh-keys/rsa-key-wrh.pub
-            # /home/mkousheh/.ssh/authorized_keys:
-            #   mode: "000600"
-            #   owner: mkousheh
-            #   group: mkousheh
-            #   source:
-            #     !Sub https://s3.amazonaws.com/${BucketName}/ecs/ssh-keys/rsa-key-mkousheh.pub
-            # /home/mukadder/.ssh/authorized_keys:
-            #   mode: "000600"
-            #   owner: mukadder
-            #   group: mukadder
-            #   source:
-            #     !Sub https://s3.amazonaws.com/${BucketName}/ecs/ssh-keys/rsa-key-mukadder.pub
-            # /home/dhaywood/.ssh/authorized_keys:
-            #   mode: "000600"
-            #   owner: dhaywood
-            #   group: dhaywood
-            #   source:
-            #     !Sub https://s3.amazonaws.com/${BucketName}/ecs/ssh-keys/rsa-key-dhaywood.pub
-            # /root/.ssh/git_rsa_key:
-            #   mode: "000600"
-            #   owner: root
-            #   group: root
-            #   source:
-            #     !Sub https://s3.amazonaws.com/${BucketName}/bu_github_id_docker_rsa
             /opt/kuali/README.txt:
               content: !Sub |
                 This directory contains the "environment" for each app to run
@@ -911,22 +846,69 @@ Resources:
       - Key: Name
         Value: !Sub ${GlobalTag}.SG
       SecurityGroupIngress:
-      - IpProtocol: tcp
+      - Description: "SSH: vpn.bu.edu/2fa On Campus, Group 1"
+        IpProtocol: tcp
         FromPort: 22
         ToPort: 22
-        CidrIp: "0.0.0.0/0"
-      - IpProtocol: tcp
+        CidrIp: "168.122.81.0/24"
+      - Description: "SSH: vpn.bu.edu/2fa On Campus, Group 2 "
+        IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: "168.122.82.0/23"
+      - Description: "SSH: vpn.bu.edu/2fa Off Campus"
+        IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: "168.122.76.0/24"
+      
+      - Description: "HTTP: vpn.bu.edu/2fa On Campus, Group 1"
+        IpProtocol: tcp
         FromPort: 80
         ToPort: 80
-        CidrIp: "0.0.0.0/0"
-      - IpProtocol: tcp
+        CidrIp: "168.122.81.0/24"
+      - Description: "HTTP: vpn.bu.edu/2fa On Campus, Group 2 "
+        IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: "168.122.82.0/23"
+      - Description: "HTTP: vpn.bu.edu/2fa Off Campus"
+        IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: "168.122.76.0/24"
+        
+      - Description: "HTTPS: vpn.bu.edu/2fa On Campus, Group 1"
+        IpProtocol: tcp
         FromPort: 443
         ToPort: 443
-        CidrIp: "0.0.0.0/0"
-      - IpProtocol: tcp
+        CidrIp: "168.122.81.0/24"
+      - Description: "HTTPS: vpn.bu.edu/2fa On Campus, Group 2 "
+        IpProtocol: tcp
+        FromPort: 443
+        ToPort: 443
+        CidrIp: "168.122.82.0/23"
+      - Description: "HTTPS: vpn.bu.edu/2fa Off Campus"
+        IpProtocol: tcp
+        FromPort: 443
+        ToPort: 443
+        CidrIp: "168.122.76.0/24"
+        
+      - Description: "UDP: vpn.bu.edu/2fa On Campus, Group 1"
+        IpProtocol: udp
         FromPort: 1043
         ToPort: 1043
-        CidrIp: "0.0.0.0/0"
+        CidrIp: "168.122.81.0/24"
+      - Description: "UDP: vpn.bu.edu/2fa On Campus, Group 2 "
+        IpProtocol: udp
+        FromPort: 1043
+        ToPort: 1043
+        CidrIp: "168.122.82.0/23"
+      - Description: "UDP: vpn.bu.edu/2fa Off Campus"
+        IpProtocol: udp
+        FromPort: 1043
+        ToPort: 1043
+        CidrIp: "168.122.76.0/24"
 
   EIP:
     Type: AWS::EC2::EIP
