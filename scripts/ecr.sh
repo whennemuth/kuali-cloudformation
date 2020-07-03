@@ -1,6 +1,6 @@
 #!/bin/bash
 
-source common-functions.sh
+source ./common-functions.sh
 
 # Transfer repositories from ecr in one account to ecr in another account
 migrate() {
@@ -11,8 +11,8 @@ migrate() {
   echo "Transferring repositories from account: $SOURCE_ACCOUNT_ID to account: $TARGET_ACCOUNT_ID"
 
   # Log into both source and target registries
-  $(aws --profile $SOURCE_PROFILE ecr get-login --no-include-email --region us-east-1)
-  $(aws --profile $TARGET_PROFILE ecr get-login --no-include-email --region us-east-1)
+  $(aws --profile=$SOURCE_PROFILE ecr get-login --no-include-email --region us-east-1)
+  $(aws --profile=$TARGET_PROFILE ecr get-login --no-include-email --region us-east-1)
   
   local pulled=0
   local pushed=0
@@ -26,7 +26,7 @@ migrate() {
 
     # Remove the source image if it exists locally already.
     if [ -n "$(docker images $sourceImg -q)" ] ; then
-      docker rmi $sourceImg
+      docker rmi -f $sourceImg
       docker rmi -f $(docker images --filter dangling=true -q) 2> /dev/null
     fi
 
@@ -43,7 +43,8 @@ migrate() {
 
     # Remove the image locally. If there are a lot of images to migrate, you could eventually use up a lot of space if you don't do this.
     echo "Cleaning up..."
-    docker rmi $sourceImg
+    docker rmi -f $sourceImg
+    docker rmi -f $targetImg
     docker rmi -f $(docker images --filter dangling=true -q) 2> /dev/null
   done
 
