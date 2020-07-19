@@ -31,7 +31,7 @@ Resources:
   Utils:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: https://s3.amazonaws.com/kuali-research-ec2-setup/cloudformation/lambda/lambda.yaml
+      TemplateURL: https://s3.amazonaws.com/kuali-conf/cloudformation/lambda/lambda.yaml
       Parameters:
         GlobalPrefix:
           Ref: GlobalPrefix
@@ -44,7 +44,7 @@ Resources:
       task: get.container.env.vars
       region:
         !Ref AWS::Region
-      s3bucket: kuali-research-ec2-setup
+      s3bucket: kuali-conf
       s3file:
         !Sub "${Landscape}/core/environment.variables.s3"
       outputmask: |
@@ -67,7 +67,7 @@ Resources:
       task: get.ec2.public.keys
       region:
         !Ref AWS::Region
-      s3bucket: kuali-research-ec2-setup
+      s3bucket: kuali-conf
       s3files: |
         {s3keyfiles: [
           {user:wrh,      keyfile:"ecs/ssh-keys/rsa-key-wrh.pub"}

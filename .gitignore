@@ -1,2 +1,5 @@
 *.bak
 last-ecs-cmd.sh
+s3/*
+**/*.pub
+**/*keypair*

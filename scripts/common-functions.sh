@@ -13,11 +13,18 @@ parseArgs() {
 
 setDefaults() {
   # Set explicit defaults first
-  echo "START..."
+  LANDSCAPE="${defaults['LANDSCAPE']}"
+  GLOBAL_TAG="${defaults['GLOBAL_TAG']}"
   for k in ${!defaults[@]} ; do
-    local evalstr="[ -z \"\$$k\" ] && $k=\"${defaults[$k]}\""
+    local val="${defaults[$k]}"
+    if grep -q '\$' <<<"$val" ; then
+      eval "val=$val"
+    elif [ ${val:0:14} == 'getLatestImage' ] ; then
+      val="$($val)"
+    fi
+    local evalstr="[ -z \"\$$k\" ] && $k=\"$val\""
     eval "$evalstr"
-    echo "$k = ${defaults[$k]}"
+    echo "$k = $val"
   done
 
   # Set contingent defaults second
@@ -86,16 +93,16 @@ uploadStack() {
 
   if [ -n "$TEMPLATE" ] ; then
     if [ -f $TEMPLATE ] ; then
-      echo "aws s3 cp $TEMPLATE $BUCKET_PATH" > $cmdfile
+      echo "aws --profile=$PROFILE s3 cp $TEMPLATE $BUCKET_PATH" > $cmdfile
     elif [ -f $TEMPLATE_PATH/$TEMPLATE ] ; then
-      echo "aws s3 cp $TEMPLATE_PATH/$TEMPLATE $BUCKET_PATH" > $cmdfile
+      echo "aws --profile=$PROFILE s3 cp $TEMPLATE_PATH/$TEMPLATE $BUCKET_PATH" > $cmdfile
     else
       echo "$TEMPLATE not found!"
       exit 1
     fi
   else
     cat <<-EOF > $cmdfile
-    aws s3 cp $TEMPLATE_PATH $BUCKET_PATH \\
+    aws --profile=$PROFILE s3 cp $TEMPLATE_PATH $BUCKET_PATH \\
       --exclude=* \\
       --include=*.yaml \\
       --recursive
@@ -108,7 +115,7 @@ EOF
   fi
   
   # Create an s3 bucket for the app if it doesn't already exist
-  if [ -z "$(aws s3 ls $BUCKET_NAME 2> /dev/null)" ] ; then
+  if ! bucketExists "$BUCKET_NAME" ; then
     aws s3 mb s3://$BUCKET_NAME
   fi
 
@@ -136,7 +143,7 @@ EOF
 # Issue an ssm command to an ec2 instance to re-run its init functionality from it's metadata.
 metaRefresh() {
   getInstanceId() (
-    aws cloudformation describe-stack-resources \
+    aws --profile=$PROFILE cloudformation describe-stack-resources \
       --stack-name $STACK_NAME \
       --logical-resource-id $LOGICAL_RESOURCE_ID \
       | jq '.StackResources[0].PhysicalResourceId' \
@@ -158,7 +165,7 @@ metaRefresh() {
   #       --parameters commands="/opt/aws/bin/cfn-init -v --configsets $configset --region "us-east-1" --stack "ECS-EC2-test" --resource $LOGICAL_RESOURCE_ID"
   # Could be a windows thing, or could be a complexity of using bash to execute python over through SSM.
 	cat <<-EOF > $cmdfile
-	aws ssm send-command \\
+	aws --profile=$PROFILE ssm send-command \\
 		--instance-ids "${instanceId}" \\
 		--document-name "AWS-RunShellScript" \\
 		--comment "Implementing cloud formation metadata changes on ec2 instance $LOGICAL_RESOURCE_ID ($instanceId)" \\
@@ -176,42 +183,63 @@ metaRefresh() {
   [ "$answer" == "y" ] && sh $cmdfile || echo "Cancelled."
 }
 
+keypairExists() {
+  local keyname="$1"
+  aws --profile=$PROFILE ec2 describe-key-pairs --key-names $keyname > /dev/null 2>&1
+  [ $? -eq 0 ] && true || false
+}
+
+keypairInUse() {
+  local keyname="$1"
+  local searchResult="$(
+    aws --profile=$PROFILE ec2 describe-instances \
+      --output text \
+      --query 'Reservations[].Instances[?KeyName==`'$keyname'`]'.{KeyName:KeyName} 
+  )"
+  [ -n "$searchResult" ] && true || false
+}
 
 # Create a public/private keypair
 createEc2KeyPair() {
   local keyname="$1"
   local cleanup="$2"
   # Create an s3 bucket for the app if it doesn't already exist
-  if [ -z "$(aws s3 ls $BUCKET_NAME 2> /dev/null)" ] ; then
-    aws s3 mb s3://$BUCKET_NAME
+  
+  if ! bucketExists "$BUCKET_NAME" ; then
+    aws --profile=$PROFILE s3 mb s3://$BUCKET_NAME
   fi
+
+  if keypairExists $keyname ; then
+    if ! askYesNo "$keyname already exists upstream, replace it?" ; then
+      return 0
+    fi
+    aws --profile=$PROFILE ec2 delete-key-pair --key-name $keyname
+  fi
+
   # Generate the keypair
   ssh-keygen -b 2048 -t rsa -f $keyname -q -N ""
 
   # Import the keypair to aws ec2 keypairs
-  if [ -n "$(aws ec2 import-key-pair help | grep 'tag-specifications')" ] ; then
-    local tagspec="--tag-specifications 'ResourceType=key-pair,Tags=[{Key=Name,Value='$keyname'}]'"
+  if [ -n "$(aws --profile=$PROFILE ec2 import-key-pair help | grep 'tag-specifications')" ] ; then
+    local tagspec="--tag-specifications ResourceType=key-pair,Tags=[{Key=Name,Value=$keyname}]"
+    local filespec="fileb://./$keyname.pub"
   else
+    local filespec="file://./$keyname.pub"
     echo "You're using an older version of the aws cli - imported keypair will have no tags"
-  fi
-  aws ec2 describe-key-pairs --key-names $keyname 2> /dev/null
-  if [ $? -eq 0 ] ; then
-    echo "$keyname already exists upstream, deleting..."
-    aws ec2 delete-key-pair --key-name $keyname
   fi
 
   echo "Importing $keyname ..."
-  aws ec2 import-key-pair \
+  aws --profile=$PROFILE ec2 import-key-pair \
     --key-name "$keyname" \
     $tagspec \
-    --public-key-material file://./$keyname.pub
+    --public-key-material $filespec
     
   # Upload the private key to the s3 bucket
-  aws s3 cp ./$keyname s3://$BUCKET_NAME/
+  aws --profile=$PROFILE s3 cp ./$keyname s3://$BUCKET_NAME/
   # Remove the keypair locally
   if [ -n "$cleanup" ] ; then
     rm -f $keyname && rm -f $keyname.pub
-  else
+  elif [ -f $keyname ] ; then
     chmod 600 $keyname
   fi
 }
@@ -232,57 +260,77 @@ createSelfSignedCertificate() {
 
   # Upload to ACM and record the arn of the resulting resource
   if [ -n "$GLOBAL_TAG" ] ; then
-    local certname="${GLOBAL_TAG}-cert"
+    local certname="${GLOBAL_TAG}-${LANDSCAPE}-cert"
   else
-    local certname="kuali-ec2-alb-cert"
+    local certname="kuali-cert-${LANDSCAPE}"
   fi
 
   # WARNING!
   # For some reason cloudformation returns a "CertificateNotFound" error when the arn of a certificate uploaded to acm
   # is used to configure the listener for ssl. However, it has no problem with an arn of uploaded iam server certificates.
   # 
-  # aws acm import-certificate \
+  # aws --profile=$PROFILE acm import-certificate \
   #   --certificate file://${GLOBAL_TAG}-self-signed.crt \
   #   --private-key file://${GLOBAL_TAG}-self-signed.key \
   #   --tags Key=Name,Value=${certname} \
   #   --output text| grep -Po 'arn:aws:acm[^\s]*' > ${GLOBAL_TAG}-self-signed.arn
 
   # Before uploading the certificate, you can check if it exists already:
-  #    aws iam list-server-certificates
+  #    aws --profile=$PROFILE iam list-server-certificates
   # And delete it if found:
-  #    aws iam delete-server-certificate --server-certificate-name [cert name]
-  aws iam upload-server-certificate \
+  #    aws --profile=$PROFILE iam delete-server-certificate --server-certificate-name [cert name]
+  aws --profile=$PROFILE iam upload-server-certificate \
     --server-certificate-name ${certname} \
     --certificate-body file://${GLOBAL_TAG}-self-signed.crt \
     --private-key file://${GLOBAL_TAG}-self-signed.key \
     --output text | grep -Po 'arn:aws:iam[^\s]*' > ${GLOBAL_TAG}-self-signed.arn
 
   # Create an s3 bucket for the app if it doesn't already exist
-  if [ -z "$(aws s3 ls $BUCKET_NAME 2> /dev/null)" ] ; then
-    aws s3 mb s3://$BUCKET_NAME
+  if ! bucketExists "$BUCKET_NAME" ; then
+    aws --profile=$PROFILE s3 mb s3://$BUCKET_NAME
   fi
   # Upload the arn and keyset to the s3 bucket
-  aws s3 cp ./${GLOBAL_TAG}-self-signed.arn $BUCKET_PATH/
-  aws s3 cp ./${GLOBAL_TAG}-self-signed.crt $BUCKET_PATH/
-  aws s3 cp ./${GLOBAL_TAG}-self-signed.key $BUCKET_PATH/  
+  aws --profile=$PROFILE s3 cp ./${GLOBAL_TAG}-self-signed.arn $BUCKET_PATH/
+  aws --profile=$PROFILE s3 cp ./${GLOBAL_TAG}-self-signed.crt $BUCKET_PATH/
+  aws --profile=$PROFILE s3 cp ./${GLOBAL_TAG}-self-signed.key $BUCKET_PATH/  
 }
 
 # Print out the arn of the self signed certificate if it exists.
 getSelfSignedArn() {
-  if [ -n "$CERTIFICATE_ARN" ] ; then
-    echo "$CERTIFICATE_ARN"
-  elif [ -f ${GLOBAL_TAG}-self-signed.arn ] ; then
-    cat ${GLOBAL_TAG}-self-signed.arn
-  else
-    if [ -n "$(aws s3 ls $BUCKET_NAME 2> /dev/null)" ] ; then
-      aws s3 cp $BUCKET_PATH/${GLOBAL_TAG}-self-signed.arn - 2> /dev/null
+  local arn="$CERTIFICATE_ARN"
+  local localArnFile=${GLOBAL_TAG}-self-signed.arn
+  local s3ArnFile=$BUCKET_PATH/${GLOBAL_TAG}-self-signed.arn
+  if [ -n "$arn" ] ; then
+    echo "$arn"
+  elif [ -f $localArnFile ] ; then
+    arn="$(cat $localArnFile)"
+    local found='file'
+  elif bucketExists $BUCKET_NAME ; then
+    arn="$(aws --profile=$PROFILE s3 cp $s3ArnFile - 2> /dev/null)"
+    local found='s3'
+  fi
+
+  if [ -n "$arn" ] ; then
+    matchingArn=$(
+      aws \
+        --profile=$PROFILE iam list-server-certificates \
+        --output text \
+        --query 'ServerCertificateMetadataList[?Arn==`'$arn'`].{Arn:Arn}')
+
+    if [ "$arn" != "$matchingArn" ] ; then
+      case "$found" in
+        file) rm -f $localArnFile ;;
+        s3) aws --profile=$PROFILE rm $s3ArnFile ;;
+      esac
+      return 0
     fi
   fi
+  echo "$arn"
 }
 
 # Get the id of the default vpc in the account. (Assumes there is only one default)
 getDefaultVpcId() {
-  local id=$(aws ec2 describe-vpcs \
+  local id=$(aws --profile=$PROFILE ec2 describe-vpcs \
     --output text \
     --filters "Name=is-default,Values=true" \
     --query 'Vpcs[0].VpcId' 2> /dev/null)
@@ -295,7 +343,7 @@ getDefaultVpcId() {
 getInternetGatewayId() {
   local vpcid="$1"
   if [ -n "$vpcid" ] ; then
-    local gw=$(aws ec2 describe-internet-gateways \
+    local gw=$(aws --profile=$PROFILE ec2 describe-internet-gateways \
       --output text \
       --query 'InternetGateways[].[InternetGatewayId, Attachments[].VpcId]' \
       | grep -B 1 $vpcid \
@@ -304,6 +352,37 @@ getInternetGatewayId() {
   [ ! "$gw" ] && return 1
   [ "${gw,,}" == 'none' ] && return 1
   echo $gw
+}
+
+getTransitGatewayId() {
+  local vpcId="$1"
+  local matches=()
+
+  for tgw in $(aws \
+    --profile=$PROFILE ec2 describe-transit-gateways \
+    --output text --query 'TransitGateways[*].[TransitGatewayId]'
+  ) ; do
+    for state in $(aws --profile=$PROFILE ec2 describe-transit-gateway-attachments \
+      --output text \
+      --query 'TransitGatewayAttachments[?TransitGatewayId==`'$tgw'`&&ResourceId==`'$vpcId'`].State'
+    ); do
+      if [ "${state,,}" == "available" ] ; then
+        matches=(${matches[@]} $tgw)
+      fi 
+    done
+  done
+
+  [ ${#matches[@]} -eq 1 ] && echo ${matches[0]}
+}
+
+getVpcId() {
+  local subnetId="$1"
+  aws \
+    --profile $PROFILE \
+    ec2 describe-subnets \
+    --subnet-ids $subnetId \
+    --output text \
+    --query 'Subnets[].VpcId' 2> /dev/null
 }
 
 # Get a "Y/y" or "N/n" response from the user to a question.
@@ -321,33 +400,141 @@ askYesNo() {
   if [ $answer = "y" ] ; then true; else false; fi
 }
 
-subnetsProvided() {
-  local subnets=0
-  [ -n "$PRIVATE_SUBNET1" ] && ((subnets++))
-  [ -n "$PUBLIC_SUBNET2" ] && ((subnets++))
-  [ -n "$PRIVATE_SUBNET1" ] && ((subnets++))
-  [ -n "$PUBLIC_SUBNET2" ] && ((subnets++))
-  if [ $subnets -gt 0 ] && [ $subnets -lt 4 ] ; then
-    echo "INVALID PARAMETERS! Either all 4 subnets need to be provided, or none (invokes creation of subnets by default)"
-    exit 1
+checkSubnets() {
+  # Clear out the last command file
+  printf "" > $cmdfile
+
+  aws --profile=infnprd ec2 describe-subnets \
+    --filters \
+      'Name=tag:Network,Values=Campus' \
+      'Name=tag:aws:cloudformation:logical-id,Values=CampusSubnet1,CampusSubnet2' \
+    --output text \
+    --query 'sort_by(Subnets, &AvailabilityZone)[*].{VpcId:VpcId,SubnetId:SubnetId,AZ:AvailabilityZone}' | \
+  while read subnet ; do
+    local az="$(echo "$subnet" | awk '{print $1}')"
+    local subnetId="$(echo "$subnet" | awk '{print $2}')"
+    local vpcId="$(echo "$subnet" | awk '{print $3}')"
+    if [ -n "$vpcId" ] && [ -z "$(grep 'vpcId' $cmdfile)" ]; then
+      echo "vpcId="$vpcId"" >> $cmdfile
+    fi
+    if [ -z "$CAMPUS_SUBNET1" ] ; then
+      if [ "$CAMPUS_SUBNET2" != "$subnetId" ] ; then
+        CAMPUS_SUBNET1="$subnetId"
+        echo "CAMPUS_SUBNET1="$subnetId"" >> $cmdfile
+        echo "Found first campus subnet: $subnet"
+        continue
+      fi
+    fi
+    if [ -z "$CAMPUS_SUBNET2" ] ; then
+      if [ "$CAMPUS_SUBNET1" != "$subnetId" ] ; then
+        CAMPUS_SUBNET2="$subnetId"
+        echo "CAMPUS_SUBNET2="$subnetId"" >> $cmdfile
+        echo "Found second campus subnet: $subnet"
+      fi
+    fi
+  done
+
+  aws --profile=infnprd ec2 describe-subnets \
+    --filters \
+      'Name=tag:Network,Values=World' \
+    --output text \
+    --query 'sort_by(Subnets, &AvailabilityZone)[*].{VpcId:VpcId,SubnetId:SubnetId,AZ:AvailabilityZone}' | \
+  while read subnet ; do
+    local az="$(echo "$subnet" | awk '{print $1}')"
+    local subnetId="$(echo "$subnet" | awk '{print $2}')"
+    local vpcId="$(echo "$subnet" | awk '{print $3}')"
+    if [ -n "$vpcId" ] && [ -z "$(grep 'vpcId' $cmdfile)" ]; then
+      echo "vpcId="$vpcId"" >> $cmdfile
+    fi
+    if [ -z "$PUBLIC_SUBNET1" ] ; then
+      if [ "$PUBLIC_SUBNET2" != "$subnetId" ] ; then
+        PUBLIC_SUBNET1="$subnetId"
+        echo "PUBLIC_SUBNET1="$subnetId"" >> $cmdfile
+        echo "Found first public subnet: $subnet"
+        continue
+      fi
+    fi
+    if [ -z "$PUBLIC_SUBNET2" ] ; then
+      if [ "$PUBLIC_SUBNET1" != "$subnetId" ] ; then
+        PUBLIC_SUBNET2="$subnetId"
+        echo "PUBLIC_SUBNET2="$subnetId"" >> $cmdfile
+        echo "Found second public subnet: $subnet"
+      fi
+    fi
+  done
+
+  cat ./$cmdfile
+  source ./$cmdfile
+
+  # Count how many subnets were explicitly looked up
+  local subnets=$(grep '_SUBNET' $cmdfile | wc -l)
+  if [ $subnets -lt 4 ] ; then
+    # Some subnets might have been explicitly provided by the user as a parameter, but look those up to verify they exist.
+    if [ -z "$(grep 'CAMPUS_SUBNET1' $cmdfile)" ] ; then
+      subnetExists "$CAMPUS_SUBNET1" && ((subnets++)) && echo "CAMPUS_SUBNET1=$CAMPUS_SUBNET1"
+    fi
+    if [ -z "$(grep 'PUBLIC_SUBNET1' $cmdfile)" ] ; then
+      subnetExists "$PUBLIC_SUBNET1" && ((subnets++)) && echo "PUBLIC_SUBNET1=$PUBLIC_SUBNET1"
+    fi
+    if [ -z "$(grep 'CAMPUS_SUBNET2' $cmdfile)" ] ; then
+      subnetExists "$CAMPUS_SUBNET2" && ((subnets++)) && echo "CAMPUS_SUBNET2=$CAMPUS_SUBNET2"
+    fi
+    if [ -z "$(grep 'PUBLIC_SUBNET2' $cmdfile)" ] ; then
+      subnetExists "$PUBLIC_SUBNET2" && ((subnets++)) && echo "PUBLIC_SUBNET2=$PUBLIC_SUBNET2"
+    fi
+    # If we still don't have a total of 4 subnets then exit
+    [ $subnets -lt 4 ] && exit 1
   fi
-  [ $subnets -eq 4 ]
+}
+
+subnetExists() {
+  local subnetId="$1"
+  if [ -n "$subnetId" ] ; then
+    local lookupResult="$(
+    aws \
+      --profile $PROFILE \
+      ec2 describe-subnets \
+      --subnet-ids $subnetId \
+      --output text \
+      --query 'Subnets[].SubnetId' 2> /dev/null
+    )"
+  fi
+  [ "$lookupResult" != "$subnetId" ] && echo "ERROR: subnet does not exist: $subnetId"
+  [ "$lookupResult" == "$subnetId" ] && true || false
 }
 
 
-mask2cdr () {
-   # Assumes there's no "255." after a non-255 byte in the mask
-   local x=${1##*255.}
-   set -- 0^^^128^192^224^240^248^252^254^ $(( (${#1} - ${#x})*2 )) ${x%%.*}
-   x=${1%%$3*}
-   echo $(( $2 + (${#x}/4) ))
+# Will determine if an S3 bucket exists, even if it is empty.
+# NOTE: You must call scripts that use this with bash, not sh, else the pipe to the while loop syntax will not be recognized.
+bucketExists() {
+  local bucketname="$1"
+
+  findBucket() {
+    while read b ; do
+      b=$(echo "$b" | awk '{print $3}')
+      if [ "$b" == "$bucketname" ] ; then
+        return 0
+      fi
+    done
+    return 1
+  }
+
+  aws --profile=$PROFILE s3 ls 2> /dev/null | findBucket
+  [ $? -eq 0 ] && true || false
 }
 
-
-cdr2mask () {
-   # Number of args to shift, 255..255, first non-255 byte, zeroes
-   set -- $(( 5 - ($1 / 8) )) 255 255 255 255 $(( (255 << (8 - ($1 % 8))) & 255 )) 0 0 0
-   [ $1 -gt 1 ] && shift $1 || shift
-   echo ${1-0}.${2-0}.${3-0}.${4-0}
+# All kuali images are tagged with a single version: YYMM.xxxx
+# The top result of a numeric sort against a list of all an ecr repos image tags should indicate the latest one.
+getLatestImage() {
+  local reponame="$1"
+  local accountNbr="$(aws --profile=$PROFILE sts get-caller-identity --output text --query 'Account')"
+  local version=$(aws \
+    --profile=$PROFILE ecr describe-images \
+    --registry-id $accountNbr \
+    --repository-name $reponame \
+    --output text \
+    --query 'imageDetails[*].[imageTags[0]]' \
+    | sort -rn \
+    | head -n 1)
+  echo "$accountNbr.dkr.ecr.us-east-1.amazonaws.com/$reponame:$version"
 }
-

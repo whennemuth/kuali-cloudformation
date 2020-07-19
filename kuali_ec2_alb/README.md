@@ -58,7 +58,7 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
    3. Uploads certificate file, private key file, and the ARN of the imported certificate to an S3 bucket.
 
       ```
-      # Example 1): Certificate will be uploaded to "s3://kuali-research-ec2-setup/cloudformation/kuali_ec2_alb"
+      # Example 1): Certificate will be uploaded to "s3://kuali-conf/cloudformation/kuali_ec2_alb"
       sh main.sh cert
       
       # Example 2): Upload certificate to another bucket path (bucke will be created if it does not already exist).
@@ -74,35 +74,35 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
 
       ```
       # Example 1): Create the stack in the default vpc, with new subnets. Create the S3 bucket with default name if not exists:
-      # s3://kuali-research-ec2-setup/cloudformation/kuali_ec2_alb"
+      # s3://kuali-conf/cloudformation/kuali_ec2_alb"
       # If the certificate was created & imported earlier, no need to provide its ARN (can be dynamically looked up)
       sh main.sh create-stack
       
       # Example 2): Same as scenario 1, except the certificate already existed:
       sh main.sh create-stack \
-      	certificate_arn=arn:aws:iam::730096353738:server-certificate/kuali-ec2-alb-cert \
-          kc_image=730096353738.dkr.ecr.us-east-1.amazonaws.com/coeus-sandbox:2001.0040 \
-          core_image=730096353738.dkr.ecr.us-east-1.amazonaws.com/core:2001.0040 \
-          portal_image=730096353738.dkr.ecr.us-east-1.amazonaws.com/portal:2001.0040 \
-          pdf_image=730096353738.dkr.ecr.us-east-1.amazonaws.com/research-pdf:2002.0003
+      	certificate_arn=arn:aws:iam::770203350335:server-certificate/kuali-ec2-alb-cert \
+          kc_image=770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-coeus-sandbox:2001.0040 \
+          core_image=770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-core:2001.0040 \
+          portal_image=770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-portal:2001.0040 \
+          pdf_image=770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-research-pdf:2002.0003
           
       # Example 3): Same as scenario 1, except create/use a custom S3 bucket, and overrides default ec2 instance size
       sh main.sh create-stack \
           bucket_path=s3://my_bucket/some/directory \
           ec2_instance_type=m4.xlarge \
-          kc_image=730096353738.dkr.ecr.us-east-1.amazonaws.com/coeus-sandbox:2001.0040 \
-          core_image=730096353738.dkr.ecr.us-east-1.amazonaws.com/core:2001.0040 \
-          portal_image=730096353738.dkr.ecr.us-east-1.amazonaws.com/portal:2001.0040 \
-          pdf_image=730096353738.dkr.ecr.us-east-1.amazonaws.com/research-pdf:2002.0003
+          kc_image=770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-coeus-sandbox:2001.0040 \
+          core_image=770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-core:2001.0040 \
+          portal_image=770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-portal:2001.0040 \
+          pdf_image=770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-research-pdf:2002.0003
           
       # Example 4) Same as scenario 1, except overriding default availability zones of us-east-1a and us-east-1b
       sh main.sh create-stack \
           availability_zone1=us-west-1a \
           availability_zone2=us-west-1b \
-          kc_image=730096353738.dkr.ecr.us-east-1.amazonaws.com/coeus-sandbox:2001.0040 \
-          core_image=730096353738.dkr.ecr.us-east-1.amazonaws.com/core:2001.0040 \
-          portal_image=730096353738.dkr.ecr.us-east-1.amazonaws.com/portal:2001.0040 \
-          pdf_image=730096353738.dkr.ecr.us-east-1.amazonaws.com/research-pdf:2002.0003
+          kc_image=770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-coeus-sandbox:2001.0040 \
+          core_image=770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-core:2001.0040 \
+          portal_image=770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-portal:2001.0040 \
+          pdf_image=770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-research-pdf:2002.0003
           
       # Example 5) Comprehensive parameters, avoiding all defaults.
           landscape=ci \
@@ -113,11 +113,11 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
           availability_zone1=us-west-1a \
           availability_zone2=us-west-1b \
           bucket_path=s3://my_bucket/some/directory \
-          certificate_arn=arn:aws:iam::730096353738:server-certificate/kuali-ec2-alb-cert \
-          kc_image=730096353738.dkr.ecr.us-east-1.amazonaws.com/coeus-sandbox:2001.0040 \
-          core_image=730096353738.dkr.ecr.us-east-1.amazonaws.com/core:2001.0040 \
-          portal_image=730096353738.dkr.ecr.us-east-1.amazonaws.com/portal:2001.0040 \
-          pdf_image=730096353738.dkr.ecr.us-east-1.amazonaws.com/research-pdf:2002.0003       
+          certificate_arn=arn:aws:iam::770203350335:server-certificate/kuali-ec2-alb-cert \
+          kc_image=770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-coeus-sandbox:2001.0040 \
+          core_image=770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-core:2001.0040 \
+          portal_image=770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-portal:2001.0040 \
+          pdf_image=770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-research-pdf:2002.0003       
       ```
       
    2. **"Injected"**:
@@ -156,7 +156,7 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
    # The templates may not have changed, changing parameters to up the ec2 instance size and upgrade kuali-research to new release:
    sh main.sh update-stack \
    	ec2_instance_type=m4.xlarge \
-   kc_image=730096353738.dkr.ecr.us-east-1.amazonaws.com/coeus-sandbox:2006.0038
+   kc_image=770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-coeus-sandbox:2006.0038
    ```
 
 4. **Shell access:**

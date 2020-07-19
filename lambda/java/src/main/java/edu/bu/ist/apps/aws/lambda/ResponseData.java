@@ -164,7 +164,7 @@ public class ResponseData extends LinkedHashMap<String, Object> {
 		Map<String, Object> resourceProperties = new LinkedHashMap<String, Object>();
 		resourceProperties.put("task", Task.CONTAINER_ENV_VARS.getShortname());
 		resourceProperties.put("region", "us-east-1");
-		resourceProperties.put("s3bucket", "kuali-research-ec2-setup");
+		resourceProperties.put("s3bucket", "kuali-conf");
 		resourceProperties.put("s3file", "qa/core/environment.variables.s3");
 		resourceProperties.put("profile", "ecr.access");
 		resourceProperties.put("outputmask", "{"

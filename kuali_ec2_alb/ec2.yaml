@@ -14,6 +14,11 @@ Parameters:
       their name and attached as a tag to establish a bundling through naming convention.
     Default: kuali-ec2-alb
 
+  BucketName:
+    Type: String
+    Description: The S3 bucket where config files, keys, these cloudformation templates, etc. are stored
+    Default: kuali-conf
+
   Landscape:
     Description: Specify which landscape to build into the VPC
     Type: String
@@ -27,46 +32,60 @@ Parameters:
       This parameter is restricted to the following values: sb, ci, qa, stg, prod
     Default: sb
 
+  CampusSubnet:
+    Type: AWS::EC2::Subnet::Id
+    Description: Id of the private application subnet that admits access from bu vpns through transit gateway attachment.
+
+  # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/retrieve-ecs-optimized_AMI.html
+  ECSAMI:
+    Description: AMI ID
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id
+
   InstanceType:
     Type: String
     Description: What type of EC2 instance should be used for hosting?
     AllowedValues:
-    - t2.small
-    - t2.medium
     - t2.large
     - t2.xlarge
-    - t3.small
-    - t3.medium
     - t3.large
     - t3.xlarge
     - m4.large
     - m4.xlarge
     - m5.large
     - m5.xlarge
+    - c5.large
+    - c5.xlarge
     ConstraintDescription: Specified instance type is not within selection list.
     Default: m4.large
 
-  BucketName:
-    Type: String
-    Description: The S3 bucket where our config files, keys, etc. are stored
-    Default: kuali-research-ec2-setup
+  # NOTE: The type below triggers a check by aws for existence of the keypair as part of a validation check.
+  # However, this makes the parameter required, even for stack updates. Use "String" as type to forego the
+  # validation check and allow the parameter to be optional during updates.
+  EC2KeypairName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: The keypair for ssh use against the ec2 instance
 
   CoreImage:
     Type: String
-    Description: 'Example: 730096353738.dkr.ecr.us-east-1.amazonaws.com/core:2001.0040'
+    Description: 'Example: 770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-core:2001.0040'
 
   KcImage:
     Type: String
-    Description: 'Example: 730096353738.dkr.ecr.us-east-1.amazonaws.com/coeus:2001.0040'
+    Description: 'Example: 770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-coeus:2001.0040'
 
   PortalImage:
     Type: String
-    Description: 'Example: 730096353738.dkr.ecr.us-east-1.amazonaws.com/portal:2001.0040'
+    Description: 'Example: 770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-portal:2001.0040'
 
   PdfImage:
     Type: String
-    Description: 'Example: 730096353738.dkr.ecr.us-east-1.amazonaws.com/research-pdf:2002.0003'
+    Description: 'Example: 770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-research-pdf:2002.0003'
 
+  PdfS3BucketName:
+    Type: String
+    Description: The name of the s3 bucket the pdf service is to use.
+  
   EnableNewRelicAPM:
     Type: String
     Description: Is newrelic APM to be enabled for this landscape?
@@ -75,7 +94,6 @@ Parameters:
     - "true"
     - "false"
     ConstraintDescription: Enter "true" or "false" only.
-    Default: "false"
 
   EnableNewRelicInfrastructure:
     Type: String
@@ -85,7 +103,6 @@ Parameters:
     - "true"
     - "false"
     ConstraintDescription: Enter "true" or "false" only.
-    Default: "false"
 
   SecurityGroupId:
     Type: AWS::EC2::SecurityGroup::Id
@@ -94,10 +111,6 @@ Parameters:
   LoadBalancerUrl:
     Type: String
     Description: The DNS name for the ALB. The app is publicly reachable at this address.
-
-  PrivateSubnet:
-    Type: AWS::EC2::Subnet::Id
-    Description: The private subnets for the ec2 instances.
 
   InstanceProfile:
     Type: String
@@ -109,11 +122,6 @@ Parameters:
     Description: If the role for the instance profile already exists, provide it here.
     Default: "create"
 
-  AMIInfoFunctionArn:
-    Type: String
-    Description: If the ami lookup lambda function already exists, provide its arn here.
-    Default: "create"
-
   EC2InstanceLogsGroupArn:
     Type: String
     Description: If the logs group already exists, provide its arn here.
@@ -123,7 +131,6 @@ Parameters:
 Conditions: 
   CreateProfile: !Equals [ !Ref InstanceProfile, "create" ]
   CreateRole: !Equals [ !Ref InstanceRole, "create" ]
-  CreateAMIInfoFunction: !Equals [ !Ref AMIInfoFunctionArn, "create" ]
   CreateLogsGroup: !Equals [ !Ref EC2InstanceLogsGroupArn, "create" ]
 
 
@@ -133,9 +140,9 @@ Resources:
     Type: AWS::IAM::Role
     Condition: CreateRole
     Description: >
-      This IAM Role is attached to all of the ECS hosts. Add other IAM
-      policy statements here to allow access from your ECS hosts to other AWS services.
-      This role will be used by ALL containers running on the ECS host.
+      This IAM Role is attached to all of the EC2 hosts. Add other IAM
+      policy statements here to allow access from your EC2 hosts to other AWS services.
+      This role will be used by ALL containers running on the EC2 host.
     Properties:
       Path: "/"
       RoleName: !Sub ${GlobalTag}-${Landscape}-ec2-role
@@ -166,9 +173,9 @@ Resources:
             - ec2:StopInstances
           - Effect: Allow
             Resource:
-            - arn:aws:s3:::kuali-research-ec2-setup*
+            - arn:aws:s3:::kuali-conf*
             - arn:aws:s3:::kuali-docker-run-stdout*
-            - arn:aws:s3:::kuali-research-pdf-*
+            - !Sub arn:aws:s3:::${PdfS3BucketName}*
             Action: "*"
 
   EC2InstanceProfile:
@@ -185,31 +192,8 @@ Resources:
     Condition: CreateLogsGroup
     DeletionPolicy: Delete
     Properties:
-      LogGroupName: !Sub ${GlobalTag}-${Landscape}-LG
+      LogGroupName: !Sub ${GlobalTag}-${Landscape}
       RetentionInDays: 30
-
-  Utils:
-    Type: AWS::CloudFormation::Stack
-    Condition: CreateAMIInfoFunction
-    Properties:
-      TemplateURL: 
-        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/lambda/ami-lookup.yaml
-      Parameters:
-        GlobalTag:
-          !Sub ${GlobalTag}-${Landscape}-ami-lookup
-
-  AMIInfo:
-    Type: Custom::AMIInfo
-    Properties:
-      ServiceToken:
-        !If 
-        - CreateAMIInfoFunction
-        - !GetAtt Utils.Outputs.AMIInfoFunctionArn
-        - !Ref AMIInfoFunctionArn        
-      Region:
-        Ref: AWS::Region
-      InstanceType:
-        !Ref InstanceType   
       
   EC2Instance:
     Type: AWS::EC2::Instance
@@ -219,14 +203,12 @@ Resources:
       - Key: Name
         Value: !If [CreateProfile, !Sub "${GlobalTag}-${Landscape}-ec2-1", !Sub "${GlobalTag}-${Landscape}-ec2-2"]
       ImageId: 
-        # ami-00129b193dc81bc31
-        !GetAtt AMIInfo.Id
+        !Ref ECSAMI
       InstanceType:
         !Ref InstanceType
       SecurityGroupIds:
       - !Ref SecurityGroupId
-      SubnetId: 
-        !Ref PrivateSubnet
+      KeyName: !Ref EC2KeypairName
       IamInstanceProfile:
         !If [CreateProfile, !Ref EC2InstanceProfile, !Ref InstanceProfile]
       BlockDeviceMappings:
@@ -234,6 +216,7 @@ Resources:
           Ebs:
             VolumeSize: 64
             DeleteOnTermination: true
+      SubnetId: !Ref CampusSubnet
 
       UserData: 
         "Fn::Base64": !Sub |
@@ -272,7 +255,7 @@ Resources:
             --stack ${AWS::StackName} \
             --resource EC2Instance
             
-          # Now that all initialization is done signal success
+          # Now that all initialization is done signal the result of the cfn-init attempt
           /opt/aws/bin/cfn-signal \
             -e $? \
             --region ${AWS::Region} \
@@ -469,18 +452,18 @@ Resources:
                 
                 [/var/log/dmesg]
                 file = /var/log/dmesg
-                log_group_name = ${GlobalTag}-${Landscape}-LG
+                log_group_name = ${GlobalTag}-${Landscape}
                 log_stream_name = /var/log/dmesg
                 
                 [/var/log/messages]
                 file = /var/log/messages
-                log_group_name = ${GlobalTag}-${Landscape}-LG
+                log_group_name = ${GlobalTag}-${Landscape}
                 log_stream_name = /var/log/messages
                 datetime_format = %b %d %H:%M:%S
                 
                 [/var/log/docker]
                 file = /var/log/docker
-                log_group_name = ${GlobalTag}-${Landscape}-LG
+                log_group_name = ${GlobalTag}-${Landscape}
                 log_stream_name = /var/log/docker
                 datetime_format = %Y-%m-%dT%H:%M:%S.%f
             /opt/kuali/scripts/s3.download.configs.sh:
@@ -495,11 +478,11 @@ Resources:
                   --include "core/*" \
                   --include "portal/*" \
                   --include "pdf/*" \
-                  --include "kuali/main/config/kc-config-rds.xml" \
+                  --include "kc/kc-config-rds.xml" \
                   s3://${BucketName}/${!LANDSCAPE}/ .
-                mv /opt/kuali/s3/kuali/main/config/kc-config-rds.xml /opt/kuali/s3/kuali/main/config/kc-config.xml
-                aws s3 cp s3://${BucketName}/rice.cer /opt/kuali/s3/kuali/main/config/
-                aws s3 cp s3://${BucketName}/rice.keystore /opt/kuali/s3/kuali/main/config/
+                mv /opt/kuali/s3/kc/kc-config-rds.xml /opt/kuali/s3/kc/kc-config.xml
+                aws s3 cp s3://${BucketName}/rice.cer /opt/kuali/s3/kc/
+                aws s3 cp s3://${BucketName}/rice.keystore /opt/kuali/s3/kc/
               mode: "000775"
               owner: root
               group: root
@@ -540,6 +523,7 @@ Resources:
                       echo "Setting env var $prop"
                       echo "$expline" >> export.sh
                     done < $ENV_FILE_FROM_S3
+                    
                     # In case the file from s3 originated on a windows file system, remove return carriage chars
                     sed -i 's/\r//g' export.sh
                   fi
@@ -549,7 +533,7 @@ Resources:
                 DOMAIN_NAME=$(echo ${EC2_HOST} | cut -d'/' -f3) # Strips off the "http://" portion and trailing "/"
 
                 # Perform a replacement in kc-config.xml of application.host parameter value with this ec2 public host name.
-                sed -i "s/APPLICATION_HOST/$DOMAIN_NAME/" /opt/kuali/s3/kuali/main/config/kc-config.xml
+                sed -i "s/APPLICATION_HOST/$DOMAIN_NAME/" /opt/kuali/s3/kc/kc-config.xml
 
                 # Perform a replacement in all environment.variables.s3 files of existing application host entries with this ec2 public host name.
                 for f in $(env | grep 'ENV_FILE_FROM_S3') ; do
@@ -558,6 +542,16 @@ Resources:
                   sed -i -r "s/kuali-research.*.bu.edu/$DOMAIN_NAME/g" "$envfile"
                   # Create the export.sh file
                   createExportFile "$envfile"
+
+                  # Correct the AWS_S3_BUCKET name value in case it disagrees with the templates parameter.
+                  if grep -iq 'pdf' <<<"$envfile" ; then
+                    # Remove the current entry for AWS_S3_BUCKET from the environment variables file and put it back with the provided value.
+                    sed -i '/.*AWS_S3_BUCKET.*=.*/d' $envfile
+                    echo "AWS_S3_BUCKET=$PDF_BUCKET_NAME" >> $envfile
+                    # Do it again for the export file.
+                    sed -i '/.*AWS_S3_BUCKET.*=.*/d' export.sh
+                    echo "export AWS_S3_BUCKET=$PDF_BUCKET_NAME" >> export.sh
+                  fi
                 done
 
                 exit 0
@@ -611,7 +605,7 @@ Resources:
                       driver: awslogs
                       options:
                         awslogs-region: ${AWS::Region}
-                        awslogs-group: ${GlobalTag}-${Landscape}-LG
+                        awslogs-group: ${GlobalTag}-${Landscape}
                         awslogs-stream: core-docker-container
                         awslogs-create-group: "true"
                     ports:
@@ -622,7 +616,7 @@ Resources:
                     container_name: kuali-research
                     restart: unless-stopped
                     volumes:
-                      - /opt/kuali/s3/kuali/main/config:/opt/kuali/main/config
+                      - /opt/kuali/s3/kc:/opt/kuali/main/config
                       - /opt/kuali/kc_printing:/opt/kuali/logs/printing/logs
                       - /opt/kuali/kc_javamelody:/var/log/javamelody
                       - /opt/kuali/kc_attachments:/opt/tomcat/temp/dev/attachments
@@ -637,7 +631,7 @@ Resources:
                       driver: awslogs
                       options:
                         awslogs-region: ${AWS::Region}
-                        awslogs-group: ${GlobalTag}-${Landscape}-LG
+                        awslogs-group: ${GlobalTag}-${Landscape}
                         awslogs-stream: kc-docker-container
                         awslogs-create-group: "true"
                     ports:
@@ -654,7 +648,7 @@ Resources:
                       driver: awslogs
                       options:
                         awslogs-region: ${AWS::Region}
-                        awslogs-group: ${GlobalTag}-${Landscape}-LG
+                        awslogs-group: ${GlobalTag}-${Landscape}
                         awslogs-stream: portal-docker-container
                         awslogs-create-group: "true"
                     ports:
@@ -669,7 +663,7 @@ Resources:
                       driver: awslogs
                       options:
                         awslogs-region: ${AWS::Region}
-                        awslogs-group: ${GlobalTag}-${Landscape}-LG
+                        awslogs-group: ${GlobalTag}-${Landscape}
                         awslogs-stream: pdf-docker-container
                         awslogs-create-group: "true"
                     ports:
@@ -709,6 +703,7 @@ Resources:
                 ENV_FILE_FROM_S3_PORTAL: /opt/kuali/s3/portal/environment.variables.s3
                 ENV_FILE_FROM_S3_PDF: /opt/kuali/s3/pdf/environment.variables.s3
                 LOADBALANCER_URL: !Sub "${LoadBalancerUrl}"
+                PDF_BUCKET_NAME: "${PdfS3BucketName}"
               command: bash process.env.file.sh
         03_docker_run_container:
           commands:
@@ -766,14 +761,6 @@ Outputs:
     Description: The profile arn applied to the ec2 instance
     Value:
       !If [CreateRole, !Ref EC2Role, !Ref InstanceRole]
-
-  AMIInfoFunctionArn:
-    Description: The ARN of the lambda function for AMI lookups.
-    Value:
-      !If 
-      - CreateAMIInfoFunction
-      - !GetAtt Utils.Outputs.AMIInfoFunctionArn
-      - !Ref AMIInfoFunctionArn        
 
   EC2InstanceLogsGroupArn:
     Description: The ARN of the logs group create for kuali-research

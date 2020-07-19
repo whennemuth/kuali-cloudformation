@@ -52,7 +52,7 @@ Resources:
       MemorySize: 256
       Handler: edu.bu.ist.apps.aws.lambda.CustomResourceHandler
       Code:
-        S3Bucket: kuali-research-ec2-setup
+        S3Bucket: kuali-conf
         S3Key: cloudformation/lambda/lambda-utils.jar
 
   NodeHelperFunction:

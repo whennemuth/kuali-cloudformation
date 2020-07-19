@@ -42,6 +42,10 @@ Parameters:
   InstanceId2:
     Type: AWS::EC2::Instance::Id
     Description: The id of the second ec2 instance to register as a target with the target group
+      
+  PdfS3BucketName:
+    Type: String
+    Description: The name of the s3 bucket the pdf service is to use. 
 
 
 Resources:
@@ -259,6 +263,20 @@ Resources:
         - "/pdf/*"
         - "/api/v1/pdf"
         - "/api/v1/pdf/*"
+
+  S3BucketForPDF:
+    Type: AWS::S3::Bucket
+    Properties:
+      AccessControl: Private
+      BucketName: !Ref PdfS3BucketName
+      LifecycleConfiguration:
+        Rules:
+        - Id: OneZoneIARule
+          Status: Enabled
+          ExpirationInDays: '365'
+          Transitions:
+            - TransitionInDays: '30'
+              StorageClass: ONEZONE_IA
 
 
   ################################################

@@ -33,7 +33,7 @@ Parameters:
   BucketName:
     Type: String
     Description: The S3 bucket where our config files, keys, etc. are stored
-    Default: kuali-research-ec2-setup
+    Default: kuali-conf
 
 
 # To get the ec2 instance into the BU VPC, add the following to MyMicro.Properties: "SubnetId" : "subnet-61377139"
@@ -268,7 +268,7 @@ Resources:
             01_get_configs_from_s3:
               cwd: /var/kuali
               command:
-                !Sub aws s3 cp --recursive s3://kuali-research-ec2-setup/${Landscape}/
+                !Sub aws s3 cp --recursive s3://kuali-conf/${Landscape}/
                   .
             02_docker_build_image_run_container:
               cwd: /var/kuali/docker/build.context

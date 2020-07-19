@@ -42,8 +42,6 @@ Resources:
         Value: !Sub ${GlobalTag}-${Landscape}-vpc
       - Key: Notes
         Value: VPC for running ecs, part of cloud formation stack
-      - Key: Created-by
-        Value: Warren Hennemuth
 
   InternetGateway:
     Type: AWS::EC2::InternetGateway
@@ -63,7 +61,7 @@ Resources:
   Subnets:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: https://s3.amazonaws.com/kuali-research-ec2-setup/cloudformation/kuali_ecs/subnet.yaml
+      TemplateURL: https://s3.amazonaws.com/kuali-conf/cloudformation/kuali_ecs/subnet.yaml
       Parameters:
         GlobalTag:
           !Ref GlobalTag

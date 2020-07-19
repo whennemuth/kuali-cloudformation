@@ -21,7 +21,7 @@ The search option in the dashboard menu is powered by Elasticsearch:
    The corresponding cloudformation template is currently located at:
 
    ```
-   https://s3.amazonaws.com/kuali-research-ec2-setup/cloudformation/kuali_peripherals/es_for_kuali.yaml
+   https://s3.amazonaws.com/kuali-conf/cloudformation/kuali_peripherals/es_for_kuali.yaml
    ```
 
    Among other parameters, there is a landscape parameter to designate which environment the cluster is being created for (sb, ci, qa, stg, prod). You can create the stack from the AWS management console, or you can run it from the command line (provided you have a sufficient IAM role). The examples below specify the landscape parameter and use defaults for the rest (like cluster & ec2 size, etc.)
@@ -94,7 +94,7 @@ The search option in the dashboard menu is powered by Elasticsearch:
                   "logs:PutLogEvents",
                   "logs:CreateLogStream"
                 ],
-                "Resource": "arn:aws:logs:us-east-1:730096353738:log-group:/aws/aes/domains/kuali-elasticsearch*"
+                "Resource": "arn:aws:logs:us-east-1:770203350335:log-group:/aws/aes/domains/kuali-elasticsearch*"
               }
             ]
           }'
@@ -105,7 +105,7 @@ The search option in the dashboard menu is powered by Elasticsearch:
    3. **Create the stack**
 
       ```
-      bucket=s3.amazonaws.com/kuali-research-ec2-setup
+      bucket=s3.amazonaws.com/kuali-conf
       yaml=cloudformation/kuali_peripherals/es_for_kuali.yaml
       environment=sb
       
@@ -195,7 +195,7 @@ The search option in the dashboard menu is powered by Elasticsearch:
    
    Remove the dashboard docker containers and re-run with these environment variables included.
    
-   Currently all environment variables are stored in "environment.variables.s3" files in our kuali-research-ec2-setup bucket and are automatically downloaded as part of the jenkins job for running the dashboard app.
+   Currently all environment variables are stored in "environment.variables.s3" files in our kuali-conf bucket and are automatically downloaded as part of the jenkins job for running the dashboard app.
    
    Then when you navigate to the dashboard in the browser you should see the "Search" menu item to the left.
    

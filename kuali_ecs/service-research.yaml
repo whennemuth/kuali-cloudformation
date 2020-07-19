@@ -58,7 +58,7 @@ Parameters:
 
   KcImage:
     Type: String
-    Description: 'Example: 730096353738.dkr.ecr.us-east-1.amazonaws.com/coeus:2001.0040'
+    Description: 'Example: 770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-coeus:2001.0040'
 
   EnableNewRelicAPM:
     Type: String
@@ -84,7 +84,7 @@ Resources:
       Volumes:
       - Name: KC-Config-Bind-Mount
         Host:
-          SourcePath: /opt/kuali/s3/kuali/main/config
+          SourcePath: /opt/kuali/s3/kc
       - Name: KC-Printing-Bind-Mount
         Host:
           SourcePath: /opt/kuali/kc_printing

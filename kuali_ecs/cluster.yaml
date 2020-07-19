@@ -14,6 +14,15 @@ Parameters:
       their name and attached as a tag to establish a bundling through naming convention.
     Default: kuali-ec2-alb
 
+  BucketName:
+    Type: String
+    Description: The S3 bucket where our config files, keys, etc. are stored
+    Default: kuali-conf
+
+  PdfS3BucketName:
+    Type: String
+    Description: The name of the s3 bucket the pdf service is to use.
+
   Landscape:
     Description: Specify which landscape to build into the VPC
     Type: String
@@ -27,29 +36,52 @@ Parameters:
       This parameter is restricted to the following values: sb, ci, qa, stg, prod
     Default: sb
 
+  CampusSubnet1:
+    Type: AWS::EC2::Subnet::Id
+    Description: Id of the first private application subnet that admits access from bu vpns through transit gateway attachment.
+
+  CampusSubnet2:
+    Type: AWS::EC2::Subnet::Id
+    Description: Id of the second private application subnet that admits access from bu vpns through transit gateway attachment.
+
+  # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/retrieve-ecs-optimized_AMI.html
+  ECSAMI:
+    Description: AMI ID
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id
+
   InstanceType:
     Type: String
     Description: What type of EC2 instance should be used for hosting?
     AllowedValues:
-    - t2.small
-    - t2.medium
     - t2.large
     - t2.xlarge
-    - t3.small
-    - t3.medium
     - t3.large
     - t3.xlarge
     - m4.large
     - m4.xlarge
     - m5.large
     - m5.xlarge
+    - c5.large
+    - c5.xlarge
     ConstraintDescription: Specified instance type is not within selection list.
     Default: m4.large
 
-  BucketName:
+  # NOTE: The type below triggers a check by aws for existence of the keypair as part of a validation check.
+  # However, this makes the parameter required, even for stack updates. Use "String" as type to forego the
+  # validation check and allow the parameter to be optional during updates.
+  EC2KeypairName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: The keypair for ssh use against the ec2 instance
+  
+  EnableNewRelicAPM:
     Type: String
-    Description: The S3 bucket where our config files, keys, etc. are stored
-    Default: kuali-research-ec2-setup
+    Description: Is newrelic APM to be enabled for this landscape?
+    Default: "false"
+    AllowedValues:
+    - "true"
+    - "false"
+    ConstraintDescription: Enter "true" or "false" only.
 
   EnableNewRelicInfrastructure:
     Type: String
@@ -59,7 +91,6 @@ Parameters:
     - "true"
     - "false"
     ConstraintDescription: Enter "true" or "false" only.
-    Default: "false"
 
   SecurityGroupId:
     Type: AWS::EC2::SecurityGroup::Id
@@ -67,11 +98,7 @@ Parameters:
 
   LoadBalancerUrl:
     Type: String
-    Description: The public DNS address at which apps can be reached
-
-  Subnets:
-    Type: List<AWS::EC2::Subnet::Id>
-    Description: The subnets this cluster should span.
+    Description: The DNS name for the ALB. The app is publicly reachable at this address.
 
   InstanceProfile:
     Type: String
@@ -81,11 +108,6 @@ Parameters:
   InstanceRole:
     Type: String
     Description: If the role for the instance profile already exists, provide it here.
-    Default: "create"
-
-  AMIInfoFunctionArn:
-    Type: String
-    Description: If the ami lookup lambda function already exists, provide its arn here.
     Default: "create"
 
   MinClusterSize:
@@ -105,17 +127,10 @@ Parameters:
     ConstraintDescription: Maximum cluster size is limited between 1 and 6 instances.
     Default: 3
 
-  # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/retrieve-ecs-optimized_AMI.html
-  ECSAMI:
-    Description: AMI ID
-    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
-    Default: /aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id
-
     
 Conditions: 
   CreateProfile: !Equals [ !Ref InstanceProfile, "create" ]
   CreateRole: !Equals [ !Ref InstanceRole, "create" ]
-  CreateAMIInfoFunction: !Equals [ !Ref AMIInfoFunctionArn, "create" ]
 
 
 Resources:
@@ -246,7 +261,8 @@ Resources:
     Description: The auto scaling group where the number of ec2 instances are scaled up or down.
     Properties:
       VPCZoneIdentifier:
-        !Ref Subnets
+        - !Ref CampusSubnet1
+        - !Ref CampusSubnet2
       LaunchConfigurationName:
         !Ref ECSLaunchConfiguration
       MinSize: 
@@ -315,12 +331,12 @@ Resources:
     Type: AWS::AutoScaling::LaunchConfiguration
     Properties:
       ImageId:
-        # !GetAtt AMIInfo.Id
         !Ref ECSAMI
       InstanceType:
         !Ref InstanceType
       SecurityGroups:
       - !Ref SecurityGroupId
+      KeyName: !Ref EC2KeypairName
       IamInstanceProfile:
         !If [CreateProfile, !Ref EC2InstanceProfile, !Ref InstanceProfile]
       BlockDeviceMappings:
@@ -596,11 +612,11 @@ Resources:
                   --include "core/*" \
                   --include "portal/*" \
                   --include "pdf/*" \
-                  --include "kuali/main/config/kc-config-rds.xml" \
+                  --include "kc/kc-config-rds.xml" \
                   s3://${BucketName}/${!LANDSCAPE}/ .
-                mv /opt/kuali/s3/kuali/main/config/kc-config-rds.xml /opt/kuali/s3/kuali/main/config/kc-config.xml
-                aws s3 cp s3://${BucketName}/rice.cer /opt/kuali/s3/kuali/main/config/
-                aws s3 cp s3://${BucketName}/rice.keystore /opt/kuali/s3/kuali/main/config/
+                mv /opt/kuali/s3/kc/kc-config-rds.xml /opt/kuali/s3/kc/kc-config.xml
+                aws s3 cp s3://${BucketName}/rice.cer /opt/kuali/s3/kc/
+                aws s3 cp s3://${BucketName}/rice.keystore /opt/kuali/s3/kc/
               mode: "000775"
               owner: root
               group: root
@@ -641,6 +657,7 @@ Resources:
                       echo "Setting env var $prop" 
                       echo "$expline" >> export.sh
                     done < $ENV_FILE_FROM_S3
+                    
                     # In case the file from s3 originated on a windows file system, remove return carriage chars
                     sed -i 's/\r//g' export.sh
                   fi
@@ -650,7 +667,7 @@ Resources:
                 DOMAIN_NAME=$(echo ${EC2_HOST} | cut -d'/' -f3) # Strips off the "http://" portion and trailing "/"
 
                 # Perform a replacement in kc-config.xml of application.host parameter value with this ec2 public host name.
-                sed -i "s/APPLICATION_HOST/$DOMAIN_NAME/" /opt/kuali/s3/kuali/main/config/kc-config.xml
+                sed -i "s/APPLICATION_HOST/$DOMAIN_NAME/" /opt/kuali/s3/kc/kc-config.xml
 
                 # Perform a replacement in all environment.variables.s3 files of existing application host entries with this ec2 public host name.
                 for f in $(env | grep 'ENV_FILE_FROM_S3') ; do
@@ -659,6 +676,16 @@ Resources:
                   sed -i -r "s/kuali-research.*.bu.edu/$DOMAIN_NAME/g" "$envfile"
                   # Create the export.sh file
                   createExportFile "$envfile"
+
+                  # Correct the AWS_S3_BUCKET name value in case it disagrees with the templates parameter.
+                  if grep -iq 'pdf' <<<"$envfile" ; then
+                    # Remove the current entry for AWS_S3_BUCKET from the environment variables file and put it back with the provided value.
+                    sed -i '/.*AWS_S3_BUCKET.*=.*/d' $envfile
+                    echo "AWS_S3_BUCKET=$PDF_BUCKET_NAME" >> $envfile
+                    # Do it again for the export file.
+                    sed -i '/.*AWS_S3_BUCKET.*=.*/d' export.sh
+                    echo "export AWS_S3_BUCKET=$PDF_BUCKET_NAME" >> export.sh
+                  fi
                 done
                   
                 exit 0
@@ -681,6 +708,7 @@ Resources:
                 ENV_FILE_FROM_S3_PORTAL: /opt/kuali/s3/portal/environment.variables.s3
                 ENV_FILE_FROM_S3_PDF: /opt/kuali/s3/pdf/environment.variables.s3
                 LOADBALANCER_URL: !Sub "${LoadBalancerUrl}"
+                PDF_BUCKET_NAME: !Sub "${PdfS3BucketName}"
               command: bash process.env.file.sh
         03_add_instance_to_cluster:
           commands:

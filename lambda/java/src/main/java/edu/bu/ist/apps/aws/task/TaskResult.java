@@ -193,7 +193,7 @@ public class TaskResult {
 		// Get a properties file from an S3 bucket
 		S3File s3file = new S3File(new S3FileParms()
 				.setRegion("us-east-1")
-				.setBucketname("kuali-research-ec2-setup")
+				.setBucketname("kuali-conf")
 				.setFilename("qa/core/environment.variables.s3")
 				.setProfilename("ecr.access")
 				.setLogger((String msg) -> System.out.println(msg)));

@@ -57,7 +57,7 @@ Parameters:
 
   CoreImage:
     Type: String
-    Description: 'Example: 730096353738.dkr.ecr.us-east-1.amazonaws.com/core:2001.0040'
+    Description: 'Example: 770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-core:2001.0040'
 
     
 Resources:

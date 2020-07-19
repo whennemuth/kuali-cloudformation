@@ -57,7 +57,11 @@ Parameters:
 
   PdfImage:
     Type: String
-    Description: 'Example: 730096353738.dkr.ecr.us-east-1.amazonaws.com/research-pdf:2002.0003'
+    Description: 'Example: 770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-research-pdf:2002.0003'
+
+  PdfS3BucketName:
+    Type: String
+    Description: The name of the s3 bucket the pdf service is to use.
 
     
 Resources:
@@ -307,5 +311,19 @@ Resources:
       Threshold: 70
       AlarmActions:
       - !Ref ServiceScaleInPolicy
+
+  S3BucketForPDF:
+    Type: AWS::S3::Bucket
+    Properties:
+      AccessControl: Private
+      BucketName: !Ref PdfS3BucketName
+      LifecycleConfiguration:
+        Rules:
+        - Id: OneZoneIARule
+          Status: Enabled
+          ExpirationInDays: '365'
+          Transitions:
+            - TransitionInDays: '30'
+              StorageClass: ONEZONE_IA
       
 Outputs: {}

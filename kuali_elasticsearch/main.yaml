@@ -124,7 +124,7 @@ Resources:
   #           "logs:PutLogEvents",
   #           "logs:CreateLogStream"
   #         ],
-  #         "Resource": "arn:aws:logs:us-east-1:730096353738:log-group:/aws/aes/domains/kuali-elasticsearch*"
+  #         "Resource": "arn:aws:logs:us-east-1:770203350335:log-group:/aws/aes/domains/kuali-elasticsearch*"
   #       }
   #     ]
   #   }'

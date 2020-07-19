@@ -1,7 +1,42 @@
 Description: >
   This is the primary template for building a cloud formation stack for
-  an ecs service. All parameters for nested templates are set here.
+  the Kuali Research ecs cluster. All parameters for nested templates are set here.
 
+Metadata: 
+  AWS::CloudFormation::Interface: 
+    ParameterGroups: 
+      - Label: 
+          default: Labelling
+        Parameters: 
+          - GlobalTag
+          - Landscape
+      - Label:
+          default: Network/Load-balancing
+        Parameters:
+          - VpcId
+          - CampusSubnet1
+          - PublicSubnet1
+          - CampusSubnet2
+          - PublicSubnet2
+          - CertificateArn
+      - Label: 
+          default: "Amazon EC2 Configuration"
+        Parameters: 
+          - InstanceType
+          - BucketName
+      - Label: 
+          default: "Kuali Services / Docker images"
+        Parameters: 
+          - CoreImage
+          - KcImage
+          - PortalImage
+          - PdfImage
+          - PdfS3BucketName
+      - Label: 
+          default: "Logging"
+        Parameters: 
+          - EnableNewRelicAPM
+          - EnableNewRelicInfrastructure
 
 Parameters:
 
@@ -11,14 +46,9 @@ Parameters:
       A common value that all resources in this template will have prefixed to
       their name and attached as a tag to establish a bundling through naming convention.
     Default: kuali-ecs
-  
-  BucketName:
-    Type: String
-    Description: The S3 bucket kuali research cloudformation templates, config files, keys, etc. are stored
-    Default: kuali-research-ec2-setup
 
   Landscape:
-    Description: Specify a landscape (sandbox, qa, etc... )
+    Description: Specify which landscape to build for.
     Type: String
     AllowedValues:
     - sb
@@ -27,13 +57,32 @@ Parameters:
     - stg
     - prod
     ConstraintDescription: >
-      'This parameter is restricted to the following values:
-      sb, ci, qa, stg, prod'
+      This parameter is restricted to the following values: sb, ci, qa, stg, prod
     Default: sb
 
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: The id of the vpc to deploy to.
+    
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet::Id
+    Description: The first public subnet for the load balancer.
+
+  CampusSubnet1:
+    Type: AWS::EC2::Subnet::Id
+    Description: The first private subnet for one of the ec2 instances.
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet::Id
+    Description: The second public subnet for the load balancer.
+
+  CampusSubnet2:
+    Type: AWS::EC2::Subnet::Id
+    Description: The second private subnet for one of the ec2 instances.
+        
   InstanceType:
     Type: String
-    Description: What type of EC2 instance should be used for ECS hosting?
+    Description: What type of EC2 instance should be used for hosting?
     AllowedValues:
     - t2.large
     - t2.xlarge
@@ -47,6 +96,15 @@ Parameters:
     - c5.xlarge
     ConstraintDescription: Specified instance type is not within selection list.
     Default: m4.large
+  
+  BucketName:
+    Type: String
+    Description: The S3 bucket kuali research cloudformation templates, config files, keys, etc. are stored
+    Default: kuali-conf
+
+  PdfS3BucketName:
+    Type: String
+    Description: The name of the s3 bucket the pdf service is to use.
 
   MinClusterSize:
     Type: Number
@@ -66,23 +124,30 @@ Parameters:
 
   CoreImage:
     Type: String
-    Description: 'Example: 730096353738.dkr.ecr.us-east-1.amazonaws.com/core:2001.0040'
+    Description: 'Example: 770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-core:2001.0040'
 
   KcImage:
     Type: String
-    Description: 'Example: 730096353738.dkr.ecr.us-east-1.amazonaws.com/coeus:2001.0040'
+    Description: 'Example: 770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-coeus:2001.0040'
 
   PortalImage:
     Type: String
-    Description: 'Example: 730096353738.dkr.ecr.us-east-1.amazonaws.com/portal:2001.0040'
+    Description: 'Example: 770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-portal:2001.0040'
 
   PdfImage:
     Type: String
-    Description: 'Example: 730096353738.dkr.ecr.us-east-1.amazonaws.com/research-pdf:2002.0003'
+    Description: 'Example: 770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-research-pdf:2002.0003'
 
   CertificateArn:
     Type: String
     Description: The amazon resource name of a certificate that has already been put in ACM
+
+  # NOTE: The type below triggers a check by aws for existence of the keypair as part of a validation check.
+  # However, this makes the parameter required, even for stack updates. Use "String" as type to forego the
+  # validation check and allow the parameter to be optional during updates.
+  EC2KeypairName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: The keypair for ssh use against the ec2 instance
 
   EnableNewRelicAPM:
     Type: String
@@ -92,7 +157,6 @@ Parameters:
     - "true"
     - "false"
     ConstraintDescription: Enter "true" or "false" only.
-    Default: "false"
 
   EnableNewRelicInfrastructure:
     Type: String
@@ -102,21 +166,9 @@ Parameters:
     - "true"
     - "false"
     ConstraintDescription: Enter "true" or "false" only.
-    Default: "false"
 
 
 Resources:
-
-  VPC:
-    Type: AWS::CloudFormation::Stack
-    Properties:
-      TemplateURL: 
-        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_ecs/vpc.yaml
-      Parameters:
-        Landscape:
-          !Ref Landscape
-        GlobalTag:
-          !Ref GlobalTag
 
   SecurityGroups:
     Type: AWS::CloudFormation::Stack
@@ -124,12 +176,12 @@ Resources:
       TemplateURL: 
         !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_ecs/security-group.yaml
       Parameters:
-        Landscape:
-          !Ref Landscape
         GlobalTag:
           !Ref GlobalTag
+        Landscape:
+          !Ref Landscape
         VpcId: 
-          !GetAtt VPC.Outputs.VPC
+          !Ref VpcId
 
   ALB:
     Type: AWS::CloudFormation::Stack
@@ -137,14 +189,16 @@ Resources:
       TemplateURL: 
         !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_ecs/alb.yaml
       Parameters:
-        Landscape:
-          !Ref Landscape
         GlobalTag:
           !Ref GlobalTag
+        Landscape:
+          !Ref Landscape
         VpcId: 
-          !GetAtt VPC.Outputs.VPC
-        Subnets: 
-          !GetAtt VPC.Outputs.PublicSubnets
+          !Ref VpcId
+        Subnet1: 
+          !Ref PublicSubnet1
+        Subnet2: 
+          !Ref PublicSubnet2
         SecurityGroup: 
           !GetAtt SecurityGroups.Outputs.ALBSecurityGroup
         CertificateArn:
@@ -166,14 +220,22 @@ Resources:
           !GetAtt ALB.Outputs.LoadBalancerUrl
         InstanceType:
           !Ref InstanceType
-        Subnets:
-          !GetAtt VPC.Outputs.PrivateSubnets
+        CampusSubnet1:
+          !Ref CampusSubnet1
+        CampusSubnet2:
+          !Ref CampusSubnet2
         MinClusterSize:
           !Ref MinClusterSize
         MaxClusterSize:
           !Ref MaxClusterSize
         BucketName:
           !Ref BucketName
+        PdfS3BucketName: 
+          !Ref PdfS3BucketName
+        EC2KeypairName:
+          !Ref EC2KeypairName
+        EnableNewRelicAPM:
+          !Ref EnableNewRelicAPM
         EnableNewRelicInfrastructure:
           !Ref EnableNewRelicInfrastructure
 
@@ -188,7 +250,7 @@ Resources:
         Landscape:
           !Ref Landscape
         VpcId:
-          !GetAtt VPC.Outputs.VPC
+          !Ref VpcId
         ClusterId:
           !GetAtt ECS.Outputs.Cluster
         DesiredCount: !Ref MinClusterSize
@@ -211,7 +273,7 @@ Resources:
         Landscape:
           !Ref Landscape
         VpcId:
-          !GetAtt VPC.Outputs.VPC
+          !Ref VpcId
         ClusterId:
           !GetAtt ECS.Outputs.Cluster
         DesiredCount: !Ref MinClusterSize
@@ -236,7 +298,7 @@ Resources:
         Landscape:
           !Ref Landscape
         VpcId:
-          !GetAtt VPC.Outputs.VPC
+          !Ref VpcId
         ClusterId:
           !GetAtt ECS.Outputs.Cluster
         DesiredCount: !Ref MinClusterSize
@@ -259,7 +321,7 @@ Resources:
         Landscape:
           !Ref Landscape
         VpcId:
-          !GetAtt VPC.Outputs.VPC
+          !Ref VpcId
         ClusterId:
           !GetAtt ECS.Outputs.Cluster
         DesiredCount: !Ref MinClusterSize
@@ -270,6 +332,8 @@ Resources:
           !GetAtt ECS.Outputs.ECSContainerInstanceAutoScalingRoleARN
         PdfImage:
           !Ref PdfImage
+        PdfS3BucketName: 
+          !Ref PdfS3BucketName
 
   LifeCycleHook:
     Type: AWS::CloudFormation::Stack

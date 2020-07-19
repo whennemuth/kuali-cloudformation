@@ -1,5 +1,25 @@
 #!/bin/bash
 
+# --------------------------------------------------------------------------------------------------------------
+# PURPOSE: Use this script to copy all repositories in an aws source elastic container registry of a source
+# account to the elastic container registry in a target account.
+# main function: 
+#    migrate()
+#    Args: (case insensitive)
+#       source_account_id: The numeric id of the source elastic container registry account
+#       target_account_id: The numeric id of the target elastic container registry account
+#       source_profile: The aws profile for cli access to commands against the source account
+#       target_profile: The aws profile for cli access to commands against the target account
+#       dryrun: print out each s3 cp command, but do not execute it.
+#    Example:
+#       sh migrate.ecr.sh migrate \
+#         source_account_id=730096353738 \
+#         target_account_id=770203350335 \
+#         source_profile= \ # leave empty to use default profile
+#         target_profile=infnprd \
+#         dryrun=true
+# --------------------------------------------------------------------------------------------------------------
+
 source ./common-functions.sh
 
 # Transfer repositories from ecr in one account to ecr in another account
@@ -18,7 +38,7 @@ migrate() {
   local pushed=0
   for sourceImg in $(listRemoteImages $SOURCE_PROFILE) ; do
 
-    # Establish the name the image should have in the target registry
+    # Establish the name the image should have in the target registry (prepend "kuali-" and change account number)
     local targetImg="$( \
       echo "$sourceImg" | \
       sed 's/\//\/kuali-/' | \
@@ -52,7 +72,7 @@ migrate() {
   echo "Number of images pushed: $pulled"
 }
 
-
+# Print out all images in all repositories of the elastic container service for the account indicated by profile.
 listRemoteImages() {
   local profile="$1"
   for repo in $(aws ecr describe-repositories \

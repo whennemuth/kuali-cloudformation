@@ -3,6 +3,7 @@ AWSTemplateFormatVersion: 2010-09-09
 
 Description: >
   Create a new ec2 instance with the kuali suite of modules deployed as containers and proxied with nginx.
+  https://docs.aws.amazon.com/vpc/latest/userguide/VPC_Scenario1.html
 
 
 Parameters:
@@ -13,6 +14,11 @@ Parameters:
       A common value that all resources in this template will have prefixed to
       their name and attached as a tag to establish a bundling through naming convention.
     Default: kuali-ec2
+
+  BucketName:
+    Type: String
+    Description: The S3 bucket kuali research cloudformation templates, config files, keys, etc. are stored
+    Default: kuali-conf
 
   Landscape:
     Description: Specify which landscape to build into the VPC (currently just a label - kc-config.xml is hard-coded for now).
@@ -27,6 +33,14 @@ Parameters:
       This parameter is restricted to the following values: sb, ci, qa, stg, prod
     Default: sb
 
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: The id of the vpc to deploy to.
+
+  CampusSubnet:
+    Type: AWS::EC2::Subnet::Id
+    Description: Id of the private application subnet that admits access from bu vpns through transit gateway attachment.
+
   # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/retrieve-ecs-optimized_AMI.html
   ECSAMI:
     Description: AMI ID
@@ -37,45 +51,48 @@ Parameters:
     Type: String
     Description: What type of EC2 instance should be used for hosting?
     AllowedValues:
-    - t2.small
-    - t2.medium
     - t2.large
     - t2.xlarge
-    - t3.small
-    - t3.medium
     - t3.large
     - t3.xlarge
     - m4.large
     - m4.xlarge
     - m5.large
     - m5.xlarge
+    - c5.large
+    - c5.xlarge
     ConstraintDescription: Specified instance type is not within selection list.
     Default: m4.large
 
+  # NOTE: The type below triggers a check by aws for existence of the keypair as part of a validation check.
+  # However, this makes the parameter required, even for stack updates. Use "String" as type to forego the
+  # validation check and allow the parameter to be optional during updates.
   EC2KeypairName:
-    Type: String
+    Type: AWS::EC2::KeyPair::KeyName
     Description: The keypair for ssh use against the ec2 instance
-
-  BucketName:
-    Type: String
-    Description: The S3 bucket kuali research cloudformation templates, config files, keys, etc. are stored
-    Default: kuali-research-ec2-setup
 
   CoreImage:
     Type: String
-    Description: 'Example: 730096353738.dkr.ecr.us-east-1.amazonaws.com/core:2001.0040'
+    Description: 'Example: 770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-core:2001.0040'
 
   KcImage:
     Type: String
-    Description: 'Example: 730096353738.dkr.ecr.us-east-1.amazonaws.com/coeus:2001.0040'
+    Description: 'Example: 770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-coeus:2001.0040'
 
   PortalImage:
     Type: String
-    Description: 'Example: 730096353738.dkr.ecr.us-east-1.amazonaws.com/portal:2001.0040'
+    Description: 'Example: 770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-portal:2001.0040'
 
   PdfImage:
     Type: String
-    Description: 'Example: 730096353738.dkr.ecr.us-east-1.amazonaws.com/research-pdf:2002.0003'
+    Description: 'Example: 770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-research-pdf:2002.0003'
+
+  PdfS3BucketName:
+    Type: String
+    Description: |
+      Provide the name of the s3 bucket the pdf service is to use. Else type "cancel" if it 
+      already exists or you are not using the pdf service and want to skip bucket creation.
+    Default: "auto"
 
   EnableNewRelicAPM:
     Type: String
@@ -97,17 +114,106 @@ Parameters:
     ConstraintDescription: Enter "true" or "false" only.
     Default: "false"
 
+
+Conditions:
+  pdfS3AutoName: !Equals [!Ref PdfS3BucketName, auto]
+  pdfS3NoBucket: !Equals [!Ref PdfS3BucketName, cancel]
+  createPdfS3bBucket: !Not [!Equals [!Ref PdfS3BucketName, cancel]]
+
+Mappings:
+  2faCidrs:
+    first:
+      cidr: "168.122.81.0/24"
+    second:
+      cidr: "168.122.82.0/23"
+    third:
+      cidr: "168.122.76.0/24"
+    fourth:
+      cidr: "168.122.68.0/24"
+    fifth:
+      cidr: "168.122.69.0/24"
+    sixth:
+      cidr: "10.1.0.0/21"
+
+      
 Resources:
 
+  EC2Role:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: "/"
+      RoleName: !Sub ${GlobalTag}-${Landscape}-ec2-role
+      AssumeRolePolicyDocument:
+        Statement:
+        - Action:
+          - sts:AssumeRole
+          Effect: Allow
+          Principal:
+            Service:
+            - ec2.amazonaws.com
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      - arn:aws:iam::aws:policy/AWSCloudFormationReadOnlyAccess
+      - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
+      - arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
+      - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+      - arn:aws:iam::aws:policy/CloudWatchFullAccess
+      Policies:
+      - PolicyName:
+          !Sub "stop-ec2-instance-policy"
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Resource: "arn:aws:ec2:*:*:instance/${ec2:SourceInstanceARN}"
+            Action:
+            - ec2:StopInstances
+          - Effect: Allow
+            Resource:
+            - arn:aws:s3:::kuali-conf*
+            - arn:aws:s3:::kuali-docker-run-stdout*
+            - arn:aws:s3:::kuali-pdf-*
+            Action: "*"
+
+  EC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: !Sub ${GlobalTag}-${Landscape}-profile
+      Path: "/"
+      Roles:
+      - !Ref EC2Role
+
+  S3BucketForPDF:
+    Type: AWS::S3::Bucket
+    Condition: createPdfS3bBucket
+    Properties:
+      AccessControl: Private
+      BucketName: !If
+        - pdfS3AutoName
+        - !Sub kuali-pdf-${Landscape}
+        - !Ref PdfS3BucketName
+      LifecycleConfiguration:
+        Rules:
+        - Id: OneZoneIARule
+          Status: Enabled
+          ExpirationInDays: '365'
+          Transitions:
+            - TransitionInDays: '30'
+              StorageClass: ONEZONE_IA
+
+  EC2InstanceLogsGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    Properties:
+      LogGroupName: !Sub ${GlobalTag}-${Landscape}-LG
+      RetentionInDays: 30
+      
   EC2Instance:
     Type: AWS::EC2::Instance
     Description: EC2 instance for hosting kuali research modules.
-    DependsOn: EC2InstanceSecurityGroup
-
     Properties:
       Tags:
       - Key: Name
-        Value: !Sub ${GlobalTag}-instance
+        Value: !Sub ${GlobalTag}-${Landscape}-instance
       ImageId: 
         !Ref ECSAMI
       InstanceType:
@@ -122,10 +228,7 @@ Resources:
           Ebs:
             VolumeSize: 64
             DeleteOnTermination: true
-      # SubnetId: !FindInMapn
-      #   - SubnetIdMap
-      #   - !Ref Landscape
-      #   - subnet
+      SubnetId: !Ref CampusSubnet
 
       UserData: 
         "Fn::Base64": !Sub |
@@ -149,23 +252,6 @@ Resources:
             -o /usr/local/bin/docker-compose
           chmod +x /usr/local/bin/docker-compose
           ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose
-          
-          # # Modify the sudoers file so that anyone in the wheel group can be a sudoer
-          # chmod u+w /etc/sudoers && \
-          # echo -e "%wheel\tALL=(ALL)\tNOPASSWD: ALL" >> /etc/sudoers && \
-          # chmod u-w /etc/sudoers && \
-          
-          # # NOTE: Creating users here and not in Metadata.AWS::CloudFormation::Init.config.users due to restrictions: 
-          # # Users are created as non-interactive system users with a shell of /sbin/nologin. This is by design and cannot be modified.
-          # for user in wrh mukadder dhaywood mkousheh ; do
-          #   adduser -m $user && \
-          #   usermod -aG root $user && \
-          #   usermod -aG docker $user && \
-          #   usermod -aG wheel $user && \
-          #   mkdir /home/$user/.ssh && \
-          #   chmod 700 /home/$user/.ssh && \
-          #   chown -R $user:$user /home/$user
-          # done
           
           # Create certificates for ssl
           mkdir -p /opt/kuali/nginx/certs
@@ -209,6 +295,7 @@ Resources:
             !Ref EC2Role
           buckets:
           - !Ref BucketName
+
       AWS::CloudFormation::Init:
         configSets:
           AllConfigs:
@@ -388,20 +475,20 @@ Resources:
                 
                 [/var/log/dmesg]
                 file = /var/log/dmesg
-                log_group_name = ${GlobalTag}-LG
+                log_group_name = ${GlobalTag}-${Landscape}-LG
                 log_stream_name = /var/log/dmesg
                 
                 [/var/log/messages]
                 file = /var/log/messages
-                log_group_name = ${GlobalTag}-LG
+                log_group_name = ${GlobalTag}-${Landscape}-LG
                 log_stream_name = /var/log/messages
                 datetime_format = %b %d %H:%M:%S
                 
-                # [/var/log/docker]
-                # file = /var/log/docker
-                # log_group_name = ${GlobalTag}-LG
-                # log_stream_name = /var/log/docker
-                # datetime_format = %Y-%m-%dT%H:%M:%S.%f
+                [/var/log/docker]
+                file = /var/log/docker
+                log_group_name = ${GlobalTag}-${Landscape}-LG
+                log_stream_name = /var/log/docker
+                datetime_format = %Y-%m-%dT%H:%M:%S.%f
             /opt/kuali/scripts/s3.download.configs.sh:
               content: !Sub |
                 #!/bin/bash                
@@ -414,11 +501,11 @@ Resources:
                   --include "core/*" \
                   --include "portal/*" \
                   --include "pdf/*" \
-                  --include "kuali/main/config/kc-config-rds.xml" \
+                  --include "kc/kc-config-rds.xml" \
                   s3://${BucketName}/${!LANDSCAPE}/ .
-                mv /opt/kuali/s3/kuali/main/config/kc-config-rds.xml /opt/kuali/s3/kuali/main/config/kc-config.xml
-                aws s3 cp s3://${BucketName}/rice.cer /opt/kuali/s3/kuali/main/config/
-                aws s3 cp s3://${BucketName}/rice.keystore /opt/kuali/s3/kuali/main/config/
+                mv /opt/kuali/s3/kc/kc-config-rds.xml /opt/kuali/s3/kc/kc-config.xml
+                aws s3 cp s3://${BucketName}/rice.cer /opt/kuali/s3/kc/
+                aws s3 cp s3://${BucketName}/rice.keystore /opt/kuali/s3/kc/
               mode: "000775"
               owner: root
               group: root
@@ -459,16 +546,18 @@ Resources:
                       echo "Setting env var $prop"
                       echo "$expline" >> export.sh
                     done < $ENV_FILE_FROM_S3
+                    
                     # In case the file from s3 originated on a windows file system, remove return carriage chars
                     sed -i 's/\r//g' export.sh
                   fi
                 }
 
-                export EC2_HOST=$(curl -s http://169.254.169.254/latest/meta-data/public-hostname)
+                # export EC2_HOST=$(curl -s http://169.254.169.254/latest/meta-data/public-hostname)
+                export EC2_HOST=$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4)
                 DOMAIN_NAME=$(echo ${EC2_HOST} | cut -d'/' -f3) # Strips off the "http://" portion and trailing "/"
 
                 # Perform a replacement in kc-config.xml of application.host parameter value with this ec2 public host name.
-                sed -i "s/APPLICATION_HOST/$DOMAIN_NAME/" /opt/kuali/s3/kuali/main/config/kc-config.xml
+                sed -i "s/APPLICATION_HOST/$DOMAIN_NAME/" /opt/kuali/s3/kc/kc-config.xml
 
                 # Perform a replacement in all environment.variables.s3 files of existing application host entries with this ec2 public host name.
                 for f in $(env | grep 'ENV_FILE_FROM_S3') ; do
@@ -477,6 +566,16 @@ Resources:
                   sed -i -r "s/kuali-research.*.bu.edu/$DOMAIN_NAME/g" "$envfile"
                   # Create the export.sh file
                   createExportFile "$envfile"
+
+                  # Correct the AWS_S3_BUCKET name value in case it disagrees with the templates parameter.
+                  if grep -iq 'pdf' <<<"$envfile" ; then
+                    # Remove the current entry for AWS_S3_BUCKET from the environment variables file and put it back with the provided value.
+                    sed -i '/.*AWS_S3_BUCKET.*=.*/d' $envfile
+                    echo "AWS_S3_BUCKET=$PDF_BUCKET_NAME" >> $envfile
+                    # Do it again for the export file.
+                    sed -i '/.*AWS_S3_BUCKET.*=.*/d' export.sh
+                    echo "export AWS_S3_BUCKET=$PDF_BUCKET_NAME" >> export.sh
+                  fi
                 done
 
                 exit 0
@@ -501,7 +600,8 @@ Resources:
                 #  - NEW_RELIC_AGENT_ENABLED
                 #  - JAVA_ENV
                 # But not this one, so set it here:
-                export EC2_HOST=$(curl -s http://169.254.169.254/latest/meta-data/public-hostname)
+                # export EC2_HOST=$(curl -s http://169.254.169.254/latest/meta-data/public-hostname)
+                export EC2_HOST=$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4)
 
                 # Perform a placeholder replacement in nginx.conf with this ec2 public host name
                 sed -i "s/EC2_HOST/$(echo ${!EC2_HOST} | sed 's/\//\\\//g')/g" /opt/kuali/nginx/nginx.conf
@@ -561,7 +661,7 @@ Resources:
                     container_name: kuali-research
                     restart: unless-stopped
                     volumes:
-                      - /opt/kuali/s3/kuali/main/config:/opt/kuali/main/config
+                      - /opt/kuali/s3/kc:/opt/kuali/main/config
                       - /opt/kuali/kc_printing:/opt/kuali/logs/printing/logs
                       - /opt/kuali/kc_javamelody:/var/log/javamelody
                       - /opt/kuali/kc_attachments:/opt/tomcat/temp/dev/attachments
@@ -743,6 +843,10 @@ Resources:
                 ENV_FILE_FROM_S3_CORE: /opt/kuali/s3/core/environment.variables.s3
                 ENV_FILE_FROM_S3_PORTAL: /opt/kuali/s3/portal/environment.variables.s3
                 ENV_FILE_FROM_S3_PDF: /opt/kuali/s3/pdf/environment.variables.s3
+                PDF_BUCKET_NAME: !If
+                  - pdfS3AutoName
+                  - !Sub kuali-pdf-${Landscape}
+                  - !Sub "${PdfS3BucketName}"
               command: bash process.env.file.sh
         03_docker_run_container:
           commands:
@@ -769,7 +873,7 @@ Resources:
                 - /etc/cfn/hooks.d/cfn-auto-reloader.conf
               # awslogs:
               # NOTE: If you are using Amazon Linux 2, the awslogs service is now called "awslogsd"
-              awslogs:
+              awslogsd:
                 enabled: true
                 ensureRunning: true
                 files:
@@ -782,144 +886,142 @@ Resources:
               env:
                 LANDSCAPE: !Sub "${Landscape}"
 
-  EC2Role:
-    Type: AWS::IAM::Role
-    Properties:
-      Path: "/"
-      RoleName: !Sub ${GlobalTag}-role
-      AssumeRolePolicyDocument:
-        Statement:
-        - Action:
-          - sts:AssumeRole
-          Effect: Allow
-          Principal:
-            Service:
-            - ec2.amazonaws.com
-      ManagedPolicyArns:
-      - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
-      - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
-      - arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
-      - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
-      - arn:aws:iam::aws:policy/CloudWatchFullAccess
-      Policies:
-      - PolicyName:
-          !Sub "stop-ec2-instance-policy"
-        PolicyDocument:
-          Statement:
-          - Effect: Allow
-            Resource: "arn:aws:ec2:*:*:instance/${ec2:SourceInstanceARN}"
-            Action:
-            - ec2:StopInstances
-          - Effect: Allow
-            Resource:
-            - arn:aws:s3:::kuali-research-ec2-setup*
-            - arn:aws:s3:::kuali-docker-run-stdout*
-            - arn:aws:s3:::kuali-research-pdf-*
-            Action: "*"
-
-
-  EC2InstanceProfile:
-    Type: AWS::IAM::InstanceProfile
-    Properties:
-      InstanceProfileName: !Sub ${GlobalTag}-profile
-      Path: "/"
-      Roles:
-      - !Ref EC2Role
-
-  EC2InstanceLogsGroup:
-    Type: AWS::Logs::LogGroup
-    DeletionPolicy: Delete
-    Properties:
-      LogGroupName: !Sub ${GlobalTag}-LG
-      RetentionInDays: 30
       
   EC2InstanceSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Warrens security group for a test t2 ec2 instance
+      GroupDescription: Limits access to requests originating from vpn.bu.edu/2fa
       GroupName: !Sub ${GlobalTag}-SG1
-      # VpcId: !FindInMap
-      #   - SubnetIdMap
-      #   - !Ref Landscape
-      #   - vpc
+      VpcId: !Ref VpcId
       Tags:
       - Key: Name
-        Value: !Sub ${GlobalTag}.SG
+        Value: !Sub ${GlobalTag}-${Landscape}.SG
       SecurityGroupIngress:
       - Description: "SSH: vpn.bu.edu/2fa On Campus, Group 1"
         IpProtocol: tcp
         FromPort: 22
         ToPort: 22
-        CidrIp: "168.122.81.0/24"
+        CidrIp: !FindInMap [ 2faCidrs, "first", "cidr" ]
       - Description: "SSH: vpn.bu.edu/2fa On Campus, Group 2 "
         IpProtocol: tcp
         FromPort: 22
         ToPort: 22
-        CidrIp: "168.122.82.0/23"
+        CidrIp: !FindInMap [ 2faCidrs, "second", "cidr" ]
       - Description: "SSH: vpn.bu.edu/2fa Off Campus"
         IpProtocol: tcp
         FromPort: 22
         ToPort: 22
-        CidrIp: "168.122.76.0/24"
+        CidrIp: !FindInMap [ 2faCidrs, "third", "cidr" ]
+      - Description: "SSH: vpn.bu.edu/2fa Off Campus"
+        IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: !FindInMap [ 2faCidrs, "fourth", "cidr" ]
+      - Description: "SSH: vpn.bu.edu/2fa Off Campus"
+        IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: !FindInMap [ 2faCidrs, "fifth", "cidr" ]
+      - Description: "SSH: vpn.bu.edu/2fa Off Campus"
+        IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: !FindInMap [ 2faCidrs, "sixth", "cidr" ]
       
       - Description: "HTTP: vpn.bu.edu/2fa On Campus, Group 1"
         IpProtocol: tcp
         FromPort: 80
         ToPort: 80
-        CidrIp: "168.122.81.0/24"
+        CidrIp: !FindInMap [ 2faCidrs, "first", "cidr" ]
       - Description: "HTTP: vpn.bu.edu/2fa On Campus, Group 2 "
         IpProtocol: tcp
         FromPort: 80
         ToPort: 80
-        CidrIp: "168.122.82.0/23"
+        CidrIp: !FindInMap [ 2faCidrs, "second", "cidr" ]
       - Description: "HTTP: vpn.bu.edu/2fa Off Campus"
         IpProtocol: tcp
         FromPort: 80
         ToPort: 80
-        CidrIp: "168.122.76.0/24"
+        CidrIp: !FindInMap [ 2faCidrs, "third", "cidr" ]
+      - Description: "HTTP: vpn.bu.edu/2fa Off Campus"
+        IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: !FindInMap [ 2faCidrs, "fourth", "cidr" ]
+      - Description: "HTTP: vpn.bu.edu/2fa Off Campus"
+        IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: !FindInMap [ 2faCidrs, "fifth", "cidr" ]
+      - Description: "HTTP: vpn.bu.edu/2fa Off Campus"
+        IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: !FindInMap [ 2faCidrs, "sixth", "cidr" ]
         
       - Description: "HTTPS: vpn.bu.edu/2fa On Campus, Group 1"
         IpProtocol: tcp
         FromPort: 443
         ToPort: 443
-        CidrIp: "168.122.81.0/24"
+        CidrIp: !FindInMap [ 2faCidrs, "first", "cidr" ]
       - Description: "HTTPS: vpn.bu.edu/2fa On Campus, Group 2 "
         IpProtocol: tcp
         FromPort: 443
         ToPort: 443
-        CidrIp: "168.122.82.0/23"
+        CidrIp: !FindInMap [ 2faCidrs, "second", "cidr" ]
       - Description: "HTTPS: vpn.bu.edu/2fa Off Campus"
         IpProtocol: tcp
         FromPort: 443
         ToPort: 443
-        CidrIp: "168.122.76.0/24"
+        CidrIp: !FindInMap [ 2faCidrs, "third", "cidr" ]
+      - Description: "HTTPS: vpn.bu.edu/2fa Off Campus"
+        IpProtocol: tcp
+        FromPort: 443
+        ToPort: 443
+        CidrIp: !FindInMap [ 2faCidrs, "fourth", "cidr" ]
+      - Description: "HTTPS: vpn.bu.edu/2fa Off Campus"
+        IpProtocol: tcp
+        FromPort: 443
+        ToPort: 443
+        CidrIp: !FindInMap [ 2faCidrs, "fifth", "cidr" ]
+      - Description: "HTTPS: vpn.bu.edu/2fa Off Campus"
+        IpProtocol: tcp
+        FromPort: 443
+        ToPort: 443
+        CidrIp: !FindInMap [ 2faCidrs, "sixth", "cidr" ]
         
       - Description: "UDP: vpn.bu.edu/2fa On Campus, Group 1"
         IpProtocol: udp
         FromPort: 1043
         ToPort: 1043
-        CidrIp: "168.122.81.0/24"
+        CidrIp: !FindInMap [ 2faCidrs, "first", "cidr" ]
       - Description: "UDP: vpn.bu.edu/2fa On Campus, Group 2 "
         IpProtocol: udp
         FromPort: 1043
         ToPort: 1043
-        CidrIp: "168.122.82.0/23"
+        CidrIp: !FindInMap [ 2faCidrs, "second", "cidr" ]
       - Description: "UDP: vpn.bu.edu/2fa Off Campus"
         IpProtocol: udp
         FromPort: 1043
         ToPort: 1043
-        CidrIp: "168.122.76.0/24"
-
-  EIP:
-    Type: AWS::EC2::EIP
-    Properties:
-      Domain: vpc
-      InstanceId: !Ref EC2Instance
+        CidrIp: !FindInMap [ 2faCidrs, "third", "cidr" ]
+      - Description: "UDP: vpn.bu.edu/2fa Off Campus"
+        IpProtocol: udp
+        FromPort: 1043
+        ToPort: 1043
+        CidrIp: !FindInMap [ 2faCidrs, "fourth", "cidr" ]
+      - Description: "UDP: vpn.bu.edu/2fa Off Campus"
+        IpProtocol: udp
+        FromPort: 1043
+        ToPort: 1043
+        CidrIp: !FindInMap [ 2faCidrs, "fifth", "cidr" ]
+      - Description: "UDP: vpn.bu.edu/2fa Off Campus"
+        IpProtocol: udp
+        FromPort: 1043
+        ToPort: 1043
+        CidrIp: !FindInMap [ 2faCidrs, "sixth", "cidr" ]
 
 Outputs:
-  PublicIP:
+  PrivateIP:
     Value:
-      !GetAtt EC2Instance.PublicIp
-  PublicDnsName:
-    Value:
-      !GetAtt EC2Instance.PublicDnsName
+      !GetAtt EC2Instance.PrivateIp

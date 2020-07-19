@@ -49,7 +49,7 @@ Resources:
             - ec2:DescribeInstanceStatus
           - Effect: Allow
             Resource:
-            - arn:aws:s3:::kuali-research-ec2-setup*
+            - arn:aws:s3:::kuali-conf*
             - arn:aws:s3:::kuali-docker-run-stdout*
             Action: "*"
           - Effect: Allow
@@ -134,9 +134,9 @@ Resources:
             Resource: "arn:aws:ses:*:*:identity/*@bu.edu"
           - Effect: Allow
             Resource:
-            - arn:aws:s3:::kuali-research-ec2-setup*
+            - arn:aws:s3:::kuali-conf*
             - arn:aws:s3:::kuali-docker-run-stdout*
-            - arn:aws:s3:::kuali-research-pdf-*
+            - arn:aws:s3:::kuali-pdf-*
             Action: "*"
 
   KualiEC2AppHostProfile:

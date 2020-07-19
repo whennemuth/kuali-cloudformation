@@ -1,68 +1,24 @@
 #!/bin/bash
 
 declare -A defaults=(
-  [STACK_NAME]='kuali-ec2'
-  [GLOBAL_TAG]='kuali-ec2'
+  [STACK_NAME]='kuali-pdf-s3'
+  [GLOBAL_TAG]='kuali-pdf-s3'
   [LANDSCAPE]='sb'
   [BUCKET_PATH]='s3://kuali-conf/cloudformation/kuali_ec2'
   [TEMPLATE_PATH]='.'
-  [KC_IMAGE]='getLatestImage kuali-coeus-sandbox'
-  [CORE_IMAGE]='getLatestImage kuali-core'
-  [PORTAL_IMAGE]='getLatestImage kuali-portal'
-  [PDF_IMAGE]='getLatestImage kuali-research-pdf'
   [NO_ROLLBACK]='true'
   [PROFILE]='infnprd'
-  [KEYPAIR_NAME]='kuali-ec2-$LANDSCAPE-keypair'
-  [PDF_BUCKET_NAME]='kuali-pdf-$LANDSCAPE'
-  # -----------------------------------------------
-  # No defaults - user must provide explicit value:
-  # -----------------------------------------------
-  #   [CAMPUS_SUBNET_ID]='???'
-  # -----------------------------------------------
-  # The following are defaulted in the yaml file itself, but can be overridden:
-  # -----------------------------------------------
-  #   [TEMPLATE]='main.yaml'
-
 )
 
-run() {
-  if [ "$(pwd | grep -oP '[^/]+$')" != "kuali_ec2" ] ; then
-    echo "You must run this script from the kuali_ec2 subdirectory!."
-    exit 1
-  fi
 
-  source ../scripts/common-functions.sh
-
-  task="${1,,}"
-  shift
-
-  if [ "$task" != "test" ] ; then
-
-    parseArgs $@
-
-    setDefaults
-  fi
-
-  runTask
-}
-
-
-# Create, update, or delete the cloudformation stack.
+# Create, update, or delete the cloudformation stack for kuali research.
 stackAction() {  
   local action=$1
 
   if [ "$action" == 'delete-stack' ] ; then
-    if [ -n "$PDF_BUCKET_NAME" ] ; then
-      if bucketExists "$PDF_BUCKET_NAME" ; then
-        # Cloudformation can only delete a bucket if it is empty (and has no versioning), so empty it out here.
-        aws --profile=$PROFILE s3 rm s3://$PDF_BUCKET_NAME --recursive
-        # aws --profile=$PROFILE s3 rb --force $PDF_BUCKET_NAME
-      fi
-    fi
+    aws --profile=$PROFILE cloudformation $action --stack-name $STACK_NAME
     
     [ $? -gt 0 ] && echo "Cancelling..." && return 1
-
-    aws --profile=$PROFILE cloudformation $action --stack-name $STACK_NAME
   elif [ -z "$CAMPUS_SUBNET_ID" ] ; then
       echo "CAMPUS_SUBNET_ID parameter required! Cancelling."
       exit 1
@@ -73,20 +29,11 @@ stackAction() {
     uploadStack silent
     [ $? -gt 0 ] && exit 1
 
-    case "$action" in
-      create-stack)
-        # Prompt to create the keypair, even if it already exists (offer choice to replace with new one).
-        createEc2KeyPair $KEYPAIR_NAME
-        [ -f "$KEYPAIR_NAME" ] && chmod 600 $KEYPAIR_NAME
-        ;;
-      update-stack)
-        # Create the keypair without prompting, but only if it does not already exist
-        if ! keypairExists $KEYPAIR_NAME ; then
-          createEc2KeyPair $KEYPAIR_NAME
-          [ -f "$KEYPAIR_NAME" ] && chmod 600 $KEYPAIR_NAME
-        fi
-        ;;
-    esac
+    # If creating the stack, create and import a keypair to configure the ec2 instance with for shell access.
+    if [ "$action" == 'create-stack' ] ; then
+      createEc2KeyPair $KEYPAIR_NAME
+      [ -f "$KEYPAIR_NAME" ] && chmod 600 $KEYPAIR_NAME
+    fi
 
     cat <<-EOF > $cmdfile
     aws --profile=$PROFILE \\
@@ -122,19 +69,6 @@ EOF
     [ -n "$KEYPAIR_NAME" ] && \
       addParameter $cmdfile 'EC2KeypairName' $KEYPAIR_NAME
 
-    # The cloudformation template has instructions to create the pdf bucket with the name you provide
-    # or a default name unless you explicitly tell it "cancel". There are 2 "cancel" scenarios.
-    if [ -n "$PDF_BUCKET_NAME" ] ; then
-      if bucketExists "$PDF_BUCKET_NAME" ; then
-        PDF_BUCKET_NAME="cancel"
-      else
-        addParameter $cmdfile 'PdfS3BucketName' $PDF_BUCKET_NAME
-      fi
-    elif bucketExists "kuali-pdf-$LANDSCAPE" ; then
-      # The bucket with the default name already exists.
-      PDF_BUCKET_NAME="cancel"
-    fi      
-
     echo "      ]'" >> $cmdfile
 
     if [ "$DEBUG" ] ; then
@@ -150,14 +84,31 @@ EOF
   fi
 }
 
+run() {
+  if [ "$(pwd | grep -oP '[^/]+$')" != "kuali_ec2" ] ; then
+    echo "You must run this script from the kuali_ec2 subdirectory!."
+    exit 1
+  fi
+
+  source ../scripts/common-functions.sh
+
+  task="${1,,}"
+  shift
+
+  parseArgs $@
+
+  setDefaults
+
+  runTask
+}
+
+
 runTask() {
   case "$task" in
     validate)
       validateStack ;;
     upload)
       uploadStack ;;
-    keys)
-      createEc2KeyPair ;;
     create-stack)
       stackAction "create-stack" ;;
     update-stack)

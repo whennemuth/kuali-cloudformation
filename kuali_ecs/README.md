@@ -58,7 +58,7 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
    3. Uploads certificate file, private key file, and the ARN of the imported certificate to an S3 bucket.
 
    ```
-   # Example 1): Certificate will be uploaded to "s3://kuali-research-ec2-setup/cloudformation/kuali_ecs"
+   # Example 1): Certificate will be uploaded to "s3://kuali-conf/cloudformation/kuali_ecs"
    sh main.sh cert
    
    # Example 2): Upload certificate to another bucket path (bucke will be created if it does not already exist).
@@ -83,11 +83,11 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
        availability_zone1=us-west-1a \
        availability_zone2=us-west-1b \
        bucket_path=s3://my_bucket/some/directory \
-       certificate_arn=arn:aws:iam::730096353738:server-certificate/kuali-ecs-cert \
-       kc_image=730096353738.dkr.ecr.us-east-1.amazonaws.com/coeus-sandbox:2001.0040 \
-       core_image=730096353738.dkr.ecr.us-east-1.amazonaws.com/core:2001.0040 \
-       portal_image=730096353738.dkr.ecr.us-east-1.amazonaws.com/portal:2001.0040 \
-       pdf_image=730096353738.dkr.ecr.us-east-1.amazonaws.com/research-pdf:2002.0003
+       certificate_arn=arn:aws:iam::770203350335:server-certificate/kuali-ecs-cert \
+       kc_image=770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-coeus-sandbox:2001.0040 \
+       core_image=770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-core:2001.0040 \
+       portal_image=770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-portal:2001.0040 \
+       pdf_image=770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-research-pdf:2002.0003
    ```
 
    Once you initiate stack creation, you can go to the aws management console and watch the stack creation events as they come in:
@@ -125,7 +125,7 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
    	private_subnet2=10.0.1.128/25 \
    	min_cluster_size=3 \
    	max_cluster_size=4 \
-   	kc_image=730096353738.dkr.ecr.us-east-1.amazonaws.com/coeus-sandbox:2006.0038
+   	kc_image=770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-coeus-sandbox:2006.0038
    ```
 
    Alternatively, you can initiate cluster creation from the aws management console.

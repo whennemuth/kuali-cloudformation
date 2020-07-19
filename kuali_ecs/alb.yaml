@@ -37,9 +37,13 @@ Parameters:
     Type: AWS::EC2::SecurityGroup::Id
     Description: The security group to be applied to the application load balancer.
 
-  Subnets:
-    Description: The public subnets the ALB is deployed to
-    Type: List<AWS::EC2::Subnet::Id>
+  Subnet1:
+    Type: AWS::EC2::Subnet::Id
+    Description: One of the subnets the ALB routes traffic to.
+      
+  Subnet2:
+    Type: AWS::EC2::Subnet::Id
+    Description: One of the subnets the ALB routes traffic to.
 
   CertificateArn:
     Type: String
@@ -56,7 +60,8 @@ Resources:
         # Make this short enough so that the derived DNS name is under 64 characters"
         !Sub "${GlobalTag}-${Landscape}-ALB"
       Subnets: 
-        !Ref Subnets
+      - !Ref Subnet1
+      - !Ref Subnet2
       SecurityGroups:
       - !Ref SecurityGroup
       # LoadBalancerAttributes:
