@@ -3,3 +3,5 @@ last-ecs-cmd.sh
 s3/*
 **/*.pub
 **/*keypair*
+**/tempkey*
+**/last-cmd.sh

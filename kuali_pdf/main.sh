@@ -23,7 +23,7 @@ stackAction() {
       echo "CAMPUS_SUBNET_ID parameter required! Cancelling."
       exit 1
   else
-    local vpcId="$(getVpcId $CAMPUS_SUBNET_ID)"
+    local VpcId="$(getVpcId $CAMPUS_SUBNET_ID)"
 
     # Upload the yaml files to s3
     uploadStack silent
@@ -46,7 +46,7 @@ stackAction() {
       --parameters '[
 EOF
 
-    addParameter $cmdfile 'VpcId' $vpcId
+    addParameter $cmdfile 'VpcId' $VpcId
     addParameter $cmdfile 'CampusSubnet' $CAMPUS_SUBNET_ID
     [ -n "$PDF_IMAGE" ] && \
       addParameter $cmdfile 'PdfImage' $PDF_IMAGE
@@ -85,7 +85,7 @@ EOF
 }
 
 run() {
-  if [ "$(pwd | grep -oP '[^/]+$')" != "kuali_ec2" ] ; then
+  if ! isCurrentDir "kuali_ec2" ; then
     echo "You must run this script from the kuali_ec2 subdirectory!."
     exit 1
   fi

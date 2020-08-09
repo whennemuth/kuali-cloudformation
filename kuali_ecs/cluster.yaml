@@ -12,7 +12,7 @@ Parameters:
     Description: >
       A common value that all resources in this template will have prefixed to
       their name and attached as a tag to establish a bundling through naming convention.
-    Default: kuali-ec2-alb
+    Default: kuali-ecs
 
   BucketName:
     Type: String

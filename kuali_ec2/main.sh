@@ -17,7 +17,7 @@ declare -A defaults=(
   # -----------------------------------------------
   # No defaults - user must provide explicit value:
   # -----------------------------------------------
-  #   [CAMPUS_SUBNET_ID]='???'
+  #   [CAMPUS_SUBNET1]='???'
   # -----------------------------------------------
   # The following are defaulted in the yaml file itself, but can be overridden:
   # -----------------------------------------------
@@ -26,12 +26,13 @@ declare -A defaults=(
 )
 
 run() {
-  if [ "$(pwd | grep -oP '[^/]+$')" != "kuali_ec2" ] ; then
+
+  source ../scripts/common-functions.sh
+  
+  if ! isCurrentDir "kuali_ec2" ; then
     echo "You must run this script from the kuali_ec2 subdirectory!."
     exit 1
   fi
-
-  source ../scripts/common-functions.sh
 
   task="${1,,}"
   shift
@@ -62,12 +63,12 @@ stackAction() {
     
     [ $? -gt 0 ] && echo "Cancelling..." && return 1
 
-    aws --profile=$PROFILE cloudformation $action --stack-name $STACK_NAME
-  elif [ -z "$CAMPUS_SUBNET_ID" ] ; then
-      echo "CAMPUS_SUBNET_ID parameter required! Cancelling."
-      exit 1
+    aws --profile=$PROFILE cloudformation $action --stack-name ${STACK_NAME}-${LANDSCAPE}
   else
-    local vpcId="$(getVpcId $CAMPUS_SUBNET_ID)"
+    # checkSubnets will also assign a value to VPC_ID
+    if ! checkSubnets ; then
+      exit 1
+    fi
 
     # Upload the yaml files to s3
     uploadStack silent
@@ -91,7 +92,7 @@ stackAction() {
     cat <<-EOF > $cmdfile
     aws --profile=$PROFILE \\
       cloudformation $action \\
-      --stack-name $STACK_NAME \\
+      --stack-name ${STACK_NAME}-${LANDSCAPE} \\
       $([ $task != 'create-stack' ] && echo '--no-use-previous-template') \\
       $([ "$NO_ROLLBACK" == 'true' ] && [ $task == 'create-stack' ] && echo '--on-failure DO_NOTHING') \\
       --template-url $BUCKET_URL/ec2.yaml \\
@@ -99,8 +100,8 @@ stackAction() {
       --parameters '[
 EOF
 
-    addParameter $cmdfile 'VpcId' $vpcId
-    addParameter $cmdfile 'CampusSubnet' $CAMPUS_SUBNET_ID
+    addParameter $cmdfile 'VpcId' $VpcId
+    addParameter $cmdfile 'CampusSubnet' $CAMPUS_SUBNET1
     [ -n "$PDF_IMAGE" ] && \
       addParameter $cmdfile 'PdfImage' $PDF_IMAGE
     [ -n "$KC_IMAGE" ] && \

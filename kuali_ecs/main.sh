@@ -35,12 +35,12 @@ declare -A defaults=(
 )
 
 run() {
-  if [ "$(pwd | grep -oP '[^/]+$')" != "kuali_ecs" ] ; then
+  source ../scripts/common-functions.sh
+
+  if ! isCurrentDir "kuali_ecs" ; then
     echo "You must run this script from the kuali_ecs subdirectory!."
     exit 1
   fi
-
-  source ../scripts/common-functions.sh
 
   task="${1,,}"
   shift
@@ -92,10 +92,12 @@ stackAction() {
     
     [ $? -gt 0 ] && echo "Cancelling..." && return 1
     
-    aws --profile=$PROFILE cloudformation $action --stack-name $STACK_NAME
+    aws --profile=$PROFILE cloudformation $action --stack-name ${STACK_NAME}-${LANDSCAPE}
   else
     # checkSubnets will also assign a value to VPC_ID
-    checkSubnets
+    if ! checkSubnets ; then
+      exit 1
+    fi
     
     # Get the arn of the ssl cert
     certArn="$(getSelfSignedArn)"
@@ -123,7 +125,7 @@ EOF
     fi
     echo "Using certificate: $certArn"
 
-    # Upload the yaml files to s3
+    # Upload the yaml file(s) to s3
     uploadStack silent
     [ $? -gt 0 ] && exit 1
 
@@ -145,7 +147,7 @@ EOF
     cat <<-EOF > $cmdfile
     aws --profile=$PROFILE \\
       cloudformation $action \\
-      --stack-name $STACK_NAME \\
+      --stack-name ${STACK_NAME}-${LANDSCAPE} \\
       $([ $task != 'create-stack' ] && echo '--no-use-previous-template') \\
       $([ "$NO_ROLLBACK" == 'true' ] && [ $task == 'create-stack' ] && echo '--on-failure DO_NOTHING') \\
       --template-url $BUCKET_URL/main.yaml \\
@@ -153,7 +155,7 @@ EOF
       --parameters '[
 EOF
 
-    addParameter $cmdfile 'VpcId' $vpcId
+    addParameter $cmdfile 'VpcId' $VpcId
     addParameter $cmdfile 'CampusSubnet1' $CAMPUS_SUBNET1
     addParameter $cmdfile 'CampusSubnet2' $CAMPUS_SUBNET2
     addParameter $cmdfile 'PublicSubnet1' $PUBLIC_SUBNET1
@@ -218,7 +220,7 @@ runTask() {
     delete-stack)
       stackAction "delete-stack" ;;
     test)
-      getSelfSignedArn ;;
+      PROFILE=infnprd && checkSubnets ;;
     *)
       if [ -n "$task" ] ; then
         echo "INVALID PARAMETER: No such task: $task"

@@ -42,7 +42,7 @@ Use these template to build an AWS cloud formation stack where all Kuali researc
 
 Included is a bash helper script (main.sh) that serves to simplify many of the command line steps that would otherwise include a fair amount of manual entry. 
 
-2. **Clone this repository**:
+1. **Clone this repository**:
 
 ```
    git clone https://github.com/bu-ist/kuali-infrastructure.git
@@ -92,7 +92,7 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
 
    Once you initiate stack creation, you can go to the aws management console and watch the stack creation events as they come in:
    [AWS Management Console - Cloudformation](https://console.aws.amazon.com/cloudformation/home?region=us-east-1)
-   
+
 4. **Monitor stack progress:**
    Go to the stack in the [AWS Console](https://console.aws.amazon.com/cloudformation/home?region=us-east-1). Click on the new stack in the list and go to the "Events" tab.
    Watch for failures (these will show up in red).
@@ -104,7 +104,7 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
    2. There will be an "LoadBalancerUrl" output. Click on the link it has for a value.
    3. If you used a self-signed certificate, you should be presented with a security warning. Click to proceed despite the warning.
    4. You should now see the app.
-   
+
 6. **Update the stack:**
    You may decide to modify the stack to add, remove, or adjust resources.
    For example, you may want to adjust the autoscaling desired capacity, or change the subnet CIDR block values.
@@ -133,6 +133,25 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
    In any event, the updates would be written into the template file(s) and re-uploaded to the S3 bucket before starting. The stack update wizard will present you with the option of specifying the S3 url to update the stack or nested stack(s). This would not be necessary if simply updating to implement different parameters.
        
    Upgrades/releases to kuali modules as well as scheduled system maintenance or updates to the EC2 instances in the ECS cluster would be performed through stack updates.
+
+
+
+### Upgrades/Patches:
+
+Scenarios (Just jotting down ideas - clean up verbiage and fill out with details later)
+
+- EC2 instances, ie: Newer version of AWS linux ecs-optimized ami is available (possibly with improvements, fixes, vulnerability patches, etc)
+
+- Just update a single service, possibly to redeploy a fix to a docker image, or configurations have changed and you want all tasks service-wide to be restarted (get deleted and replaced) to read in the new configs (ie: environment variables)
+
+  ```
+  # Example:
+  aws --profile=infnprd ecs update-service --cluster kuali-ecs-sb-cluster --service kuali-ecs-KualiPdfService-1333U12INUWGP-Service-A7O0A14TXCA6 --force-new-deployment
+  ```
+
+- Explain why `/etc/cfn/hooks.d/cfn-auto-reloader.conf` and `/opt/aws/bin/cfn-init` works in other stacks for restarting all tasks, but not in ecs cluster.
+
+- Say something about stack updates
 
 
 
