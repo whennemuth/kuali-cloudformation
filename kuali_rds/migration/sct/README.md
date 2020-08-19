@@ -68,7 +68,7 @@ The [AWS Schema Conversion tool](https://docs.aws.amazon.com/SchemaConversionToo
    | Tablespace            |                                                              |
    | --------------------- | ------------------------------------------------------------ |
    | ![diagram3](sct3.png) | On the left side of the window will be listed all of the schema objects for the original oracle database.<br /><br />By default, all items will be selected.<br /><br />Uncheck all of the items except for the "KUALI_DATA" tablespace item.<br /><br />Select "Convert schema" from the context menu of the table space item<br /><br />This should cause a corresponding "KUALI_DATA" tablespace item to appear among the left side schema objects for the rds oracle database. |
-   |                       |                                                              |
+   | sct4.png              |                                                              |
    | **Profile**           |                                                              |
    |                       |                                                              |
 
