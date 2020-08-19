@@ -1,11 +1,16 @@
-## Kuali RDS
+## Kuali Oracle RDS Stack Creation
 
-Use this template to create a single RDS database instance or cluster of RDS database instances for kuali-research.
+Create the following:
+
+- A single RDS database instance or cluster of RDS database instances for kuali-research.
+- A small ec2 instance to serve as a jump server to the RDS instance(s)
+
+No Kuali schema creation/population is done here. To take that next step, follow [these migration instructions](migration/README.md)*
 
 ### Prerequisites:
 
 - **AWS CLI:** 
-  If you don't have the AWS commandline iterface, you can download it here:
+  If you don't have the AWS command-line interface, you can download it here:
   [https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html)
 - **IAM User/Role:**
   The cli needs to be configured with the [access key ID and secret access key](https://docs.aws.amazon.com/general/latest/gr/aws-sec-cred-types.html#access-keys-and-secret-access-keys) of an (your) IAM user. This user needs to have a role with policies sufficient to cover all of the actions to be carried out (stack creation, VPC/subnet read access, ssm sessions, secrets manager read/write access, etc.). Preferably your user will have an admin role and all policies will be covered.
@@ -44,14 +49,14 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
    You will always be presented with the final cli stack creation command so that you can look at all the parameters it contains and will have the option to abort. Saves fear of guesswork. Those parameters you don't see can be located in the yaml template for the default value.
    
    ```
-   # Example 1) All defaults, among which is "sb" for the environment, and "true" for multi-az
+   # Example 1) All defaults, among which is "sb" for the environment. Creates single rds instance in one availability zone
    sh main.sh create-stack 
    
-   # Example 2) Recommended for ci and qa landscape, using single rds instance in one availability zone (it's CI, so only one needed)
-   sh main.sh create-stack landscape=ci multi_az=false
+   # Example 2) Same as above, but specifying environment. Recommended for sb, ci and qa landscapes.
+   sh main.sh create-stack landscape=ci
    
-   # Example 3) Recommended for prod (and possibly stg). Multi_az and larger than default instance size.
-   sh main.sh create-stack landscape=prod db_instance_class=db.m5.xlarge
+   # Example 3) Recommended for prod (and possibly stg). Is Multi_az, and larger than default instance size.
+   sh main.sh create-stack landscape=prod db_instance_class=db.m5.xlarge multi_az=true
    
    # Example 3) You would probably never need to override ALL parameters, but if you did, it would look like this:
    sh main.sh create-stack profile=myprofile landscape=ci stack_name=my-kuali-rds global_tag=my-kuali-rds no_rollback=true bucket_path=s3://kuali-conf/cloudformation/kuali_rds db_instance_class=db.r4.xlarge engine=oracle-ee engine_version=12.1.0.2.v20  db_name=Kuali port=1521 license_model=license-included multi_az=false allocated_storage=400 db_snapshot_arn=[some arn] auto_version_minor_upgrade=false backup_retention_period=10 characterset_name=US7ASCII iops=4000 campus_subnet1=subnet-06edbf07b7e07d73c campus_subnet1_cidr=10.58.34.0/24 campus_subnet2=subnet-0032f03a478ee868b campus_subnet2_cidr=10.58.35.0/24 private_subnet1=subnet-0d4acd358fba71d20 private_subnet1_cidr=10.58.33.0/25 private_subnet2=subnet-08afdf870ee85d511 private_subnet2_cidr=10.58.33.128/25 public_subnet1=subnet-07afd7c2e54376dd0 public_subnet1_cidr=10.58.32.0/25 public_subnet2=subnet-03034a40da92d6d08 public_subnet2_cidr=10.58.32.128/25 jumpbox_instance_type=t3.small
@@ -60,6 +65,7 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
    
    Once you initiate stack creation, you can go to the aws management console and watch the stack creation events as they come in:
    [AWS Management Console - Cloudformation](https://console.aws.amazon.com/cloudformation/home?region=us-east-1)
+   
 3. **Monitor stack progress:**
    Go to the stack in the [AWS Console](https://console.aws.amazon.com/cloudformation/home?region=us-east-1). Click on the new stack in the list and go to the "Events" tab.
    Watch for failures (these will show up in red).
@@ -78,61 +84,10 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
    aws secretsmanager delete-secret --secret-id kuali/sb/oracle-rds-password --force-delete-without-recovery
    ```
    
-5. **Connect to the database instance:**
-
-   ------
-
-   ​            BACKGROUND:
-
-   ------
-
-   From outside the its vpc, the kuali rds instance is connected to via an ec2 instance serving as a "jump box".
-   Overall, database access for kuali is secure and fairly well isolated from everything outside of its [vpc](https://docs.aws.amazon.com/vpc/latest/userguide/what-is-amazon-vpc.html).
-   This is because the following are true:
-
-   - The RDS instance(s) have endpoints that are not publicly accessible.
-   - The jump server has only a private ip address.
-   - The private subnet has only a route to a NAT gateway, so no ingress can be initiated to either the database or the jumpbox instances from outside of the vpc.
-   - The jump server resides in the same private subnet as the database instance/cluster.
-      This distinguishes it from a bastion server, better to refer to it as a "jump box".
-      This also brings the same level of isolation to the jump server as for the database instances themselves *(but there's still a way in - see below)*.
-   - The security group for the jump server allows ingress over only one port (1521) and only for traffic originating from either of the two private database subnets.
-   - The security group for the database instances allows ingress over only one port (1521) and only for traffic originating from either of the two private subnets or either of the two campus subnets (where the application servers reside).
-
-   With the jump box locked down in this way, and no SSH ports open to it, it's worth considering how to get to it.
-   It has a role that allows access through ssm. For instance, you could shell into it and poke around like this:
-
-   ```
-   aws ssm start-session --target [instance-id of jump server]
-   ```
-
-   In the case of establishing an SSH connection to the RDS instance, the jump server is necessary to proxy the start-session command.
-   This is because you cannot execute such a command directly against the RDS instance itself due to the `--target` parameter requiring an ec2 instance id, which an RDS instance does not have.
-   This makes for a somewhat more involved set of commands, but for which there is a helper script.
-
-   ------
-
-   ​            HELPER SCRIPT:
-
-   ------
-
-   To connect to the master RDS instance, the helper script follows the approach from these references:
-
-   - [Secure RDS Access through SSH over AWS SSM](https://codelabs.transcend.io/codelabs/aws-ssh-ssm-rds/index.html#6)
-   - [Enable SSH connections through Session Manager](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-getting-started-enable-ssh-connections.html)
-
-   ```
-   # Example:
-   sh main.sh tunnel \
-     profile infnprd \
-     rds_endpoint=kuali-oracle-sb.clb9d4mkglfd.us-east-1.rds.amazonaws.com \
-     jumpbox_instance_id=i-02b4dd8149bd0f9fa
-   ```
-
-6. 
-
+5. **[Optional] Test connect to the new rds instance**
+   At this point, the RDS database is empty and has no schemas, but you should be able to connect to it from your computer.
+   [Instructions...](jumpbox/README.md)
    
-
-   
-
-   
+6. **Perform data migration**
+   If you used the `"db_snapshot_arn"` parameter for stack creation, you are finished. Otherwise, creating and populating schemas is next.
+   [Instructions...](migration/README.md)

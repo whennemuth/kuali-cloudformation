@@ -10,21 +10,55 @@ parseArgs $@
 
 tunnelToRDS() {
   if [ -z "$RDS_ENDPOINT" ] ; then
-    echo "INSUFFICIENT PARAMETERS! RDS endpoint is missing."
-    echo "Cancelling..."
-    exit 1
-  elif [ -z "$JUMPBOX_INSTANCE_ID" ] ; then
-    echo "INSUFFICIENT PARAMETERS! Jumpbox instance ID is missing"
-    echo "Cancelling..."
-    exit 1 
-  else
-    local data="$(aws \
-      ec2 describe-instances \
-      --instance-id $JUMPBOX_INSTANCE_ID \
-      --output text \
-      --query 'Reservations[].Instances[0].{AZ:Placement.AvailabilityZone,ID:PrivateIpAddress}' 2> /dev/null
-    )"
+    if [ -n "$LANDSCAPE" ] ; then
+      local arn="$(
+        aws resourcegroupstaggingapi get-resources \
+          --resource-type-filters rds:db \
+          --tag-filters \
+              'Key=Environment,Values=sb' \
+              'Key=App,Values=Kuali' \
+          --output text \
+          --query 'ResourceTagMappingList[0].{ARN:ResourceARN}' 2> /dev/null
+      )"
+      RDS_ENDPOINT="$(
+        aws rds describe-db-instances \
+          --db-instance-identifier $arn \
+          --output text \
+          --query 'DBInstances[0].{Address:Endpoint.Address}' 2> /dev/null
+      )"
+    fi
+    if [ -z "$RDS_ENDPOINT" ] ; then
+      echo "INSUFFICIENT PARAMETERS! RDS endpoint is missing."
+      echo "Cancelling..."
+      exit 1
+    fi
   fi
+  
+  if [ -z "$JUMPBOX_INSTANCE_ID" ] ; then
+    if [ -n "$LANDSCAPE" ] ; then
+      JUMPBOX_INSTANCE_ID="$(
+        aws ec2 describe-instances \
+          --filters \
+              'Name=tag:App,Values=Kuali' \
+              'Name=tag:Type,Values=Jumpbox' \
+              'Name=tag:Environment,Values=sb' \
+          --output text \
+          --query 'Reservations[].Instances[0].{ID:InstanceId}' 2> /dev/null
+      )"
+    fi
+    if [ -z "$JUMPBOX_INSTANCE_ID" ] ; then
+      echo "INSUFFICIENT PARAMETERS! Jumpbox instance ID is missing"
+      echo "Cancelling..."
+      exit 1 
+    fi
+  fi
+
+  local data="$(aws \
+    ec2 describe-instances \
+    --instance-id $JUMPBOX_INSTANCE_ID \
+    --output text \
+    --query 'Reservations[].Instances[0].{AZ:Placement.AvailabilityZone,ID:PrivateIpAddress}' 2> /dev/null
+  )"
 
   local az=$(echo "$data" | awk '{print $1}' 2> /dev/null)
   if [ -z "$az" ] ; then
@@ -60,7 +94,7 @@ tunnelToRDS() {
 
   echo -e 'y\n' | ssh-keygen -t rsa -f tempkey -N '' >/dev/null 2>&1
 
-  aws --profile=infnprd ec2-instance-connect send-ssh-public-key \\
+  aws ec2-instance-connect send-ssh-public-key \\
     --instance-id $JUMPBOX_INSTANCE_ID \\
     --availability-zone $az \\
     --instance-os-user ec2-user \\
@@ -77,11 +111,11 @@ tunnelToRDS() {
 
       ssh -i tempkey \\
         -Nf -M \\
-        -M -S temp-ssh.sock \\
+        -S temp-ssh.sock \\
         -L 5432:$RDS_ENDPOINT:1521 \\
         -o "UserKnownHostsFile=/dev/null" \\
         -o "StrictHostKeyChecking=no" \\
-        -o ProxyCommand="aws --profile infnprd ssm start-session --target $JUMPBOX_INSTANCE_ID --document AWS-StartSSHSession --parameters portNumber=%p --region=$region" \\
+        -o ProxyCommand="aws ssm start-session --target $JUMPBOX_INSTANCE_ID --document AWS-StartSSHSession --parameters portNumber=%p --region=$region" \\
         ec2-user@$JUMPBOX_INSTANCE_ID
       ;;
     ssh)

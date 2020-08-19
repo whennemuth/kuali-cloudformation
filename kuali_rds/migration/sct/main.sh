@@ -18,10 +18,10 @@ convertSqlFiles=(
 )
 
 run() {
-  source ../../scripts/common-functions.sh
+  source ../../../scripts/common-functions.sh
 
-  if ! isCurrentDir 'migration' ; then
-    echo "You must run this script from the migration subdirectory!."
+  if ! isCurrentDir 'sct' ; then
+    echo "You must run this script from the sct (schema conversion tool) subdirectory!."
     exit 1
   fi
 
@@ -29,8 +29,6 @@ run() {
   shift
 
   if [ "$task" != "test" ] ; then
-
-    IGNORE_PROFILE="true"
 
     parseArgs $@
 
@@ -147,6 +145,7 @@ runSql() {
     )
   '
 
+  # https://zwbetz.com/connect-to-an-oracle-database-and-run-a-query-from-a-bash-script/
   # The SET PAGESIZE 0 option suppresses all headings, page breaks, titles, the initial blank line, and other formatting information
   # The SET FEEDBACK OFF option suppresses the number of records returned by a script
   # The -S option sets silent mode which suppresses the display of the SQL*Plus banner, prompts, and echoing of commands

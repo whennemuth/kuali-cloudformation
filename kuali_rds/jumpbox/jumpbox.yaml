@@ -183,6 +183,12 @@ Resources:
       Tags:
       - Key: Name
         Value: !Sub ${GlobalTag}-${Landscape}
+      - Key: Type
+        Value: Jumpbox
+      - Key: App
+        Value: Kuali
+      - Key: Environment
+        Value: !Ref Landscape
       - Key: Self-Stoppable
         Value: 'true'
       ImageId: 

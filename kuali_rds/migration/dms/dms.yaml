@@ -1,0 +1,344 @@
+
+AWSTemplateFormatVersion: '2010-09-09'
+
+
+Parameters:
+
+  GlobalTag:
+    Type: String
+    Description: >
+      A common value that all resources in this template will have prefixed to
+      their name and attached as a tag to establish a bundling through naming convention.
+    Default: kuali-dms
+
+  Landscape:
+    Description: Specify which landscape to build into the VPC
+    Type: String
+    AllowedValues:
+    - sb
+    - ci
+    - qa
+    - stg
+    - prod
+    ConstraintDescription: >
+      This parameter is restricted to the following values: sb, ci, qa, stg, prod
+    Default: sb
+
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: The id of the vpc to deploy to.
+
+  ReplicationInstanceAZ:
+    Type: String
+    Description: The availablility zone for the replication instance.
+
+  SourceSubnetId:
+    # Type: AWS::EC2::Subnet::Id
+    Type: String
+    Description: Subnet associated with the source oracle database endpoint.
+    Default: empty
+
+  TargetSubnetId:
+    # Type: AWS::EC2::Subnet::Id
+    Type: String
+    Description: Subnet associated with the target RDS oracle database endpoint.
+    Default: empty
+      
+  SourceSecurityGroup:
+    # Type: AWS::EC2::SecurityGroup::Id
+    Type: String
+    Description: The security group of the source oracle database endpoint.
+    Default: empty
+      
+  TargetSecurityGroup:
+    # Type: AWS::EC2::SecurityGroup::Id
+    Type: String
+    Description: The security group of the target RDS oracle database endpoint.
+    Default: empty
+
+  ReplicationInstanceAllocatedStorage:
+    Type: Number
+    Description: >
+        The amount of storage (in gigabytes) to be initially allocated for the replication instance.
+    Default: 100
+
+  # https://docs.aws.amazon.com/dms/latest/userguide/CHAP_ReplicationInstance.InDepth.html
+  ReplicationInstanceClass:
+    Type: String
+    Description: >
+      The compute and memory capacity of the replication instance.
+      AllowedValues:
+        - dms.t2.micro
+        - dms.t2.small
+        - dms.t2.medium
+        - dms.t2.large
+        - dms.c4.large
+        - dms.c4.xlarge
+        - dms.c4.2xlarge
+        - dms.c4.4xlarge
+        - dms.m4.large
+        - dms.m4.xlarge
+        - dms.m4.2xlarge
+        - dms.m4.4xlarge
+    Default: dms.m4.2xlarge
+
+  DbSchemaName:
+    Type: String
+    Description: Name of the database Schema to be migrated
+    Default: KCOEUS
+
+  SourceDbName:
+    Type: String
+    Description: Source database name
+    Default: Kuali
+
+  SourceDbUsername:
+    Type: String
+    Description: Source database username
+    Default: KCOEUS
+
+  SourceDbPassword:
+    Type: String
+    Description: Source database password
+
+  SourceDbEngine:
+    Type: String
+    Description: Source database engine. Valid values depend on the EndpointType value.
+    AllowedValues:
+      - mysql
+      - oracle
+      - postgres
+      - mariadb
+      - aurora
+      - aurora-postgresql
+      - redshift
+      - s3
+      - db2
+      - azuredb
+      - sybase
+      - dynamodb
+      - mongodb
+      - sqlserver
+    Default: oracle
+
+  SourceDbServerName:
+    Type: String
+    Description: Source database hostname
+
+  SourceDbPort:
+    Type: Number
+    Description: Source database connection port number
+    Default: 1521
+
+  TargetDbName:
+    Type: String
+    Description: Target database name
+    Default: Kuali
+
+  TargetDbEngine:
+    Type: String
+    Description: Target database engine. Valid values depend on the EndpointType value.
+    AllowedValues:
+      - mysql
+      - oracle
+      - postgres
+      - mariadb
+      - aurora
+      - aurora-postgresql
+      - redshift
+      - s3
+      - db2
+      - azuredb
+      - sybase
+      - dynamodb
+      - mongodb
+      - sqlserver
+    Default: oracle
+
+  TargetDbServerName:
+    Type: String
+    Description: Target database hostname
+
+  TargetDbPort:
+    Type: Number
+    Description: Target database connection port number
+    Default: 1521
+
+  MigrationType:
+    Type: String
+    Description: The migration type.
+    AllowedValues:
+      - full-load
+      - cdc
+      - full-load-and-cdc
+    Default: full-load
+
+
+Conditions:
+  # Subnet conditions
+  SourceSubnetProvided: !Not [!Equals [!Ref SourceSubnetId, empty]]
+  TargetSubnetProvided: !Not [!Equals [!Ref TargetSubnetId, empty]]
+  AnySubnetProvided: !Or [Condition: SourceSubnetProvided, Condition: TargetSubnetProvided]
+  # SecurityGroup conditions
+  SourceSecurityGroupProvided: !Not [!Equals [!Ref SourceSecurityGroup, empty]]
+  TargetSecurityGroupProvided: !Not [!Equals [!Ref TargetSecurityGroup, empty]]
+  AnySecurityGroupProvided: !Or [Condition: SourceSecurityGroupProvided, Condition: TargetSecurityGroupProvided]
+  # Ingress conditions
+  SourceIngress: !And [Condition: SourceSecurityGroupProvided, Condition: AnySubnetProvided]
+  TargetIngress: !And [Condition: TargetSecurityGroupProvided, Condition: AnySubnetProvided]
+
+Resources:
+
+  DMSSubnetGroup:
+    Type: AWS::DMS::ReplicationSubnetGroup
+    Condition: AnySubnetProvided
+    Properties:
+      ReplicationSubnetGroupDescription: !Sub ${AWS::StackName} DMS Subnet Group
+      ReplicationSubnetGroupIdentifier: !Sub ${AWS::StackName}-dms-subnet-group
+      SubnetIds: 
+        - !If 
+          - SourceSubnetProvided
+          - !Ref SourceSubnetId
+          - !Ref AWS::NoValue
+        - !If
+          - TargetSubnetProvided
+          - !Ref TargetSubnetId
+          - !Ref AWS::NoValue
+      Tags:
+        - Key: Name
+          Value: ${AWS::StackName}-dms-subnet-group
+
+  DMSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Condition: AnySecurityGroupProvided
+    Properties:
+      VpcId: !Ref VpcId
+      GroupDescription: Security group for DMS replication instance
+      SubnetIds:
+        !If 
+          - AnySubnetProvided
+          - - !If 
+              - SourceSubnetProvided
+              - !Ref SourceSubnetId
+              - !Ref AWS::NoValue
+            - !If
+              - TargetSubnetProvided
+              - !Ref TargetSubnetId
+              - !Ref AWS::NoValue
+          - !Ref AWS::NoValue
+      Tags:
+        - Key: Name
+          Value: ${AWS::StackName}-dms-security-group
+
+  # If SourceSecurityGroup is provided as a parameter, it is assumed that it was created somewhere else in the overall stack.
+  # This is because we are modifying it by applying this ingress rule to it and you cannot do that for resources that are not
+  # part of this stack or exist as a member or another stack (NOTE: You can import non-stack resources as long as you don't try to modify them)
+  # If SourceSecurityGroup is ommitted as a parameter, it is assumed that the corresponding resource exists somewhere, but does not
+  # need to have an ingress rule for a migration instance security group added because it already accepts all ips on the corresponding
+  # port or from a cidr block that includes the migration instance anyway. 
+  DMStoSourceSecurityGroupIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Condition: SourceIngress
+    Properties:
+      Description: EC2 ingress from DMS
+      FromPort: !Ref SourceDbPort
+      GroupId: !Ref SourceSecurityGroup
+      IpProtocol: tcp
+      SourceSecurityGroupId: !Ref DMSSecurityGroup
+      ToPort: !Ref SourceDbPort
+
+  # Same comments apply here as for DMStoSourceSecurityGroupIngress
+  DMStoTargetSecurityGroupIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Condition: TargetIngress
+    Properties:
+      Description: RDS ingress from DMS
+      FromPort: !Ref TargetDbPort
+      GroupId: !Ref TargetSecurityGroup
+      IpProtocol: tcp
+      SourceSecurityGroupId: !Ref DMSSecurityGroup
+      ToPort: !Ref TargetDbPort
+
+  ReplicationInstance:
+    Type: AWS::DMS::ReplicationInstance
+    Properties:
+      AllocatedStorage: !Ref ReplicationInstanceAllocatedStorage
+      AllowMajorVersionUpgrade: false
+      AutoMinorVersionUpgrade: false
+      AvailabilityZone: ! Ref ReplicationInstanceAZ
+      MultiAZ: false
+      PubliclyAccessible: false
+      ReplicationInstanceClass: !Sub ${ReplicationInstanceClass}
+      ReplicationInstanceIdentifier: !Sub '${AWS::StackName}-replication-instance'
+      ReplicationSubnetGroupIdentifier: 
+        !If
+          - AnySubnetProvided
+          - !Ref DMSSubnetGroup
+          - !Ref AWS::NoValue
+      VpcSecurityGroupIds:
+        !If
+          - AnySecurityGroupProvided
+          - - !Ref DMSSecurityGroup
+          - !Ref AWS::NoValue
+
+  SourceEndpoint:
+    Type: AWS::DMS::Endpoint
+    Properties:
+        DatabaseName: !Ref SourceDbName
+        EndpointType: 'source'
+        EngineName: !Ref SourceDbEngine
+        ServerName: !Ref SourceDbServerName
+        Port: !Ref SourceDbPort
+        Username: !Ref SourceDbUsername
+        Password: !Ref SourceDbPassword
+        Tags: 
+          - Key: Name
+            Value: !Sub ${AWS::StackName}-dms-source-endpoint
+
+  TargetEndpoint:
+    Type: AWS::DMS::Endpoint
+    Properties:
+      DatabaseName: !Ref TargetDbName
+      EndpointType: 'target'
+      EngineName: !Ref TargetDbEngine
+      ServerName: !Ref TargetDbServerName
+      Port: !Ref TargetDbPort
+      Username: !Sub '{{resolve:secretsmanager:kuali/${Landscape}/oracle-rds-password:SecretString:MasterUsername}}'
+      Password: !Sub '{{resolve:secretsmanager:kuali/${Landscape}/oracle-rds-password:SecretString:MasterUserPassword}}'
+      Tags: 
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-dms-target-endpoint
+
+  ReplicationTask:
+    Type: AWS::DMS::ReplicationTask
+    Properties:
+      MigrationType: !Ref MigrationType
+      ReplicationInstanceArn: !Ref ReplicationInstance
+      ReplicationTaskIdentifier: !Sub ${AWS::StackName}-dms-replication-task
+      SourceEndpointArn: !Ref SourceEndpoint
+      TargetEndpointArn: !Ref TargetEndpoint
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-dms-replication-task
+      # https://docs.aws.amazon.com/dms/latest/userguide/CHAP_Tasks.CustomizingTasks.TableMapping.html
+      TableMappings:
+        !Sub |
+          {
+            "rules": [
+                  {
+                    "rule-type": "selection",
+                    "rule-id": "1",
+                    "rule-name": "1",
+                    "object-locator": {
+                        "schema-name": "report",
+                        "table-name": "%",
+                        "table-type": "all"
+                      },
+                    "rule-action": "include"
+                  }
+              ]
+          }
+      # https://docs.aws.amazon.com/dms/latest/userguide/CHAP_Tasks.CustomizingTasks.TaskSettings.html
+      ReplicationTaskSettings:
+        !Sub |
+          { "NOT": "FINISHED" }

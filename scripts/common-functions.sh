@@ -19,9 +19,11 @@ parseArgs() {
   done
   if [ -n "$PROFILE" ] ; then
     export AWS_PROFILE=$PROFILE  
-  elif [ -z "$IGNORE_PROFILE" ] ; then
-    echo "Not accepting a default profile. If you want the default then use \"profile='default'\""
-    exit 1
+  elif [ -z "$DEFAULT_PROFILE" ] ; then
+    if [ "$task" != 'validate' ] ; then
+      echo "Not accepting a default profile. If you want the default then use \"profile='default'\" or default_profile=\"true\""
+      exit 1
+    fi
   fi
 }
 
@@ -108,9 +110,9 @@ uploadStack() {
 
   if [ -n "$TEMPLATE" ] ; then
     if [ -f $TEMPLATE ] ; then
-      echo "aws s3 cp $TEMPLATE $BUCKET_PATH" > $cmdfile
+      echo "aws s3 cp $TEMPLATE $BUCKET_PATH/" > $cmdfile
     elif [ -f $TEMPLATE_PATH/$TEMPLATE ] ; then
-      echo "aws s3 cp $TEMPLATE_PATH/$TEMPLATE $BUCKET_PATH" > $cmdfile
+      echo "aws s3 cp $TEMPLATE_PATH/$TEMPLATE $BUCKET_PATH/" > $cmdfile
     else
       echo "$TEMPLATE not found!"
       exit 1
@@ -415,51 +417,68 @@ askYesNo() {
   if [ $answer = "y" ] ; then true; else false; fi
 }
 
-# Ensure that there are 4 subnets specified (2 campus subnets and 2 private subnets).
+# The BUAWS Cloud Infrastructure account will have 6 subnets (2 tagged as "World", 4 tagged as "Campus")
+isBuCloudInfAccount() {
+  local subnets=$(
+    aws resourcegroupstaggingapi get-resources \
+      --resource-type-filters ec2:subnet \
+      --tag-filters 'Key=Network,Values=Campus,World' \
+      --output text \
+      --query 'ResourceTagMappingList[].{ARN:ResourceARN}' | wc -l 2> /dev/null
+  )
+  [ $subnets -eq 6 ] && true || false
+}
+
+
+# Provided a base identifier and one or two filters, lookup subnets matching the filter(s) and make variable assignments from
+# some of the subnet properties. The variables names will start with the base identifier (ie: for base id "PUBLIC_SUBNET", cidr: "PUBLIC_SUBNET1_CIDR") 
+getSubnets() {
+  local globalVar="$1"
+  local filter1="$2"
+  local filter2="$3"
+
+  while read subnet ; do
+    local az="$(echo "$subnet" | awk '{print $1}')"
+    local cidr="$(echo "$subnet" | awk '{print $2}')"
+    local subnetId="$(echo "$subnet" | awk '{print $3}')"
+    local vpcId="$(echo "$subnet" | awk '{print $4}')"
+    if [ -n "$vpcId" ] && [ -z "$(grep -i 'VpcId' $cmdfile)" ]; then        
+      echo "VpcId="$vpcId"" >> $cmdfile
+      echo "VPC_ID="$vpcId"" >> $cmdfile
+    fi
+    if [ -z "$(eval echo "\$${globalVar}1")" ] ; then
+      if [ "$(eval echo "\$${globalVar}2")" != "$subnetId" ] ; then
+        echo "Found first $(echo ${globalVar,,} | sed 's/_/ /'): $subnet"
+        eval "${globalVar}1="$subnetId""
+        echo "${globalVar}1="$subnetId"" >> $cmdfile
+        echo "${globalVar}1_AZ="$az"" >> $cmdfile
+        echo "${globalVar}1_CIDR="$cidr"" >> $cmdfile
+        continue
+      fi
+    fi
+    if [ -z "$(eval echo "\$${globalVar}2")" ] ; then
+      if [ "$(eval echo "\$${globalVar}1")" != "$subnetId" ] ; then
+        echo "Found second $(echo ${globalVar,,} | sed 's/_/ /'): $subnet"
+        eval "${globalVar}2="$subnetId""
+        echo "${globalVar}2="$subnetId"" >> $cmdfile
+        echo "${globalVar}2_AZ="$az"" >> $cmdfile
+        echo "${globalVar}2_CIDR="$cidr"" >> $cmdfile
+      fi
+    fi
+  done <<< $(
+    aws ec2 describe-subnets \
+      --filters $filter1 $filter2 \
+      --output text \
+      --query 'sort_by(Subnets, &AvailabilityZone)[*].{VpcId:VpcId,SubnetId:SubnetId,AZ:AvailabilityZone,CidrBlock:CidrBlock}'
+  )
+}
+
+# Ensure that there are 6 subnets are specified (2 campus subnets, 2 private subnets and 2 public subnets).
 # If any are not provided, then look them up with the cli against their tags and assign them accordingingly.
 # If any are provided, look them up to validate that they exist as subnets.
 checkSubnets() {
   # Clear out the last command file
   printf "" > $cmdfile
-
-  getSubnets() {
-    local globalVar="$1"
-    local filter1="$2"
-    local filter2="$3"
-    aws ec2 describe-subnets \
-      --filters $filter1 $filter2 \
-      --output text \
-      --query 'sort_by(Subnets, &AvailabilityZone)[*].{VpcId:VpcId,SubnetId:SubnetId,AZ:AvailabilityZone,CidrBlock:CidrBlock}' | \
-    while read subnet ; do
-      local az="$(echo "$subnet" | awk '{print $1}')"
-      local cidr="$(echo "$subnet" | awk '{print $2}')"
-      local subnetId="$(echo "$subnet" | awk '{print $3}')"
-      local vpcId="$(echo "$subnet" | awk '{print $4}')"
-      if [ -n "$vpcId" ] && [ -z "$(grep -i 'VpcId' $cmdfile)" ]; then        
-        echo "VpcId="$vpcId"" >> $cmdfile
-        echo "VPC_ID="$vpcId"" >> $cmdfile
-      fi
-      if [ -z "$(eval echo "\$${globalVar}1")" ] ; then
-        if [ "$(eval echo "\$${globalVar}2")" != "$subnetId" ] ; then
-          echo "Found first $(echo ${globalVar,,} | sed 's/_/ /'): $subnet"
-          eval "${globalVar}1="$subnetId""
-          echo "${globalVar}1="$subnetId"" >> $cmdfile
-          echo "${globalVar}1_AZ="$az"" >> $cmdfile
-          echo "${globalVar}1_CIDR="$cidr"" >> $cmdfile
-          continue
-        fi
-      fi
-      if [ -z "$(eval echo "\$${globalVar}2")" ] ; then
-        if [ "$(eval echo "\$${globalVar}1")" != "$subnetId" ] ; then
-          echo "Found second $(echo ${globalVar,,} | sed 's/_/ /'): $subnet"
-          eval "${globalVar}2="$subnetId""
-          echo "${globalVar}2="$subnetId"" >> $cmdfile
-          echo "${globalVar}2_AZ="$az"" >> $cmdfile
-          echo "${globalVar}2_CIDR="$cidr"" >> $cmdfile
-        fi
-      fi
-    done
-  }
 
   getSubnets \
     'CAMPUS_SUBNET' \
@@ -482,37 +501,45 @@ checkSubnets() {
   local subnets=$(grep -P '_SUBNET\d=' $cmdfile | wc -l)
   if [ $subnets -lt 6 ] ; then
     # Some subnets might have been explicitly provided by the user as a parameter, but look those up to verify they exist.
+    if [ -z "$(grep 'PRIVATE_SUBNET1' $cmdfile)" ] ; then
+      subnetExists "$PRIVATE_SUBNET1" && ((subnets++)) && echo "PRIVATE_SUBNET1=$PRIVATE_SUBNET1"
+    fi    
     if [ -z "$(grep 'CAMPUS_SUBNET1' $cmdfile)" ] ; then
       subnetExists "$CAMPUS_SUBNET1" && ((subnets++)) && echo "CAMPUS_SUBNET1=$CAMPUS_SUBNET1"
     fi
     if [ -z "$(grep 'PUBLIC_SUBNET1' $cmdfile)" ] ; then
       subnetExists "$PUBLIC_SUBNET1" && ((subnets++)) && echo "PUBLIC_SUBNET1=$PUBLIC_SUBNET1"
     fi
+    if [ -z "$(grep 'PRIVATE_SUBNET2' $cmdfile)" ] ; then
+      subnetExists "$PRIVATE_SUBNET2" && ((subnets++)) && echo "PRIVATE_SUBNET2=$PRIVATE_SUBNET2"
+    fi    
     if [ -z "$(grep 'CAMPUS_SUBNET2' $cmdfile)" ] ; then
       subnetExists "$CAMPUS_SUBNET2" && ((subnets++)) && echo "CAMPUS_SUBNET2=$CAMPUS_SUBNET2"
     fi
     if [ -z "$(grep 'PUBLIC_SUBNET2' $cmdfile)" ] ; then
       subnetExists "$PUBLIC_SUBNET2" && ((subnets++)) && echo "PUBLIC_SUBNET2=$PUBLIC_SUBNET2"
     fi
-    # If we still don't have a total of 4 subnets then exit with an error code
+    # If we still don't have a total of 6 subnets then exit with an error code
   fi
   [ $subnets -lt 6 ] && echo "ERROR! Must have 6 subnets (2 public, 2 campus, 2 private)\n1 or more are missing and could not be found with cli."
   [ $subnets -lt 6 ] && false || true
 }
+
 
 subnetExists() {
   local subnetId="$1"
   if [ -n "$subnetId" ] ; then
     local lookupResult="$(
     aws \
-      --profile $PROFILE \
       ec2 describe-subnets \
-      --subnet-ids $subnetId \
+      --subnet-ids=$subnetId \
       --output text \
       --query 'Subnets[].SubnetId' 2> /dev/null
     )"
+    [ "$lookupResult" != "$subnetId" ] && echo "ERROR: subnet does not exist: $subnetId"
+  else
+    lookupResult="null"
   fi
-  [ "$lookupResult" != "$subnetId" ] && echo "ERROR: subnet does not exist: $subnetId"
   [ "$lookupResult" == "$subnetId" ] && true || false
 }
 

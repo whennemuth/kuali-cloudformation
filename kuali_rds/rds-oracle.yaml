@@ -58,6 +58,7 @@ Parameters:
     - t3.small
     - t3.medium
     - t3.large
+    - none
     ConstraintDescription: Specified instance type is not within selection list.
     Default: t3.small
 
@@ -75,7 +76,17 @@ Parameters:
     AllowedValues:
     - 'true'
     - 'false'
-    Default: 'true'
+    Default: 'false'
+
+  AvailabilityZone:
+    # Type: AWS::EC2::AvailabilityZone::Name
+    Type: String
+    Description: >
+      This parameter is provided if multi-az is false. While it is not required in a single-az deployment, it provides a way
+      to ensure which of the two subnets in the database subnet group the rds instance gets deployed two. Unfortunately, a
+      database subnet group must have two or more subnets, spanning at least two availability zones must be specified, even 
+      for deployments where multi-az is false (AWS says it's for in case you change you mind and want to convert to multi-az).
+    Default: 'N/A, MultiAZ'
 
   Engine:
     Type: String
@@ -230,7 +241,8 @@ Conditions:
   ProtectFromDeletion: !Equals [!Ref Landscape, prod]
   PerformanceInsights: !Equals [!Ref Landscape, prod]
   IopsSpecified: !Not [!Equals [!Ref Iops, 0]]
-
+  CreateJumpboxInstance: !Not [!Equals [!Ref JumpboxInstanceType, none]]
+  MonoCampusSubnet: !Equals [!Ref CampusSubnetCIDR1, !Ref CampusSubnetCIDR2]
 
 Resources:
 
@@ -282,10 +294,13 @@ Resources:
         FromPort: !Ref Port
         IpProtocol: tcp
         ToPort: !Ref Port
-      - CidrIp: !Ref CampusSubnetCIDR2
-        FromPort: !Ref Port
-        IpProtocol: tcp
-        ToPort: !Ref Port
+      - !If
+        - MonoCampusSubnet
+        - !Ref AWS::NoValue
+        - CidrIp: !Ref CampusSubnetCIDR2
+          FromPort: !Ref Port
+          IpProtocol: tcp
+          ToPort: !Ref Port
       - CidrIp: !Ref DBSubnetCIDR1
         FromPort: !Ref Port
         IpProtocol: tcp
@@ -302,7 +317,11 @@ Resources:
       AllocatedStorage: !Ref AllocatedStorage 
       AllowMajorVersionUpgrade: true
       AutoMinorVersionUpgrade: !Ref AutoMinorVersionUpgrade
-      AvailabilityZone: !Ref AWS::NoValue # Don't need to set this because the subnets in the subnet group have availability zones.
+      AvailabilityZone: 
+        !If 
+        - SingleDBAvailabilityZone
+        - !Ref AvailabilityZone
+        - !Ref AWS::NoValue
       BackupRetentionPeriod: !Ref BackupRetentionPeriod
       CharacterSetName: !Ref CharacterSetName
       DBInstanceClass: !Ref DBInstanceClass
@@ -358,15 +377,20 @@ Resources:
       Tags:
       - Key: Name
         Value: !Sub ${GlobalTag}-${Landscape}
+      - Key: App
+        Value: Kuali
+      - Key: Environment
+        Value: !Ref Landscape
       VPCSecurityGroups:
       - !Ref DBVpcSecurityGroup
 
 
   DBJumpbox:
     Type: AWS::CloudFormation::Stack
+    Condition: CreateJumpboxInstance
     Properties:
       TemplateURL: 
-        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_rds/bastion.yaml
+        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_rds/jumpbox/jumpbox.yaml
       Parameters:
         Landscape: !Ref Landscape
         JumpboxInstanceType: !Ref JumpboxInstanceType

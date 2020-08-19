@@ -7,10 +7,10 @@ declare -A defaults=(
   [BUCKET_PATH]='s3://kuali-conf/cloudformation/kuali_rds'
   [TEMPLATE_PATH]='.'
   [NO_ROLLBACK]='true'
-  [PROFILE]='infnprd'
   [ENGINE]='oracle-se2'
   [MAJOR_VERSION]='19'
   # ----- Some of the following are defaulted in the yaml file itself:
+  # [PROFILE]='???'
   # [VPC_ID]='???'
   # [CAMPUS_SUBNET1]='???'
   # [CAMPUS_SUBNET2]='???'
@@ -24,6 +24,7 @@ declare -A defaults=(
   # [PRIVATE_SUBNET2]='???'
   # [PRIVATE_SUBNET1_CIDR]='???'
   # [PRIVATE_SUBNET2_CIDR]='???'
+  # [PRIVATE_SUBNET1_AZ]='???'
   # [LICENSE_MODEL]='???'
   # [DB_INSTANCE_CLASS]='???'
   # [ENGINE_VERSION]='???'
@@ -51,11 +52,22 @@ run() {
   task="${1,,}"
   shift
 
-  if [ "$task" != "test" ] ; then
-    parseArgs $@
+  if [ "$task" == 'create-stack' ] || [ "$task" == 'update-stack' ] ; then
+    if ! isBuCloudInfAccount ; then
+      LEGACY_ACCOUNT='true'
+      echo 'Current profile indicates legacy account.'
+      defaults['BUCKET_PATH']='s3://kuali-research-ec2-setup/cloudformation/kuali_rds'
+    fi
   fi
 
-  runTask
+  if [ "$task" != "test" ] ; then
+
+    parseArgs $@
+
+    setDefaults
+  fi
+
+  runTask $@
 }
 
 # Create, update, or delete the cloudformation stack.
@@ -66,7 +78,11 @@ stackAction() {
     aws cloudformation $action --stack-name ${STACK_NAME}-${LANDSCAPE}
   else
     # checkSubnets will also assign a value to VPC_ID
-    if ! checkSubnets ; then
+    if [ "$LEGACY_ACCOUNT" ] ; then
+      if ! checkSubnetsInLegacyAccount ; then
+        exit 1
+      fi
+    elif ! checkSubnets ; then
       exit 1
     fi
 
@@ -79,19 +95,20 @@ stackAction() {
       --stack-name ${STACK_NAME}-${LANDSCAPE} \\
       $([ $task != 'create-stack' ] && echo '--no-use-previous-template') \\
       $([ "$NO_ROLLBACK" == 'true' ] && [ $task == 'create-stack' ] && echo '--on-failure DO_NOTHING') \\
-      --template-url $BUCKET_URL/oracle.yaml \\
+      --template-url $BUCKET_URL/rds-oracle.yaml \\
       --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \\
       --parameters '[
 EOF
 
     addParameter $cmdfile 'VpcId' $VpcId
     addParameter $cmdfile 'CampusSubnetCIDR1' $CAMPUS_SUBNET1_CIDR
-    addParameter $cmdfile 'CampusSubnetCIDR2' $CAMPUS_SUBNET2_CIDR
     addParameter $cmdfile 'DBSubnet1' $PRIVATE_SUBNET1
     addParameter $cmdfile 'DBSubnet2' $PRIVATE_SUBNET2
     addParameter $cmdfile 'DBSubnetCIDR1' $PRIVATE_SUBNET1_CIDR
     addParameter $cmdfile 'DBSubnetCIDR2' $PRIVATE_SUBNET2_CIDR
 
+    [ -n "$BUCKET_NAME" ] && \
+      addParameter $cmdfile 'BucketName' $BUCKET_NAME
     [ -n "$LANDSCAPE" ] && \
       addParameter $cmdfile 'Landscape' $LANDSCAPE
     [ -n "$GLOBAL_TAG" ] && \
@@ -125,6 +142,12 @@ EOF
     [ -n "$JUMPBOX_INSTANCE_TYPE" ] && \
       addParameter $cmdfile 'JumpboxInstanceType' $JUMPBOX_INSTANCE_TYPE
 
+    if [ -n "$CAMPUS_SUBNET2_CIDR" ] ; then
+      addParameter $cmdfile 'CampusSubnetCIDR2' $CAMPUS_SUBNET2_CIDR
+    else
+      addParameter $cmdfile 'CampusSubnetCIDR2' $CAMPUS_SUBNET1_CIDR
+    fi
+
     if [ -z "$ENGINE_VERSION" ] ; then
       ENGINE_VERSION="$(getOracleEngineVersion $ENGINE $MAJOR_VERSION)"
       if [ -z "$ENGINE_VERSION" ] && [ "$action" == "create-stack" ] ; then
@@ -133,6 +156,26 @@ EOF
       fi
     fi
     addParameter $cmdfile 'EngineVersion' $ENGINE_VERSION
+
+      # AVAILABILITY ZONE: 
+      # 1) 
+      #   An rds instance must have a subnet group that includes at least two subnets in at least two availability zones.
+      #   This requirement exists even for single-az deployments. AWS documentation states that this is to allow for a change 
+      #   of heart where one wants to convert the existing single-az to a mulit-az deployment.
+      #   If multi-az is false, we want to specify our preferred of the two availability zones. This is done by
+      #   setting the "AvailabilityZone" property of the rds instance. In our case it will be the availability zone of the first
+      #   of the two subnets in the database subnet group. When deployment is complete, the rds instance should have a private
+      #   ip address that falls within the cidr block of the first subnet.
+      # 2)
+      #   If multi-az is true, then the "AvailabilityZone" property becomes an illegal setting and will cause an error.
+    if [ "$MULTI_AZ" != 'true' ] ; then
+      if [ -n "$PRIVATE_SUBNET1_AZ" ] ; then
+        addParameter $cmdfile 'AvailabilityZone' $PRIVATE_SUBNET1_AZ
+      else
+        echo "ERROR! Single-AZ deployment indicated, but the availability zone of the first subnet in the database subnet group cannot be determined."
+        exit 1
+      fi
+    fi
 
     echo "      ]'" >> $cmdfile
 
@@ -150,10 +193,71 @@ EOF
   fi
 }
 
+
+# We are running against the "Legacy" kuali aws account, so an adapted version of checkSubnets is needed.
+# -------------------------------------------------------------------------------------------------------
+# Ensure that there are 4 subnets are specified (2 application subnets and 2 database subnets).
+# If any are not provided, then look them up with the cli against their tags and assign them accordingingly.
+# If any are provided, look them up to validate that they exist as subnets.
+checkSubnetsInLegacyAccount() {
+  # Clear out the last command file
+  printf "" > $cmdfile
+
+  getSubnets \
+    'CAMPUS_SUBNET' \
+    'Name=tag:Network,Values=application' \
+    'Name=tag:Environment,Values='$LANDSCAPE
+
+  getSubnets \
+    'PRIVATE_SUBNET' \
+    'Name=tag:Network,Values=database' \
+    'Name=tag:Environment,Values='$LANDSCAPE
+
+  getSubnets \
+    'PRIVATE_SUBNET' \
+    'Name=tag:Network,Values=database' \
+    'Name=tag:Environment2,Values='$LANDSCAPE
+
+  source ./$cmdfile
+
+  # Count how many application subnets have values
+  local appSubnets=$(grep -P 'CAMPUS_SUBNET\d=' $cmdfile | wc -l)
+  if [ $appSubnets -lt 2 ] ; then
+    # Some subnets might have been explicitly provided by the user as a parameter, but look those up to verify they exist.
+    if [ -z "$(grep 'CAMPUS_SUBNET1' $cmdfile)" ] ; then
+      subnetExists "$CAMPUS_SUBNET1" && ((appSubnets++)) && echo "CAMPUS_SUBNET1=$CAMPUS_SUBNET1"
+    fi
+    if [ -z "$(grep 'CAMPUS_SUBNET2' $cmdfile)" ] ; then
+      subnetExists "$CAMPUS_SUBNET2" && ((appSubnets++)) && echo "CAMPUS_SUBNET2=$CAMPUS_SUBNET2"
+    fi
+    # We can have less than two application subnets, but must have at least one.
+  fi
+
+  # Count how many database subnets have values
+  local dbSubnets=$(grep -P 'PRIVATE_SUBNET\d=' $cmdfile | wc -l)
+  if [ $dbSubnets -lt 2 ] ; then
+    # Some subnets might have been explicitly provided by the user as a parameter, but look those up to verify they exist.
+    if [ -z "$(grep 'PRIVATE_SUBNET1' $cmdfile)" ] ; then
+      subnetExists "$PRIVATE_SUBNET1" && ((dbSubnets++)) && echo "PRIVATE_SUBNET1=$PRIVATE_SUBNET1"
+    fi    
+    if [ -z "$(grep 'PRIVATE_SUBNET2' $cmdfile)" ] ; then
+      subnetExists "$PRIVATE_SUBNET2" && ((dbSubnets++)) && echo "PRIVATE_SUBNET2=$PRIVATE_SUBNET2"
+    fi    
+    # If we still don't have a total of 2 or more database subnets then exit with an error code
+  fi
+
+  cat ./$cmdfile
+  source ./$cmdfile
+
+  [ $appSubnets -lt 1 ] && echo "ERROR! Must have at least one application subnet \nNone are provided and could not be found with cli."
+  [ $dbSubnets -lt 2 ] && echo "ERROR! Must have 2 database subnets \n1 or more are missing and could not be found with cli."
+  [ $((appSubnets+dbSubnets)) -lt 3 ] && false || true
+}
+
 runTask() {
   case "$task" in
     validate)
-      validateStack ;;
+      validateStack silent;;
     upload)
       uploadStack ;;
     create-stack)
@@ -163,7 +267,10 @@ runTask() {
     delete-stack)
       stackAction "delete-stack" ;;
     test)
-      PROFILE=infnprd && checkSubnets ;;
+      # export AWS_PROFILE=infnprd
+      # PROFILE=infnprd
+      LANDSCAPE=sb
+      checkSubnetsInLegacyAccount ;;
     *)
       if [ -n "$task" ] ; then
         echo "INVALID PARAMETER: No such task: $task"

@@ -128,7 +128,7 @@ The search option in the dashboard menu is powered by Elasticsearch:
       ```
 
       The stack creation will take between 15 and 20 minutes.
-         
+      
 
 2. #### **Configuration**
 
@@ -158,9 +158,9 @@ The search option in the dashboard menu is powered by Elasticsearch:
       ```
 
       Restart the kuali-research docker container(s).
-      
-2. **Parameter Lookup**
    
+2. **Parameter Lookup**
+  
    Navigate to the parameter screen in the dashboard frontend:
    
    `All Links > System Administration > Parameter`
@@ -185,13 +185,13 @@ The search option in the dashboard menu is powered by Elasticsearch:
         *IF YOU HAVE ALREADY INDEXED THE ELASTICSEARCH CLUSTER AND YOU SWITCH THIS SETTING, YOU WILL NEED TO REINDEX THE ENTIRE CLUSTER AGAIN. This is because each indexed document maintains a "viewers" list of who is authorized to see it as a search result, and resetting this parameter will change that list*
    
 3. **Dashboard Environment variables**
-   
+  
    The docker container running the dashboard application will need to be restarted, having added the following environment variables (Again, the first value is just an example value):
    
    - `ELASTICSEARCH_URL=https://vpc-kuali-elasticsearch-sb-db24x4yzmvesxlcsw5mrcym2py.us-east-1.es.amazonaws.com`
-      - `ELASTICSEARCH_INDEX_NAME=documents`
-      - `OMNISEARCH_ENABLED=true`
-      - `USE_LEGACY_APIS=false`
+   - `ELASTICSEARCH_INDEX_NAME=documents`
+   - `OMNISEARCH_ENABLED=true`
+   - `USE_LEGACY_APIS=false`
    
    Remove the dashboard docker containers and re-run with these environment variables included.
    
