@@ -25,7 +25,7 @@ The [AWS Schema Conversion tool](https://docs.aws.amazon.com/SchemaConversionToo
 ### Steps:
 
 1. **Obtain the RDS database password :**
-   
+  
    The target RDS database instance will have a master user and password.
    The RDS stack was created along with a secrets-manager secret value containing the users name and the password.
    The username is **"admin"**. To obtain the password, execute the following:
@@ -63,4 +63,17 @@ The [AWS Schema Conversion tool](https://docs.aws.amazon.com/SchemaConversionToo
    *Without this the tool will fail with: `ORA-01031: insufficient privileges`*
    ![diagram2](sct2.png)
 
-5. sdfs
+5. **Get schema conversion sql:**
+
+   | Tablespace            |                                                              |
+   | --------------------- | ------------------------------------------------------------ |
+   | ![diagram3](sct3.png) | On the left side of the window will be listed all of the schema objects for the original oracle database.<br /><br />By default, all items will be selected.<br /><br />Uncheck all of the items except for the "KUALI_DATA" tablespace item.<br /><br />Select "Convert schema" from the context menu of the table space item<br /><br />This should cause a corresponding "KUALI_DATA" tablespace item to appear among the left side schema objects for the rds oracle database. |
+   |                       |                                                              |
+   | **Profile**           |                                                              |
+   |                       |                                                              |
+
+6. ssfsfdsfd
+
+   
+
+
