@@ -24,3 +24,25 @@ Migrate data from a source oracle kuali database schema to an empty target kuali
   This is a desktop app that can be downloaded from oracle:  [SQL Developer Download](https://www.oracle.com/tools/downloads/sqldev-downloads.html)
 
 ### Steps:
+
+*”DMS takes a minimalist approach and creates only those objects required to efficiently migrate the data. In other words, AWS DMS creates tables, primary keys, and in some cases unique indexes, but doesn’t create any other objects that are not required to efficiently migrate the data from the source. For example, it doesn’t create secondary indexes, non primary key constraints, or data defaults”.*
+
+```
+set serveroutput on; 
+declare 
+  V_TABL_NM ALL_TABLES.TABLE_NAME%TYPE; 
+  ROW_COUNT INT;
+    
+BEGIN 
+    FOR GET_TABL_LIST IN ( 
+        SELECT TABLE_NAME FROM ALL_TABLES 
+        WHERE TABLESPACE_NAME = 'KUALI_DATA' AND OWNER = 'KCOEUS'   
+        ORDER BY TABLE_NAME
+    )LOOP 
+        V_TABL_NM := GET_TABL_LIST.TABLE_NAME;
+        EXECUTE IMMEDIATE 'select count(*) from "' || V_TABL_NM || '"' INTO ROW_COUNT;
+        DBMS_OUTPUT.PUT_LINE(V_TABL_NM || ': ' || ROW_COUNT);
+    END LOOP; 
+END;
+```
+

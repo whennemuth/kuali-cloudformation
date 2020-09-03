@@ -73,14 +73,10 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
 4. **Obtain the master user password:**
 
    ```
-   aws --profile [your.profile] secretsmanager get-secret-value \
-       --secret-id kuali/[landscape]/oracle-rds-password \
-    --output text \
-       --query '{SecretString:SecretString}' \
-       | jq '.MasterUserPassword' \
-       | sed 's/"//g'
-       
-   NOTE: If you ever have to delete the secret, this is how:
+   # Example:
+   sh main.sh get-password landscape=ci profile=default
+   
+   # NOTE: If you ever have to delete the secret, this is how:
    aws secretsmanager delete-secret --secret-id kuali/sb/oracle-rds-password --force-delete-without-recovery
    ```
    

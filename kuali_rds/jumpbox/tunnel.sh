@@ -2,11 +2,18 @@
 
 if [ -f ../scripts/common-functions.sh ] ; then
   source ../scripts/common-functions.sh
+elif [ -f common-functions.sh ] ; then
+  source common-functions.sh
 else
   source ../../scripts/common-functions.sh
 fi
  
 parseArgs $@
+
+[ -z "$LOCAL_PORT" ] && LOCAL_PORT='5432'
+[ -z "$REMOTE_PORT" ] && REMOTE_PORT='1521'
+[ -z "$METHOD" ] && METHOD='ssm'
+[ -z "$USER_TERMINATED" ] && USER_TERMINATED='true'
 
 tunnelToRDS() {
   if [ -z "$RDS_ENDPOINT" ] ; then
@@ -15,7 +22,7 @@ tunnelToRDS() {
         aws resourcegroupstaggingapi get-resources \
           --resource-type-filters rds:db \
           --tag-filters \
-              'Key=Environment,Values=sb' \
+              "Key=Environment,Values=$LANDSCAPE" \
               'Key=App,Values=Kuali' \
           --output text \
           --query 'ResourceTagMappingList[0].{ARN:ResourceARN}' 2> /dev/null
@@ -41,9 +48,9 @@ tunnelToRDS() {
           --filters \
               'Name=tag:App,Values=Kuali' \
               'Name=tag:Type,Values=Jumpbox' \
-              'Name=tag:Environment,Values=sb' \
+              "Name=tag:Environment,Values=$LANDSCAPE" \
           --output text \
-          --query 'Reservations[].Instances[0].{ID:InstanceId}' 2> /dev/null
+          --query 'Reservations[].Instances[?State.Name==`running`].{ID:InstanceId}' | tail -1 2> /dev/null
       )"
     fi
     if [ -z "$JUMPBOX_INSTANCE_ID" ] ; then
@@ -112,8 +119,9 @@ tunnelToRDS() {
       ssh -i tempkey \\
         -Nf -M \\
         -S temp-ssh.sock \\
-        -L 5432:$RDS_ENDPOINT:1521 \\
+        -L $LOCAL_PORT:$RDS_ENDPOINT:$REMOTE_PORT \\
         -o "UserKnownHostsFile=/dev/null" \\
+        -o "ServerAliveInterval 10" \\
         -o "StrictHostKeyChecking=no" \\
         -o ProxyCommand="aws ssm start-session --target $JUMPBOX_INSTANCE_ID --document AWS-StartSSHSession --parameters portNumber=%p --region=$region" \\
         ec2-user@$JUMPBOX_INSTANCE_ID
@@ -125,19 +133,22 @@ tunnelToRDS() {
       echo "Establishing SSH Tunnel: jumpbox host has local port 5432 forwarded to rds endpoint on oracle port"
 
       ssh -i tempkey \\
-        -Nf -L 5432:$RDS_ENDPOINT:1521 \\
+        -Nf -L $LOCAL_PORT:$RDS_ENDPOINT:$REMOTE_PORT \\
+        -o "UserKnownHostsFile=/dev/null" \\
         -M -S temp-ssh.sock \\
         ec2-user@$privateIp
       ;;
   esac
 
-  read -rsn1 -p "Press any key to close session: "; echo
-  ssh -O exit -S temp-ssh.sock *
-  rm temp*
+  if [ "$USER_TERMINATED" == 'true' ] ; then
+    read -rsn1 -p "Press any key to close session: "; echo
+    ssh -O exit -S temp-ssh.sock *
+    rm temp*
+  fi
 EOF
 
   if [ "$DEBUG" != 'true' ] ; then
-    sh $cmdfile ssm
+    sh $cmdfile $METHOD
   fi
 }
 

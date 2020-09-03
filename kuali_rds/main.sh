@@ -52,7 +52,7 @@ run() {
   task="${1,,}"
   shift
 
-  if [ "$task" == 'create-stack' ] || [ "$task" == 'update-stack' ] ; then
+  if [ "$task" == 'create-stack' ] || [ "$task" == 'recreate-stack' ] || [ "$task" == 'update-stack' ] ; then
     if ! isBuCloudInfAccount ; then
       LEGACY_ACCOUNT='true'
       echo 'Current profile indicates legacy account.'
@@ -60,7 +60,13 @@ run() {
     fi
   fi
 
-  if [ "$task" != "test" ] ; then
+  if [ "$task" == 'get-password' ] ; then
+    # Operate silently so that only the password shows up without the extra console output.
+    parseArgs $@ 1> /dev/null
+
+    setDefaults 1> /dev/null
+
+  elif [ "$task" != "test" ] ; then
 
     parseArgs $@
 
@@ -87,65 +93,46 @@ stackAction() {
     fi
 
     # Upload the yaml file(s) to s3
-    uploadStack silent
+    uploadStack
     [ $? -gt 0 ] && exit 1
 
     cat <<-EOF > $cmdfile
     aws cloudformation $action \\
       --stack-name ${STACK_NAME}-${LANDSCAPE} \\
-      $([ $task != 'create-stack' ] && echo '--no-use-previous-template') \\
+      $([ $task == 'update-stack' ] && echo '--no-use-previous-template') \\
       $([ "$NO_ROLLBACK" == 'true' ] && [ $task == 'create-stack' ] && echo '--on-failure DO_NOTHING') \\
       --template-url $BUCKET_URL/rds-oracle.yaml \\
       --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \\
       --parameters '[
 EOF
 
-    addParameter $cmdfile 'VpcId' $VpcId
-    addParameter $cmdfile 'CampusSubnetCIDR1' $CAMPUS_SUBNET1_CIDR
-    addParameter $cmdfile 'DBSubnet1' $PRIVATE_SUBNET1
-    addParameter $cmdfile 'DBSubnet2' $PRIVATE_SUBNET2
-    addParameter $cmdfile 'DBSubnetCIDR1' $PRIVATE_SUBNET1_CIDR
-    addParameter $cmdfile 'DBSubnetCIDR2' $PRIVATE_SUBNET2_CIDR
+    add_parameter $cmdfile 'VpcId' 'VPC_ID'
+    add_parameter $cmdfile 'CampusSubnetCIDR1' 'CAMPUS_SUBNET1_CIDR'
+    add_parameter $cmdfile 'DBSubnet1' 'PRIVATE_SUBNET1'
+    add_parameter $cmdfile 'DBSubnet2' 'PRIVATE_SUBNET2'
+    add_parameter $cmdfile 'DBSubnetCIDR1' 'PRIVATE_SUBNET1_CIDR'
+    add_parameter $cmdfile 'DBSubnetCIDR2' 'PRIVATE_SUBNET2_CIDR'
+    add_parameter $cmdfile 'BucketName' 'BUCKET_NAME'
+    add_parameter $cmdfile 'Landscape' 'LANDSCAPE'
+    add_parameter $cmdfile 'GlobalTag' 'GLOBAL_TAG'
+    add_parameter $cmdfile 'DBInstanceClass' 'DB_INSTANCE_CLASS'
+    add_parameter $cmdfile 'MultiAZ' 'MULTI_AZ'
+    add_parameter $cmdfile 'Engine' 'ENGINE'
+    add_parameter $cmdfile 'DBName' 'DB_NAME'
+    add_parameter $cmdfile 'MasterUsername' 'MASTER_USERNAME'
+    add_parameter $cmdfile 'Port' 'PORT'
+    add_parameter $cmdfile 'LicenseModel' 'LICENSE_MODEL'
+    add_parameter $cmdfile 'AllocatedStorage' 'ALLOCATED_STORAGE'
+    add_parameter $cmdfile 'DBSnapshotARN' 'DB_SNAPSHOT_ARN'
+    add_parameter $cmdfile 'AutoMinorVersionUpgrade' 'AUTO_MINOR_VERSION_UPGRADE'
+    add_parameter $cmdfile 'BackupRetentionPeriod' 'BACKUP_RETENTION_PERIOD'
+    add_parameter $cmdfile 'CharacterSetName' 'CHARACTERSET_NAME'
+    add_parameter $cmdfile 'Iops' 'IOPS'
+    add_parameter $cmdfile 'JumpboxInstanceType' 'JUMPBOX_INSTANCE_TYPE'
 
-    [ -n "$BUCKET_NAME" ] && \
-      addParameter $cmdfile 'BucketName' $BUCKET_NAME
-    [ -n "$LANDSCAPE" ] && \
-      addParameter $cmdfile 'Landscape' $LANDSCAPE
-    [ -n "$GLOBAL_TAG" ] && \
-      addParameter $cmdfile 'GlobalTag' $GLOBAL_TAG
-    [ -n "$DB_INSTANCE_CLASS" ] && \
-      addParameter $cmdfile 'DBInstanceClass' $DB_INSTANCE_CLASS
-    [ -n "$MULTI_AZ" ] && \
-      addParameter $cmdfile 'MultiAZ' $MULTI_AZ
-    [ -n "$ENGINE" ] && \
-      addParameter $cmdfile 'Engine' $ENGINE
-    [ -n "$DB_NAME" ] && \
-      addParameter $cmdfile 'DBName' $DB_NAME
-    [ -n "$MASTER_USERNAME" ] && \
-      addParameter $cmdfile 'MasterUsername' $MASTER_USERNAME
-    [ -n "$PORT" ] && \
-      addParameter $cmdfile 'Port' $PORT
-    [ -n "$LICENSE_MODEL" ] && \
-      addParameter $cmdfile 'LicenseModel' $LICENSE_MODEL
-    [ -n "$ALLOCATED_STORAGE" ] && \
-      addParameter $cmdfile 'AllocatedStorage' $ALLOCATED_STORAGE
-    [ -n "$DB_SNAPSHOT_ARN" ] && \
-      addParameter $cmdfile 'DBSnapshotARN' $DB_SNAPSHOT_ARN
-    [ -n "$AUTO_MINOR_VERSION_UPGRADE" ] && \
-      addParameter $cmdfile 'AutoMinorVersionUpgrade' $AUTO_MINOR_VERSION_UPGRADE
-    [ -n "$BACKUP_RETENTION_PERIOD" ] && \
-      addParameter $cmdfile 'BackupRetentionPeriod' $BACKUP_RETENTION_PERIOD
-    [ -n "$CHARACTERSET_NAME" ] && \
-      addParameter $cmdfile 'CharacterSetName' $CHARACTERSET_NAME
-    [ -n "$IOPS" ] && \
-      addParameter $cmdfile 'Iops' $IOPS
-    [ -n "$JUMPBOX_INSTANCE_TYPE" ] && \
-      addParameter $cmdfile 'JumpboxInstanceType' $JUMPBOX_INSTANCE_TYPE
-
-    if [ -n "$CAMPUS_SUBNET2_CIDR" ] ; then
-      addParameter $cmdfile 'CampusSubnetCIDR2' $CAMPUS_SUBNET2_CIDR
-    else
-      addParameter $cmdfile 'CampusSubnetCIDR2' $CAMPUS_SUBNET1_CIDR
+    add_parameter $cmdfile 'CampusSubnetCIDR2' 'CAMPUS_SUBNET2_CIDR'
+    if [ -z "$CAMPUS_SUBNET2_CIDR" ] ; then
+      add_parameter $cmdfile 'CampusSubnetCIDR2' 'CAMPUS_SUBNET1_CIDR'
     fi
 
     if [ -z "$ENGINE_VERSION" ] ; then
@@ -155,7 +142,7 @@ EOF
         exit 1
       fi
     fi
-    addParameter $cmdfile 'EngineVersion' $ENGINE_VERSION
+    add_parameter $cmdfile 'EngineVersion' 'ENGINE_VERSION'
 
       # AVAILABILITY ZONE: 
       # 1) 
@@ -169,9 +156,8 @@ EOF
       # 2)
       #   If multi-az is true, then the "AvailabilityZone" property becomes an illegal setting and will cause an error.
     if [ "$MULTI_AZ" != 'true' ] ; then
-      if [ -n "$PRIVATE_SUBNET1_AZ" ] ; then
-        addParameter $cmdfile 'AvailabilityZone' $PRIVATE_SUBNET1_AZ
-      else
+      add_parameter $cmdfile 'AvailabilityZone' 'PRIVATE_SUBNET1_AZ'
+      if [ -z "$PRIVATE_SUBNET1_AZ" ] ; then
         echo "ERROR! Single-AZ deployment indicated, but the availability zone of the first subnet in the database subnet group cannot be determined."
         exit 1
       fi
@@ -184,74 +170,18 @@ EOF
       exit 0
     fi
 
-    printf "\nExecute the following command:\n\n$(cat $cmdfile)\n\n(y/n): "
-    read answer
+    if [ "$PROMPT" == 'false' ] ; then
+      echo "\nExecuting the following command(s):\n\n$(cat $cmdfile)\n"
+      local answer='y'
+    else
+      printf "\nExecute the following command:\n\n$(cat $cmdfile)\n\n(y/n): "
+      read answer
+    fi
     [ "$answer" == "y" ] && sh $cmdfile || echo "Cancelled."
 
     [ $? -gt 0 ] && echo "Cancelling..." && return 1
 
   fi
-}
-
-
-# We are running against the "Legacy" kuali aws account, so an adapted version of checkSubnets is needed.
-# -------------------------------------------------------------------------------------------------------
-# Ensure that there are 4 subnets are specified (2 application subnets and 2 database subnets).
-# If any are not provided, then look them up with the cli against their tags and assign them accordingingly.
-# If any are provided, look them up to validate that they exist as subnets.
-checkSubnetsInLegacyAccount() {
-  # Clear out the last command file
-  printf "" > $cmdfile
-
-  getSubnets \
-    'CAMPUS_SUBNET' \
-    'Name=tag:Network,Values=application' \
-    'Name=tag:Environment,Values='$LANDSCAPE
-
-  getSubnets \
-    'PRIVATE_SUBNET' \
-    'Name=tag:Network,Values=database' \
-    'Name=tag:Environment,Values='$LANDSCAPE
-
-  getSubnets \
-    'PRIVATE_SUBNET' \
-    'Name=tag:Network,Values=database' \
-    'Name=tag:Environment2,Values='$LANDSCAPE
-
-  source ./$cmdfile
-
-  # Count how many application subnets have values
-  local appSubnets=$(grep -P 'CAMPUS_SUBNET\d=' $cmdfile | wc -l)
-  if [ $appSubnets -lt 2 ] ; then
-    # Some subnets might have been explicitly provided by the user as a parameter, but look those up to verify they exist.
-    if [ -z "$(grep 'CAMPUS_SUBNET1' $cmdfile)" ] ; then
-      subnetExists "$CAMPUS_SUBNET1" && ((appSubnets++)) && echo "CAMPUS_SUBNET1=$CAMPUS_SUBNET1"
-    fi
-    if [ -z "$(grep 'CAMPUS_SUBNET2' $cmdfile)" ] ; then
-      subnetExists "$CAMPUS_SUBNET2" && ((appSubnets++)) && echo "CAMPUS_SUBNET2=$CAMPUS_SUBNET2"
-    fi
-    # We can have less than two application subnets, but must have at least one.
-  fi
-
-  # Count how many database subnets have values
-  local dbSubnets=$(grep -P 'PRIVATE_SUBNET\d=' $cmdfile | wc -l)
-  if [ $dbSubnets -lt 2 ] ; then
-    # Some subnets might have been explicitly provided by the user as a parameter, but look those up to verify they exist.
-    if [ -z "$(grep 'PRIVATE_SUBNET1' $cmdfile)" ] ; then
-      subnetExists "$PRIVATE_SUBNET1" && ((dbSubnets++)) && echo "PRIVATE_SUBNET1=$PRIVATE_SUBNET1"
-    fi    
-    if [ -z "$(grep 'PRIVATE_SUBNET2' $cmdfile)" ] ; then
-      subnetExists "$PRIVATE_SUBNET2" && ((dbSubnets++)) && echo "PRIVATE_SUBNET2=$PRIVATE_SUBNET2"
-    fi    
-    # If we still don't have a total of 2 or more database subnets then exit with an error code
-  fi
-
-  cat ./$cmdfile
-  source ./$cmdfile
-
-  [ $appSubnets -lt 1 ] && echo "ERROR! Must have at least one application subnet \nNone are provided and could not be found with cli."
-  [ $dbSubnets -lt 2 ] && echo "ERROR! Must have 2 database subnets \n1 or more are missing and could not be found with cli."
-  [ $((appSubnets+dbSubnets)) -lt 3 ] && false || true
 }
 
 runTask() {
@@ -262,15 +192,26 @@ runTask() {
       uploadStack ;;
     create-stack)
       stackAction "create-stack" ;;
+    recreate-stack)
+      PROMPT='false'
+      task='delete-stack'
+      stackAction "delete-stack" 2> /dev/null
+      waitForStackToDelete ${STACK_NAME}-${LANDSCAPE}
+      task='create-stack'
+      stackAction "create-stack" ;;
     update-stack)
       stackAction "update-stack" ;;
     delete-stack)
       stackAction "delete-stack" ;;
+    get-password)
+      # Must include PROFILE and LANDSCAPE
+      getRdsPassword ;;
     test)
       # export AWS_PROFILE=infnprd
       # PROFILE=infnprd
       LANDSCAPE=sb
       checkSubnetsInLegacyAccount ;;
+      # waitForStackToDelete ;;
     *)
       if [ -n "$task" ] ; then
         echo "INVALID PARAMETER: No such task: $task"

@@ -32,13 +32,13 @@ Parameters:
     Type: String
     Description: The availablility zone for the replication instance.
 
-  SourceSubnetId:
+  SubnetId1:
     # Type: AWS::EC2::Subnet::Id
     Type: String
     Description: Subnet associated with the source oracle database endpoint.
     Default: empty
 
-  TargetSubnetId:
+  SubnetId2:
     # Type: AWS::EC2::Subnet::Id
     Type: String
     Description: Subnet associated with the target RDS oracle database endpoint.
@@ -76,11 +76,11 @@ Parameters:
         - dms.c4.xlarge
         - dms.c4.2xlarge
         - dms.c4.4xlarge
-        - dms.m4.large
-        - dms.m4.xlarge
-        - dms.m4.2xlarge
-        - dms.m4.4xlarge
-    Default: dms.m4.2xlarge
+        - dms.r4.large
+        - dms.r4.xlarge
+        - dms.r4.2xlarge
+        - dms.r4.4xlarge
+    Default: dms.r4.large
 
   DbSchemaName:
     Type: String
@@ -100,6 +100,7 @@ Parameters:
   SourceDbPassword:
     Type: String
     Description: Source database password
+    NoEcho: true
 
   SourceDbEngine:
     Type: String
@@ -173,40 +174,173 @@ Parameters:
       - full-load-and-cdc
     Default: full-load
 
+  TargetTablePrepMode:
+    Type: String
+    Description: >
+      To indicate how to handle loading the target at full-load startup, specify one of 
+      the following values for the TargetTablePrepMode option
+    AllowedValues:
+      - DO_NOTHING
+      - DROP_AND_CREATE 
+      - TRUNCATE_BEFORE_LOAD
+    Default: DO_NOTHING
+
+  EnableLogging: 
+    Type: String
+    Description: Use CloudWatch to log information during the migration process
+    AllowedValues:
+      - "true"
+      - "false"
+    Default: "true"
+
+  EnableValidation: 
+    Type: String
+    Description: Enables data validation when set to true. Otherwise, validation is disabled for the task
+    AllowedValues:
+      - "true"
+      - "false"
+    Default: "true"
+
+  ValidationOnly: 
+    Type: String
+    Description: |
+      When this option is set to true, the task previews data validation without performing any migration or replication of data.
+      ValidationOnly set to true is particularly useful for the following use cases 
+      1) After data was migrated in a separate full load task without validation enabled, you can validate data without performing 
+      another full load. Just create and run another task with ValidationOnly set to true.
+      2) During a full load task, validation only begins once the initial load is complete. But, by creating a separate ValidationOnly 
+      task, you can see early validation results and resolve any failures prior to actually moving all of the data. 
+      This approach can be more efficient than waiting to resolve failures after all the source data has been migrated to the target.
+    AllowedValues:
+      - "true"
+      - "false"
+    Default: "false"
+
+  RecoverableErrorCount:
+    Type: Number
+    Description: | 
+      The maximum number of attempts made to restart a task when an environmental error occurs. After the system attempts to restart 
+      the task the designated number of times, the task is stopped and manual intervention is required. The default value is -1, 
+      which instructs AWS DMS to attempt to restart the task indefinitely. Set this value to 0 to never attempt to restart a task. 
+      If a fatal error occurs, AWS DMS stops attempting to restart the task after six attempts.
+    Default: 0
+
+  FailOnTransactionConsistencyBreached:
+    Type: String
+    Description: |
+      This option applies to tasks using Oracle as a source with CDC. Set it to true to cause a task to fail when a transaction is 
+      open for more time than the specified timeout and can be dropped. When a CDC task starts with Oracle, AWS DMS waits for a limited 
+      time for the oldest open transaction to close before starting CDC. If the oldest open transaction doesn't close until the timeout 
+      is reached, then in most cases AWS DMS starts CDC, ignoring that transaction. If this option is set to true, the task fails.
+    AllowedValues:
+      - "true"
+      - "false"
+    Default: "true"
+
+Mappings:
+
+  # For loading multiple tables in parallel. The higher the instance type, the greater the capacity to handle more parallel operations.
+  ParallelLoadMap:
+    dms.t2.micro:
+      parallelTasks: 2
+    dms.t2.small:
+      parallelTasks: 4
+    dms.t2.medium:
+      parallelTasks: 6
+    dms.t2.large:
+      parallelTasks: 8
+    dms.c4.large:
+      parallelTasks: 8
+    dms.c4.xlarge:
+      parallelTasks: 12
+    dms.c4.2xlarge:
+      parallelTasks: 16
+    dms.c4.4xlarge:
+      parallelTasks: 20
+    dms.r4.large:
+      parallelTasks: 20
+    dms.r4.xlarge:
+      parallelTasks: 20
+    dms.r4.2xlarge:
+      parallelTasks: 20
+    dms.r4.4xlarge:
+      parallelTasks: 20
+
 
 Conditions:
   # Subnet conditions
-  SourceSubnetProvided: !Not [!Equals [!Ref SourceSubnetId, empty]]
-  TargetSubnetProvided: !Not [!Equals [!Ref TargetSubnetId, empty]]
-  AnySubnetProvided: !Or [Condition: SourceSubnetProvided, Condition: TargetSubnetProvided]
+  SubnetId1Provided: !Not [!Equals [!Ref SubnetId1, empty]]
+  SubnetId2Provided: !Not [!Equals [!Ref SubnetId2, empty]]
+  BothSubnetsProvided: !And [Condition: SubnetId1Provided, Condition: SubnetId2Provided]
   # SecurityGroup conditions
   SourceSecurityGroupProvided: !Not [!Equals [!Ref SourceSecurityGroup, empty]]
   TargetSecurityGroupProvided: !Not [!Equals [!Ref TargetSecurityGroup, empty]]
   AnySecurityGroupProvided: !Or [Condition: SourceSecurityGroupProvided, Condition: TargetSecurityGroupProvided]
-  # Ingress conditions
-  SourceIngress: !And [Condition: SourceSecurityGroupProvided, Condition: AnySubnetProvided]
-  TargetIngress: !And [Condition: TargetSecurityGroupProvided, Condition: AnySubnetProvided]
 
 Resources:
 
+  DMSVpcRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: dms-vpc-role
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+              - dms.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/service-role/AmazonDMSVPCManagementRole
+
+  DMSCloudwatchLogsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: dms-cloudwatch-logs-role
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+              - dms.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/service-role/AmazonDMSCloudWatchLogsRole
+
+  DMSS3AccessRole: 
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: dms-access-for-tasks
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - dms.amazonaws.com
+            Action: 
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonDMSRedshiftS3Role
+
+
   DMSSubnetGroup:
     Type: AWS::DMS::ReplicationSubnetGroup
-    Condition: AnySubnetProvided
+    Condition: BothSubnetsProvided
+    DependsOn: DMSVpcRole
     Properties:
       ReplicationSubnetGroupDescription: !Sub ${AWS::StackName} DMS Subnet Group
       ReplicationSubnetGroupIdentifier: !Sub ${AWS::StackName}-dms-subnet-group
-      SubnetIds: 
-        - !If 
-          - SourceSubnetProvided
-          - !Ref SourceSubnetId
-          - !Ref AWS::NoValue
-        - !If
-          - TargetSubnetProvided
-          - !Ref TargetSubnetId
+      SubnetIds:
+        !If 
+          - BothSubnetsProvided
+          - - !Ref SubnetId1
+            - !Ref SubnetId2
           - !Ref AWS::NoValue
       Tags:
         - Key: Name
-          Value: ${AWS::StackName}-dms-subnet-group
+          Value: !Sub ${AWS::StackName}-dms-subnet-group
 
   DMSSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -214,21 +348,9 @@ Resources:
     Properties:
       VpcId: !Ref VpcId
       GroupDescription: Security group for DMS replication instance
-      SubnetIds:
-        !If 
-          - AnySubnetProvided
-          - - !If 
-              - SourceSubnetProvided
-              - !Ref SourceSubnetId
-              - !Ref AWS::NoValue
-            - !If
-              - TargetSubnetProvided
-              - !Ref TargetSubnetId
-              - !Ref AWS::NoValue
-          - !Ref AWS::NoValue
       Tags:
         - Key: Name
-          Value: ${AWS::StackName}-dms-security-group
+          Value: !Sub ${AWS::StackName}-dms-security-group
 
   # If SourceSecurityGroup is provided as a parameter, it is assumed that it was created somewhere else in the overall stack.
   # This is because we are modifying it by applying this ingress rule to it and you cannot do that for resources that are not
@@ -238,7 +360,7 @@ Resources:
   # port or from a cidr block that includes the migration instance anyway. 
   DMStoSourceSecurityGroupIngress:
     Type: AWS::EC2::SecurityGroupIngress
-    Condition: SourceIngress
+    Condition: SourceSecurityGroupProvided
     Properties:
       Description: EC2 ingress from DMS
       FromPort: !Ref SourceDbPort
@@ -250,7 +372,7 @@ Resources:
   # Same comments apply here as for DMStoSourceSecurityGroupIngress
   DMStoTargetSecurityGroupIngress:
     Type: AWS::EC2::SecurityGroupIngress
-    Condition: TargetIngress
+    Condition: TargetSecurityGroupProvided
     Properties:
       Description: RDS ingress from DMS
       FromPort: !Ref TargetDbPort
@@ -265,14 +387,14 @@ Resources:
       AllocatedStorage: !Ref ReplicationInstanceAllocatedStorage
       AllowMajorVersionUpgrade: false
       AutoMinorVersionUpgrade: false
-      AvailabilityZone: ! Ref ReplicationInstanceAZ
+      AvailabilityZone: !Ref ReplicationInstanceAZ
       MultiAZ: false
       PubliclyAccessible: false
       ReplicationInstanceClass: !Sub ${ReplicationInstanceClass}
       ReplicationInstanceIdentifier: !Sub '${AWS::StackName}-replication-instance'
       ReplicationSubnetGroupIdentifier: 
         !If
-          - AnySubnetProvided
+          - BothSubnetsProvided
           - !Ref DMSSubnetGroup
           - !Ref AWS::NoValue
       VpcSecurityGroupIds:
@@ -321,24 +443,202 @@ Resources:
         - Key: Name
           Value: !Sub ${AWS::StackName}-dms-replication-task
       # https://docs.aws.amazon.com/dms/latest/userguide/CHAP_Tasks.CustomizingTasks.TableMapping.html
-      TableMappings:
-        !Sub |
-          {
-            "rules": [
-                  {
-                    "rule-type": "selection",
-                    "rule-id": "1",
-                    "rule-name": "1",
-                    "object-locator": {
-                        "schema-name": "report",
-                        "table-name": "%",
-                        "table-type": "all"
-                      },
-                    "rule-action": "include"
-                  }
-              ]
-          }
+      TableMappings: 
+        !Sub
+          - |-
+            {
+              "rules": [
+                    {
+                      "rule-type": "selection",
+                      "rule-id": "1",
+                      "rule-name": "1",
+                      "object-locator": {
+                          "schema-name": "${db_schema_name}",
+                          "table-name": "%",
+                          "table-type": "all"
+                        },
+                      "rule-action": "include"
+                    },
+                    {
+                      "rule-type": "selection",
+                      "rule-id": "2",
+                      "rule-name": "2",
+                      "object-locator": {
+                          "schema-name": "KULUSERMAINT",
+                          "table-name": "%",
+                          "table-type": "all"
+                        },
+                      "rule-action": "include"
+                    },
+                    {
+                      "rule-type": "selection",
+                      "rule-id": "3",
+                      "rule-name": "3",
+                      "object-locator": {
+                          "schema-name": "SAPBWKCRM",
+                          "table-name": "%",
+                          "table-type": "all"
+                        },
+                      "rule-action": "include"
+                    },
+                    {
+                      "rule-type": "selection",
+                      "rule-id": "4",
+                      "rule-name": "4",
+                      "object-locator": {
+                          "schema-name": "SAPETLKCRM",
+                          "table-name": "%",
+                          "table-type": "all"
+                        },
+                      "rule-action": "include"
+                    },
+                    {
+                      "rule-type": "selection",
+                      "rule-id": "5",
+                      "rule-name": "5",
+                      "object-locator": {
+                          "schema-name": "SNAPLOGIC",
+                          "table-name": "%",
+                          "table-type": "all"
+                        },
+                      "rule-action": "include"
+                    },
+                    {
+                      "rule-type": "selection",
+                      "rule-id": "6",
+                      "rule-name": "6",
+                      "object-locator": {
+                          "schema-name": "KCRMPROC",
+                          "table-name": "%",
+                          "table-type": "all"
+                        },
+                      "rule-action": "include"
+                    }
+                ]
+            }
+          - 
+            db_schema_name: !Ref DbSchemaName
       # https://docs.aws.amazon.com/dms/latest/userguide/CHAP_Tasks.CustomizingTasks.TaskSettings.html
-      ReplicationTaskSettings:
-        !Sub |
-          { "NOT": "FINISHED" }
+      ReplicationTaskSettings: 
+        !Sub 
+          - |-
+            {
+              "TargetMetadata": {
+                "TargetSchema": "",
+                "SupportLobs": true,
+                "FullLobMode": true,
+                "LobChunkSize": 64
+              },
+              "FullLoadSettings": {
+                "TargetTablePrepMode": "${target_table_prep_mode}",
+                "CreatePkAfterFullLoad": false,
+                "StopTaskCachedChangesApplied": false,
+                "StopTaskCachedChangesNotApplied": false,
+                "MaxFullLoadSubTasks": ${max_full_load_sub_tasks},
+                "TransactionConsistencyTimeout": 5,
+                "CommitRate": 10000
+              },
+              "Logging": {
+                "EnableLogging": ${enable_logging},
+                "DeleteTaskLogs ": true,
+                "LogComponents": [{
+                    "Id": "SOURCE_UNLOAD",
+                    "Severity": "LOGGER_SEVERITY_WARNING"
+                  },{
+                    "Id": "SOURCE_CAPTURE",
+                    "Severity": "LOGGER_SEVERITY_WARNING"
+                  },{
+                    "Id": "TARGET_LOAD",
+                    "Severity": "LOGGER_SEVERITY_WARNING"
+                  },{
+                    "Id": "TARGET_APPLY",
+                    "Severity": "LOGGER_SEVERITY_WARNING"
+                  },{
+                    "Id": "TASK_MANAGER",
+                    "Severity": "LOGGER_SEVERITY_WARNING"
+                  }]
+              },
+              "ControlTablesSettings": {
+                "ControlSchema": "dmslogs",
+                "HistoryTimeslotInMinutes": 5,
+                "HistoryTableEnabled": true,
+                "SuspendedTablesTableEnabled": true,
+                "StatusTableEnabled": true
+              },
+              "StreamBufferSettings": {
+                "StreamBufferCount": 3,
+                "StreamBufferSizeInMB": 8,
+                "CtrlStreamBufferSizeInMB": 5
+              },
+              "ChangeProcessingTuning": null,
+              "ChangeProcessingDdlHandlingPolicy": {
+                "HandleSourceTableDropped": true,
+                "HandleSourceTableTruncated": true,
+                "HandleSourceTableAltered": true
+              },
+              "LoopbackPreventionSettings": null,
+              "ValidationSettings": {
+                "EnableValidation": ${enable_validation},
+                "FailureMaxCount": 10000,
+                "HandleCollationDiff": false,
+                "RecordFailureDelayLimitInMinutes": 0,
+                "SkipLobColumns": false,
+                "TableFailureMaxCount": 1000,
+                "ThreadCount": 5,
+                "ValidationOnly": ${validation_only},
+                "ValidationPartialLobSize": 0
+              },
+              "CharacterSetSettings": null,
+              "BeforeImageSettings": null,
+              "ErrorBehavior": {
+                "DataErrorPolicy": "LOG_ERROR",
+                "DataErrorEscalationPolicy": "SUSPEND_TABLE",
+                "DataErrorEscalationCount": 50,
+                "DataTruncationErrorPolicy": "LOG_ERROR",
+
+                "TableErrorPolicy":"SUSPEND_TABLE",
+                "TableErrorEscalationPolicy":"STOP_TASK",
+                "TableErrorEscalationCount": 10,
+
+                "RecoverableErrorCount": 0,
+                "RecoverableErrorInterval": 5,
+                "RecoverableErrorThrottling": true,
+                "RecoverableErrorThrottlingMax": 1800,
+
+                "ApplyErrorDeletePolicy": "IGNORE_RECORD",
+                "ApplyErrorInsertPolicy": "LOG_ERROR",
+                "ApplyErrorUpdatePolicy": "LOG_ERROR",
+                "ApplyErrorEscalationPolicy": "LOG_ERROR",
+                "ApplyErrorEscalationCount": 0,
+
+                "FullLoadIgnoreConflicts": true,
+                "FailOnTransactionConsistencyBreached" : ${fail_on_transaction_consistency_breached}
+              }
+            }
+          - 
+            max_full_load_sub_tasks: !FindInMap [ParallelLoadMap, !Ref ReplicationInstanceClass, parallelTasks]
+            target_table_prep_mode: !Ref TargetTablePrepMode
+            enable_logging: !Ref EnableLogging
+            enable_validation: !Ref EnableValidation
+            validation_only: !Ref ValidationOnly
+            recoverable_error_count: !Ref RecoverableErrorCount
+            fail_on_transaction_consistency_breached: !Ref FailOnTransactionConsistencyBreached
+
+        
+Outputs:
+
+  DmsEndpointSource:
+      Description: DMS source Endpoint
+      Value: !Ref SourceEndpoint
+
+  DmsEndpointTarget:
+      Description: DMS target Endpoint
+      Value: !Ref TargetEndpoint
+
+  ReplicationInstance:
+      Description: DMS Replication Instance
+      Value: !Ref ReplicationInstance
+
+  DmsReplicationTask:
+      Description: DMS Replication Task
+      Value: !Ref ReplicationTask

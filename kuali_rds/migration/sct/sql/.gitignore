@@ -1,0 +1,4 @@
+# Ignore everything
+*/
+# But recursively allow files under ci-example
+!/ci-example/**

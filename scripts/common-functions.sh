@@ -2,6 +2,10 @@
 
 cmdfile=last-cmd.sh
 
+windows() {
+  [ -n "$(ls /c/ 2> /dev/null)" ] && true || false
+}
+
 isCurrentDir() {
   local askDir="$1"
   # local thisDir="$(pwd | grep -oP '[^/]+$')"  # Will blow up if run on mac (-P switch)
@@ -14,14 +18,16 @@ parseArgs() {
     [ -z "$(grep '=' <<< $nv)" ] && continue;
     name="$(echo $nv | cut -d'=' -f1)"
     value="$(echo $nv | cut -d'=' -f2-)"
-    echo "${name^^}=$value"
+    if [ "${name^^}" != 'SILENT' ] && [ "$SILENT" != 'true' ] ; then
+      echo "${name^^}=$value"
+    fi
     eval "${name^^}=$value" 2> /dev/null || true
   done
   if [ -n "$PROFILE" ] ; then
     export AWS_PROFILE=$PROFILE  
   elif [ -z "$DEFAULT_PROFILE" ] ; then
     if [ "$task" != 'validate' ] ; then
-      echo "Not accepting a default profile. If you want the default then use \"profile='default'\" or default_profile=\"true\""
+      echo "Not accepting a blank profile. If you want the default then use \"profile='default'\" or default_profile=\"true\""
       exit 1
     fi
   fi
@@ -29,8 +35,8 @@ parseArgs() {
 
 setDefaults() {
   # Set explicit defaults first
-  LANDSCAPE="${defaults['LANDSCAPE']}"
-  GLOBAL_TAG="${defaults['GLOBAL_TAG']}"
+  [ -z "$LANDSCAPE" ] && LANDSCAPE="${defaults['LANDSCAPE']}"
+  [ -z "$GLOBAL_TAG" ] && GLOBAL_TAG="${defaults['GLOBAL_TAG']}"
   for k in ${!defaults[@]} ; do
     [ -n "$(eval 'echo $'$k)" ] && continue; # Value is not empty, so no need to apply default
     local val="${defaults[$k]}"
@@ -41,7 +47,7 @@ setDefaults() {
     fi
     local evalstr="[ -z \"\$$k\" ] && $k=\"$val\""
     eval "$evalstr"
-    echo "$k = $val"
+    [ "$SILENT" != 'true' ] && echo "$k = $val"
   done
 
   # Set contingent defaults second
@@ -136,9 +142,13 @@ EOF
     aws s3 mb s3://$BUCKET_NAME
   fi
 
-  printf "\nExecute the following command:\n\n$(cat $cmdfile)\n\n(y/n): "
-  read answer
-  # local answer="y"
+  if [ "$PROMPT" == 'false' ] ; then
+    echo "\nExecuting the following command(s):\n\n$(cat $cmdfile)\n"
+    local answer='y'
+  else
+    printf "\nExecute the following command:\n\n$(cat $cmdfile)\n\n(y/n): "
+    read answer
+  fi
   [ "$answer" == "y" ] && sh $cmdfile || echo "Cancelled."
 }
 
@@ -157,14 +167,22 @@ addParameter() {
 EOF
 }
 
+# Add on key=value entry to the construction of an aws cli function call to 
+# perform a create/update stack action.
+add_parameter() {
+  eval 'local value=$'$3
+  [ -z "$value" ] && return 0
+  addParameter "$1" "$2" "$value"
+}
+
 # Issue an ssm command to an ec2 instance to re-run its init functionality from it's metadata.
 metaRefresh() {
   getInstanceId() (
     aws cloudformation describe-stack-resources \
       --stack-name $STACK_NAME \
       --logical-resource-id $LOGICAL_RESOURCE_ID \
-      | jq '.StackResources[0].PhysicalResourceId' \
-      | sed 's/"//g'
+      --output text \
+      --query 'StackResources[0].{pri:PhysicalResourceId}'
   )
 
   local instanceId="$(getInstanceId)"
@@ -526,6 +544,67 @@ checkSubnets() {
 }
 
 
+# We are running against the "Legacy" kuali aws account, so an adapted version of checkSubnets is needed.
+# -------------------------------------------------------------------------------------------------------
+# Ensure that there are 4 subnets are specified (2 application subnets and 2 database subnets).
+# If any are not provided, then look them up with the cli against their tags and assign them accordingingly.
+# If any are provided, look them up to validate that they exist as subnets.
+checkSubnetsInLegacyAccount() {
+  # Clear out the last command file
+  printf "" > $cmdfile
+
+  getSubnets \
+    'CAMPUS_SUBNET' \
+    'Name=tag:Network,Values=application' \
+    'Name=tag:Environment,Values='$LANDSCAPE
+
+  getSubnets \
+    'PRIVATE_SUBNET' \
+    'Name=tag:Network,Values=database' \
+    'Name=tag:Environment,Values='$LANDSCAPE
+
+  getSubnets \
+    'PRIVATE_SUBNET' \
+    'Name=tag:Network,Values=database' \
+    'Name=tag:Environment2,Values='$LANDSCAPE
+
+  source ./$cmdfile
+
+  # Count how many application subnets have values
+  local appSubnets=$(grep -P 'CAMPUS_SUBNET\d=' $cmdfile | wc -l)
+  if [ $appSubnets -lt 2 ] ; then
+    # Some subnets might have been explicitly provided by the user as a parameter, but look those up to verify they exist.
+    if [ -z "$(grep 'CAMPUS_SUBNET1' $cmdfile)" ] ; then
+      subnetExists "$CAMPUS_SUBNET1" && ((appSubnets++)) && echo "CAMPUS_SUBNET1=$CAMPUS_SUBNET1"
+    fi
+    if [ -z "$(grep 'CAMPUS_SUBNET2' $cmdfile)" ] ; then
+      subnetExists "$CAMPUS_SUBNET2" && ((appSubnets++)) && echo "CAMPUS_SUBNET2=$CAMPUS_SUBNET2"
+    fi
+    # We can have less than two application subnets, but must have at least one.
+  fi
+
+  # Count how many database subnets have values
+  local dbSubnets=$(grep -P 'PRIVATE_SUBNET\d=' $cmdfile | wc -l)
+  if [ $dbSubnets -lt 2 ] ; then
+    # Some subnets might have been explicitly provided by the user as a parameter, but look those up to verify they exist.
+    if [ -z "$(grep 'PRIVATE_SUBNET1' $cmdfile)" ] ; then
+      subnetExists "$PRIVATE_SUBNET1" && ((dbSubnets++)) && echo "PRIVATE_SUBNET1=$PRIVATE_SUBNET1"
+    fi    
+    if [ -z "$(grep 'PRIVATE_SUBNET2' $cmdfile)" ] ; then
+      subnetExists "$PRIVATE_SUBNET2" && ((dbSubnets++)) && echo "PRIVATE_SUBNET2=$PRIVATE_SUBNET2"
+    fi    
+    # If we still don't have a total of 2 or more database subnets then exit with an error code
+  fi
+
+  cat ./$cmdfile
+  source ./$cmdfile
+
+  [ $appSubnets -lt 1 ] && echo "ERROR! Must have at least one application subnet \nNone are provided and could not be found with cli."
+  [ $dbSubnets -lt 2 ] && echo "ERROR! Must have 2 database subnets \n1 or more are missing and could not be found with cli."
+  [ $((appSubnets+dbSubnets)) -lt 3 ] && false || true
+}
+
+
 subnetExists() {
   local subnetId="$1"
   if [ -n "$subnetId" ] ; then
@@ -575,6 +654,91 @@ secretExists() {
   [ -n "$secret" ] && true || false
 }
 
+getRdsPassword() {
+  aws secretsmanager get-secret-value \
+    --secret-id kuali/$LANDSCAPE/oracle-rds-password \
+    --output text \
+    --query '{SecretString:SecretString}' 2> /dev/null \
+    | cut -d'"' -f4
+}
+
+getRdsHostname() {
+  local rdsArn=$(
+    aws resourcegroupstaggingapi get-resources \
+      --resource-type-filters rds:db \
+      --tag-filters 'Key=App,Values=Kuali' 'Key=Environment,Values='$LANDSCAPE \
+      --output text \
+      --query 'ResourceTagMappingList[].{ARN:ResourceARN}' 2> /dev/null
+  )
+  if [ -n "$rdsArn" ] ; then
+    aws rds describe-db-instances \
+      --db-instance-id $rdsArn \
+      --output text \
+      --query 'DBInstances[].Endpoint.{Hostname:Address}' 2> /dev/null
+  fi
+}
+
+getKcConfigDb() {
+  if [ ! -f 'kc-config.xml.temp' ] ; then
+    aws s3 cp s3://$BUCKET_NAME/$LANDSCAPE/kuali/main/config/kc-config.xml 'kc-config.xml.temp' > /dev/null
+    [ ! -f 'kc-config.xml.temp' ] && return 1
+  fi
+
+  getKcConfigDbPassword
+  echo ''
+  getKcConfigDbHost
+  echo ''
+  getKcConfigDbName
+  echo ''
+  getKcConfigDbPort
+  echo ''
+  getKcConfigDbUsername
+
+  [ -f 'kc-config.xml.temp' ] && rm -f 'kc-config.xml.temp'
+}
+
+
+getKcConfigLine() {
+  {
+    if [ -f 'kc-config.xml.temp' ] ; then
+      cat 'kc-config.xml.temp'
+    else
+      aws s3 cp s3://$BUCKET_NAME/$LANDSCAPE/kuali/main/config/kc-config.xml - 2> /dev/null
+    fi
+  } | grep $1
+}
+
+getKcConfigDbUsername() {
+  getKcConfigLine 'datasource.username' \
+    | grep -oE '>[^<>]+<' \
+    | tr -d '\t[:space:]<>'
+}
+
+getKcConfigDbPassword() {
+  getKcConfigLine 'datasource.password' \
+    | grep -oE '>[^<>]+<' \
+    | tr -d '\t[:space:]<>'
+}
+
+getKcConfigDbCtnStrItem() {
+  getKcConfigLine 'datasource.url' \
+    | grep -oE $1'=[^\(\))]+' \
+    | cut -d'=' -f2 \
+    | tr -d '[:space:]\n'
+}
+
+getKcConfigDbHost() {
+  getKcConfigDbCtnStrItem 'HOST'
+}
+
+getKcConfigDbName() {
+  getKcConfigDbCtnStrItem 'SERVICE_NAME'
+}
+
+getKcConfigDbPort() {
+  getKcConfigDbCtnStrItem 'PORT'
+}
+
 getOracleEngineVersion() {
   local engine="$1"
   local majorVersion="$2"
@@ -599,4 +763,53 @@ getLatestImage() {
     | sort -rn \
     | head -n 1)
   echo "$accountNbr.dkr.ecr.us-east-1.amazonaws.com/$reponame:$version"
+}
+
+waitForStackToDelete() {
+  local counter=1
+  local status="unknown"
+  while true ; do
+    status="$(
+      aws cloudformation describe-stacks \
+        --stack-name ${STACK_NAME}-${LANDSCAPE} \
+        --output text \
+        --query 'Stacks[].{status:StackStatus}' 2> /dev/null
+    )"
+    [ -z "$status" ] && status="DELETED"
+    echo "${STACK_NAME}-${LANDSCAPE} stack status check $counter: $status"
+    [ "$status" == 'DELETED' ] && break
+    ((counter++))
+    sleep 5
+  done
+}
+
+jqInstalled() {
+  jq --version > /dev/null 2>&1
+  if [ $? -gt 0 ] ; then
+    echo "Installing jq ..."
+    if [ -n "$(yum --version 2> /dev/null)" ] ; then
+      # Centos
+      yum install epel-release -y && \
+      yum install jq -y
+    elif [ -n "$(dnf --version 2> /dev/null)" ] ; then
+      # Fedora
+      dnf install -y jq
+    elif [ -n "$(apt-get --version 2> /dev/null)" ] ; then
+      # Debian/Ubuntu
+      apt-get install -y jq
+    elif [ -n "$(brew --version 2> /dev/null)" ] ; then
+      # OS X
+      brew install jq
+    elif [ -n "$(chocolatey --version 2> /dev/null)" ] ; then
+      # windows
+      chocolatey install -y jq
+    fi
+    if [ -z "$(jq --version > /dev/null 2> /dev/null)" ] ; then
+      printf "WARNING! jq not detected and could not be installed.\n
+      Install jq and try again.\n
+      https://stedolan.github.io/jq/download/\n"
+      local failed="true"
+    fi
+    [ -n "$failed" ] && true || false
+  fi
 }

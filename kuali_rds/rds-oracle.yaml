@@ -1,5 +1,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
 
+Description: |
+  RDS instance for kuali oracle database. Includes KCOEUS, KULUSERMAINT, SAPBWKCRM, SAPETLKCRM, SNAPLOGIC, and KCRMPROC schemas
 
 Parameters:
 

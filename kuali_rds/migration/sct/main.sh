@@ -9,19 +9,12 @@ declare -A defaults=(
   # [BASTION_INSTANCE_ID]='???'
 )
 
-convertSqlFiles=(
-  '01.tablespace.kualico.create.sql'
-  '02.profile.noexpire.create.sql'
-  '03.user.kualico.create.sql'
-  '04.user.kualico.grant.tablespace.sql'
-  '05.schema.kualico.create.sql'
-)
 
 run() {
   source ../../../scripts/common-functions.sh
 
   if ! isCurrentDir 'sct' ; then
-    echo "You must run this script from the sct (schema conversion tool) subdirectory!."
+    echo "You must run this script from the sct (schema conversion tool) subdirectory!"
     exit 1
   fi
 
@@ -30,7 +23,9 @@ run() {
 
   if [ "$task" != "test" ] ; then
 
-    parseArgs $@
+    [ -z "$PROFILE" ] && PROFILE='default'
+
+    parseArgs silent=true $@
 
     setDefaults
   fi
@@ -55,32 +50,76 @@ condenseEmptyLines() {
 # Only available with oracle-ee engine.
 removeDeferredSegments() {
   local sqlfile="$1"
+  echo "Removing any deferred segments in $sqlfile..."
   sed -i 's/SEGMENT CREATION DEFERRED/SEGMENT CREATION IMMEDIATE/g' $sqlfile
 }
 
-
-convertSchema() {
-  sqlfiles=()
-  # Collect up all parameters that are not assignments (do not container "=") and that are verified as the 
-  # names of existing files. These should be sql files
-  for arg in $@ ; do
-    if [ -z "$(grep '=' <<< $arg)" ] ; then
-      if [ -f "$arg" ] ; then
-        sqlfiles=(${sqlfile[@]} $arg)
-      fi
-    fi
-  done
-
-  # If no sql files were provided, assume ALL sql files need to be run
-  [ ${#sqlfiles[@]} -eq 0 ] && sqlfiles=${convertSqlFiles[@]}
-
-  # Run all sql files
-  for sql in ${sqlfiles[@]} ; do
-    echo "Processing $sql ..."
-    runSql $sql
-  done
+# The schema conversion tool does not properly grant access on the kuali attachments directory.
+modifyDirectoryGrant() {
+  local sqlfile="$1"
+  echo "Correcting any bad directory grants in $sqlfile..."
+  sed -i 's/SYS.KUALI_ATTACHMENTS/DIRECTORY KUALI_ATTACHMENTS/g' $sqlfile
 }
 
+removeCompression() {
+  local sqlfile="$1"
+  echo "Removing any compress occurrences in $sqlfile..."
+  # Obfuscate "NOCOMPRESS" so its "COMPRESS" portion can no longer be matched.
+  sed -i 's/NOCOMPRESS/NO#OMPRESS/g' $sqlfile
+  # Change any remaining "COMPRESS" occurrences to "NOCOMPRESS"
+  sed -i 's/COMPRESS/NOCOMPRESS/g' $sqlfile
+  # Restore all prior "NOCOMPRESS" occurrences.
+  sed -i 's/NO#OMPRESS/NOCOMPRESS/g' $sqlfile
+}
+
+fixMissingQuotes() {
+  local sqlfile="$1"
+  echo "Fixing any missing quotes in $sqlfile..."
+  while read line ; do
+    [ -z "$line" ] && continue;
+    # Isolate the line number
+    local lineNo=$(echo "$line" | grep -Po '^\d+')
+    # Now that we have the line number, trim it off the line.
+    line=${line:(($(expr length $lineNo)+1))}
+    # Print out the old line and its correction
+    echo "Modifying line $lineNo:"
+    echo "   $line"
+    echo "Correction to line:"
+    local corrected=$(echo $line \
+      | sed 's/,[[:space:]]/", "/g' \
+      | sed 's/(/("/g' \
+      | sed 's/)/")/g'
+    )
+    echo "   $corrected"
+    # Apply the correction
+    sed -i "${lineNo}s/.*/$corrected/" $sqlfile
+  done <<< $(grep -n -P 'CREATE OR REPLACE FORCE VIEW[^\(]*\(.*\w\x20\w' $sqlfile)
+}
+
+removeRecycleBinGrants() {
+  local sqlfile="$1"
+  echo "Removing any recycle bin grants in $sqlfile..."
+  sed -i 's/.*\.BIN\$.*//g' $sqlfile
+}
+
+# Remove all the drop statements from the specified SQL file.
+# Assumes that these statements all occur at the top of the file and all lines above and including the last occurrence can be removed.
+removeDropStatements() {
+  local sqlfile="$1"
+  echo "Removing DROP statements from $sqlfile..."
+  local lastLine=""
+  while read line ; do
+    # Isolate the line number
+    local lineNo=$(echo "$line" | grep -Po '^\d+')
+    # Now that we have the line number, trim it off the line.
+    line=${line:(($(expr length $lineNo)+1))}  
+    local statementLen=$(expr length "$line")
+    [[ ( -n "$(echo $line | grep -i 'DROP ')"  ||  $statementLen -le 1 ) ]] && lastLine=$lineNo
+  done <<< $(grep -n -P -B1 -A5 'DROP (FUNCTION|SEQUENCE|TABLE|PROCEDURE|CONSTRAINT|VIEW)\s+' $sqlfile | tail -6)
+  tail --lines=+$lastLine $sqlfile > ${sqlfile}.temp
+  cat ${sqlfile}.temp > $sqlfile
+  rm -f ${sqlfile}.temp
+}
 
 # The oracle client is run in a docker container. If the image for that container does not exist,
 # load or build it here.
@@ -126,7 +165,7 @@ checkOracleClientEnv() {
 }
 
 
-runSql() {
+runSqlFile() {
 
   local sqlfile="${1:-$SQL_FILE}"
 
@@ -173,15 +212,93 @@ EOF
   fi
 }
 
+cleanSqlFile() {
+
+  clean() {
+    local type="$1"
+    case "$type" in
+      user)
+        modifyDirectoryGrant "$sqlfile"
+        removeRecycleBinGrants "$sqlfile"
+        ;;
+      role)
+        removeRecycleBinGrants "$sqlfile"
+        ;;
+      schema)
+        removeDropStatements "$sqlfile"
+        removeCompression "$sqlfile"
+        removeDeferredSegments "$sqlfile"
+        removeRecycleBinGrants "$sqlfile"
+        fixMissingQuotes "$sqlfile"
+        ;;
+    esac
+  }
+
+  local sqlfile="$1"
+  local shortname="$(echo $sqlfile | awk 'BEGIN {RS="/"} {print $1}' | tail -1)"
+  case "$shortname" in
+    03.create.kcoeus.user.sql)
+      clean 'user' ;;
+    05.create.kcoeus.schema.sql)
+      clean 'schema' ;;
+    06.create.4.users.sql)
+      clean 'user' ;;
+    08.create.4.schemas.sql)
+      clean 'schema' ;;
+    09.create.kcrmproc.user.sql)
+      clean 'user' ;;
+    11.create.kcrmproc.schema.sql)
+      clean 'user' ;;
+    12.create.user.roles.sql)
+      clean 'role' ;;
+    13.create.remaining.users.sql)
+      clean 'user' ;;
+  esac
+}
+
+
+processSql() {
+  sqlfiles=()
+  # Collect up all parameters that are not assignments (do not contain "=") and that are verified as the 
+  # names of existing files. These should be sql files
+  for arg in $@ ; do
+    if [ -z "$(grep '=' <<< $arg)" ] ; then
+      if [ -f "$arg" ] ; then
+        sqlfiles=(${sqlfiles[@]} $arg)
+      fi
+    fi
+  done
+
+  # If no sql files were provided, assume ALL sql files need to be run
+  [ ${#sqlfiles[@]} -eq 0 ] && sqlfiles=$(find sql/$LANDSCAPE -type f -iname *.sql)
+
+  # Run all sql files
+  for sql in ${sqlfiles[@]} ; do
+    echo "Processing $sql ..."
+    case "$task" in
+      run-sql)
+        runSqlFile $sql ;;
+      clean-sql)
+        cleanSqlFile $sql ;;
+    esac
+  done
+}
+
 
 runTask() {
   case "$task" in
-    convert-schema)
-      convertSchema $@ ;;
-    run-sql)
-      runSql ;;
+    run-sql|clean-sql)
+      processSql $@ ;;
+    run-sql-file)
+      processSql $@;;
+    clean-sql-file)
+      processSql $@ ;;
+    get-password)
+      # Must include PROFILE and LANDSCAPE
+      getRdsPassword ;;
     test)
-      echo "testing" ;;
+      cat sql/ci-example/test.sql > sql/ci-example/test2.sql
+      removeDropStatements sql/ci-example/test2.sql ;;
     *)
       if [ -n "$task" ] ; then
         echo "INVALID PARAMETER: No such task: $task"

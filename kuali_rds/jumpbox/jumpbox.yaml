@@ -1,5 +1,8 @@
 AWSTemplateFormatVersion: '2010-09-09'
 
+Description: |
+  An ec2 instance serving as a jump server to the kuali RDS database.
+  Used to accomodate connections to the RDS instance from outside of its subnet/vpc.
 
 Parameters:
 
