@@ -7,7 +7,7 @@ elif [ -f common-functions.sh ] ; then
 else
   source ../../scripts/common-functions.sh
 fi
- 
+
 parseArgs $@
 
 [ -z "$LOCAL_PORT" ] && LOCAL_PORT='5432'
@@ -18,6 +18,7 @@ parseArgs $@
 tunnelToRDS() {
   if [ -z "$RDS_ENDPOINT" ] ; then
     if [ -n "$LANDSCAPE" ] ; then
+      echo "Looking up RDS arn..."
       local arn="$(
         aws resourcegroupstaggingapi get-resources \
           --resource-type-filters rds:db \
@@ -27,15 +28,20 @@ tunnelToRDS() {
           --output text \
           --query 'ResourceTagMappingList[0].{ARN:ResourceARN}' 2> /dev/null
       )"
+      echo "Looking up RDS endpoint..."
       RDS_ENDPOINT="$(
         aws rds describe-db-instances \
           --db-instance-identifier $arn \
           --output text \
           --query 'DBInstances[0].{Address:Endpoint.Address}' 2> /dev/null
       )"
+    else
+      echo "WARNING! Landscape parameter is missing for RDS endpoint lookup."
+      echo "Cancelling..."
+      exit 1
     fi
     if [ -z "$RDS_ENDPOINT" ] ; then
-      echo "INSUFFICIENT PARAMETERS! RDS endpoint is missing."
+      echo "Lookup for RDS endpoint failed!"
       echo "Cancelling..."
       exit 1
     fi
@@ -43,6 +49,7 @@ tunnelToRDS() {
   
   if [ -z "$JUMPBOX_INSTANCE_ID" ] ; then
     if [ -n "$LANDSCAPE" ] ; then
+      echo "Looking up jumpbox instance ID..."
       JUMPBOX_INSTANCE_ID="$(
         aws ec2 describe-instances \
           --filters \
@@ -60,6 +67,7 @@ tunnelToRDS() {
     fi
   fi
 
+  echo "Looking up jumpbox instance data from ID..."
   local data="$(aws \
     ec2 describe-instances \
     --instance-id $JUMPBOX_INSTANCE_ID \

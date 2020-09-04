@@ -84,6 +84,7 @@ ssh -i tempkey \
   -S temp-ssh.sock \
   -L 5432:kuali-oracle-sb.clb9d4mkglfd.us-east-1.rds.amazonaws.com:1521 \
   -o "UserKnownHostsFile=/dev/null" \
+  -o "ServerAliveInterval 10" \
   -o "StrictHostKeyChecking=no" \
   -o ProxyCommand="aws ssm start-session --target i-0f7eaa9c36919fa26 --document AWS-StartSSHSession --parameters portNumber=%p --region=us-east-1" \
         ec2-user@i-0f7eaa9c36919fa26

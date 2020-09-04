@@ -29,10 +29,8 @@ RUN \
 
 RUN dnf install -y dos2unix  
 
-COPY common-functions.sh /usr/local/sbin/
-COPY tunnel.sh /usr/local/sbin/
-COPY startup.sh /usr/local/sbin/
-COPY *.sql /usr/local/sbin/
+COPY bin/bash/*.sh /usr/local/sbin/
+COPY bin/sql/*.sql /usr/local/sbin/
 
 RUN dos2unix /usr/local/sbin/*
 

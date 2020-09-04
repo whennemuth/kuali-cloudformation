@@ -25,10 +25,9 @@ You can drive what the container does with name=value parameter pairs:
 
 1. **Run interactive session:**
   
-   
-   Start session with "Legacy" database:
-   
-  ```
+  Start session with "Legacy" database:
+  
+   ```
    # EXAMPLE 1:
    sh dbclient.sh run \ 
      aws_access_key_id=[your key] \
@@ -36,7 +35,7 @@ You can drive what the container does with name=value parameter pairs:
      landscape=ci \
      legacy=true \
      bucket_name=kuali-research-ec2-setup
-     
+        
    # EXAMPLE 2: A bucket name and landscape was included above because s3 contains the kc-config.xml file, which is downloaded and parsed for connection details. However, you could provide the connection details directly as follows:
    sh dbclient.sh run \
      aws_access_key_id=[your key] \
@@ -48,10 +47,11 @@ You can drive what the container does with name=value parameter pairs:
      db_password=[password] \
      sid=Kuali
    ```
-   
-   
+  
+  ​    
+  
    Start session with"Target" RDS database:
-   
+  
    ```
    # EXAMPLE 1: 
    sh dbclient.sh run \ 
@@ -59,18 +59,17 @@ You can drive what the container does with name=value parameter pairs:
      aws_secret_access_key=[your secret] \
      landscape=ci
    
-   # EXAMPLE 2: (If you know the RDS db password, you can avoid the automatic secretsmanager lookup)
+   # EXAMPLE 2: (If you know the RDS db password or it's not stored in secrets manager)
    sh dbclient.sh run \ 
      aws_access_key_id=[your key] \
      aws_secret_access_key=[your secret] \
      db_password=[password] \
      landscape=ci
-   
    ```
-   
-   
+  
+  
    Example output:
-   
+  
    ```
    LANDSCAPE=ci
    BUCKET_NAME=kuali-research-ec2-setup
@@ -82,52 +81,117 @@ You can drive what the container does with name=value parameter pairs:
    Establishing SSH Tunnel: jumpbox host using ssm start-session to access rds endpoint
    Warning: Permanently added 'i-0aaceb74fb9621cae' (ECDSA) to the list of known hosts.
    bind [::1]:5432: Cannot assign requested address
-   
+    
    Tunnel established.
-   
+      
    SQL*Plus: Release 18.0.0.0.0 - Production on Wed Sep 2 22:54:35 2020
    Version 18.3.0.0.0
-   
+      
    Copyright (c) 1982, 2018, Oracle.  All rights reserved.
-   
+      
    Last Successful login time: Wed Sep 02 2020 22:12:20 +00:00
-   
+      
    Connected to:
    Oracle Database 19c Standard Edition 2 Release 19.0.0.0.0 - Production
    Version 19.7.0.0.0
-   
+      
    SQL> 
    ```
-   
-   
-   You can start running sql commands or scripts:
-   
+  
+  
+   You can start running SQL commands or scripts:
+  
    ```
    SQL> describe account
-    Name                                      Null?    Type
-    ----------------------------------------- -------- ----------------------------
-    CODE                                      NOT NULL NUMBER(12)
-    ACCOUNT_NUMBER                            NOT NULL VARCHAR2(16)
-    DESCRIPTION                                        VARCHAR2(200)
-    UPDATE_USER                               NOT NULL VARCHAR2(60)
-    UPDATE_TIMESTAMP                          NOT NULL DATE
-    VER_NBR                                   NOT NULL NUMBER(8)
-    OBJ_ID                                    NOT NULL VARCHAR2(36)
-    ACTV_IND                                           CHAR(1)
+   Name                                      Null?    Type
+   ----------------------------------------- -------- ----------------------------
+   CODE                                      NOT NULL NUMBER(12)
+   ACCOUNT_NUMBER                            NOT NULL VARCHAR2(16)
+   DESCRIPTION                                        VARCHAR2(200)
+   UPDATE_USER                               NOT NULL VARCHAR2(60)
+   UPDATE_TIMESTAMP                          NOT NULL DATE
+   VER_NBR                                   NOT NULL NUMBER(8)
+   OBJ_ID                                    NOT NULL VARCHAR2(36)
+   ACTV_IND                                           CHAR(1)
    
    SQL>
    ```
-   
-      
+  
+  
    And quit:
-   
+  
    ```
    SQL> exit
    Disconnected from Oracle Database 19c Standard Edition 2 Release 19.0.0.0.0 - Production
    Version 19.7.0.0.0
    ```
+
    
+
+2. **Run one, multiple, or all SQL script files:**
+   You can run selected SQL files against the database.
    
+   - Create an `"input"` subdirectory in the same folder as dbclient.sh if it does not already exist.
+      All SQL script files that you want to run should be placed in this folder.
+   - The names of the files you want to run should be provided as a comma delimited list (no spaces) as a `"file_to_run"` parameter
+   - The output of each file will appear in it's own log file in an `"output"` folder *(will be created on the fly if it does not already exist)*.
    
-2. **Run a migration validation script:**
-   `sqlplus sys/Welcome01@oracle`
+   ```
+   # EXAMPLE 1: Run 3 SQL scripts against the legacy database:
+   sh dbclient.sh run \
+     aws_access_key_id=[your key] \
+     aws_secret_access_key=[your secret] \
+     landscape=ci \
+     legacy=true \
+     bucket_name=kuali-research-ec2-setup \
+     files_to_run=test3.sql,test2.sql,test1.sql
+     
+   # EXAMPLE 2: Run 1 SQL script against the RDS database:
+   sh dbclient.sh run \
+     aws_access_key_id=[your key] \
+     aws_secret_access_key=[your secret] \
+     landscape=ci \
+     files_to_run=test2.sql
+     
+   # EXAMPLE 3: Run ALL SQL script files in the input folder against the RDS database:
+   sh dbclient.sh run \
+     aws_access_key_id=[your key] \
+     aws_secret_access_key=[your secret] \
+     landscape=ci \
+     files_to_run=all
+   ```
+   
+      
+   
+3. **Run all SCT-generated SQL scripts:**
+   The If you have generated DDL scripts with AWS Schema Conversion tool, they will exist in a different input directory:
+   `../sql/[landscape]`
+   These scripts will be run in the order reflected by their numeric prefix *(ie: `"03.create.kcoeus.user.sql"` will be run 3rd)*.
+   Run all scripts in this folder as follows: 
+
+   ```
+   # EXAMPLE 3: Run ALL SQL script files in the input folder against the RDS database:
+   sh dbclient.sh run-sct-scripts \
+     aws_access_key_id=[your key] \
+     aws_secret_access_key=[your secret] \
+     landscape=ci
+   ```
+
+      
+
+4. **Run Table row count comparison scripts:**
+   After the AWS migration service has run, one way to validate that all data has been migrated is to compare table row counts between the source and target schemas.
+   The following script will print out only the names of tables whos row counts differ between source and target schemas.
+   A valid migration should lead to this script outputting no tables names.
+
+   ```
+   # EXAMPLE 3: Run ALL SQL script files in the input folder against the RDS database:
+   sh dbclient.sh compare-table-counts \
+     aws_access_key_id=[your key] \
+     aws_secret_access_key=[your secret] \
+     landscape=ci \
+     bucket_name=kuali-research-ec2-setup
+   ```
+
+   
+

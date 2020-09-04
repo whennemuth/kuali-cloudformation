@@ -131,12 +131,13 @@ The [AWS Schema Conversion tool](https://docs.aws.amazon.com/SchemaConversionToo
       `Filename: 03.create.kcoeus.user.sql`
 
    5. **KCOEUS tablespace grant:**
-      
+     
          - Create a file with the following content (does not involve the schema conversion tool):
             `ALTER USER KCOEUS QUOTA UNLIMITED ON KUALI_DATA;`
-      
-      `Filename: 04.grant.tablespace.kcoeus.sql`
+         
 
+`Filename: 04.grant.tablespace.kcoeus.sql`
+     
    6. **KCOEUS schema:**
 
       - `Schemas/KCOEUS`
@@ -270,6 +271,9 @@ The [AWS Schema Conversion tool](https://docs.aws.amazon.com/SchemaConversionToo
 
    
 
-8. ####  Run the generated SQL:
+16. ####  Run the generated SQL:
 
-   [IAM permissions needed to use AWS DMS](https://docs.aws.amazon.com/dms/latest/userguide/CHAP_Security.html#CHAP_Security.IAMPermissions)
+    With the tunnel to the RDS instance still running, you can open each output script in sql developer and run them one at a time in order.
+
+    Alternatively, you can use the sqlplus oracle client docker container *(recommended - it's faster)*.
+    See the section *"Run the SCT output scripts"* In the [docker-oracle-client guide](docker-oracle-client/README.md)

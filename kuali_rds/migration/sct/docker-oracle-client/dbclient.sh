@@ -21,11 +21,11 @@ getPwdForSctScriptMount() {
 build() {
   [ ! -f ../../../jumpbox/tunnel.sh ] && echo "Cannot find tunnel.sh" && exit 1
   [ ! -f ../../../../scripts/common-functions.sh ] && echo "Cannot find common-functions.sh" && exit 1
-  cp ../../../jumpbox/tunnel.sh .
-  cp ../../../../scripts/common-functions.sh .
+  cp ../../../jumpbox/tunnel.sh ./bin/bash/
+  cp ../../../../scripts/common-functions.sh ./bin/bash/
   docker build -t oracle/sqlplus .
-  rm -f tunnel.sh
-  rm -f common-functions.sh
+  rm -f ./bin/bash/tunnel.sh
+  rm -f ./bin/bash/common-functions.sh
   echo "Removing dangling images..."
   docker rmi $(docker images --filter dangling=true -q) 2> /dev/null
 }
@@ -68,6 +68,25 @@ compareCounts() {
   echo "RESUME NEXT: complete this function"
 }
 
+test() {
+  SCRIPT="TESTING"
+  cat <<-EOF
+    WHENEVER SQLERROR EXIT SQL.SQLCODE;
+    SET FEEDBACK OFF
+    $(
+      i=1
+      for f in $(ls -1 ../sql/ci-example/*.sql | grep -o -e '[^/]*$') ; do
+        log=$(echo $f | sed 's/\.sql/\.log/')
+        printf \\n'    spool /tmp/output/'$log
+        printf \\n'    @'$f
+        ((i++))
+      done
+    )
+    spool off;
+    exit;
+EOF
+}
+
 task="$1"
 
 case "$task" in
@@ -79,13 +98,13 @@ case "$task" in
     build && run $@ ;;
   shell)
     shell ;;
-  run-inputs)
-    run $@ inputs=true ;;
   run-sct-scripts)
     INPUT_MOUNT="$(getPwdForSctScriptMount)"
-    run $@ inputs=true ;;
+    run $@ files_to_run=all ;;
   compare-table-counts)
-    run $@ legacy=true  script=inventory.sql log_name=source-counts.log
-    run $@ legacy=false script=inventory.sql log_name=target-counts.log
+    run $@ legacy=true  files_to_run=inventory.sql log_name=source-counts.log
+    run $@ legacy=false files_to_run=inventory.sql log_name=target-counts.log
     compareCounts ;;
+  test)
+    test ;;
 esac
