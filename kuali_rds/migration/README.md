@@ -11,9 +11,12 @@ The [AWS Database Migration Service](https://docs.aws.amazon.com/dms/latest/user
 
 Currently we are sticking with oracle and only need to perform a homogenous migration.
 However, the documentation states that the migration service does not auto-create all database objects.
-For instance, secondary indexes are skipped. So, to be thorough, the [AWS Schema Conversion tool](https://docs.aws.amazon.com/SchemaConversionTool/latest/userguide/CHAP_Welcome.html) is used anyway.
 
-*(NOTE: In a later phase, we will want to target using mysql, in which case the conversion tool is necessary)*
+> ”DMS takes a minimalist approach and creates only those objects required to efficiently migrate the data. In other words, AWS DMS creates tables, primary keys, and in some cases unique indexes, but doesn’t create any other objects that are not required to efficiently migrate the data from the source. For example, it doesn’t create secondary indexes, non primary key constraints, or data defaults”.
+
+So, to be thorough, the [AWS Schema Conversion tool](https://docs.aws.amazon.com/SchemaConversionTool/latest/userguide/CHAP_Welcome.html) is used anyway.
+
+*(NOTE: In a later phase, we will want to target using mysql, in which case the conversion tool is essential)*
 
 ### Steps:
 
@@ -25,7 +28,7 @@ For instance, secondary indexes are skipped. So, to be thorough, the [AWS Schema
    [Instructions...](sct/README.md)
 
 6. **Kuali Data Migration**
-   Create a small database migration stack with cloudformation
+   Create a small database migration stack with cloud formation
    [Instructions...](dms/README.md)
 
 

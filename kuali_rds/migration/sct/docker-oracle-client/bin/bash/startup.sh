@@ -112,17 +112,17 @@ connectAndRun() {
       # One or more .sql scripts have been provided as a comma-delimited list of file names.
       for f in $(echo $FILES_TO_RUN | sed 's/,/ /g') ; do
         if [ -n "$(echo $f | grep '.*\.sql')" ] ; then
-          FILE_TO_RUN='/tmp/input/'$f
-          sh -a run-one.sh
+          FILE_TO_RUN=$f
+          sh run-one.sh
         fi
       done
       ;;
   esac
 }
 
-parseArgs default_profile=true $@
-
 set -a 
+
+parseArgs default_profile=true $@
 
 setConnectionParms $@
 

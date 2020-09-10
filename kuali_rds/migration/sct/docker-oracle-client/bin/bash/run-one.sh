@@ -12,6 +12,15 @@ FILE_TO_RUN_NAME="$(echo "$FILE_TO_RUN" | awk 'BEGIN{RS="/"}{print $1}' | tail -
 
 echo "Processing $FILE_TO_RUN > $LOG_PATH..."
 
+# Remove windows only characters
+dos2unix $FILE_TO_RUN
+# Remove whitespace only lines (sqlplus will throw error if one or more is in transaction block)
+sed -r -i 's/^[\x20\t]+$//g' $FILE_TO_RUN
+# Remove blank lines (sqlplus will throw error if one or more is in transaction block)
+sed -i '/^$/d' $FILE_TO_RUN
+# Restore some blank lines after "/" commit markers (between transaction blocks) to provide separation
+sed -i 's/^\/$/\/\n\n/g' $FILE_TO_RUN
+
 sqlplus -s $DB_USER/$DB_PASSWORD@"$url" <<-EOF
   WHENEVER SQLERROR EXIT SQL.SQLCODE;
   SET FEEDBACK OFF

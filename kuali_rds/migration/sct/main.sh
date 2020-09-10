@@ -54,11 +54,17 @@ removeDeferredSegments() {
   sed -i 's/SEGMENT CREATION DEFERRED/SEGMENT CREATION IMMEDIATE/g' $sqlfile
 }
 
-# The schema conversion tool does not properly grant access on the kuali attachments directory.
-modifyDirectoryGrant() {
+# The schema conversion tool outputs sql that grants access on the kuali attachments directory.
+# This directory is not being created up at the RDS counterpart database, so this grant must be removed.
+# NOTE: S3 attachments for kuali will be enabled instead, removing the db server directory-based approach altogether.
+removeDirectoryGrant() {
   local sqlfile="$1"
   echo "Correcting any bad directory grants in $sqlfile..."
-  sed -i 's/SYS.KUALI_ATTACHMENTS/DIRECTORY KUALI_ATTACHMENTS/g' $sqlfile
+  local linenum=$(grep -n '^.*KUALI_ATTACHMENTS.*$' $sqlfile | cut -d':' -f1 2> /dev/null)
+  [ -z "$linenum" ] && echo "None found." && return 0
+  # Delete the line and the one following it (has the commit "/")
+  sed -i "${linenum}d" $sqlfile
+  sed -i "${linenum}d" $sqlfile
 }
 
 removeCompression() {
@@ -121,96 +127,6 @@ removeDropStatements() {
   rm -f ${sqlfile}.temp
 }
 
-# The oracle client is run in a docker container. If the image for that container does not exist,
-# load or build it here.
-checkOracleClient() {
-  if [ -z "$(docker images -q oracle/oracleclient)" ] ; then
-    if [ -f oracleclient.tar.gz ] ; then
-      docker load < oracleclient.tar.gz
-    elif [ -f docker-oracle-client/oracleclient.tar.gz ] ; then
-      docker load < docker-oracle-client/oracleclient.tar.gz
-    else
-      if [ ! -d docker-oracle-client ] ; then
-        git clone https://github.com/grenadejumper/docker-oracle-client.git
-      fi
-      if [ ! -d docker-oracle-client ] ; then
-        echo "Cannot install docker sql client for oracle: https://github.com/grenadejumper/docker-oracle-client.git"
-        exit 1
-      fi
-      cd docker-oracle-client
-      docker build -t oracle/oracleclient .
-      cd ..
-    fi
-  fi
-  if [ -z "$(docker images -q oracle/oracleclient)" ] ; then
-    echo "Cannot install docker image for oracle sql client!"
-    exit 1
-  fi
-}
-
-
-# The oracle client runs in a docker container. The connection details for the client are supplied
-# as environment variables in the docker run command. These variables should exist in a "oracleclient.env" file.
-checkOracleClientEnv() {
-  if [ ! -f oracleclient.env ] ; then
-    echo "You Must create an oracleclient.env file with connection variables for the oracle database (see README.md)"
-    exit 1
-  else
-    source ./oracleclient.sh
-    if [ -z "$ORACLE_PASSWORD" ] ; then
-      echo "You Must set a password value in the oracleclient.env file!"
-      exit 1
-    fi
-  fi
-}
-
-
-runSqlFile() {
-
-  local sqlfile="${1:-$SQL_FILE}"
-
-  checkOracleClientEnv
-
-  checkOracleClient
-
-  local connectionString='
-  $ORACLE_USERNAME/$ORACLE_PASSWORD@
-    (DESCRIPTION =
-      (ADDRESS = (PROTOCOL = TCP)(HOST = $ORACLE_HOST)(PORT = $ORACLE_PORT))
-      (CONNECT_DATA =
-        (SERVER = DEDICATED)
-        (SERVICE_NAME = $ORACLE_DATABASE)
-      )
-    )
-  '
-
-  # https://zwbetz.com/connect-to-an-oracle-database-and-run-a-query-from-a-bash-script/
-  # The SET PAGESIZE 0 option suppresses all headings, page breaks, titles, the initial blank line, and other formatting information
-  # The SET FEEDBACK OFF option suppresses the number of records returned by a script
-  # The -S option sets silent mode which suppresses the display of the SQL*Plus banner, prompts, and echoing of commands
-  # The -L option indicates a logon, which is to be followed by a connection string.
-  if [ -n "$sqlfile" ] ; then
-    cat <<-EOF > $cmdfile
-    docker run --rm \\
-      --env-file oracleclient.env \\
-      -p 5432:1521 \\
-      -v $sqlfile:/tmp/$sqlfile
-      $([ -f 'tnsnames.ora' ] && echo '-v tnsnames.ora:/usr/lib/oracle/12.2/client/network/admin/tnsnames.ora') \\
-      oracle/oracleclient \\
-      echo -e "SET PAGESIZE 0\n SET FEEDBACK OFF\n $/tmp/$sqlfile" | \\
-      sqlplus -S -L '$connectionString'
-EOF
-  else
-    cat <<-EOF > $cmdfile
-    docker run --rm \\
-      --env-file oracleclient.env \\
-      -p 5432:1521 \\
-      $([ -f 'tnsnames.ora' ] && echo '-v tnsnames.ora:/usr/lib/oracle/12.2/client/network/admin/tnsnames.ora') \\
-      oracle/oracleclient \\
-      sqlplus -S -L '$connectionString'
-EOF
-  fi
-}
 
 cleanSqlFile() {
 
@@ -218,7 +134,7 @@ cleanSqlFile() {
     local type="$1"
     case "$type" in
       user)
-        modifyDirectoryGrant "$sqlfile"
+        removeDirectoryGrant "$sqlfile"
         removeRecycleBinGrants "$sqlfile"
         ;;
       role)
@@ -248,7 +164,7 @@ cleanSqlFile() {
     09.create.kcrmproc.user.sql)
       clean 'user' ;;
     11.create.kcrmproc.schema.sql)
-      clean 'user' ;;
+      clean 'schema' ;;
     12.create.user.roles.sql)
       clean 'role' ;;
     13.create.remaining.users.sql)
@@ -257,7 +173,7 @@ cleanSqlFile() {
 }
 
 
-processSql() {
+cleanSqlFiles() {
   sqlfiles=()
   # Collect up all parameters that are not assignments (do not contain "=") and that are verified as the 
   # names of existing files. These should be sql files
@@ -272,27 +188,18 @@ processSql() {
   # If no sql files were provided, assume ALL sql files need to be run
   [ ${#sqlfiles[@]} -eq 0 ] && sqlfiles=$(find sql/$LANDSCAPE -type f -iname *.sql)
 
-  # Run all sql files
+  # Clean all sql files
   for sql in ${sqlfiles[@]} ; do
-    echo "Processing $sql ..."
-    case "$task" in
-      run-sql)
-        runSqlFile $sql ;;
-      clean-sql)
-        cleanSqlFile $sql ;;
-    esac
+    echo "Cleaning $sql ..."
+    cleanSqlFile $sql
   done
 }
 
 
 runTask() {
   case "$task" in
-    run-sql|clean-sql)
-      processSql $@ ;;
-    run-sql-file)
-      processSql $@;;
-    clean-sql-file)
-      processSql $@ ;;
+    clean-sql)
+      cleanSqlFiles $@ ;;
     get-password)
       # Must include PROFILE and LANDSCAPE
       getRdsPassword ;;

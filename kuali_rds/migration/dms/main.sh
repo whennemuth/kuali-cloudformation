@@ -84,11 +84,11 @@ EOF
     local counter=1
     while read dbParm ; do
       case $counter in
-        1) [ -z "$SOURCE_DB_PASSWORD" ] && SOURCE_DB_PASSWORD="$dbParm" ;;
         2) [ -z "$SOURCE_DB_SERVER_NAME" ] && SOURCE_DB_SERVER_NAME="$dbParm" ;;
         3) [ -z "$SOURCE_DB_NAME" ] && SOURCE_DB_NAME="$dbParm" ;;
         4) [ -z "$SOURCE_DB_PORT" ] && SOURCE_DB_PORT="$dbParm" ;;
-        5) [ -z "$SOURCE_DB_USER_NAME" ] && SOURCE_DB_USER_NAME="$dbParm" ;;
+        6) [ -z "$SOURCE_DB_USER_NAME" ] && SOURCE_DB_USER_NAME="$dbParm" ;;
+        7) [ -z "$SOURCE_DB_PASSWORD" ] && SOURCE_DB_PASSWORD="$dbParm" ;;
       esac
       ((counter++))
     done <<< $(getKcConfigDb)
@@ -250,12 +250,27 @@ preMigrationAssessmentOk() {
   fi
 }
 
+migrate() {
+  local taskType="${1:-"start-replication"}"
+  local arn=$(
+    aws dms describe-replication-tasks \
+      --filter Name=replication-task-id,Values=${GLOBAL_TAG}-${LANDSCAPE}-dms-replication-task \
+      --output text \
+      --query 'ReplicationTasks[].{arn:ReplicationTaskArn}' 2> /dev/null
+  )
+  ([ -z "$arn" ] || [ "${arn,,}" == 'none' ]) && echo "ERROR! Cannot acquire replication task arn." && exit 1
+
+  aws start-replication-task \
+    --replication-task-arn $arn \
+    --start-replication-task-type $taskType
+}
+
 runTask() {
   case "$task" in
     migrate)
-      migrate ;;
+      migrate $TASK_TYPE ;;
     validate)
-      validateStack silent;;
+      validateStack silent ;;
     upload)
       uploadStack ;;
     create-stack)

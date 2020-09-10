@@ -124,27 +124,26 @@ The [AWS Schema Conversion tool](https://docs.aws.amazon.com/SchemaConversionToo
 
       `Filename: 02.profile.noexpire.create.sql`
 
-   4. **KCOEUS user:**
+   3. **KCOEUS user:**
 
       - `Server Level Objects/Users/KCOEUS`
 
       `Filename: 03.create.kcoeus.user.sql`
 
-   5. **KCOEUS tablespace grant:**
-     
+   4. **KCOEUS tablespace grant:**
+
          - Create a file with the following content (does not involve the schema conversion tool):
             `ALTER USER KCOEUS QUOTA UNLIMITED ON KUALI_DATA;`
-         
 
-`Filename: 04.grant.tablespace.kcoeus.sql`
-     
-   6. **KCOEUS schema:**
+         `Filename: 04.grant.tablespace.kcoeus.sql`
+
+   5. **KCOEUS schema:**
 
       - `Schemas/KCOEUS`
 
       `Filename: 05.create.kcoeus.schema.sql`
 
-   7. **4 Automation users:**
+   6. **4 Automation users:**
       (These users could not be created along with the KCOEUS user and had to wait for the KCOEUS schema, else certain grants would not work)
 
       - `Server Level Objects/Users/KULUSERMAINT`
@@ -154,7 +153,7 @@ The [AWS Schema Conversion tool](https://docs.aws.amazon.com/SchemaConversionToo
 
       `Filename: 06.create.4.users.sql`
 
-   8. **4 Automation user tablespace grants:**
+   7. **4 Automation user tablespace grants:**
       Create a file with the following content (does not involve the schema conversion tool):
 
       ```
@@ -170,7 +169,7 @@ The [AWS Schema Conversion tool](https://docs.aws.amazon.com/SchemaConversionToo
 
       `Filename: 07.grant.tablespace.4.users.sql`
 
-   9. **4 Automation user schemas:**
+   8. **4 Automation user schemas:**
 
       - `Schemas/KULUSERMAINT`
       - `Schemas/SAPBWKCRM`
@@ -179,30 +178,30 @@ The [AWS Schema Conversion tool](https://docs.aws.amazon.com/SchemaConversionToo
 
       `Filename: 08.create.4.schemas.sql`
 
-   10. **KCRMPROC user:**
+   9. **KCRMPROC user:**
       (This user is also an automation user, but needed to wait for the schema creation of some of the other automation users, else certain grants would not work)
 
       - `Server Level Objects/Users/KCRMPROC`
 
       `Filename: 09.create.kcrmproc.user.sql`
 
-   11. **KCRMPROC tablespace grant:**
-       Create a file with the following content (does not involve the schema conversion tool):
+   10. **KCRMPROC tablespace grant:**
+      Create a file with the following content (does not involve the schema conversion tool):
 
-       ```
-       ALTER USER KCRMPROC QUOTA UNLIMITED ON KUALI_DATA;
-       /
-       ```
+      ```
+      ALTER USER KCRMPROC QUOTA UNLIMITED ON KUALI_DATA;
+      /
+      ```
 
-       Filename: `10.grant.tablespace.kcrmproc.sql`
+      Filename: `10.grant.tablespace.kcrmproc.sql`
 
-   12. **KCRMPROC schema:**
+   11. **KCRMPROC schema:**
 
        - `Schemas/KCRMPROC`
 
        `Filename: 11.create.kcrmproc.schema.sql`
 
-   13. **User roles:**
+   12. **User roles:**
 
        - `Server Level Objects/User Roles/KCOEUS_READ_ONLY`
        - `Server Level Objects/User Roles/KCRM_SELECT`
@@ -211,7 +210,7 @@ The [AWS Schema Conversion tool](https://docs.aws.amazon.com/SchemaConversionToo
 
        `Filename: 12.create.user.roles.sql`
 
-   14. **Remaining users:**
+   13. **Remaining users:**
        Choose from the remaining users you want to also include. Some of the choices include people who no longer work at BU or defunct application users. These you can omit.
 
        - `Server Level Objects/Users/[your selections]`
@@ -220,58 +219,58 @@ The [AWS Schema Conversion tool](https://docs.aws.amazon.com/SchemaConversionToo
 
           
 
-7. #### Clean up the generated SQL:
+14. #### Clean up the generated SQL:
 
-   The SQL that was generated will cause errors if run as is. The issues are as follows:
+    The SQL that was generated will cause errors if run as is. The issues are as follows:
 
-   - **Deferred Segments**
-      Segment creation on demand, or deferred segment creation as it is also known, is a space saving feature of Oracle Database 11g Release 2. When non-partitioned tables are created, none of the associated segments (table, implicit index and LOB segments) are created until rows are inserted into the table. For systems with lots of empty tables, this can represent a large space saving. Only available with oracle enterprise edition. However, our target RDS instance has an engine based on oracle standard edition 2. Therefore deferred segment references need to be changed to "IMMEDIATE". 
+    - **Deferred Segments**
+       Segment creation on demand, or deferred segment creation as it is also known, is a space saving feature of Oracle Database 11g Release 2. When non-partitioned tables are created, none of the associated segments (table, implicit index and LOB segments) are created until rows are inserted into the table. For systems with lots of empty tables, this can represent a large space saving. Only available with oracle enterprise edition. However, our target RDS instance has an engine based on oracle standard edition 2. Therefore deferred segment references need to be changed to "IMMEDIATE". 
 
-   - **Directory Grant**
-      For some reason the schema conversion tool applies grants as follows: `GRANT READ ON SYS.KUALI_ATTACHMENTS TO KCOEUS`
-      In order to work, this must be changed to: `GRANT READ ON DIRECTORY KUALI_ATTACHMENTS TO KCOEUS`
+    - **Directory Grant**
+       For some reason the schema conversion tool applies grants as follows: `GRANT READ ON SYS.KUALI_ATTACHMENTS TO KCOEUS`
+       In order to work, this must be changed to: `GRANT READ ON DIRECTORY KUALI_ATTACHMENTS TO KCOEUS`
 
-   - **Table Compression**
-      With Oracle enterprise edition, you can create a table with "COMPRESS" as the compression setting.
-      Again, this is not available with standard edition 2 and all "COMPRESS" references need to be changed to "NOCOMPRESS"
+    - **Table Compression**
+       With Oracle enterprise edition, you can create a table with "COMPRESS" as the compression setting.
+       Again, this is not available with standard edition 2 and all "COMPRESS" references need to be changed to "NOCOMPRESS"
 
-   - **Bad query syntax**
-      Some of the schemas contain views whose field declarations contain spaces. However, these somehow did not get double quoted.
-      To avoid syntax errors, double quotes need to be applied.
-      Example:
+    - **Bad query syntax**
+       Some of the schemas contain views whose field declarations contain spaces. However, these somehow did not get double quoted.
+       To avoid syntax errors, double quotes need to be applied.
+       Example:
 
-      ```
-      # INVALID:
-      CREATE OR REPLACE FORCE VIEW SAPBWKCRM.REPORT_SPONSOR_LIST(Sponsor Code, Sponsor Name, Sponsor Type, Sponsor Desc) AS
-      
-      # CORRECTED:
-      CREATE OR REPLACE FORCE VIEW SAPBWKCRM.REPORT_SPONSOR_LIST("Sponsor Code", "Sponsor Name", "Sponsor Type", "Sponsor Desc") AS
-      ```
+       ```
+       # INVALID:
+       CREATE OR REPLACE FORCE VIEW SAPBWKCRM.REPORT_SPONSOR_LIST(Sponsor Code, Sponsor Name, Sponsor Type, Sponsor Desc) AS
+       
+       # CORRECTED:
+       CREATE OR REPLACE FORCE VIEW SAPBWKCRM.REPORT_SPONSOR_LIST("Sponsor Code", "Sponsor Name", "Sponsor Type", "Sponsor Desc") AS
+       ```
 
-   - **Grants to objects in the Recycle Bin**
-      The schema conversion tool includes grants to objects in the oracle recycling bin: BIN$[item name].
-      These will cause errors, are unnecessary, and can be removed.
+    - **Grants to objects in the Recycle Bin**
+       The schema conversion tool includes grants to objects in the oracle recycling bin: BIN$[item name].
+       These will cause errors, are unnecessary, and can be removed.
 
-   - **Drop statements**
-      The schema conversion tool assumes that you may be applying a conversion to schemas that already exist or re-applying to a prior conversion. For this reason it includes drop statements for tables, sequences, indexes, etc. and recreates them. It does not use any form of "drop if exists" logic in the SQL. For this reason, the script will run spitting out errors for these drops and consuming time. These drop statements are at the top of the SQL file and can be removed since we will always be running from scratch.
+    - **Drop statements**
+       The schema conversion tool assumes that you may be applying a conversion to schemas that already exist or re-applying to a prior conversion. For this reason it includes drop statements for tables, sequences, indexes, etc. and recreates them. It does not use any form of "drop if exists" logic in the SQL. For this reason, the script will run spitting out errors for these drops and consuming time. These drop statements are at the top of the SQL file and can be removed since we will always be running from scratch.
 
-   **Helper Script**
-   There is a helper script you can run that will correct each SQL file for the issues referenced above.
-   Assuming the environment you are dealing with is ci:
+    **Helper Script**
+    There is a helper script you can run that will correct each SQL file for the issues referenced above.
+    Assuming the environment you are dealing with is ci:
 
-   ```
-   cd kuali-infrastructure/kuali_rds/migration/sct
-   
-   # EXAMPLE 1: Clean all sql files (recommended)
-   sh main.sh clean-sql landscape=ci
-   
-   # EXAMPLE 2: If you want to clean a single sql file:
-   sh main.sh clean-sql-file sql/ci/14.create.remaining.users.sql  
-   ```
+    ```
+    cd kuali-infrastructure/kuali_rds/migration/sct
+    
+    # EXAMPLE 1: Clean all sql files (recommended). Files must be in ./sql/ci
+    sh main.sh clean-sql landscape=ci
+    
+    # EXAMPLE 2: If you want to clean a single sql file:
+    sh main.sh clean-sql sql/ci/13.create.remaining.users.sql
+    ```
 
-   
+    
 
-16. ####  Run the generated SQL:
+15. ####  Run the generated SQL:
 
     With the tunnel to the RDS instance still running, you can open each output script in sql developer and run them one at a time in order.
 

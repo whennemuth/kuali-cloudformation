@@ -9,7 +9,7 @@ Parameters:
     Description: >
       A common value that all resources in this template will have prefixed to
       their name and attached as a tag to establish a bundling through naming convention.
-    Default: kuali-dms
+    Default: kuali-dms-oracle
 
   Landscape:
     Description: Specify which landscape to build into the VPC
@@ -95,7 +95,7 @@ Parameters:
   SourceDbUsername:
     Type: String
     Description: Source database username
-    Default: KCOEUS
+    Default: AWS_DMS
 
   SourceDbPassword:
     Type: String
@@ -330,8 +330,8 @@ Resources:
     Condition: BothSubnetsProvided
     DependsOn: DMSVpcRole
     Properties:
-      ReplicationSubnetGroupDescription: !Sub ${AWS::StackName} DMS Subnet Group
-      ReplicationSubnetGroupIdentifier: !Sub ${AWS::StackName}-dms-subnet-group
+      ReplicationSubnetGroupDescription: !Sub ${GlobalTag}-${Landscape} DMS Subnet Group
+      ReplicationSubnetGroupIdentifier: !Sub ${GlobalTag}-${Landscape}-dms-subnet-group
       SubnetIds:
         !If 
           - BothSubnetsProvided
@@ -340,7 +340,7 @@ Resources:
           - !Ref AWS::NoValue
       Tags:
         - Key: Name
-          Value: !Sub ${AWS::StackName}-dms-subnet-group
+          Value: !Sub ${GlobalTag}-${Landscape}-dms-subnet-group
 
   DMSSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -350,7 +350,7 @@ Resources:
       GroupDescription: Security group for DMS replication instance
       Tags:
         - Key: Name
-          Value: !Sub ${AWS::StackName}-dms-security-group
+          Value: !Sub ${GlobalTag}-${Landscape}-dms-security-group
 
   # If SourceSecurityGroup is provided as a parameter, it is assumed that it was created somewhere else in the overall stack.
   # This is because we are modifying it by applying this ingress rule to it and you cannot do that for resources that are not
@@ -391,7 +391,7 @@ Resources:
       MultiAZ: false
       PubliclyAccessible: false
       ReplicationInstanceClass: !Sub ${ReplicationInstanceClass}
-      ReplicationInstanceIdentifier: !Sub '${AWS::StackName}-replication-instance'
+      ReplicationInstanceIdentifier: !Sub '${GlobalTag}-${Landscape}-replication-instance'
       ReplicationSubnetGroupIdentifier: 
         !If
           - BothSubnetsProvided
@@ -406,16 +406,16 @@ Resources:
   SourceEndpoint:
     Type: AWS::DMS::Endpoint
     Properties:
-        DatabaseName: !Ref SourceDbName
-        EndpointType: 'source'
-        EngineName: !Ref SourceDbEngine
-        ServerName: !Ref SourceDbServerName
-        Port: !Ref SourceDbPort
-        Username: !Ref SourceDbUsername
-        Password: !Ref SourceDbPassword
-        Tags: 
-          - Key: Name
-            Value: !Sub ${AWS::StackName}-dms-source-endpoint
+      DatabaseName: !Ref SourceDbName
+      EndpointType: 'source'
+      EngineName: !Ref SourceDbEngine
+      ServerName: !Ref SourceDbServerName
+      Port: !Ref SourceDbPort
+      Username: !Ref SourceDbUsername
+      Password: !Ref SourceDbPassword
+      Tags: 
+        - Key: Name
+          Value: !Sub ${GlobalTag}-${Landscape}-dms-source-endpoint
 
   TargetEndpoint:
     Type: AWS::DMS::Endpoint
@@ -429,19 +429,19 @@ Resources:
       Password: !Sub '{{resolve:secretsmanager:kuali/${Landscape}/oracle-rds-password:SecretString:MasterUserPassword}}'
       Tags: 
         - Key: Name
-          Value: !Sub ${AWS::StackName}-dms-target-endpoint
+          Value: !Sub ${GlobalTag}-${Landscape}-dms-target-endpoint
 
   ReplicationTask:
     Type: AWS::DMS::ReplicationTask
     Properties:
       MigrationType: !Ref MigrationType
       ReplicationInstanceArn: !Ref ReplicationInstance
-      ReplicationTaskIdentifier: !Sub ${AWS::StackName}-dms-replication-task
+      ReplicationTaskIdentifier: !Sub ${GlobalTag}-${Landscape}-dms-replication-task
       SourceEndpointArn: !Ref SourceEndpoint
       TargetEndpointArn: !Ref TargetEndpoint
       Tags:
         - Key: Name
-          Value: !Sub ${AWS::StackName}-dms-replication-task
+          Value: !Sub ${GlobalTag}-${Landscape}-dms-replication-task
       # https://docs.aws.amazon.com/dms/latest/userguide/CHAP_Tasks.CustomizingTasks.TableMapping.html
       TableMappings: 
         !Sub

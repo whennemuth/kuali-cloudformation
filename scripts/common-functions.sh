@@ -693,6 +693,10 @@ getKcConfigDb() {
   getKcConfigDbPort
   echo ''
   getKcConfigDbUsername
+  echo ''
+  getKcConfigDmsDbUsername
+  echo ''
+  getKcConfigDmsDbPassword
 
   [ -f 'kc-config.xml.temp' ] && rm -f 'kc-config.xml.temp'
 }
@@ -714,8 +718,20 @@ getKcConfigDbUsername() {
     | tr -d '\t[:space:]<>'
 }
 
+getKcConfigDmsDbUsername() {
+  getKcConfigLine 'datasource.dms.username' \
+    | grep -oE '>[^<>]+<' \
+    | tr -d '\t[:space:]<>'
+}
+
 getKcConfigDbPassword() {
   getKcConfigLine 'datasource.password' \
+    | grep -oE '>[^<>]+<' \
+    | tr -d '\t[:space:]<>'
+}
+
+getKcConfigDmsDbPassword() {
+  getKcConfigLine 'datasource.dms.password' \
     | grep -oE '>[^<>]+<' \
     | tr -d '\t[:space:]<>'
 }
