@@ -123,7 +123,6 @@ EOF
     add_parameter $cmdfile 'Port' 'PORT'
     add_parameter $cmdfile 'LicenseModel' 'LICENSE_MODEL'
     add_parameter $cmdfile 'AllocatedStorage' 'ALLOCATED_STORAGE'
-    add_parameter $cmdfile 'DBSnapshotARN' 'DB_SNAPSHOT_ARN'
     add_parameter $cmdfile 'AutoMinorVersionUpgrade' 'AUTO_MINOR_VERSION_UPGRADE'
     add_parameter $cmdfile 'BackupRetentionPeriod' 'BACKUP_RETENTION_PERIOD'
     add_parameter $cmdfile 'CharacterSetName' 'CHARACTERSET_NAME'
@@ -143,6 +142,15 @@ EOF
       fi
     fi
     add_parameter $cmdfile 'EngineVersion' 'ENGINE_VERSION'
+
+    # The rds instance might be intended to be based on a snapshot.
+    if [ -n "$DB_SNAPSHOT_ARN" ] ; then
+      if [ "${DB_SNAPSHOT_ARN,,}" == 'latest' ] ; then
+        DB_SNAPSHOT_ARN="$(getLatestRdsSnapshotArn)"
+        [ -z "$DB_SNAPSHOT_ARN" ] && echo "ERROR! Cannot find latest RDS snapshot ARN" && exit 1
+      fi
+      add_parameter $cmdfile 'DBSnapshotARN' 'DB_SNAPSHOT_ARN'
+    fi
 
       # AVAILABILITY ZONE: 
       # 1) 
@@ -165,21 +173,7 @@ EOF
 
     echo "      ]'" >> $cmdfile
 
-    if [ "$DEBUG" ] ; then
-      cat $cmdfile
-      exit 0
-    fi
-
-    if [ "$PROMPT" == 'false' ] ; then
-      echo "\nExecuting the following command(s):\n\n$(cat $cmdfile)\n"
-      local answer='y'
-    else
-      printf "\nExecute the following command:\n\n$(cat $cmdfile)\n\n(y/n): "
-      read answer
-    fi
-    [ "$answer" == "y" ] && sh $cmdfile || echo "Cancelled."
-
-    [ $? -gt 0 ] && echo "Cancelling..." && return 1
+    runStackActionCommand
 
   fi
 }

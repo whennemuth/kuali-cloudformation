@@ -1,0 +1,45 @@
+## Kuali Secrets stack creation
+
+It is better for secrets in [Secrets Manager](https://docs.aws.amazon.com/secretsmanager/latest/userguide/intro.html) to be created from their own stack as these may be consumed by resources from multiple other stacks and it is therefore best to separate concerns.
+
+Resources in other stacks can have properties that dynamically look up fields in any given secret.
+Example:
+
+`Password: !Sub '{{resolve:secretsmanager:kuali/${Landscape}/kuali-oracle-ec2-dms-password:SecretString:password}}'`
+
+Querying the secret directly with the AWS CLI would look like this:
+
+```
+aws secretsmanager get-secret-value \
+  --secret-id kuali/$Landscape/kuali-oracle-ec2-dms-password \
+  --output text \
+  --query '{SecretString:SecretString}' | jq '.password'
+```
+
+
+
+### Prerequisites:
+
+- **Git:**
+  Needed to download this repository. [Git Downloads](https://git-scm.com/downloads)
+- **AWS CLI:** 
+  If you don't have the AWS command-line interface, you can download it here:
+  [https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html)
+- **IAM User/Role:**
+  The cli needs to be configured with the [access key ID and secret access key](https://docs.aws.amazon.com/general/latest/gr/aws-sec-cred-types.html#access-keys-and-secret-access-keys) of an (your) IAM user. This user needs to have a role with policies sufficient to cover all of the actions to be carried out (stack creation, VPC/subnet read access, ssm sessions, secrets manager read/write access, etc.). Preferably your user will have an admin role and all policies will be covered, including [IAM permissions needed to use AWS DMS](https://docs.aws.amazon.com/dms/latest/userguide/CHAP_Security.html#CHAP_Security.IAMPermissions).
+- **Bash:**
+  You will need the ability to run bash scripts. Natively, you can do this on a mac, though there may be some minor syntax/version differences that will prevent the scripts from working correctly. In that event, or if running windows, you can either:
+  - Clone the repo on a linux box (ie: an ec2 instance), install the other prerequisites and run there.
+  - Download [gitbash](https://git-scm.com/downloads)
+
+### Steps:
+
+1. **Create the stack:**
+
+   ```
+   # Clone this repo:
+   cd kuali/kuali_secrets
+   sh main.sh create-stack profile=default landscape=ci
+   ```
+
+   

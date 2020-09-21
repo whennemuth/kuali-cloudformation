@@ -35,7 +35,7 @@ run() {
   if ! isBuCloudInfAccount ; then
     LEGACY_ACCOUNT='true'
     echo 'Current profile indicates legacy account.'
-    defaults['BUCKET_PATH']='s3://kuali-research-ec2-setup/cloudformation/kuali_rds'
+    defaults['BUCKET_PATH']='s3://kuali-research-ec2-setup/cloudformation/kuali_rds/migration/dms'
   fi
 
   if [ "$task" == "test" ] ; then
@@ -81,19 +81,19 @@ stackAction() {
 EOF
     
     # Get db connection fields directly from kc-config.xml in s3 for those source db parameters that are empty.
-    local counter=1
-    while read dbParm ; do
-      case $counter in
-        2) [ -z "$SOURCE_DB_SERVER_NAME" ] && SOURCE_DB_SERVER_NAME="$dbParm" ;;
-        3) [ -z "$SOURCE_DB_NAME" ] && SOURCE_DB_NAME="$dbParm" ;;
-        4) [ -z "$SOURCE_DB_PORT" ] && SOURCE_DB_PORT="$dbParm" ;;
-        6) [ -z "$SOURCE_DB_USER_NAME" ] && SOURCE_DB_USER_NAME="$dbParm" ;;
-        7) [ -z "$SOURCE_DB_PASSWORD" ] && SOURCE_DB_PASSWORD="$dbParm" ;;
-      esac
-      ((counter++))
-    done <<< $(getKcConfigDb)
-    [ -z "$SOURCE_DB_PASSWORD" ] && echo "Missing parameter: SOURCE_DB_PASSWORD" && exit 1
-    [ -z "$SOURCE_DB_SERVER_NAME" ] && echo "Missing parameter: SOURCE_DB_SERVER_NAME" && exit 1
+    # local counter=1
+    # while read dbParm ; do
+    #   case $counter in
+    #     2) [ -z "$SOURCE_DB_SERVER_NAME" ] && SOURCE_DB_SERVER_NAME="$dbParm" ;;
+    #     3) [ -z "$SOURCE_DB_NAME" ] && SOURCE_DB_NAME="$dbParm" ;;
+    #     4) [ -z "$SOURCE_DB_PORT" ] && SOURCE_DB_PORT="$dbParm" ;;
+    #     6) [ -z "$SOURCE_DB_USER_NAME" ] && SOURCE_DB_USER_NAME="$dbParm" ;;
+    #     7) [ -z "$SOURCE_DB_PASSWORD" ] && SOURCE_DB_PASSWORD="$dbParm" ;;
+    #   esac
+    #   ((counter++))
+    # done <<< $(getKcConfigDb)
+    # [ -z "$SOURCE_DB_PASSWORD" ] && echo "Missing parameter: SOURCE_DB_PASSWORD" && exit 1
+    # [ -z "$SOURCE_DB_SERVER_NAME" ] && echo "Missing parameter: SOURCE_DB_SERVER_NAME" && exit 1
     [ -z "$PRIVATE_SUBNET1" ] && echo "Missing parameter: PRIVATE_SUBNET1" && exit 1
     [ -z "$PRIVATE_SUBNET1_AZ" ] && echo "Missing parameter: PRIVATE_SUBNET1_AZ" && exit 1
     [ -z "$PRIVATE_SUBNET2" ] && echo "Missing parameter: PRIVATE_SUBNET2" && exit 1
@@ -101,13 +101,13 @@ EOF
     add_parameter $cmdfile 'SubnetId1' 'PRIVATE_SUBNET1'
     add_parameter $cmdfile 'SubnetId2' 'PRIVATE_SUBNET2'
 
-    add_parameter $cmdfile 'SourceDbPassword' 'SOURCE_DB_PASSWORD'
-    add_parameter $cmdfile 'SourceDbName' 'SOURCE_DB_NAME'
-    add_parameter $cmdfile 'SourceDbUsername' 'SOURCE_DB_USER_NAME'
     add_parameter $cmdfile 'SourceDbEngine' 'SOURCE_DB_ENGINE'
-    add_parameter $cmdfile 'SourceDbServerName' 'SOURCE_DB_SERVER_NAME'
-    add_parameter $cmdfile 'SourceDbPort' 'SOURCE_DB_PORT'
     add_parameter $cmdfile 'SourceSecurityGroup' 'SOURCE_SECURITY_GROUP'
+    # add_parameter $cmdfile 'SourceDbPassword' 'SOURCE_DB_PASSWORD'
+    # add_parameter $cmdfile 'SourceDbName' 'SOURCE_DB_NAME'
+    # add_parameter $cmdfile 'SourceDbUsername' 'SOURCE_DB_USER_NAME'
+    # add_parameter $cmdfile 'SourceDbServerName' 'SOURCE_DB_SERVER_NAME'
+    # add_parameter $cmdfile 'SourceDbPort' 'SOURCE_DB_PORT'
 
     add_parameter $cmdfile 'TargetDbName' 'TARGET_DB_NAME'
     add_parameter $cmdfile 'TargetDbEngine' 'TARGET_DB_ENGINE'
@@ -137,21 +137,7 @@ EOF
 
     echo "      ]'" >> $cmdfile
 
-    if [ "$DEBUG" ] ; then
-      cat $cmdfile
-      exit 0
-    fi
-
-    if [ "$PROMPT" == 'false' ] ; then
-      echo "\nExecuting the following command(s):\n\n$(cat $cmdfile)\n"
-      local answer='y'
-    else
-      printf "\nExecute the following command:\n\n$(cat $cmdfile)\n\n(y/n): "
-      read answer
-    fi
-    [ "$answer" == "y" ] && sh $cmdfile || echo "Cancelled."
-
-    [ $? -gt 0 ] && echo "Cancelling..." && return 1
+    runStackActionCommand
 
   fi
 }
@@ -260,7 +246,7 @@ migrate() {
   )
   ([ -z "$arn" ] || [ "${arn,,}" == 'none' ]) && echo "ERROR! Cannot acquire replication task arn." && exit 1
 
-  aws start-replication-task \
+  aws dms start-replication-task \
     --replication-task-arn $arn \
     --start-replication-task-type $taskType
 }

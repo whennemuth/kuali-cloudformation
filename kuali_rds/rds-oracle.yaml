@@ -248,31 +248,22 @@ Conditions:
 
 Resources:
 
-  # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_SecretsManager.html
-  # https://www.1strategy.com/blog/2019/02/28/aws-parameter-store-vs-aws-secrets-manager/
-  # Get password like this;
-  # aws --profile [your.profile] secretsmanager get-secret-value \
-  #   --secret-id kuali/sb/oracle-rds-password \
-  #   --output text \
-  #   --query '{SecretString:SecretString}' \
-  #   | jq '.MasterUserPassword' \
-  #   | sed 's/"//g'
-  MasterUserPassword:
-    Type: AWS::SecretsManager::Secret
-    Properties: 
-      Name: !Sub kuali/${Landscape}/oracle-rds-password
-      Description: !Sub The oracle master user password for the kuali research rds ${Landscape} database
-      GenerateSecretString: 
-        ExcludeCharacters: '"@/\|'
-        # ExcludePunctuation: false ! " # $ % & ' ( ) * + , - . / : ; < = > ? @ [ \ ] ^ _ ` { | } ~
-        PasswordLength: 15
-        SecretStringTemplate: '{"MasterUsername": "admin"}'
-        GenerateStringKey: "MasterUserPassword"
-      # KmsKeyId: String
-      # SecretString: String
-      Tags: 
-      - Key: Name
-        Value: !Sub kuali/${Landscape}/oracle-rds-password
+  # MasterUserPassword:
+  #   Type: AWS::SecretsManager::Secret
+  #   Properties: 
+  #     Name: !Sub kuali/${Landscape}/kuali-oracle-rds-admin-password
+  #     Description: !Sub The oracle master user password for the kuali research rds ${Landscape} database
+  #     GenerateSecretString: 
+  #       ExcludeCharacters: '"@/\|'
+  #       # ExcludePunctuation: false ! " # $ % & ' ( ) * + , - . / : ; < = > ? @ [ \ ] ^ _ ` { | } ~
+  #       PasswordLength: 15
+  #       SecretStringTemplate: '{"MasterUsername": "admin"}'
+  #       GenerateStringKey: "MasterUserPassword"
+  #     # KmsKeyId: String
+  #     # SecretString: String
+  #     Tags: 
+  #     - Key: Name
+  #       Value: !Sub kuali/${Landscape}/kuali-oracle-rds-admin-password
 
   DBSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
@@ -314,7 +305,7 @@ Resources:
 
   DBInstance:
     Type: AWS::RDS::DBInstance
-    DependsOn: MasterUserPassword
+    # DependsOn: MasterUserPassword
     Properties:
       AllocatedStorage: !Ref AllocatedStorage 
       AllowMajorVersionUpgrade: true
@@ -359,8 +350,8 @@ Resources:
         - !Ref AWS::NoValue # Storage type defaults to gp2
       LicenseModel: !Ref LicenseModel
       # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/dynamic-references.html
-      MasterUsername: !Sub '{{resolve:secretsmanager:kuali/${Landscape}/oracle-rds-password:SecretString:MasterUsername}}'
-      MasterUserPassword: !Sub '{{resolve:secretsmanager:kuali/${Landscape}/oracle-rds-password:SecretString:MasterUserPassword}}'
+      MasterUsername: !Sub '{{resolve:secretsmanager:kuali/${Landscape}/kuali-oracle-rds-admin-password:SecretString:MasterUsername}}'
+      MasterUserPassword: !Sub '{{resolve:secretsmanager:kuali/${Landscape}/kuali-oracle-rds-admin-password:SecretString:MasterUserPassword}}'
       MultiAZ: !Ref MultiAZ # If true, it should create a second standby rds instance in the second subnet of the subnet group.
       PerformanceInsightsRetentionPeriod: 
         !If 
@@ -383,6 +374,8 @@ Resources:
         Value: Kuali
       - Key: Environment
         Value: !Ref Landscape
+      - Key: Version
+        Value: 1
       VPCSecurityGroups:
       - !Ref DBVpcSecurityGroup
 

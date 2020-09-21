@@ -9,6 +9,7 @@ This documents performing an oracle [homogenous migration](https://aws.amazon.co
 
 Therefore this migration assumes that the target RDS database has been part of an [AWS Schema Conversion Tool](https://docs.aws.amazon.com/SchemaConversionTool/latest/userguide/CHAP_Welcome.html) stage.
 This prior step is documented [here](../sct/README.md).
+   
 
 ### Prerequisites:
 
@@ -33,10 +34,15 @@ This prior step is documented [here](../sct/README.md).
   The DBA can set this user up. The privileges are detailed here:
   - [What are the permissions required for AWS DMS when using Oracle as the source endpoint?](https://aws.amazon.com/premiumsupport/knowledge-center/dms-permissions-oracle-source/)
   - [Using an Oracle database as a source for AWS DMS](https://docs.aws.amazon.com/dms/latest/userguide/CHAP_Source.Oracle.html)
+  
 
 ### Steps:
 
-1. **Create the DMS stack:**
+1. **Create the Secrets Manager stack (if not already exists):**
+   It is better for secrets in secrets manager to be created in their own stack as these may be consumed by resources from multiple other stacks and it is therefore best to separate concerns.
+Instructions: [Kuali secrets stack creation](../../../kuali_secrets/README.md)
+   
+2. **Create the DMS stack:**
    This step involves invoking the cloud formation service to create a DMS stack comprising:
 
    - [Replication instance](https://docs.aws.amazon.com/dms/latest/userguide/CHAP_ReplicationInstance.html)
@@ -65,14 +71,14 @@ This prior step is documented [here](../sct/README.md).
    # Or if updating the stack to increase the instance class:
    sh main.sh update-stack profile=default landscape=ci replication_instance_class=dms.r4.2xlarge
    ```
-   
+
       
-   
-2. **Monitor stack progress:**
+
+3. **Monitor stack progress:**
    Go to the stack in the [AWS Console](https://console.aws.amazon.com/cloudformation/home?region=us-east-1). Click on the new stack in the list and go to the "Events" tab.
    Watch for failures (these will show up in red).
 
-3. **Pre-Migration Assessment:**
+4. **Pre-Migration Assessment:**
    This step involves using helper scripts to invoke a [Premigration Assessment](https://aws.amazon.com/about-aws/whats-new/2020/07/aws-database-migration-service-now-supports-enhanced-premigration-assessments/). This will trigger:
 
       - A source database endpoint connection test
@@ -87,7 +93,7 @@ This prior step is documented [here](../sct/README.md).
    Once triggered, you can wait for the output to indicate results and/or log into the [AWS Console for DMS tasks](https://console.aws.amazon.com/dms/v2/home?region=us-east-1#tasks) and watch the progress of the assessment.
       
 
-4. **Migrate the data:**
+5. **Migrate the data:**
    You can either start a migration from the [AWS Console for DMS tasks](https://console.aws.amazon.com/dms/v2/home?region=us-east-1#tasks) by clicking on the task and selecting `"Actions > Restart/Resume"` or, use a helper script:
 
    ```
@@ -109,4 +115,4 @@ This prior step is documented [here](../sct/README.md).
 
       
 
-5. NEXT
+6. NEXT

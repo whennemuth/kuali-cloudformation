@@ -62,10 +62,13 @@ setRdsParms() {
   else
     local errfile=/tmp/output/tunnel.err
     eval "$tunnelCmd" 2>> $errfile
+    local errcode=$?
     if [ -f $errfile ] ; then
       cat $errfile
-      # Error can exist, but tunnel still be valid, so don't exit
-      # exit 1
+    fi
+    if [ $errcode -ge 991 ] && [ $errcode -le 996 ] ; then
+      printf "\nTunnel failed. Exiting."
+      exit $errcode
     fi
     printf "\nTunnel established.\n"
   fi
@@ -102,22 +105,21 @@ setConnectionURL() {
 
 
 connectAndRun() {
-  [ -z "$FILES_TO_RUN" ] && FILES_TO_RUN='none'
-  case "$FILES_TO_RUN" in
-    all)
-      sh run-all.sh ;;
-    none)
-      sqlplus $DB_USER/$DB_PASSWORD@"$url" ;;
-    *)
-      # One or more .sql scripts have been provided as a comma-delimited list of file names.
-      for f in $(echo $FILES_TO_RUN | sed 's/,/ /g') ; do
-        if [ -n "$(echo $f | grep '.*\.sql')" ] ; then
-          FILE_TO_RUN=$f
-          sh run-one.sh
-        fi
-      done
-      ;;
-  esac
+  if [ "$FILES_TO_RUN" == 'all' ] ; then
+    sh run-all.sh
+  elif [ -n "$FILES_TO_RUN" ] ; then
+    # One or more .sql scripts have been provided as a comma-delimited list of file names.
+    for f in $(echo $FILES_TO_RUN | sed 's/,/ /g') ; do
+      if [ -n "$(echo $f | grep '.*\.sql')" ] ; then
+        FILE_TO_RUN=$f
+        sh run-one.sh
+      fi
+    done
+  elif [ -n "$ENCODED_SQL" ] ; then
+    sh run-raw.sh
+  else
+    sqlplus $DB_USER/$DB_PASSWORD@"$url"
+  fi
 }
 
 set -a 

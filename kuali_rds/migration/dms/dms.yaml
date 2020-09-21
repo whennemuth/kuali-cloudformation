@@ -87,20 +87,20 @@ Parameters:
     Description: Name of the database Schema to be migrated
     Default: KCOEUS
 
-  SourceDbName:
-    Type: String
-    Description: Source database name
-    Default: Kuali
+  # SourceDbName:
+  #   Type: String
+  #   Description: Source database name
+  #   Default: Kuali
 
-  SourceDbUsername:
-    Type: String
-    Description: Source database username
-    Default: AWS_DMS
+  # SourceDbUsername:
+  #   Type: String
+  #   Description: Source database username
+  #   Default: AWS_DMS
 
-  SourceDbPassword:
-    Type: String
-    Description: Source database password
-    NoEcho: true
+  # SourceDbPassword:
+  #   Type: String
+  #   Description: Source database password
+  #   NoEcho: true
 
   SourceDbEngine:
     Type: String
@@ -122,14 +122,14 @@ Parameters:
       - sqlserver
     Default: oracle
 
-  SourceDbServerName:
-    Type: String
-    Description: Source database hostname
+  # SourceDbServerName:
+  #   Type: String
+  #   Description: Source database hostname
 
-  SourceDbPort:
-    Type: Number
-    Description: Source database connection port number
-    Default: 1521
+  # SourceDbPort:
+  #   Type: Number
+  #   Description: Source database connection port number
+  #   Default: 1521
 
   TargetDbName:
     Type: String
@@ -183,7 +183,7 @@ Parameters:
       - DO_NOTHING
       - DROP_AND_CREATE 
       - TRUNCATE_BEFORE_LOAD
-    Default: DO_NOTHING
+    Default: TRUNCATE_BEFORE_LOAD
 
   EnableLogging: 
     Type: String
@@ -363,11 +363,11 @@ Resources:
     Condition: SourceSecurityGroupProvided
     Properties:
       Description: EC2 ingress from DMS
-      FromPort: !Ref SourceDbPort
+      FromPort: !Sub '{{resolve:secretsmanager:kuali/${Landscape}/kuali-oracle-ec2-dms-password:SecretString:port}}'
       GroupId: !Ref SourceSecurityGroup
       IpProtocol: tcp
       SourceSecurityGroupId: !Ref DMSSecurityGroup
-      ToPort: !Ref SourceDbPort
+      ToPort: !Sub '{{resolve:secretsmanager:kuali/${Landscape}/kuali-oracle-ec2-dms-password:SecretString:port}}'
 
   # Same comments apply here as for DMStoSourceSecurityGroupIngress
   DMStoTargetSecurityGroupIngress:
@@ -406,16 +406,18 @@ Resources:
   SourceEndpoint:
     Type: AWS::DMS::Endpoint
     Properties:
-      DatabaseName: !Ref SourceDbName
+      DatabaseName: !Sub '{{resolve:secretsmanager:kuali/${Landscape}/kuali-oracle-ec2-dms-password:SecretString:sid}}'
       EndpointType: 'source'
       EngineName: !Ref SourceDbEngine
-      ServerName: !Ref SourceDbServerName
-      Port: !Ref SourceDbPort
-      Username: !Ref SourceDbUsername
-      Password: !Ref SourceDbPassword
+      ServerName: !Sub '{{resolve:secretsmanager:kuali/${Landscape}/kuali-oracle-ec2-dms-password:SecretString:host}}'
+      Port: !Sub '{{resolve:secretsmanager:kuali/${Landscape}/kuali-oracle-ec2-dms-password:SecretString:port}}'
+      Username: !Sub '{{resolve:secretsmanager:kuali/${Landscape}/kuali-oracle-ec2-dms-password:SecretString:username}}'
+      Password: !Sub '{{resolve:secretsmanager:kuali/${Landscape}/kuali-oracle-ec2-dms-password:SecretString:password}}'
       Tags: 
         - Key: Name
           Value: !Sub ${GlobalTag}-${Landscape}-dms-source-endpoint
+        - Key: Version
+          Value: 1
 
   TargetEndpoint:
     Type: AWS::DMS::Endpoint
@@ -425,11 +427,13 @@ Resources:
       EngineName: !Ref TargetDbEngine
       ServerName: !Ref TargetDbServerName
       Port: !Ref TargetDbPort
-      Username: !Sub '{{resolve:secretsmanager:kuali/${Landscape}/oracle-rds-password:SecretString:MasterUsername}}'
-      Password: !Sub '{{resolve:secretsmanager:kuali/${Landscape}/oracle-rds-password:SecretString:MasterUserPassword}}'
+      Username: !Sub '{{resolve:secretsmanager:kuali/${Landscape}/kuali-oracle-rds-admin-password:SecretString:MasterUsername}}'
+      Password: !Sub '{{resolve:secretsmanager:kuali/${Landscape}/kuali-oracle-rds-admin-password:SecretString:MasterUserPassword}}'
       Tags: 
         - Key: Name
           Value: !Sub ${GlobalTag}-${Landscape}-dms-target-endpoint
+        - Key: Version
+          Value: 1
 
   ReplicationTask:
     Type: AWS::DMS::ReplicationTask
@@ -454,65 +458,142 @@ Resources:
                       "rule-name": "1",
                       "object-locator": {
                           "schema-name": "${db_schema_name}",
-                          "table-name": "%",
-                          "table-type": "all"
+                          "table-name": "BU_TEMP_%",
+                          "table-type": "table"
                         },
-                      "rule-action": "include"
+                      "rule-action": "exclude"
                     },
                     {
                       "rule-type": "selection",
                       "rule-id": "2",
                       "rule-name": "2",
                       "object-locator": {
-                          "schema-name": "KULUSERMAINT",
+                          "schema-name": "${db_schema_name}",
                           "table-name": "%",
-                          "table-type": "all"
+                          "table-type": "table"
                         },
                       "rule-action": "include"
                     },
                     {
-                      "rule-type": "selection",
+                      "rule-type": "transformation",
                       "rule-id": "3",
                       "rule-name": "3",
+                      "rule-action": "rename",
+                      "rule-target": "schema",
                       "object-locator": {
-                          "schema-name": "SAPBWKCRM",
-                          "table-name": "%",
-                          "table-type": "all"
-                        },
-                      "rule-action": "include"
+                        "schema-name": "${db_schema_name}"
+                      },
+                      "value": "${db_schema_name}"
                     },
                     {
                       "rule-type": "selection",
                       "rule-id": "4",
                       "rule-name": "4",
                       "object-locator": {
-                          "schema-name": "SAPETLKCRM",
+                          "schema-name": "KULUSERMAINT",
                           "table-name": "%",
-                          "table-type": "all"
+                          "table-type": "table"
                         },
                       "rule-action": "include"
                     },
                     {
-                      "rule-type": "selection",
+                      "rule-type": "transformation",
                       "rule-id": "5",
                       "rule-name": "5",
+                      "rule-action": "rename",
+                      "rule-target": "schema",
                       "object-locator": {
-                          "schema-name": "SNAPLOGIC",
-                          "table-name": "%",
-                          "table-type": "all"
-                        },
-                      "rule-action": "include"
+                        "schema-name": "KULUSERMAINT"
+                      },
+                      "value": "KULUSERMAINT"
                     },
                     {
                       "rule-type": "selection",
                       "rule-id": "6",
                       "rule-name": "6",
                       "object-locator": {
-                          "schema-name": "KCRMPROC",
+                          "schema-name": "SAPBWKCRM",
                           "table-name": "%",
-                          "table-type": "all"
+                          "table-type": "table"
                         },
                       "rule-action": "include"
+                    },
+                    {
+                      "rule-type": "transformation",
+                      "rule-id": "7",
+                      "rule-name": "7",
+                      "rule-action": "rename",
+                      "rule-target": "schema",
+                      "object-locator": {
+                        "schema-name": "SAPBWKCRM"
+                      },
+                      "value": "SAPBWKCRM"
+                    },
+                    {
+                      "rule-type": "selection",
+                      "rule-id": "8",
+                      "rule-name": "8",
+                      "object-locator": {
+                          "schema-name": "SAPETLKCRM",
+                          "table-name": "%",
+                          "table-type": "table"
+                        },
+                      "rule-action": "include"
+                    },
+                    {
+                      "rule-type": "transformation",
+                      "rule-id": "9",
+                      "rule-name": "9",
+                      "rule-action": "rename",
+                      "rule-target": "schema",
+                      "object-locator": {
+                        "schema-name": "SAPETLKCRM"
+                      },
+                      "value": "SAPETLKCRM"
+                    },
+                    {
+                      "rule-type": "selection",
+                      "rule-id": "10",
+                      "rule-name": "10",
+                      "object-locator": {
+                          "schema-name": "SNAPLOGIC",
+                          "table-name": "%",
+                          "table-type": "table"
+                        },
+                      "rule-action": "include"
+                    },
+                    {
+                      "rule-type": "transformation",
+                      "rule-id": "11",
+                      "rule-name": "11",
+                      "rule-action": "rename",
+                      "rule-target": "schema",
+                      "object-locator": {
+                        "schema-name": "SNAPLOGIC"
+                      },
+                      "value": "SNAPLOGIC"
+                    },
+                    {
+                      "rule-type": "selection",
+                      "rule-id": "12",
+                      "rule-name": "12",
+                      "object-locator": {
+                          "schema-name": "KCRMPROC",
+                          "table-name": "%",
+                          "table-type": "table"
+                        },
+                      "rule-action": "include"
+                    },
+                    {
+                      "rule-type": "transformation",
+                      "rule-id": "13",
+                      "rule-name": "13",
+                      "rule-action": "rename",
+                      "rule-target": "schema",
+                      "object-locator": {
+                        "schema-name": "KCRMPROC"
+                      },
+                      "value": "KCRMPROC"
                     }
                 ]
             }
@@ -598,7 +679,7 @@ Resources:
 
                 "TableErrorPolicy":"SUSPEND_TABLE",
                 "TableErrorEscalationPolicy":"STOP_TASK",
-                "TableErrorEscalationCount": 10,
+                "TableErrorEscalationCount": 100,
 
                 "RecoverableErrorCount": 0,
                 "RecoverableErrorInterval": 5,

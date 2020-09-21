@@ -2,7 +2,26 @@
 
 source ../../../../scripts/common-functions.sh
 
-parseArgs silent=true default_profile=true $@
+if [ -n "$(echo "$nv" | grep -i 'raw_sql=')" ] ; then
+  # One of the name/value pairs might be raw sql, which will have spaces in it.
+  # If so, encode the pair so that it has no spaces and parseArgs will not break.
+  # NOTE: The code that consumes the raw sql value will need to decode it first.
+  tempArgs=""
+  for nv in "$@" ; do
+    lower="${nv,,}"
+    if [ "${nv:0:8}" == 'raw_sql=' ] ; then
+      tempArgs="$tempArgs encoded_sql=$(echo "$nv" | cut -d'=' -f2- | base64 -w 0)"
+    else
+      tempArgs="$tempArgs $nv"
+    fi
+  done
+  sh dbclient.sh $tempArgs
+  exit 0
+  # eval "parseArgs silent=true default_profile=true $tempArgs"
+else 
+  parseArgs silent=true default_profile=true $@
+fi
+
 
 getPwdForMount() {
   local dir="$1"
@@ -166,6 +185,29 @@ compareTableRowCounts() {
   displayResults
 }
 
+# Call stored procs that can disable/enable constraints and triggers.
+# Disable these before migrating, enable after migrating.
+toggleConstraintsAndTriggers() {
+  [ -z "$TOGGLE_CONSTRAINTS" ] && TOGGLE_CONSTRAINTS="DISABLE"
+  [ -z "$TOGGLE_TRIGGERS" ] && TOGGLE_TRIGGERS="DISABLE"
+  local encoded_sql=""
+  for schema in 'KCOEUS' 'KCRMPROC' 'KULUSERMAINT' 'SAPBWKCRM' 'SAPETLKCRM' 'SNAPLOGIC' ; do
+    if [ "${TOGGLE_CONSTRAINTS,,}" != "none" ] ; then
+      echo "Disabling foreign key constraints for $schema..."
+      encoded_sql=$(echo "execute toggle_constraints('$schema', 'FK', '$TOGGLE_CONSTRAINTS')" | base64 -w 0)
+      run $@ encoded_sql="$encoded_sql" "log_path=toggle_constraints_$schema.log"
+
+      echo "Disabling all remaining constraints for $schema..."
+      encoded_sql=$(echo "execute toggle_constraints('$schema', 'PK', '$TOGGLE_CONSTRAINTS')" | base64 -w 0)
+      run $@ encoded_sql="$encoded_sql" "log_path=toggle_constraints_$schema.log"
+    fi
+    if [ "${TOGGLE_TRIGGERS,,}" != "none" ] ; then
+      echo "Disabling all triggers for $schema..."
+      encoded_sql=$(echo "execute toggle_triggers('$schema', '$TOGGLE_TRIGGERS')" | base64 -w 0)
+      run $@ encoded_sql="$encoded_sql" "log_path=toggle_triggers_$schema.log"
+    fi
+  done
+}
 
 task="$1"
 
@@ -173,14 +215,27 @@ case "$task" in
   build) 
     build ;;
   run)
-    run $@ ;;
+    if [ -n "$tempArgs" ] ; then
+      run $tempArgs
+    else
+      run $@
+    fi
+    ;;
   rerun)
     build && run $@ ;;
   shell)
     shell ;;
   run-sct-scripts)
     INPUT_MOUNT="$(getPwdForSctScriptMount)"
-    run $@ files_to_run=all ;;
+    echo 'Running all meta data creation scripts...'
+    run $@ files_to_run=all
+    echo 'Creating constraint and trigger toggling procedures...' 
+    run $@ files_to_run=create_toggle_constraints.sql,create_toggle_triggers.sql log_path=create_toggling.log
+    toggleConstraintsAndTriggers $@
+    echo 'FINISHED (next step is data migration).'
+    ;;
+  toggle-constraints-triggers)
+    toggleConstraintsAndTriggers $@ ;;
   table-counts)
     run $@ files_to_run=inventory.sql log_path=source-counts.log ;;
   compare-table-counts)

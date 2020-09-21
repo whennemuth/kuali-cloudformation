@@ -127,6 +127,20 @@ removeDropStatements() {
   rm -f ${sqlfile}.temp
 }
 
+autoExtendTableSpaces() {
+  sed -r -i 's/CREATE\s+TABLESPACE\s+KUALI_DATA/CREATE BIGFILE TABLESPACE KUALI_DATA/I' $1
+  cat <<EOF >> $1
+
+ALTER TABLESPACE KUALI_DATA AUTOEXTEND ON MAXSIZE UNLIMITED;
+/
+
+ALTER TABLESPACE SYSTEM AUTOEXTEND ON MAXSIZE UNLIMITED;
+/
+
+-- AUTOEXTENSIBLE should be "YES" now. Check with this query:
+-- select TABLESPACE_NAME, FILE_NAME,AUTOEXTENSIBLE,MAXBYTES from dba_Data_files where TABLESPACE_NAME = 'KUALI_DATA';
+EOF
+}
 
 cleanSqlFile() {
 
@@ -147,12 +161,17 @@ cleanSqlFile() {
         removeRecycleBinGrants "$sqlfile"
         fixMissingQuotes "$sqlfile"
         ;;
+      tablespace)
+        autoExtendTableSpaces "$sqlfile"
+        ;;
     esac
   }
 
   local sqlfile="$1"
   local shortname="$(echo $sqlfile | awk 'BEGIN {RS="/"} {print $1}' | tail -1)"
   case "$shortname" in
+    01.create.tablespaces.sql)
+      clean 'tablespace' ;;
     03.create.kcoeus.user.sql)
       clean 'user' ;;
     05.create.kcoeus.schema.sql)
@@ -204,8 +223,7 @@ runTask() {
       # Must include PROFILE and LANDSCAPE
       getRdsPassword ;;
     test)
-      cat sql/ci-example/test.sql > sql/ci-example/test2.sql
-      removeDropStatements sql/ci-example/test2.sql ;;
+      autoExtendTableSpaces sql/ci-example/01.create.tablespaces.sql ;;
     *)
       if [ -n "$task" ] ; then
         echo "INVALID PARAMETER: No such task: $task"

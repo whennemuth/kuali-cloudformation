@@ -654,12 +654,19 @@ secretExists() {
   [ -n "$secret" ] && true || false
 }
 
-getRdsPassword() {
+getRdsSecret() {
   aws secretsmanager get-secret-value \
-    --secret-id kuali/$LANDSCAPE/oracle-rds-password \
+    --secret-id kuali/$LANDSCAPE/kuali-oracle-rds-admin-password \
     --output text \
-    --query '{SecretString:SecretString}' 2> /dev/null \
-    | cut -d'"' -f4
+    --query '{SecretString:SecretString}' 2> /dev/null
+}
+
+getRdsUsername() {
+  getRdsSecret | cut -d'"' -f8
+}
+
+getRdsPassword() {
+  getRdsSecret | cut -d'"' -f4
 }
 
 getRdsHostname() {
@@ -684,19 +691,15 @@ getKcConfigDb() {
     [ ! -f 'kc-config.xml.temp' ] && return 1
   fi
 
-  getKcConfigDbPassword
-  echo ''
-  getKcConfigDbHost
-  echo ''
-  getKcConfigDbName
-  echo ''
-  getKcConfigDbPort
-  echo ''
-  getKcConfigDbUsername
-  echo ''
-  getKcConfigDmsDbUsername
-  echo ''
-  getKcConfigDmsDbPassword
+  getKcConfigDbPassword && echo ''
+  getKcConfigDbHost && echo ''
+  getKcConfigDbName && echo ''
+  getKcConfigDbPort && echo ''
+  getKcConfigDbUsername && echo ''
+  getKcConfigDmsDbUsername && echo ''
+  getKcConfigDmsDbPassword && echo ''
+  getKcConfigSctDbUsername && echo ''
+  getKcConfigSctDbPassword && echo ''
 
   [ -f 'kc-config.xml.temp' ] && rm -f 'kc-config.xml.temp'
 }
@@ -724,6 +727,12 @@ getKcConfigDmsDbUsername() {
     | tr -d '\t[:space:]<>'
 }
 
+getKcConfigSctDbUsername() {
+  getKcConfigLine 'datasource.sct.username' \
+    | grep -oE '>[^<>]+<' \
+    | tr -d '\t[:space:]<>'
+}
+
 getKcConfigDbPassword() {
   getKcConfigLine 'datasource.password' \
     | grep -oE '>[^<>]+<' \
@@ -732,6 +741,12 @@ getKcConfigDbPassword() {
 
 getKcConfigDmsDbPassword() {
   getKcConfigLine 'datasource.dms.password' \
+    | grep -oE '>[^<>]+<' \
+    | tr -d '\t[:space:]<>'
+}
+
+getKcConfigSctDbPassword() {
+  getKcConfigLine 'datasource.sct.password' \
     | grep -oE '>[^<>]+<' \
     | tr -d '\t[:space:]<>'
 }
@@ -793,9 +808,36 @@ waitForStackToDelete() {
     )"
     [ -z "$status" ] && status="DELETED"
     echo "${STACK_NAME}-${LANDSCAPE} stack status check $counter: $status"
-    [ "$status" == 'DELETED' ] && break
+    ([ "$status" == 'DELETED' ] || [ "$status" == 'DELETE_FAILED' ]) && break
     ((counter++))
     sleep 5
+  done
+}
+
+waitForEc2InstanceToFinishStarting() {
+  local instanceId="$1"
+  local counter=1
+  local instanceState="unknown"
+  local instanceStatus="unknown"
+  local systemStatus="unknown"
+  local sleep=5
+  local timeoutMinutes=${2:-10}
+  local timeoutSeconds=$(($timeoutMinutes*60))
+  while true ; do
+    details="$(
+      aws ec2 describe-instance-status \
+        --instance-ids $instanceId \
+        --output text \
+        --query 'InstanceStatuses[].{state:InstanceState.Name,sysStatus:SystemStatus.Status,instStatus:InstanceStatus.Status}' 2> /dev/null
+    )"
+    instanceStatus=$(echo "$details" | awk '{print $1}')
+    instanceState=$(echo "$details" | awk '{print $2}')
+    systemStatus=$(echo "$details" | awk '{print $3}')
+    echo "$instanceId status check $counter: instanceState:$instanceState, instanceStatus:$instanceStatus, systemStatus:$systemStatus"
+    [ "${instanceState,,}" == 'running' ] && [ "${instanceStatus,,}" == 'ok' ] && [ "${systemStatus,,}" == 'ok' ] && break
+    [ $(($counter*$sleep)) -ge $timeoutSeconds ] && echo "Its been $timeoutMinutes minutes without passing status check, cancelling." && exit 1
+    ((counter++))
+    sleep $sleep
   done
 }
 
@@ -828,4 +870,25 @@ jqInstalled() {
     fi
     [ -n "$failed" ] && true || false
   fi
+}
+
+
+# The aws cloudformation stack create/update command has just been constructed.
+# Prompt the user and/or run it according to certain flags.
+runStackActionCommand() {
+  if [ "$DEBUG" ] ; then
+    cat $cmdfile
+    exit 0
+  fi
+
+  if [ "$PROMPT" == 'false' ] ; then
+    echo "\nExecuting the following command(s):\n\n$(cat $cmdfile)\n"
+    local answer='y'
+  else
+    printf "\nExecute the following command:\n\n$(cat $cmdfile)\n\n(y/n): "
+    read answer
+  fi
+  [ "$answer" == "y" ] && sh $cmdfile || echo "Cancelled."
+
+  [ $? -gt 0 ] && echo "Cancelling..." && exit 1
 }

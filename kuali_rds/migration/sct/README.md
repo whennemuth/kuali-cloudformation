@@ -43,7 +43,7 @@ The [AWS Schema Conversion tool](https://docs.aws.amazon.com/SchemaConversionToo
    sh main.sh get-password landscape=ci profile=default
    
    # NOTE: If you ever have to delete the secret, this is how:
-   aws secretsmanager delete-secret --secret-id kuali/sb/oracle-rds-password --force-delete-without-recovery
+   aws secretsmanager delete-secret --secret-id kuali/sb/kuali-oracle-rds-admin-password --force-delete-without-recovery
    ```
    
    

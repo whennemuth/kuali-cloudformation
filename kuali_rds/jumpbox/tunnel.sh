@@ -38,32 +38,35 @@ tunnelToRDS() {
     else
       echo "WARNING! Landscape parameter is missing for RDS endpoint lookup."
       echo "Cancelling..."
-      exit 1
+      exit 991
     fi
     if [ -z "$RDS_ENDPOINT" ] ; then
       echo "Lookup for RDS endpoint failed!"
       echo "Cancelling..."
-      exit 1
+      exit 992
     fi
   fi
   
   if [ -z "$JUMPBOX_INSTANCE_ID" ] ; then
     if [ -n "$LANDSCAPE" ] ; then
       echo "Looking up jumpbox instance ID..."
-      JUMPBOX_INSTANCE_ID="$(
+      instance_state="$(
         aws ec2 describe-instances \
           --filters \
               'Name=tag:App,Values=Kuali' \
               'Name=tag:Type,Values=Jumpbox' \
               "Name=tag:Environment,Values=$LANDSCAPE" \
           --output text \
-          --query 'Reservations[].Instances[?State.Name==`running`].{ID:InstanceId}' | tail -1 2> /dev/null
+          --query 'Reservations[].Instances[].{ID:InstanceId,state:State.Name}' | tail -1 2> /dev/null
       )"
     fi
-    if [ -z "$JUMPBOX_INSTANCE_ID" ] ; then
+    if [ -z "$instance_state" ] ; then
       echo "INSUFFICIENT PARAMETERS! Jumpbox instance ID is missing"
       echo "Cancelling..."
-      exit 1 
+      exit 993 
+    else
+      JUMPBOX_INSTANCE_ID="$(echo "$instance_state" | awk '{print $1}')"
+      JUMPBOX_INSTANCE_STATE="$(echo "$instance_state" | awk '{print $2}')"
     fi
   fi
 
@@ -79,21 +82,29 @@ tunnelToRDS() {
   if [ -z "$az" ] ; then
     echo "INSUFFICIENT PARAMETERS! Jumpbox availability zone is missing and could not be looked up."
     echo "Cancelling..."
-    exit 1
+    exit 994
   fi
 
   local region=$(echo "$az" | sed 's/[a-z]$//')
   if [ -z "$region" ] ; then
     echo "INSUFFICIENT PARAMETERS! Jumpbox region is missing and could not be looked up."
     echo "Cancelling..."
-    exit 1
+    exit 995
   fi
 
   local privateIp=$(echo "$data" | awk '{print $2}')
   if [ -z "$privateIp" ] ; then
     echo "INSUFFICIENT PARAMETERS! Jumpbox instance private ip is missing and could not be looked up."
     echo "Cancelling..."
-    exit 1
+    exit 996
+  fi
+
+  if [ "${JUMPBOX_INSTANCE_STATE,,}" == 'stopped' ] ; then
+    echo "Jumbox instance is in a stopped state, starting..." 
+    aws ec2 start-instances --instance-ids $JUMPBOX_INSTANCE_ID > /dev/null
+    echo "Waiting until jumbox is fully initialized..."
+    waitForEc2InstanceToFinishStarting $JUMPBOX_INSTANCE_ID
+    [ $? -lt 0 ] && exit -1
   fi
 
   # OpenSSH tunneling args:
@@ -161,3 +172,5 @@ EOF
 }
 
 tunnelToRDS
+
+# waitForEc2InstanceToFinishStarting 'i-0596a35cb03f70336' 1
