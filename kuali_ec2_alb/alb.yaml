@@ -49,6 +49,21 @@ Parameters:
     Type: String
     Description: The amazon resource name of a certificate that has already been put in IAM/ACM
 
+  WafWebAclArn:
+    Type: String
+    Description: The web ACL for the WAF that screens traffic going through this ALB
+    Default: empty
+
+  HostedZoneId:
+    Type: String
+    Description: The id of the hosted zone. This means that we are using route53 to be delegated the kuali-research subdomain.
+    Default: empty
+
+
+Conditions:
+    WafWebAclArnProvided: !Not [!Equals [!Ref WafWebAclArn, empty]]
+    HostedZoneProvided: !Not [!Equals [!Ref HostedZoneId, empty]]
+
 
 Resources:
 
@@ -75,6 +90,13 @@ Resources:
       - Key: Name
         Value: 
           !Sub "${GlobalTag}-${Landscape}-ALB"
+
+  WafWebAclAssociation:
+    Type: AWS::WAFv2::WebACLAssociation
+    Condition: WafWebAclArnProvided
+    Properties: 
+      ResourceArn: !GetAtt ALB.Arn
+      WebACLArn: !Ref WafWebAclArn
 
 
   ################################################
@@ -156,15 +178,26 @@ Resources:
       Protocol: HTTPS
 
 
+  RecordSet:
+    Type: AWS::Route53::RecordSet
+    Condition: HostedZoneProvided
+    Properties:
+      Comment: 
+        !Sub
+        - Alias for Loadbalancer ${dnsname}
+        - { dnsname: !GetAtt ALB.DNSName }
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Sub kuali-research-css-${Landscape}.bu.edu.
+      Type: A
+      AliasTarget:
+        HostedZoneId: !GetAtt ALB.CanonicalHostedZoneID
+        DNSName: !GetAtt ALB.DNSName
+
 Outputs:
 
-  LoadBalancerUrl:
-    Description: This will be the url that the app is publicly addressable on
+  DNSName:
+    Description: This will be the url that the app is publicly addressable on (if no route53)
     Value: !GetAtt ALB.DNSName
-
-  LoadBalancer:
-    Description: A reference to the Application Load Balancer
-    Value: !Ref ALB
 
   Listener:
     Description: A reference to a port 80 listener

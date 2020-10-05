@@ -28,7 +28,7 @@ So, to be thorough, the [AWS Schema Conversion tool](https://docs.aws.amazon.com
    [Instructions...](sct/README.md)
 
 6. **Kuali Data Migration**
-   Create a small database migration stack with cloud formation
+   Create a small database migration stack with cloud formation and run it.
    [Instructions...](dms/README.md)
 
 

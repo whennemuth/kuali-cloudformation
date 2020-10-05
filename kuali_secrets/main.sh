@@ -7,6 +7,8 @@ declare -A defaults=(
   [BUCKET_PATH]='s3://kuali-conf/cloudformation/kuali_rds'
   [TEMPLATE_PATH]='.'
   [NO_ROLLBACK]='true'
+  # [RDS_APP_USERNAME]='???'
+  # [RDS_APP_PASSWORD]='???'
   # [EC2_DB_APP_PASSWORD]='???'
   # [EC2_DB_HOST]='???'
   # [EC2_DB_SID]='???'
@@ -30,18 +32,18 @@ run() {
   task="${1,,}"
   shift
 
-  if ! isBuCloudInfAccount ; then
-    LEGACY_ACCOUNT='true'
-    echo 'Current profile indicates legacy account.'
-    defaults['BUCKET_PATH']='s3://kuali-research-ec2-setup/cloudformation/kuali_secrets'
-  fi
-
   if [ "$task" == "test" ] ; then
     SILENT='true'
     [ -z "$PROFILE" ] && PROFILE='default'
   fi
 
   parseArgs $@
+
+  if ! isBuCloudInfAccount ; then
+    LEGACY_ACCOUNT='true'
+    echo 'Current profile indicates legacy account.'
+    defaults['BUCKET_PATH']='s3://kuali-research-ec2-setup/cloudformation/kuali_secrets'
+  fi
 
   setDefaults
 
@@ -69,34 +71,38 @@ stackAction() {
       --parameters '[
 EOF
 
-    # Get "LEGACY" ec2 kuali db connection fields directly from kc-config.xml in s3 for those source db parameters that are empty.
-    local counter=1
-    while read dbParm ; do
-      case $counter in
-        1) [ -z "$EC2_DB_APP_PASSWORD" ] && EC2_DB_APP_PASSWORD="$dbParm" ;;
-        2) [ -z "$EC2_DB_HOST" ] && EC2_DB_HOST="$dbParm" ;;
-        3) [ -z "$EC2_DB_SID" ] && EC2_DB_SID="$dbParm" ;;
-        4) [ -z "$EC2_DB_PORT" ] && EC2_DB_PORT="$dbParm" ;;
-        5) [ -z "$EC2_DB_APP_USERNAME" ] && EC2_DB_APP_USERNAME="$dbParm" ;;
-        6) [ -z "$EC2_DB_DMS_USERNAME" ] && EC2_DB_DMS_USERNAME="$dbParm" ;;
-        7) [ -z "$EC2_DB_DMS_PASSWORD" ] && EC2_DB_DMS_PASSWORD="$dbParm" ;;
-        8) [ -z "$EC2_DB_SCT_USERNAME" ] && EC2_DB_SCT_USERNAME="$dbParm" ;;
-        9) [ -z "$EC2_DB_SCT_PASSWORD" ] && EC2_DB_SCT_PASSWORD="$dbParm" ;;
-      esac
-      ((counter++))
-    done <<< $(getKcConfigDb)
-
     add_parameter $cmdfile 'Landscape' 'LANDSCAPE'
     add_parameter $cmdfile 'GlobalTag' 'GLOBAL_TAG'
-    add_parameter $cmdfile 'Ec2DbAppPassword' 'EC2_DB_APP_PASSWORD'
-    add_parameter $cmdfile 'Ec2DbHost' 'EC2_DB_HOST'
-    add_parameter $cmdfile 'Ec2DbSid' 'EC2_DB_SID'
-    add_parameter $cmdfile 'Ec2DbPort' 'EC2_DB_PORT'
-    add_parameter $cmdfile 'Ec2DbAppUsername' 'EC2_DB_APP_USERNAME'
-    add_parameter $cmdfile 'Ec2DbDmsUsername' 'EC2_DB_DMS_USERNAME'
-    add_parameter $cmdfile 'Ec2DbDmsPassword' 'EC2_DB_DMS_PASSWORD'
-    add_parameter $cmdfile 'Ec2DbSctUsername' 'EC2_DB_SCT_USERNAME'
-    add_parameter $cmdfile 'Ec2DbSctPassword' 'EC2_DB_SCT_PASSWORD'
+    add_parameter $cmdfile 'RdsAppPassword' 'RDS_APP_PASSWORD'
+
+    if [ "$LEGACY_ACCOUNT" == true ] ; then
+      # Get "LEGACY" ec2 kuali db connection fields directly from kc-config.xml in s3 for those source db parameters that are empty.
+      local counter=1
+      while read dbParm ; do
+        case $counter in
+          1) [ -z "$EC2_DB_APP_PASSWORD" ] && EC2_DB_APP_PASSWORD="$dbParm" ;;
+          2) [ -z "$EC2_DB_HOST" ] && EC2_DB_HOST="$dbParm" ;;
+          3) [ -z "$EC2_DB_SID" ] && EC2_DB_SID="$dbParm" ;;
+          4) [ -z "$EC2_DB_PORT" ] && EC2_DB_PORT="$dbParm" ;;
+          5) [ -z "$EC2_DB_APP_USERNAME" ] && EC2_DB_APP_USERNAME="$dbParm" ;;
+          6) [ -z "$EC2_DB_DMS_USERNAME" ] && EC2_DB_DMS_USERNAME="$dbParm" ;;
+          7) [ -z "$EC2_DB_DMS_PASSWORD" ] && EC2_DB_DMS_PASSWORD="$dbParm" ;;
+          8) [ -z "$EC2_DB_SCT_USERNAME" ] && EC2_DB_SCT_USERNAME="$dbParm" ;;
+          9) [ -z "$EC2_DB_SCT_PASSWORD" ] && EC2_DB_SCT_PASSWORD="$dbParm" ;;
+        esac
+        ((counter++))
+      done <<< $(getKcConfigDb)
+
+      add_parameter $cmdfile 'Ec2DbHost' 'EC2_DB_HOST'
+      add_parameter $cmdfile 'Ec2DbSid' 'EC2_DB_SID'
+      add_parameter $cmdfile 'Ec2DbPort' 'EC2_DB_PORT'
+      add_parameter $cmdfile 'Ec2DbAppUsername' 'EC2_DB_APP_USERNAME'
+      add_parameter $cmdfile 'Ec2DbAppPassword' 'EC2_DB_APP_PASSWORD'
+      add_parameter $cmdfile 'Ec2DbDmsUsername' 'EC2_DB_DMS_USERNAME'
+      add_parameter $cmdfile 'Ec2DbDmsPassword' 'EC2_DB_DMS_PASSWORD'
+      add_parameter $cmdfile 'Ec2DbSctUsername' 'EC2_DB_SCT_USERNAME'
+      add_parameter $cmdfile 'Ec2DbSctPassword' 'EC2_DB_SCT_PASSWORD'
+    fi
 
     echo "      ]'" >> $cmdfile
 

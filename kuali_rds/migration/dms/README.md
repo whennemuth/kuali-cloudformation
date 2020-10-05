@@ -9,7 +9,7 @@ This documents performing an oracle [homogenous migration](https://aws.amazon.co
 
 Therefore this migration assumes that the target RDS database has been part of an [AWS Schema Conversion Tool](https://docs.aws.amazon.com/SchemaConversionTool/latest/userguide/CHAP_Welcome.html) stage.
 This prior step is documented [here](../sct/README.md).
-   
+
 
 ### Prerequisites:
 
@@ -91,8 +91,7 @@ Instructions: [Kuali secrets stack creation](../../../kuali_secrets/README.md)
    ```
 
    Once triggered, you can wait for the output to indicate results and/or log into the [AWS Console for DMS tasks](https://console.aws.amazon.com/dms/v2/home?region=us-east-1#tasks) and watch the progress of the assessment.
-      
-
+   
 5. **Migrate the data:**
    You can either start a migration from the [AWS Console for DMS tasks](https://console.aws.amazon.com/dms/v2/home?region=us-east-1#tasks) by clicking on the task and selecting `"Actions > Restart/Resume"` or, use a helper script:
 
@@ -113,6 +112,6 @@ Instructions: [Kuali secrets stack creation](../../../kuali_secrets/README.md)
    sh main.sh migrate profile=default landscape=ci task_type=resume-processing
    ```
 
-      
+   See: [StartReplicationTask - StartReplicationTaskType](https://docs.aws.amazon.com/dms/latest/APIReference/API_StartReplicationTask.html#DMS-StartReplicationTask-request-StartReplicationTaskType)   
 
 6. NEXT

@@ -38,8 +38,15 @@ aws secretsmanager get-secret-value \
 
    ```
    # Clone this repo:
+   
+   # Create the stack, with single default secret for the RDS master admin and password to be autocreated
    cd kuali/kuali_secrets
-   sh main.sh create-stack profile=default landscape=ci
+sh main.sh create-stack profile=default landscape=ci
+   
+   # Same as above, but also create the kc application user and password secret.
+   cd kuali/kuali_secrets
+   sh main.sh create-stack profile=default landscape=ci rds_app_username=KCOEUS rds_app_password=myKcoeusPassword
+   
    ```
-
+   
    

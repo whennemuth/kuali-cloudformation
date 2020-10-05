@@ -191,22 +191,30 @@ toggleConstraintsAndTriggers() {
   [ -z "$TOGGLE_CONSTRAINTS" ] && TOGGLE_CONSTRAINTS="DISABLE"
   [ -z "$TOGGLE_TRIGGERS" ] && TOGGLE_TRIGGERS="DISABLE"
   local encoded_sql=""
-  for schema in 'KCOEUS' 'KCRMPROC' 'KULUSERMAINT' 'SAPBWKCRM' 'SAPETLKCRM' 'SNAPLOGIC' ; do
-    if [ "${TOGGLE_CONSTRAINTS,,}" != "none" ] ; then
-      echo "Disabling foreign key constraints for $schema..."
-      encoded_sql=$(echo "execute toggle_constraints('$schema', 'FK', '$TOGGLE_CONSTRAINTS')" | base64 -w 0)
-      run $@ encoded_sql="$encoded_sql" "log_path=toggle_constraints_$schema.log"
+  local schemas='KCOEUS KCRMPROC KULUSERMAINT SAPBWKCRM SAPETLKCRM SNAPLOGIC'
 
-      echo "Disabling all remaining constraints for $schema..."
-      encoded_sql=$(echo "execute toggle_constraints('$schema', 'PK', '$TOGGLE_CONSTRAINTS')" | base64 -w 0)
-      run $@ encoded_sql="$encoded_sql" "log_path=toggle_constraints_$schema.log"
-    fi
-    if [ "${TOGGLE_TRIGGERS,,}" != "none" ] ; then
-      echo "Disabling all triggers for $schema..."
-      encoded_sql=$(echo "execute toggle_triggers('$schema', '$TOGGLE_TRIGGERS')" | base64 -w 0)
-      run $@ encoded_sql="$encoded_sql" "log_path=toggle_triggers_$schema.log"
-    fi
-  done
+  if [ "${TOGGLE_CONSTRAINTS,,}" != "none" ] ; then
+    for schema in $schemas ; do
+      [ -n "$encoded_sql" ] && encoded_sql="$encoded_sql@"
+      encoded_sql="$encoded_sql$(echo "execute toggle_constraints('$schema', 'FK', '$TOGGLE_CONSTRAINTS')" | base64 -w 0)"
+    done
+  fi
+
+  if [ "${TOGGLE_CONSTRAINTS,,}" != "none" ] ; then
+    for schema in $schemas ; do
+      [ -n "$encoded_sql" ] && encoded_sql="$encoded_sql@"
+      encoded_sql="$encoded_sql$(echo "execute toggle_constraints('$schema', 'PK', '$TOGGLE_CONSTRAINTS')" | base64 -w 0)"
+    done
+  fi
+
+  if [ "${TOGGLE_TRIGGERS,,}" != "none" ] ; then
+    for schema in $schemas ; do
+      [ -n "$encoded_sql" ] && encoded_sql="$encoded_sql@"
+      encoded_sql="$encoded_sql$(echo "execute toggle_triggers('$schema', '$TOGGLE_TRIGGERS')" | base64 -w 0)"
+    done
+  fi
+
+  run $@ encoded_sql="$encoded_sql" "log_path=toggle_constraints_triggers.log"
 }
 
 task="$1"

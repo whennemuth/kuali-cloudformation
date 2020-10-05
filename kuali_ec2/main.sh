@@ -73,6 +73,10 @@ stackAction() {
     # Upload the yaml files to s3
     uploadStack silent
     [ $? -gt 0 ] && exit 1
+    # Upload scripts that will be run as part of AWS::CloudFormation::Init
+    aws s3 cp ../scripts/ec2/process-configs.sh s3://$BUCKET_NAME/cloudformation/scripts/ec2/
+    aws s3 cp ../scripts/ec2/stop-instance.sh s3://$BUCKET_NAME/cloudformation/scripts/ec2/
+    aws s3 cp ../scripts/ec2/cloudwatch-metrics.sh s3://$BUCKET_NAME/cloudformation/scripts/ec2/
 
     case "$action" in
       create-stack)

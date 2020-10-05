@@ -158,23 +158,9 @@ Resources:
       - arn:aws:iam::aws:policy/CloudWatchFullAccess
       Policies:
       - PolicyName:
-          !Sub ${GlobalTag}-${Landscape}-stop-policy
+          !Sub ${GlobalTag}-${Landscape}-stop-ec2-instance
         PolicyDocument:
           Statement:
-          - Effect: Allow
-            Resource: "arn:aws:ec2:*:*:instance/${ec2:SourceInstanceARN}"
-            Action:
-            - ec2:StopInstances
-          - Effect: Allow
-            Resource: "*"
-            Action:
-            - ec2:DescribeTags
-          - Effect: Allow
-            Resource:
-            - arn:aws:s3:::kuali-conf*
-            - arn:aws:s3:::kuali-docker-run-stdout*
-            - arn:aws:s3:::kuali-pdf-*
-            Action: "*"
           - Effect: Allow
             Action:
             - ec2:StopInstances
@@ -185,8 +171,45 @@ Resources:
                 ec2:ResourceTag/Name:
                   !Sub ${GlobalTag}-${Landscape}-instance
               StringEquals:
-                ec2:ResourceTag/Self-Stoppable:
+                ec2:ResourceTag/self-stoppable:
                   'true'
+      - PolicyName:
+          !Sub "${GlobalTag}-${Landscape}-read-s3-content"
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Resource: "*"
+            Action:
+            - ec2:DescribeTags
+          - Effect: Allow
+            Resource:
+            - arn:aws:s3:::kuali-conf*
+            - arn:aws:s3:::kuali-docker-run-stdout*
+            - !Sub arn:aws:s3:::${PdfS3BucketName}*
+            Action: "*"
+      - PolicyName:
+          !Sub "${GlobalTag}-${Landscape}-read-secrets"
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Action:
+            - secretsmanager:GetResourcePolicy
+            - secretsmanager:GetSecretValue
+            - secretsmanager:DescribeSecret
+            - secretsmanager:ListSecretVersionIds
+            Resource:
+            - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:kuali/${Landscape}/*
+      - PolicyName:
+          !Sub "${GlobalTag}-${Landscape}-read-rds-metadata"
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Action:
+            - rds:Describe*
+            - rds:ListTagsForResource
+            Resource:
+            - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db:kuali-oracle-${Landscape}
+
 
   EC2InstanceProfile:
     Type: AWS::IAM::InstanceProfile
@@ -228,7 +251,7 @@ Resources:
       Tags:
       - Key: Name
         Value: !Sub ${GlobalTag}-${Landscape}-instance
-      - Key: Self-Stoppable
+      - Key: self-stoppable
         Value: 'false'
       ImageId: 
         !Ref ECSAMI
@@ -329,9 +352,11 @@ Resources:
           cmd02:
           - 02_create_env_exports_file
           cmd03:
-          - 03_docker_run_container
+          - 03_process_kc-config_file
           cmd04:
-          - 04_start_cron_for_custom_cloudwatch_metrics
+          - 04_docker_run_container
+          cmd05:
+          - 05_start_cron_for_custom_cloudwatch_metrics
         getFiles:
           packages:
             yum:
@@ -347,7 +372,7 @@ Resources:
               owner: root
               group: root
             /opt/kuali/scripts/crontab:
-              content: |
+              content: !Sub |
                 SHELL=/bin/bash
                 PATH=/sbin:/bin:/usr/sbin:/usr/bin
                 MAILTO=root
@@ -357,109 +382,12 @@ Resources:
                 # NOTE: The cronjob will start, but it does nothing until you uncomment the 1 or more of the 3 lines below.
                 # This is a test ec2 instance, so defaulting to running these scripts manually while shelled in."
                 # Check the system log for any errors this script encounters"
-                # * * * * * /opt/kuali/scripts/send-custom-cloudwatch-metrics1.sh
-                # * * * * * /opt/kuali/scripts/send-custom-cloudwatch-metrics2.sh
-                # * * * * * /opt/kuali/scripts/send-psuedo-cloudwatch-metrics.sh
+                # * * * * * /opt/kuali/scripts/send-custom-cloudwatch-metrics.sh "custom1"
+                # * * * * * /opt/kuali/scripts/send-custom-cloudwatch-metrics.sh "custom2" "ec2"
+                # * * * * * /opt/kuali/scripts/send-custom-cloudwatch-metrics.sh "psuedo"  "ec2" "${BucketName}" "${AWS::Region}"
                 #
-                0 8 * * * /bin/bash /opt/kuali/scripts/stopinstance.sh
+                0 8 * * * /bin/bash /opt/kuali/scripts/stop-instance.sh ${AWS::Region}
               mode: "000644"
-              owner: root
-              group: root
-            /opt/kuali/scripts/send-custom-cloudwatch-metrics1.sh:
-              content: |
-                #!/bin/bash
-                # Adding additional cloudwatch metrics that include memory utilization.
-                # See: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/mon-scripts.html
-                /var/lib/aws-scripts-mon/mon-put-instance-data.pl \
-                  --mem-used-incl-cache-buff \
-                  --mem-util \
-                  --mem-avail \
-                  --disk-space-util \
-                  --disk-path=/ \
-                  --from-cron
-              mode: "000744"
-              owner: root
-              group: root
-            /opt/kuali/scripts/send-custom-cloudwatch-metrics2.sh:
-              content: |
-                #!/bin/bash
-                # Cloudwatch metrics alternative that include are custom and cover all needed measurments.
-                # Use this method as a replacement for the mon-put-instance-data.pl approach.
-                # See: https://aws.amazon.com/premiumsupport/knowledge-center/cloudwatch-custom-metrics/
-                export AWS_DEFAULT_REGION=us-east-1
-                INSTANCEID=$(curl http://169.254.169.254/latest/meta-data/instance-id)
-                USEDMEMORY_PERCENT=$(free -m | awk 'NR==2{printf "%.2f\t", $3*100/$2 }')
-                USEDDISK_PERCENT=$(df / | awk 'NR==2{print $5}' | sed 's/\%//g')
-                TCP_CONN=$(netstat -an | wc -l)
-                TCP_CONN_PORT_80=$(netstat -an | grep 80 | wc -l)
-                USERS=$(uptime | awk '{ print $4 }')
-                IO_WAIT_PERCENT=$(iostat | awk 'NR==4 {print $4}')
-                # If no average cpu record, then take the cpu as of this moment
-                [ -z "$((cat /tmp/average.cpu | grep -P '^\d+(\.\d+)?$') 2> /dev/null)" ] && grep 'cpu ' /proc/stat | awk '{print ($2+$4)*100/($2+$4+$5)}' > /tmp/average.cpu
-                AVERAGE_CPU=$(cat /tmp/average.cpu)
-                # Compute the average cpu utilization by taking a reading every 2 seconds for 58 seconds and taking their average.
-                # The cron job is on a minute schedule, so 58 seconds will ensure that a new average will be recorded BEFORE the next cron cycle.
-                NEXT_AVERAGE_CPU=$(n=0 && cat <(echo "$(while [ $n -lt 4 ] ; do grep 'cpu ' /proc/stat && sleep 2 && n=$((n+1)) ; done)") | awk '{c++; t += ($2+$4)*100/($2+$4+$5)} END {print t/c}')
-                echo $NEXT_AVERAGE_CPU > /tmp/average.cpu
-                
-                aws cloudwatch put-metric-data --dimensions Instance=$INSTANCEID --namespace "EC2TestCustomMetrics" --metric-name cpu-usage --value $AVERAGE_CPU
-                aws cloudwatch put-metric-data --dimensions Instance=$INSTANCEID --namespace "EC2TestCustomMetrics" --metric-name memory-usage --value $USEDMEMORY_PERCENT
-                aws cloudwatch put-metric-data --dimensions Instance=$INSTANCEID --namespace "EC2TestCustomMetrics" --metric-name disk-usage --value $USEDDISK_PERCENT
-                aws cloudwatch put-metric-data --dimensions Instance=$INSTANCEID --namespace "EC2TestCustomMetrics" --metric-name tcp_connections --value $TCP_CONN
-                aws cloudwatch put-metric-data --dimensions Instance=$INSTANCEID --namespace "EC2TestCustomMetrics" --metric-name tcp_connection_on_port_80 --value $TCP_CONN_PORT_80
-                aws cloudwatch put-metric-data --dimensions Instance=$INSTANCEID --namespace "EC2TestCustomMetrics" --metric-name nbr_of_users --value $USERS
-                aws cloudwatch put-metric-data --dimensions Instance=$INSTANCEID --namespace "EC2TestCustomMetrics" --metric-name io_wait --value $IO_WAIT_PERCENT
-              mode: "000744"
-              owner: root
-              group: root
-            /opt/kuali/scripts/send-psuedo-cloudwatch-metrics.sh:
-              content: !Sub |
-                #!/bin/bash
-                
-                # This function streams a json file from s3 that indicates dummy metrics to send to cloudwatch.
-                # The purpose is to simulate higher (or lower) thresholds that would trigger alarms to engage
-                # a scale-in or scale-out policy for auto-scaling activity.
-                sendDummyMetrics() {
-                  # local json=$(cat /c/whennemuth/workspaces/ecs_workspace/dummy-metrics/dummy-ec2-metrics.json)
-                  local json=$(aws s3 cp s3://${BucketName}/dummydata/dummy-ec2-metrics.json)
-                  local namespace=$(echo "$json" | jq -r '.Namespace')
-                  local instances=$(echo $json | jq -r -c '.Instances[]')
-                  local evals=()
-                  while read -r instance; do
-                    local instanceId=$(echo "$instance" | jq -r '.InstanceId')
-                    local metrics=$(echo $instance | jq -r -c '.Metrics[]')
-                    while read -r metric; do
-                      local name=$(echo "$metric" | jq -r '.MetricName')
-                      local baseline=$(echo "$metric" | jq -r '.BaselineValue')
-                      local deviation=$(echo "$metric" | jq -r '.DeviationValue')
-                      # Examples to set until to a value offset from current UTC time
-                      # date +%s --date='+5 minute'
-                      # date +%s --date='-1 hour'
-                      local until=$(echo "$metric" | jq -r '.DeviateUntil')
-                      local value=$baseline
-                      local now=$(date +%s)
-                      [ $until -gt $now ] && value=$deviation
-                      local evalstr="$(cat <<EOF
-                        aws cloudwatch put-metric-data \
-                          --region ${AWS::Region} \
-                          --dimensions Instance=$instanceId \
-                          --namespace "$namespace" \
-                          --metric-name $name \
-                          --value $value
-                EOF
-                      )"
-                      evals=("${!evals[@]}" "$(echo "$evalstr" | sed -E 's/[[:space:]]+/ /g' | xargs)")
-                    done <<< "$metrics"
-                  done <<< "$instances"
-                
-                  for cmd in "${!evals[@]}" ; do
-                    echo "$cmd"
-                    eval "$cmd"
-                  done
-                }
-                
-                sendDummyMetrics
-              mode: "000744"
               owner: root
               group: root
             /etc/cfn/cfn-hup.conf:
@@ -505,97 +433,21 @@ Resources:
                 log_group_name = ${GlobalTag}-${Landscape}-LG
                 log_stream_name = /var/log/docker
                 datetime_format = %Y-%m-%dT%H:%M:%S.%f
-            /opt/kuali/scripts/s3.download.configs.sh:
+            /opt/kuali/scripts/process-configs.sh:
+              source: !Sub http://${BucketName}.s3.amazonaws.com/cloudformation/scripts/ec2/process-configs.sh
               content: !Sub |
-                #!/bin/bash                
-                echo "Downloading all configurations for containers from the s3 bucket, landscape ${!LANDSCAPE}"
-                
-                [ ! -d /opt/kuali/s3 ] && mkdir -p /opt/kuali/s3
-                cd /opt/kuali/s3
-                aws s3 sync --delete \
-                  --exclude "*" \
-                  --include "core/*" \
-                  --include "portal/*" \
-                  --include "pdf/*" \
-                  --include "kc/kc-config-rds.xml" \
-                  s3://${BucketName}/${!LANDSCAPE}/ .
-                mv /opt/kuali/s3/kc/kc-config-rds.xml /opt/kuali/s3/kc/kc-config.xml
-                aws s3 cp s3://${BucketName}/rice.cer /opt/kuali/s3/kc/
-                aws s3 cp s3://${BucketName}/rice.keystore /opt/kuali/s3/kc/
               mode: "000775"
               owner: root
               group: root
-            /opt/kuali/scripts/process.env.file.sh:
-              content: |
-                #!/bin/bash                
-                # Turn a name=value line into an "export name='value'" line
-                getLineExport() {
-                  local line=$(echo -n "$1" | xargs) # Use xargs to trim the line.
-                  # Return an empty string if the line is a properties file comment
-                  [ "${line:0:1}" == "#" ] && echo "" && exit 0;
-                  [ -z "$line" ] && echo "" && exit 0;
-                  if [ -n "$(echo $testline | grep -P '\x22')" ] ; then
-                    echo "export $line"
-                  else
-                    # Put double quotes around the exported variable value
-                    echo "export $(echo $line | sed 's/=/="/1')\""
-                  fi
-                }
-                  
-                # Create a script to export all environment variables in the mounted directory before starting node
-                createExportFile() {
-                  local ENV_FILE_FROM_S3="$1"
-                  if [ ! -f $ENV_FILE_FROM_S3 ] ; then
-                    echo "ERROR! MISSING $ENV_FILE_FROM_S3"
-                    exit 1
-                  else
-                    cd $(dirname $ENV_FILE_FROM_S3)
-                    rm -f export.sh
-                    echo "Creating $(pwd)/export.sh..."
-                    while read line ; do
-                      expline="$(getLineExport "$line")"
-                      [ -z "$expline" ] && continue
-                      prop=$(echo "$line" | cut -f1 -d '=')
-                      # Override some of the existing environment variables
-                      [ "${prop^^}" == "SHIB_HOST" ] && expline="export SHIB_HOST="
-                      [ "${prop^^}" == "ROOT_DIR" ]  && expline="export ROOT_DIR=/var/core-temp"
-                      echo "Setting env var $prop"
-                      echo "$expline" >> export.sh
-                    done < $ENV_FILE_FROM_S3
-                    
-                    # In case the file from s3 originated on a windows file system, remove return carriage chars
-                    sed -i 's/\r//g' export.sh
-                  fi
-                }
-
-                # export EC2_HOST=$(curl -s http://169.254.169.254/latest/meta-data/public-hostname)
-                export EC2_HOST=$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4)
-                DOMAIN_NAME=$(echo ${EC2_HOST} | cut -d'/' -f3) # Strips off the "http://" portion and trailing "/"
-
-                # Perform a replacement in kc-config.xml of application.host parameter value with this ec2 public host name.
-                sed -i "s/APPLICATION_HOST/$DOMAIN_NAME/" /opt/kuali/s3/kc/kc-config.xml
-
-                # Perform a replacement in all environment.variables.s3 files of existing application host entries with this ec2 public host name.
-                for f in $(env | grep 'ENV_FILE_FROM_S3') ; do
-                  envfile="$(echo $f | cut -d'=' -f2)"
-                  # Replace the standard kuali-research-[env].bu.edu references with the public host name of this ec2 instance.
-                  sed -i -r "s/kuali-research.*.bu.edu/$DOMAIN_NAME/g" "$envfile"
-                  # Create the export.sh file
-                  createExportFile "$envfile"
-
-                  # Correct the AWS_S3_BUCKET name value in case it disagrees with the templates parameter.
-                  if grep -iq 'pdf' <<<"$envfile" ; then
-                    # Remove the current entry for AWS_S3_BUCKET from the environment variables file and put it back with the provided value.
-                    sed -i '/.*AWS_S3_BUCKET.*=.*/d' $envfile
-                    echo "AWS_S3_BUCKET=$PDF_BUCKET_NAME" >> $envfile
-                    # Do it again for the export file.
-                    sed -i '/.*AWS_S3_BUCKET.*=.*/d' export.sh
-                    echo "export AWS_S3_BUCKET=$PDF_BUCKET_NAME" >> export.sh
-                  fi
-                done
-
-                exit 0
+            /opt/kuali/scripts/stop-instance.sh:
+              source: !Sub http://${BucketName}.s3.amazonaws.com/cloudformation/scripts/ec2/stop-instance.sh
+              content: !Sub |
               mode: "000775"
+              owner: root
+              group: root
+            /opt/kuali/scripts/send-custom-cloudwatch-metrics.sh:
+              source: !Sub http://${BucketName}.s3.amazonaws.com/cloudformation/scripts/ec2/cloudwatch-metrics.sh
+              mode: "000744"
               owner: root
               group: root
             /opt/kuali/scripts/start.docker.containers.sh:
@@ -829,45 +681,22 @@ Resources:
                     }
                   }                  
                 }
-            /opt/kuali/scripts/stopinstance.sh:
-              content: !Sub |
-                #!/bin/bash
-                # Target this script with a crontab and the instance will be shutdown on the crontab schedule if tagging indicates it's authorized.
-                instanceId=$(curl http://169.254.169.254/latest/meta-data/instance-id 2> /dev/null)
-                stoppable=$(aws ec2 describe-tags \
-                  --filters \
-                  "Name=resource-id,Values=i-02b4dd8149bd0f9fa" \
-                  "Name=key,Values=Self-Stoppable" \
-                  --region ${AWS::Region} \
-                  --output=text | cut -f5 2> /dev/null
-                )
-                if [ "$stoppable" != 'true' ] ; then
-                  exit 0
-                fi
-                # You can skip the next scheduled shutdown by creating a /tmp/skipshutdown file.
-                if [ -f /tmp/skipshutdown ] ; then
-                  echo "$(date) Skipping shutdown for today - skip file found." >>  /usr/local/sbin/cronlog
-                  rm -f /tmp/skipshutdown
-                  exit 0
-                fi
-                
-                echo "$(date) Stopping instance per cron schedule..." >> /usr/local/sbin/cronlog
-                aws ec2 stop-instances --region ${AWS::Region} --instance-ids $instanceId >> /usr/local/sbin/cronlog 2>&1
-              mode: "000775"
-              owner: root
-              group: root
         01_get_configs_from_s3:
           commands:
             cmd01:
               cwd: /opt/kuali/scripts
               env:
+                TASK: get_configs_from_s3             
                 LANDSCAPE: !Sub "${Landscape}"
-              command: bash s3.download.configs.sh
+                BUCKET_NAME: !Sub "${BucketName}"
+              command: bash process-configs.sh
         02_create_env_exports_file:
           commands:
             cmd01:
               cwd: /opt/kuali/scripts
               env:
+                TASK: create_env_exports_file
+                DNS_NAME: local
                 ENV_FILE_FROM_S3_CORE: /opt/kuali/s3/core/environment.variables.s3
                 ENV_FILE_FROM_S3_PORTAL: /opt/kuali/s3/portal/environment.variables.s3
                 ENV_FILE_FROM_S3_PDF: /opt/kuali/s3/pdf/environment.variables.s3
@@ -875,8 +704,17 @@ Resources:
                   - pdfS3AutoName
                   - !Sub kuali-pdf-${Landscape}
                   - !Sub "${PdfS3BucketName}"
-              command: bash process.env.file.sh
-        03_docker_run_container:
+              command: bash process-configs.sh
+        03_process_kc-config_file:
+          commands:
+            cmd01:
+              cwd: /opt/kuali/scripts
+              env:
+                TASK: process_kc-config_file
+                DNS_NAME: local
+                LANDSCAPE: !Sub "${Landscape}"
+              command: bash process-configs.sh
+        04_docker_run_container:
           commands:
             cmd01:
               cwd: /opt/kuali/scripts
@@ -907,7 +745,7 @@ Resources:
                 files:
                 - /etc/awslogs/awslogs.conf
                 - /etc/awslogs/awscli.conf
-        04_start_cron_for_custom_cloudwatch_metrics:
+        05_start_cron_for_custom_cloudwatch_metrics:
           commands:
             cmd01:
               command: crontab -u root /opt/kuali/scripts/crontab

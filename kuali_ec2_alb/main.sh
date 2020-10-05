@@ -6,6 +6,8 @@ declare -A defaults=(
   [LANDSCAPE]='sb'
   [BUCKET_PATH]='s3://kuali-conf/cloudformation/kuali_ec2_alb'
   [TEMPLATE_PATH]='.'
+  [CN]='kuali-research.bu.edu'
+  [ROUTE53]='true'
   [KC_IMAGE]='770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-coeus-sandbox:2001.0040'
   [CORE_IMAGE]='770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-core:2001.0040'
   [PORTAL_IMAGE]='770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-portal:2001.0040'
@@ -47,12 +49,13 @@ run() {
 
   parseArgs $@
 
+  checkLegacyAccount
+
   setDefaults
   fi
 
   runTask
 }
-
 
 # Create, update, or delete the cloudformation stack.
 stackAction() {
@@ -76,35 +79,16 @@ stackAction() {
       exit 1
     fi
 
-    # Get the arn of the ssl cert
-    certArn="$(getSelfSignedArn)"
-    if [ -z "$certArn" ] ; then
-      local askCreateCert=$(cat <<EOF
-
-The load balancer will need a certificate for ssl.
-Looking for the certificate ARN (amazon resource name).
-Several sources are checked:
-   - The "CERTIFICATE_ARN" parameter
-   - A file containing the arn in the current directory
-   - $BUCKET_PATH
-The certificate ARN was not found in any of these sources.
-Do you want to create and upload a new server certificate?
-EOF
-      ) 
-      if askYesNo "$askCreateCert" ; then
-        createSelfSignedCertificate
-      fi
-    fi
-    certArn="$(getSelfSignedArn)"
-    if [ -z "$certArn" ] ; then
-      echo "Cannot proceed without a server certificate.\nCancelling..."
-      exit 1
-    fi
-    echo "Using certificate: $certArn"
+    # Get the arn of any ssl cert (acm or self-signed in iam)
+    setCertArn
 
     # Upload the yaml files to s3
     uploadStack silent
     [ $? -gt 0 ] && exit 1
+    # Upload scripts that will be run as part of AWS::CloudFormation::Init
+    aws s3 cp ../scripts/ec2/process-configs.sh s3://$BUCKET_NAME/cloudformation/scripts/ec2/
+    aws s3 cp ../scripts/ec2/stop-instance.sh s3://$BUCKET_NAME/cloudformation/scripts/ec2/
+    aws s3 cp ../scripts/ec2/cloudwatch-metrics.sh s3://$BUCKET_NAME/cloudformation/scripts/ec2/
 
     case "$action" in
       create-stack)
@@ -132,34 +116,30 @@ EOF
       --parameters '[
 EOF
 
-    addParameter $cmdfile 'VpcId' $VpcId
-    addParameter $cmdfile 'CampusSubnet1' $CAMPUS_SUBNET1
-    addParameter $cmdfile 'CampusSubnet2' $CAMPUS_SUBNET2
-    addParameter $cmdfile 'PublicSubnet1' $PUBLIC_SUBNET1
-    addParameter $cmdfile 'PublicSubnet2' $PUBLIC_SUBNET2
-    addParameter $cmdfile 'CertificateArn' $certArn
-    addParameter $cmdfile 'PdfS3BucketName' $PDF_BUCKET_NAME
+    add_parameter $cmdfile 'VpcId' 'VpcId'
+    add_parameter $cmdfile 'CampusSubnet1' 'CAMPUS_SUBNET1'
+    add_parameter $cmdfile 'CampusSubnet2' 'CAMPUS_SUBNET2'
+    add_parameter $cmdfile 'PublicSubnet1' 'PUBLIC_SUBNET1'
+    add_parameter $cmdfile 'PublicSubnet2' 'PUBLIC_SUBNET2'
+    add_parameter $cmdfile 'CertificateArn' 'CERTIFICATE_ARN'
+    add_parameter $cmdfile 'PdfS3BucketName' 'PDF_BUCKET_NAME'
+    add_parameter $cmdfile 'PdfImage' 'PDF_IMAGE'
+    add_parameter $cmdfile 'KcImage' 'KC_IMAGE'
+    add_parameter $cmdfile 'CoreImage' 'CORE_IMAGE'
+    add_parameter $cmdfile 'PortalImage' 'PORTAL_IMAGE'
+    add_parameter $cmdfile 'Landscape' 'LANDSCAPE'
+    add_parameter $cmdfile 'GlobalTag' 'GLOBAL_TAG'
+    add_parameter $cmdfile 'EC2InstanceType' 'EC2_INSTANCE_TYPE'
+    add_parameter $cmdfile 'EnableNewRelicAPM' 'ENABLE_NEWRELIC_APM'
+    add_parameter $cmdfile 'EnableNewRelicInfrastructure' 'ENABLE_NEWRELIC_INFRASTRUCTURE'
+    add_parameter $cmdfile 'EC2KeypairName' 'KEYPAIR_NAME'
 
-    [ -n "$PDF_IMAGE" ] && \
-      addParameter $cmdfile 'PdfImage' $PDF_IMAGE
-    [ -n "$KC_IMAGE" ] && \
-      addParameter $cmdfile 'KcImage' $KC_IMAGE
-    [ -n "$CORE_IMAGE" ] && \
-      addParameter $cmdfile 'CoreImage' $CORE_IMAGE
-    [ -n "$PORTAL_IMAGE" ] && \
-      addParameter $cmdfile 'PortalImage' $PORTAL_IMAGE
-    [ -n "$LANDSCAPE" ] && \
-      addParameter $cmdfile 'Landscape' $LANDSCAPE
-    [ -n "$GLOBAL_TAG" ] && \
-      addParameter $cmdfile 'GlobalTag' $GLOBAL_TAG
-    [ -n "$EC2_INSTANCE_TYPE" ] && \
-      addParameter $cmdfile 'EC2InstanceType' $EC2_INSTANCE_TYPE
-    [ -n "$ENABLE_NEWRELIC_APM" ] && \
-      addParameter $cmdfile 'EnableNewRelicAPM' $ENABLE_NEWRELIC_APM
-    [ -n "$ENABLE_NEWRELIC_INFRASTRUCTURE" ] && \
-      addParameter $cmdfile 'EnableNewRelicInfrastructure' $ENABLE_NEWRELIC_INFRASTRUCTURE
-    [ -n "$KEYPAIR_NAME" ] && \
-      addParameter $cmdfile 'EC2KeypairName' $KEYPAIR_NAME
+    if [ "$ROUTE53" == 'true' ] ; then
+      HOSTED_ZONE_ID="$(getHostedZoneId $CN)"
+      [ -z "$hostedZoneId" ] && echo "ERROR! Could not obtain hosted zone id for $CN" && exit 1
+      addParameter $cmdfile 'HostedZoneId' $hostedZoneId
+      addParameter $cmdfile 'HostedZoneCommonName' $CN
+    fi
 
     echo "      ]'" >> $cmdfile
 
@@ -192,8 +172,15 @@ runTask() {
       stackAction "update-stack" ;;
     delete-stack)
       stackAction "delete-stack" ;;
+    set-cert-arn)
+      setCertArn ;;
     test)
-      getSelfSignedArn ;;
+      # cd ../s3/ci
+      # setAcmCertArn 'kuali-research-css-ci.bu.edu'
+      sh main.sh set-cert-arn \
+        profile=infnprd \
+        landscape=ci 
+      ;;
     *)
       if [ -n "$task" ] ; then
         echo "INVALID PARAMETER: No such task: $task"

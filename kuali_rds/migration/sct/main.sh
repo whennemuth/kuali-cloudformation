@@ -221,7 +221,7 @@ runTask() {
       cleanSqlFiles $@ ;;
     get-password)
       # Must include PROFILE and LANDSCAPE
-      getRdsPassword ;;
+      getRdsAdminPassword ;;
     test)
       autoExtendTableSpaces sql/ci-example/01.create.tablespaces.sql ;;
     *)

@@ -167,6 +167,33 @@ Parameters:
     - "false"
     ConstraintDescription: Enter "true" or "false" only.
 
+  WAF:
+    Type: String
+    Description: Does the ALB traffic need to go through a WAF?
+    Default: "yes"
+    Allowedvalues:
+    - "yes"
+    - "no"
+
+  # Must be included if HostedZoneCommonName is included.
+  HostedZoneId:
+    Type: String
+    Description: The id of the hosted zone. This means that we are using route53 to be delegated the kuali-research subdomain.
+    Default: empty
+
+  # Must be included if HostedZoneId is included.
+  HostedZoneCommonName:
+    Type: String
+    Description: >
+      The common name for the subdomain delegated to the hosted zone. Assumes the HostedZone name itself is set to this value.
+    Default: empty
+
+
+Conditions:
+    CreateWAF: !Equals [!Ref WAF, 'yes']
+    HostedZoneIdProvided: !Not [!Equals [!Ref HostedZoneId, empty]]
+    HostedZoneCommonNameProvided: !Not [!Equals [!Ref HostedZoneCommonName, empty]]
+
 
 Resources:
 
@@ -182,6 +209,18 @@ Resources:
           !Ref Landscape
         VpcId: 
           !Ref VpcId
+
+  WAF:
+    Type: AWS::CloudFormation::Stack
+    Condition: CreateWAF
+    Properties:
+      TemplateURL: 
+        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_waf/waf.yaml
+      Parameters:
+        GlobalTag:
+          !Ref GlobalTag
+        Landscape:
+          !Ref Landscape
 
   ALB:
     Type: AWS::CloudFormation::Stack
@@ -203,6 +242,16 @@ Resources:
           !GetAtt SecurityGroups.Outputs.ALBSecurityGroup
         CertificateArn:
           !Ref CertificateArn
+        WafWebAclArn:
+          !If
+            - CreateWAF
+            - !GetAtt WAF.Outputs.WafWebAclArn
+            - !Ref AWS::NoValue
+        HostedZoneId:
+          !If
+            - HostedZoneIdProvided
+            - !Ref HostedZoneId
+            - !Ref AWS::NoValue
 
   ECS:
     Type: AWS::CloudFormation::Stack
@@ -216,8 +265,11 @@ Resources:
           !Ref Landscape
         SecurityGroupId:
           !GetAtt SecurityGroups.Outputs.ECSHostSecurityGroup
-        LoadBalancerUrl:
-          !GetAtt ALB.Outputs.LoadBalancerUrl
+        DNSName:
+          !If 
+            - HostedZoneCommonNameProvided
+            - !Ref HostedZoneCommonName
+            - !GetAtt ALB.Outputs.DNSName
         InstanceType:
           !Ref InstanceType
         CampusSubnet1:
@@ -355,5 +407,10 @@ Outputs:
 
   KualiResearchUrl:
     Description: The URL endpoint for the kuali research service
-    Value: 
-      !GetAtt ALB.Outputs.LoadBalancerUrl
+    Value:
+      !Sub 
+      - ${domain}/kc
+      - domain: !If 
+        - HostedZoneCommonNameProvided
+        - !Ref HostedZoneCommonName
+        - !GetAtt ALB.Outputs.DNSName

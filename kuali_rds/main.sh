@@ -52,23 +52,19 @@ run() {
   task="${1,,}"
   shift
 
-  if [ "$task" == 'create-stack' ] || [ "$task" == 'recreate-stack' ] || [ "$task" == 'update-stack' ] ; then
-    if ! isBuCloudInfAccount ; then
-      LEGACY_ACCOUNT='true'
-      echo 'Current profile indicates legacy account.'
-      defaults['BUCKET_PATH']='s3://kuali-research-ec2-setup/cloudformation/kuali_rds'
-    fi
-  fi
-
   if [ "$task" == 'get-password' ] ; then
     # Operate silently so that only the password shows up without the extra console output.
     parseArgs $@ 1> /dev/null
+
+    checkLegacyAccount 1> /dev/null
 
     setDefaults 1> /dev/null
 
   elif [ "$task" != "test" ] ; then
 
     parseArgs $@
+
+    checkLegacyAccount
 
     setDefaults
   fi
@@ -95,6 +91,8 @@ stackAction() {
     # Upload the yaml file(s) to s3
     uploadStack
     [ $? -gt 0 ] && exit 1
+    # Upload scripts that will be run as part of AWS::CloudFormation::Init
+    aws s3 cp ../scripts/ec2/stop-instance.sh s3://$BUCKET_NAME/cloudformation/scripts/ec2/
 
     cat <<-EOF > $cmdfile
     aws cloudformation $action \\
@@ -199,7 +197,7 @@ runTask() {
       stackAction "delete-stack" ;;
     get-password)
       # Must include PROFILE and LANDSCAPE
-      getRdsPassword ;;
+      getRdsAdminPassword ;;
     test)
       # export AWS_PROFILE=infnprd
       # PROFILE=infnprd

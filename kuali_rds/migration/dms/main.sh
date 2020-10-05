@@ -278,7 +278,7 @@ runTask() {
       preMigrationAssessmentOk ;;
     get-password)
       # Must include PROFILE and LANDSCAPE
-      getRdsPassword ;;
+      getRdsAdminPassword ;;
     test)
       LANDSCAPE='ci'
       # local counter=1

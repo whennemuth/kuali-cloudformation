@@ -1,0 +1,107 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+# References:
+# https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/CreatingNewSubdomain.html
+# https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_Route53.html
+# https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/quickref-route53.html#scenario-recordsetgroup-zoneapex
+
+
+Description: This template deploys an application load balancer that exposes the EC2 Instance (except for ssh access)
+
+Parameters:
+
+  GlobalTag:
+    Type: String
+    Description: >
+      A common value that all resources in this template will have prefixed to
+      their name and attached as a tag to establish a bundling through naming convention. If a nested stack,
+      this will most likely be the name of the top-most stack.
+    Default: kuali-ec2-alb
+
+  Landscape:
+    Description: Specify which landscape to build into the VPC
+    Type: String
+    AllowedValues:
+    - sb
+    - ci
+    - qa
+    - stg
+    - prod
+    ConstraintDescription: >
+      This parameter is restricted to the following values: sb, ci, qa, stg, prod
+    
+  Service:
+    Description: Service catalog name
+    Type: String
+    Default: kc
+
+  Function:
+    Description: The Function within the Service
+    Type: String
+    Default: dns
+
+  CreateHostedZoneLogGroup:
+    Description: Log activity for the hosted zone to cloudwatch?
+    Type: String
+    Default: "yes"
+    AllowedValues:
+    - "yes"
+    - "no"
+
+
+Conditions:
+    CreateLogGroup: !Equals [!Ref CreateHostedZoneLogGroup, 'yes']
+
+
+Resources:
+
+  HostedZoneLogGroup:
+    Type: AWS::Logs::LogGroup
+    Condition: CreateLogGroup
+    DeletionPolicy: Delete
+    Properties:
+      LogGroupName: !Sub /aws/route53/${GlobalTag}-${Landscape}-hosted-zone
+      RetentionInDays: 30
+
+  # This won't work. You must manually created a resouce-based policy first.
+  # Route53 is a service that, for logging, supports attaching permission policies to it as a resource, not a principal.
+  # This means that route53 does not assume a role that grants it permission to log to cloudwatch, but the route53 
+  # resource itself is associated with the policy that the role would have had.
+  # SEE: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_compare-resource-policies.html
+  #
+  # CloudwatchLoggingRole:
+  #   Type: AWS::IAM::Role
+  #   Properties:
+  #     AssumeRolePolicyDocument:
+  #       Statement:
+  #       - Effect: Allow
+  #         Principal:
+  #           Service: route53.amazonaws.com
+  #         Action: sts:AssumeRole
+  #     Policies:
+  #     - PolicyName: CloudWatchAccess
+  #       PolicyDocument:
+  #         Statement:
+  #           - Effect: Allow
+  #             Action:
+  #               - logs:PutLogEvents
+  #               - logs:CreateLogStream
+  #             Resource: !GetAtt HostedZoneLogGroup.Arn
+
+  DNS: 
+    Type: AWS::Route53::HostedZone
+    Properties: 
+      Name: !Sub kuali-research-css-${Landscape}.bu.edu
+      HostedZoneConfig: 
+        Comment: !Sub Hosted zone for kuali-research-css-${Landscape}.bu.edu
+      QueryLoggingConfig:
+        CloudWatchLogsLogGroupArn: !GetAtt HostedZoneLogGroup.Arn
+      HostedZoneTags: 
+        - Key: Name
+          Value: !Sub ${GlobalTag}-${Landscape}-hosted-zone
+        - Key: Service
+          Value: !Ref Service
+        - Key: Function
+          Value: !Ref Function
+        - Key: Landscape
+          Value: !Ref Landscape

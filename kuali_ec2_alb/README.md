@@ -47,7 +47,7 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
    cd kuali-infrastructure/kuali_ec2_alb
    ```
 
-2. **Certificate creation:**
+2. **Certificate creation/upload:**
    The load balancer will be configured to redirect all http traffic to https. This means that it needs to have an ssl certificate to decrypt all incoming traffic on port 443 before forwarding on to the application hosts. You may already have a certificate uploaded to IAM or ACM.
    However, you can also call this script to create and upload a self-signed certificate for you:
 
@@ -61,7 +61,7 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
       # Example 1): Certificate will be uploaded to "s3://kuali-conf/cloudformation/kuali_ec2_alb"
       sh main.sh cert
       
-      # Example 2): Upload certificate to another bucket path (bucke will be created if it does not already exist).
+      # Example 2): Upload certificate to another bucket path (bucket will be created if it does not already exist).
       sh main.sh cert bucket_path=s3://my_bucket/some/directory
       ```
 
@@ -138,7 +138,7 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
    Once the stack has been created, you can visit the Course Schedule Planner app in your browser.
 
    1. Go to the stack in the [AWS Console](https://console.aws.amazon.com/cloudformation/home?region=us-east-1). Click on the new stack in the list and go to the "Outputs" tab.
-   2. There will be an "LoadBalancerUrl" output. Click on the link it has for a value.
+   2. There will be an "DNSName" output. Click on the link it has for a value.
    3. If you used a self-signed certificate, you should be presented with a security warning. Click to proceed despite the warning.
    4. You should now see the app.
 

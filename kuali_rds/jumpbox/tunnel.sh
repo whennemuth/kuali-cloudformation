@@ -38,12 +38,12 @@ tunnelToRDS() {
     else
       echo "WARNING! Landscape parameter is missing for RDS endpoint lookup."
       echo "Cancelling..."
-      exit 991
+      exit 101
     fi
     if [ -z "$RDS_ENDPOINT" ] ; then
       echo "Lookup for RDS endpoint failed!"
       echo "Cancelling..."
-      exit 992
+      exit 102
     fi
   fi
   
@@ -63,7 +63,7 @@ tunnelToRDS() {
     if [ -z "$instance_state" ] ; then
       echo "INSUFFICIENT PARAMETERS! Jumpbox instance ID is missing"
       echo "Cancelling..."
-      exit 993 
+      exit 103 
     else
       JUMPBOX_INSTANCE_ID="$(echo "$instance_state" | awk '{print $1}')"
       JUMPBOX_INSTANCE_STATE="$(echo "$instance_state" | awk '{print $2}')"
@@ -82,21 +82,21 @@ tunnelToRDS() {
   if [ -z "$az" ] ; then
     echo "INSUFFICIENT PARAMETERS! Jumpbox availability zone is missing and could not be looked up."
     echo "Cancelling..."
-    exit 994
+    exit 104
   fi
 
   local region=$(echo "$az" | sed 's/[a-z]$//')
   if [ -z "$region" ] ; then
     echo "INSUFFICIENT PARAMETERS! Jumpbox region is missing and could not be looked up."
     echo "Cancelling..."
-    exit 995
+    exit 105
   fi
 
   local privateIp=$(echo "$data" | awk '{print $2}')
   if [ -z "$privateIp" ] ; then
     echo "INSUFFICIENT PARAMETERS! Jumpbox instance private ip is missing and could not be looked up."
     echo "Cancelling..."
-    exit 996
+    exit 106
   fi
 
   if [ "${JUMPBOX_INSTANCE_STATE,,}" == 'stopped' ] ; then
@@ -172,5 +172,3 @@ EOF
 }
 
 tunnelToRDS
-
-# waitForEc2InstanceToFinishStarting 'i-0596a35cb03f70336' 1

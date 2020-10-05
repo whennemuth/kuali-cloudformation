@@ -145,7 +145,7 @@ Resources:
                 ec2:ResourceTag/Name:
                   !Sub ${GlobalTag}-${Landscape}
               StringEquals:
-                ec2:ResourceTag/Self-Stoppable:
+                ec2:ResourceTag/self-stoppable:
                   'true'
 
   JumpboxInstanceProfile:
@@ -192,7 +192,7 @@ Resources:
         Value: Kuali
       - Key: Environment
         Value: !Ref Landscape
-      - Key: Self-Stoppable
+      - Key: self-stoppable
         Value: 'true'
       ImageId: 
         !Ref ECSAMI
@@ -244,33 +244,12 @@ Resources:
                 owner: root
                 group: root
               /usr/local/sbin/stop-instance.sh:
+                source: !Sub http://${BucketName}.s3.amazonaws.com/cloudformation/scripts/ec2/stop-instance.sh
                 content: !Sub |
-                  #!/bin/bash
-                  # Target this script with a crontab and the instance will be shutdown on the crontab schedule if tagging indicates it's authorized.
-                  instanceId=$(curl http://169.254.169.254/latest/meta-data/instance-id 2> /dev/null)
-                  stoppable=$(aws ec2 describe-tags \
-                    --filters \
-                    "Name=resource-id,Values=$instanceId" \
-                    "Name=key,Values=Self-Stoppable" \
-                    --region ${AWS::Region} \
-                    --output=text | cut -f5 2> /dev/null
-                  )
-                  if [ "$stoppable" != 'true' ] ; then
-                    exit 0
-                  fi
-                  # You can skip the next scheduled shutdown by creating a /tmp/skipshutdown file.
-                  if [ -f /tmp/skipshutdown ] ; then
-                    echo "$(date) Skipping shutdown for today - skip file found." >>  /usr/local/sbin/cronlog
-                    rm -f /tmp/skipshutdown
-                    exit 0
-                  fi
-                  
-                  echo "$(date) Stopping instance per cron schedule..." >> /usr/local/sbin/cronlog
-                  aws ec2 stop-instances --region ${AWS::Region} --instance-ids $instanceId >> /usr/local/sbin/cronlog 2>&1
-                mode: "000755"
+                mode: "000775"
                 owner: root
                 group: root
-
+ 
 Outputs:
 
   InstanceID:

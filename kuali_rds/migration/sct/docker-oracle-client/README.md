@@ -1,6 +1,6 @@
-## docker-oracle-client
+## Dockerized Oracle client
 
-A docker-container for Oracle Instant Client 12, based on CentOs. You can use this container to run any SQL script necessary against both source and target oracle databases as part of a data migration.
+A docker-container for Oracle Instant Client 12, based on CentOs. You can use this container to run any SQL script necessary against both source and target oracle databases as part of a data migration. The "source" database for a kuali migration is the one we've been using for years now since 2016. We call this the ***"legacy"*** database. The target database can be referred to as the ***"RDS"*** database.
 
 This container is mostly for convenience and automation of many otherwise manual SQL execution steps.
 The container comes with helper scripts that are environment "aware" - that is, given a "landscape" identifier (ie: sb, ci, qa, stg, prod), connection details can be obtained dynamically using lookups through the aws cli, which is also installed.
@@ -27,10 +27,78 @@ From here, you can run the container through a helper script.
 The first time you run the container, you will see the image being built first. All subsequent calls will be more straightforward.
 You can drive what the container does with name=value parameter pairs:
 
-1. **Run interactive session:**
-  
+
+
+#### Kuali use cases:
+
+------
+
+   
+
+- **Run all SCT-generated SQL scripts:**
+
+  This is the main use case for kuali.
+  If you have generated DDL scripts with AWS Schema Conversion tool, they will exist in a different input directory:
+  `../sql/[landscape]`
+  These scripts will be run in the order reflected by their numeric prefix *(ie: `"03.create.kcoeus.user.sql"` will be run 3rd)*.
+  Run all scripts in this folder as follows: 
+
+  ```
+  sh dbclient.sh run-sct-scripts \
+    aws_access_key_id=[your key] \
+    aws_secret_access_key=[your secret] \
+    landscape=ci
+  ```
+
+     
+
+- **Turn off/on all constraints and triggers**
+
+  If you've run all the SCT generated SQL scripts, the last stage of that process disables all the constraints and triggers of the newly created RDS database. This is done so that data migration soon to follow will not encounter any problems inserting rows of data into tables. However, this means that once the data migration is finished, you will want to reinstate these constraints and triggers:
+
+  ```
+  # Disable all constraints and triggers
+  # NOTE: "DISABLE" is the default for toggle_constraints and toggle_triggers, so you can omit them.
+    aws_access_key_id=[your key] \
+    aws_secret_access_key=[your secret] \
+    landscape=ci
+    
+  # Enable all constraints and triggers:
+  sh dbclient.sh toggle-constraints-triggers\
+    aws_access_key_id=[your key] \
+    aws_secret_access_key=[your secret] \
+    landscape=ci \
+    toggle_constraints=ENABLE toggle_triggers=ENABLE
+  ```
+
+     
+
+- **Run Table row count comparison scripts:**
+
+   After the AWS migration service has run, one way to validate that all data has been migrated is to compare table row counts between the source and target schemas. The following script will print out only the names of tables whos row counts differ between source and target schemas.
+   A valid migration should lead to this script outputting no tables names.
+
+   ```
+   # EXAMPLE 3: Run ALL SQL script files in the input folder against the RDS database:
+   sh dbclient.sh compare-table-counts \
+     aws_access_key_id=[your key] \
+     aws_secret_access_key=[your secret] \
+     landscape=ci \
+     bucket_name=kuali-research-ec2-setup
+   ```
+
+      
+
+#### Generic use cases:
+
+------
+
+   
+
+- **Run interactive session:**
+
   Start session with "Legacy" database:
-  
+
    ```
    # EXAMPLE 1:
    sh dbclient.sh run \ 
@@ -51,11 +119,11 @@ You can drive what the container does with name=value parameter pairs:
      db_password=[password] \
      sid=Kuali
    ```
-  
+
   ​    
-  
+
    Start session with"Target" RDS database:
-  
+
    ```
    # EXAMPLE 1: 
    sh dbclient.sh run \ 
@@ -70,10 +138,10 @@ You can drive what the container does with name=value parameter pairs:
      db_password=[password] \
      landscape=ci
    ```
-  
-  
+
+
    Example output:
-  
+
    ```
    LANDSCAPE=ci
    BUCKET_NAME=kuali-research-ec2-setup
@@ -101,10 +169,10 @@ You can drive what the container does with name=value parameter pairs:
       
    SQL> 
    ```
-  
-  
+
+
    You can start running SQL commands or scripts:
-  
+
    ```
    SQL> describe account
    Name                                      Null?    Type
@@ -120,10 +188,10 @@ You can drive what the container does with name=value parameter pairs:
    
    SQL>
    ```
-  
-  
+
+
    And quit:
-  
+
    ```
    SQL> exit
    Disconnected from Oracle Database 19c Standard Edition 2 Release 19.0.0.0.0 - Production
@@ -132,15 +200,15 @@ You can drive what the container does with name=value parameter pairs:
 
    
 
-2. **Run one, multiple, or all SQL script files:**
-  
+- **Run one, multiple, or all SQL script files:**
+
    You can run selected SQL files against the database.
-   
+
    - Create an `"input"` subdirectory in the same folder as dbclient.sh if it does not already exist.
       All SQL script files that you want to run should be placed in this folder.
    - The names of the files you want to run should be provided as a comma delimited list (no spaces) as a `"file_to_run"` parameter
    - The output of each file will appear in it's own log file in an `"output"` folder *(will be created on the fly if it does not already exist)*.
-   
+
    ```
    # EXAMPLE 1: Run 3 SQL scripts against the legacy database:
    sh dbclient.sh run \
@@ -165,50 +233,20 @@ You can drive what the container does with name=value parameter pairs:
      landscape=ci \
      files_to_run=all
    ```
-   
+
       
-   
-3. **Run all SCT-generated SQL scripts:**
-  
-   The If you have generated DDL scripts with AWS Schema Conversion tool, they will exist in a different input directory:
-   `../sql/[landscape]`
-   These scripts will be run in the order reflected by their numeric prefix *(ie: `"03.create.kcoeus.user.sql"` will be run 3rd)*.
-Run all scripts in this folder as follows: 
-   
+
+- **Run raw sql:**
+  If the sql is short, you could provide it inline like this:
+
    ```
-   sh dbclient.sh run-sct-scripts \
-     aws_access_key_id=[your key] \
-     aws_secret_access_key=[your secret] \
-     landscape=ci
-   ```
-   
-      
-   
-4. Run raw sql:
-If the sql is short, you could provide it inline like this:
-   
-   ```
-sh dbclient.sh run \
+  sh dbclient.sh run \
      aws_access_key_id=[your key] \
      aws_secret_access_key=[your secret] \
      landscape=ci \
      raw_sql="select table_name from user_tables;"
    ```
-   
-   
-   
-5. **Run Table row count comparison scripts:**
 
-   After the AWS migration service has run, one way to validate that all data has been migrated is to compare table row counts between the source and target schemas. The following script will print out only the names of tables whos row counts differ between source and target schemas.
-   A valid migration should lead to this script outputting no tables names.
+  ​    
 
-   ```
-   # EXAMPLE 3: Run ALL SQL script files in the input folder against the RDS database:
-   sh dbclient.sh compare-table-counts \
-     aws_access_key_id=[your key] \
-     aws_secret_access_key=[your secret] \
-     landscape=ci \
-     bucket_name=kuali-research-ec2-setup
-   ```
-
-   
+- More

@@ -258,9 +258,9 @@ Mappings:
     dms.c4.4xlarge:
       parallelTasks: 20
     dms.r4.large:
-      parallelTasks: 20
+      parallelTasks: 8
     dms.r4.xlarge:
-      parallelTasks: 20
+      parallelTasks: 12
     dms.r4.2xlarge:
       parallelTasks: 20
     dms.r4.4xlarge:
@@ -490,7 +490,7 @@ Resources:
                       "rule-id": "4",
                       "rule-name": "4",
                       "object-locator": {
-                          "schema-name": "KULUSERMAINT",
+                          "schema-name": "SAPBWKCRM",
                           "table-name": "%",
                           "table-type": "table"
                         },
@@ -503,16 +503,16 @@ Resources:
                       "rule-action": "rename",
                       "rule-target": "schema",
                       "object-locator": {
-                        "schema-name": "KULUSERMAINT"
+                        "schema-name": "SAPBWKCRM"
                       },
-                      "value": "KULUSERMAINT"
+                      "value": "SAPBWKCRM"
                     },
                     {
                       "rule-type": "selection",
                       "rule-id": "6",
                       "rule-name": "6",
                       "object-locator": {
-                          "schema-name": "SAPBWKCRM",
+                          "schema-name": "SAPETLKCRM",
                           "table-name": "%",
                           "table-type": "table"
                         },
@@ -525,16 +525,16 @@ Resources:
                       "rule-action": "rename",
                       "rule-target": "schema",
                       "object-locator": {
-                        "schema-name": "SAPBWKCRM"
+                        "schema-name": "SAPETLKCRM"
                       },
-                      "value": "SAPBWKCRM"
+                      "value": "SAPETLKCRM"
                     },
                     {
                       "rule-type": "selection",
                       "rule-id": "8",
                       "rule-name": "8",
                       "object-locator": {
-                          "schema-name": "SAPETLKCRM",
+                          "schema-name": "SNAPLOGIC",
                           "table-name": "%",
                           "table-type": "table"
                         },
@@ -547,16 +547,16 @@ Resources:
                       "rule-action": "rename",
                       "rule-target": "schema",
                       "object-locator": {
-                        "schema-name": "SAPETLKCRM"
+                        "schema-name": "SNAPLOGIC"
                       },
-                      "value": "SAPETLKCRM"
+                      "value": "SNAPLOGIC"
                     },
                     {
                       "rule-type": "selection",
                       "rule-id": "10",
                       "rule-name": "10",
                       "object-locator": {
-                          "schema-name": "SNAPLOGIC",
+                          "schema-name": "KCRMPROC",
                           "table-name": "%",
                           "table-type": "table"
                         },
@@ -569,16 +569,16 @@ Resources:
                       "rule-action": "rename",
                       "rule-target": "schema",
                       "object-locator": {
-                        "schema-name": "SNAPLOGIC"
+                        "schema-name": "KCRMPROC"
                       },
-                      "value": "SNAPLOGIC"
+                      "value": "KCRMPROC"
                     },
                     {
                       "rule-type": "selection",
                       "rule-id": "12",
                       "rule-name": "12",
                       "object-locator": {
-                          "schema-name": "KCRMPROC",
+                          "schema-name": "KULUSERMAINT",
                           "table-name": "%",
                           "table-type": "table"
                         },
@@ -591,9 +591,20 @@ Resources:
                       "rule-action": "rename",
                       "rule-target": "schema",
                       "object-locator": {
-                        "schema-name": "KCRMPROC"
+                        "schema-name": "KULUSERMAINT"
                       },
-                      "value": "KCRMPROC"
+                      "value": "KULUSERMAINT"
+                    },
+                    {
+                      "rule-type": "selection",
+                      "rule-id": "14",
+                      "rule-name": "14",
+                      "object-locator": {
+                          "schema-name": "KULUSERMAINT",
+                          "table-name": "KULUSER_MAINT_PK_SUPPORT_T",
+                          "table-type": "table"
+                        },
+                      "rule-action": "exclude"
                     }
                 ]
             }

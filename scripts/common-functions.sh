@@ -24,7 +24,8 @@ parseArgs() {
     eval "${name^^}=$value" 2> /dev/null || true
   done
   if [ -n "$PROFILE" ] ; then
-    export AWS_PROFILE=$PROFILE  
+    export AWS_PROFILE=$PROFILE 
+    [ "$SILENT" != 'true' ] && echo "export AWS_PROFILE=$PROFILE"
   elif [ -z "$DEFAULT_PROFILE" ] ; then
     if [ "$task" != 'validate' ] ; then
       echo "Not accepting a blank profile. If you want the default then use \"profile='default'\" or default_profile=\"true\""
@@ -35,7 +36,7 @@ parseArgs() {
 
 setDefaults() {
   # Set explicit defaults first
-  [ -z "$LANDSCAPE" ] && LANDSCAPE="${defaults['LANDSCAPE']}"
+  [ -z "$LANDSCAPE" ] && LANDSCAPE="${defaults['LANDSCAPE']}" || LANDSCAPE="${LANDSCAPE,,}"
   [ -z "$GLOBAL_TAG" ] && GLOBAL_TAG="${defaults['GLOBAL_TAG']}"
   for k in ${!defaults[@]} ; do
     [ -n "$(eval 'echo $'$k)" ] && continue; # Value is not empty, so no need to apply default
@@ -56,13 +57,17 @@ setDefaults() {
     TEMPLATE_PATH=$tempath
     # Strip off the directory path and reduce down to file name only.
     TEMPLATE=$(echo "$TEMPLATE" | grep -oP '[^/]+$')
+    [ "$SILENT" != 'true' ] && echo "TEMPLATE = $TEMPLATE"
   fi
   # Trim off any trailing forward slashes
   TEMPLATE_PATH=$(echo "$TEMPLATE_PATH" | sed 's/\/*$//')
+  [ "$SILENT" != 'true' ] && echo "TEMPLATE_PATH = $TEMPLATE_PATH"
   # Get the http location of the bucket path 
   BUCKET_URL="$(echo "$BUCKET_PATH" | sed 's/s3:\/\//https:\/\/s3.amazonaws.com\//')"
+  [ "$SILENT" != 'true' ] && echo "BUCKET_URL = $BUCKET_URL"
   # Fish out just the bucket name from the larger bucket path
   BUCKET_NAME="$(echo "$BUCKET_PATH" | grep -oP '(?<=s3://)([^/]+)')"
+  [ "$SILENT" != 'true' ] && echo "BUCKET_NAME = $BUCKET_NAME"
 }
 
 # Validate one or all cloudformation yaml templates.
@@ -279,8 +284,280 @@ createEc2KeyPair() {
   fi
 }
 
+printCertLookupSteps() {
+  cat <<EOF
+
+-------------------------------------------------
+        SPECIFY SSL CERTIFICATE
+-------------------------------------------------        
+  The arn for the ssl certificate is not specified.
+  Will search in the following order and prompt for ok to take actions.
+  (NOTE: You can cancel everything at this point - (CTRL+C)):
+    --------------------------------------------------------
+        ACM CERTIFICATE
+    --------------------------------------------------------
+    1) Use cli to find out if a certificate with the following CN (common name) 
+       exists in acm and get its arn.
+         CN: $CN
+    2) If not found, identify 3 files in current directory that can combine for 
+       certificate import.
+    3) If files found, prompt for import to acm to create new certificate entry.
+    4) If not accepted by user for import, search s3 in a known location for similar 
+       files and download to temp directory.
+    5) If files downloaded from s3 pass the same test, prompt user again.
+    --------------------------------------------------------
+        SELF-SIGNED CERTIFICATE (IAM SERVER CERTIFICATE)
+    --------------------------------------------------------
+    6) If user does not accept, prompt if they want to use a self-signed certificate.
+    7) If user accepts, look for a self-signed certificate in iam by the expected name.
+    8) If found, prompt the user if they want to continue to use it or.
+    9) If not accepted, prompt the user if they want to have a new self-signed 
+       certificate created and uploaded to iam.
+    10) If no accepted, exit - there are no other options and cannot proceed 
+        with out a certificate.
+
+EOF
+}
+
+getAcmCertArn() {
+  local domainName="$1"
+  local arn=$(
+    aws acm list-certificates \
+      --output text \
+      --query 'CertificateSummaryList[?DomainName==`'$domainName'`].{arn:CertificateArn}' 2> /dev/null)
+  echo "$arn"
+}
+
+setAcmCertArn() {
+  local domainName="$1"
+  local arn="$(getAcmCertArn $domainName)"
+  [ -n "$arn" ] && CERTIFICATE_ARN="$arn" && return 0
+
+  local checkS3=${2:-'true'}
+  local keyfiles=0
+  local certfiles=0
+  local chainfiles=0
+
+  echo "Searching $(pwd) for cert & key files..."
+
+  # 1) Check for cert files
+  for f in $(grep -irxE '\-+BEGIN CERTIFICATE\-+' *.* | cut -d':' -f1 | uniq) ; do
+    if isAChainFile $f ; then
+      local chainfile=$f
+      ((chainfiles++))
+    elif isACertFile $f ; then
+      # Make sure the certificate file is for the domain we want it to be.
+      local certDomain="$(openssl x509 -text -noout -in $f | grep -ioP '(?<=CN=)[^\s]*\.[a-z]{2,3}' | uniq)"
+      if [ "$domainName" == "$certDomain" ] ; then
+        local certfile=$f
+        ((certfiles++))
+      else
+        echo "Found $f, but has mismatching domain/common name:"
+        echo "   $f"
+        echo "   Need: $domainName"
+        echo "   Found: $certDomain"
+      fi
+    fi
+  done
+
+  # 2) Check for key file
+  if [ $((certfiles+chainfiles)) -eq 2 ] ; then
+    for f in $(grep -irxE '\-+BEGIN RSA PRIVATE KEY\-+' *.* | cut -d':' -f1 | uniq) ; do
+      if isAKeyFile $f ; then
+        local keyfile=$f
+        ((keyfiles++))
+      fi
+    done
+  fi
+  
+  # 3) If one of each file type was found, there can be no confusion, so ask to import these to acm.
+  if [ $((certfiles+chainfiles+keyfiles)) -eq 3 ] ; then
+    if askImportCertToAcm ; then
+      echo "Importing new certificate to acm..."
+      CERTIFICATE_ARN=$(importCertToAcm)
+      [ $? -gt 0 ] && exit 1
+      # Add tags to the certificate
+      echo "Applying tags to new certificate in acm..."
+      aws acm add-tags-to-certificate \
+        --certificate-arn $CERTIFICATE_ARN \
+        --tags \
+            Key=Name,Value=$domainName \
+            Key=Function,Value=acm \
+            Key=Service,Value=kc \
+            Key=Landscape,Value=$LANDSCAPE
+
+    elif [ "$checkS3" == 'true' ] ; then
+      if askYesNo "Check S3 for these files instead?" ; then
+        downloadAcmCertsFromS3 'import'
+      fi
+    fi
+  else
+    if askYesNo "Insufficient, unqualified, or no certificate/key files found in $(pwd)\nCheck s3 for them?" ; then
+      downloadAcmCertsFromS3 'import'
+    fi
+  fi
+}
+
+askImportCertToAcm() {
+  cat <<EOF
+
+Found 3 files that look like what we need to import to acm for ssl cert.
+The load balancer is lacking a certificate in acm. If these correspond to 
+the $LANDSCAPE landscape, they can be imported to acm:
+  1) Keyfile:           $(pwd)/$keyfile
+  2) Root certificate:  $(pwd)/$certfile
+  3) Certificate chain: $(pwd)/$chainfile
+    
+EOF
+  askYesNo "Import these files to acm?" && true || false
+}
+
+downloadAcmCertsFromS3() {
+  local setArn="$1"
+  echo "Searching $LANDSCAPE folder in s3 bucket for cert & key files..."
+  local files=$(
+    aws s3 ls s3://$BUCKET_NAME/$LANDSCAPE/ \
+      --profile=infnprd \
+      --recursive \
+      | awk '{print $4}' \
+      | grep -E '^([^/]+/){1}[^/]+\.((cer)|(crt)|(key))' 2> /dev/null
+  )
+  local tempdir='_cert_files_from_s3'
+  rm -rf $tempdir
+  for path in $files ; do
+    [ ! -d $tempdir ] && mkdir $tempdir
+    aws s3 cp s3://$BUCKET_NAME/$path $tempdir/
+  done
+  if [ $(ls -1 $tempdir/ | wc -l) -ge 3 ] ; then
+    if [ "$setArn" ] ; then
+      cd $tempdir
+      setAcmCertArn $domainName 'false'
+      cd - 1> /dev/null
+      rm -rf $tempdir
+    fi
+  fi
+}
+
+importCertToAcm() {
+  case $(awsVersion) in
+    1)
+      aws acm import-certificate \
+        --certificate file://$certfile \
+        --private-key file://$keyfile \
+        --certificate-chain file://$chainfile \
+        --output text 2> /dev/null | grep -Po 'arn:aws:acm[^\s]*'
+      ;;
+    2)
+      aws acm import-certificate \
+        --certificate fileb://$certfile \
+        --private-key fileb://$keyfile \
+        --certificate-chain fileb://$chainfile \
+        --output text 2> /dev/null | grep -Po 'arn:aws:acm[^\s]*'
+      ;;
+  esac
+}
+
+isACertFile() {
+  local certfile="$1"
+  if [ -f $certfile ] ; then
+    local hasBeginCert="$(head -n 1 $certfile | grep -xE '\-+BEGIN CERTIFICATE\-+')"
+    if [ "$hasBeginCert" ] ; then
+      local hasEndCert="$(tail -n 1 $certfile | grep -xE '\-+END CERTIFICATE\-+')"
+    fi
+  fi
+  ([ "$hasBeginCert" ] && [ "$hasEndCert" ]) && true || false
+}
+
+isAKeyFile() {
+  local keyfile="$1"
+  if [ -f $keyfile ] ; then
+    local hasBeginKey="$(head -n 1 $keyfile | grep -xE '\-+BEGIN RSA PRIVATE KEY\-+')"
+    if [ "$hasBeginKey" ] ; then
+      local hasEndKey="$(tail -n 1 $keyfile | grep -xE '\-+END RSA PRIVATE KEY\-+')"
+    fi
+  fi
+  ([ "$hasBeginKey" ] && [ "$hasEndKey" ]) && true || false
+}
+
+isAChainFile() {
+  local chainfile="$1"
+  local beginMarkers=0
+  local endMarkers=0
+  if isACertFile $chainfile ; then
+    beginMarkers=$(grep -irxE '\-+BEGIN CERTIFICATE\-+' $chainfile | wc -l)
+    endMarkers=$(grep -irxE '\-+END CERTIFICATE\-+' $chainfile | wc -l)
+  fi
+  ([ $beginMarkers -eq 3 ] && [ $endMarkers -eq 3 ]) && true || false
+}
+
+setCertArn() {
+  [ -n "$CERTIFICATE_ARN" ] && return 0
+  printCertLookupSteps
+  setAcmCertArn "$CN"
+  if [ -z "$CERTIFICATE_ARN" ] ; then
+    if askYesNo "Use a self-signed certificate instead?" ; then
+      setSelfSignedCertArn
+    fi
+  fi
+  if [ -z "$CERTIFICATE_ARN" ] ; then
+    printf "Cannot proceed without a server certificate.\nCancelling..."
+    exit 1
+  fi 
+  echo "Using certificate: $CERTIFICATE_ARN"
+}
+
+# Print out the arn of the self signed certificate if it exists in iam.
+getSelfSignedArn() {
+  local certname="$1"
+  [ -n "$CERTIFICATE_ARN" ] && echo "$CERTIFICATE_ARN" && return 0
+
+  aws \
+    iam list-server-certificates \
+    --output text \
+    --query 'ServerCertificateMetadataList[?ServerCertificateName==`'$certname'`].{Arn:Arn}' 2> /dev/null
+}
+
+setSelfSignedCertArn() {
+  [ -n "$CERTIFICATE_ARN" ] && return 0
+
+  if [ -n "$GLOBAL_TAG" ] ; then
+    local certname="${GLOBAL_TAG}-${LANDSCAPE}-cert"
+  else
+    local certname="kuali-cert-${LANDSCAPE}"
+  fi
+
+  printf "\nChecking iam for server certificate: $certname...\n"
+  CERTIFICATE_ARN="$(getSelfSignedArn $certname)"
+  
+  if [ -n "$CERTIFICATE_ARN" ] ; then
+    echo "Found arn for self-signed certificate: $CERTIFICATE_ARN"
+    select choice in \
+      'Use this self-signed certificate' \
+      'Replace with a new self-signed certificate' \
+      'Exit the process.' ; do 
+        case $REPLY in
+          1) 
+            break ;;
+          2) 
+            echo "Deleting existing iam server certificate..."
+            aws iam delete-server-certificate --server-certificate-name $certname
+            createSelfSignedCertificate $certname
+            break
+            ;;
+          3) 
+            exit 0 ;;
+          *) echo "Valid selctions are 1, 2, 3"
+        esac
+    done;
+  elif askYesNo "No self-signed certificate found. Create and upload a new one?" ; then
+    createSelfSignedCertificate $certname
+  fi
+}
+
 # Create and upload to ACM a self-signed certificate in preparation for stack creation (will be used by the application load balancer)
 createSelfSignedCertificate() {
+  local certname="$1"
+
   # Create the key pair
   openssl req -newkey rsa:2048 \
     -x509 \
@@ -293,12 +570,7 @@ createSelfSignedCertificate() {
 
   # openssl req -new -x509 -nodes -sha256 -days 365 -key my-private-key.pem -outform PEM -out my-certificate.pem
 
-  # Upload to ACM and record the arn of the resulting resource
-  if [ -n "$GLOBAL_TAG" ] ; then
-    local certname="${GLOBAL_TAG}-${LANDSCAPE}-cert"
-  else
-    local certname="kuali-cert-${LANDSCAPE}"
-  fi
+  # Upload to IAM and record the arn of the resulting resource
 
   # WARNING!
   # For some reason cloudformation returns a "CertificateNotFound" error when the arn of a certificate uploaded to acm
@@ -314,54 +586,24 @@ createSelfSignedCertificate() {
   #    aws iam list-server-certificates
   # And delete it if found:
   #    aws iam delete-server-certificate --server-certificate-name [cert name]
-  aws iam upload-server-certificate \
+  echo "Uploading self-signed certificate to iam..."
+  CERTIFICATE_ARN=$(
+    aws iam upload-server-certificate \
     --server-certificate-name ${certname} \
     --certificate-body file://${GLOBAL_TAG}-self-signed.crt \
     --private-key file://${GLOBAL_TAG}-self-signed.key \
-    --output text | grep -Po 'arn:aws:iam[^\s]*' > ${GLOBAL_TAG}-self-signed.arn
+    --output text 2> /dev/null | grep -Po 'arn:aws:iam[^\s]*'
+  )
 
   # Create an s3 bucket for the app if it doesn't already exist
   if ! bucketExists "$BUCKET_NAME" ; then
     aws s3 mb s3://$BUCKET_NAME
   fi
   # Upload the arn and keyset to the s3 bucket
-  aws s3 cp ./${GLOBAL_TAG}-self-signed.arn $BUCKET_PATH/
-  aws s3 cp ./${GLOBAL_TAG}-self-signed.crt $BUCKET_PATH/
-  aws s3 cp ./${GLOBAL_TAG}-self-signed.key $BUCKET_PATH/  
+  aws s3 cp ./${GLOBAL_TAG}-self-signed.crt s3://$BUCKET_NAME/$LANDSCAPE/
+  aws s3 cp ./${GLOBAL_TAG}-self-signed.key s3://$BUCKET_NAME/$LANDSCAPE/  
 }
 
-# Print out the arn of the self signed certificate if it exists.
-getSelfSignedArn() {
-  local arn="$CERTIFICATE_ARN"
-  local localArnFile=${GLOBAL_TAG}-self-signed.arn
-  local s3ArnFile=$BUCKET_PATH/${GLOBAL_TAG}-self-signed.arn
-  if [ -n "$arn" ] ; then
-    echo "$arn"
-  elif [ -f $localArnFile ] ; then
-    arn="$(cat $localArnFile)"
-    local found='file'
-  elif bucketExists $BUCKET_NAME ; then
-    arn="$(aws s3 cp $s3ArnFile - 2> /dev/null)"
-    local found='s3'
-  fi
-
-  if [ -n "$arn" ] ; then
-    matchingArn=$(
-      aws \
-        iam list-server-certificates \
-        --output text \
-        --query 'ServerCertificateMetadataList[?Arn==`'$arn'`].{Arn:Arn}')
-
-    if [ "$arn" != "$matchingArn" ] ; then
-      case "$found" in
-        file) rm -f $localArnFile ;;
-        s3) aws rm $s3ArnFile ;;
-      esac
-      return 0
-    fi
-  fi
-  echo "$arn"
-}
 
 # Get the id of the default vpc in the account. (Assumes there is only one default)
 getDefaultVpcId() {
@@ -655,19 +897,35 @@ secretExists() {
 }
 
 getRdsSecret() {
-  aws secretsmanager get-secret-value \
-    --secret-id kuali/$LANDSCAPE/kuali-oracle-rds-admin-password \
-    --output text \
-    --query '{SecretString:SecretString}' 2> /dev/null
+  [ -n "$RDS_SECRET" ] && echo "$RDS_SECRET" && return 0
+  local type="$1"
+  RDS_SECRET=$(
+    aws secretsmanager get-secret-value \
+      --secret-id kuali/$LANDSCAPE/kuali-oracle-rds-${type}-password \
+      --output text \
+      --query '{SecretString:SecretString}' 2> /dev/null
+    )
 }
 
-getRdsUsername() {
-  getRdsSecret | cut -d'"' -f8
+getRdsAdminUsername() {
+  # getRdsSecret | cut -d'"' -f8
+  getRdsSecret 'admin' | jq '.MasterUsername'
 }
 
-getRdsPassword() {
-  getRdsSecret | cut -d'"' -f4
+getRdsAdminPassword() {
+  # getRdsSecret | cut -d'"' -f4
+  getRdsSecret 'admin' | jq '.MasterUserPassword'
 }
+
+getRdsAppUsername() {
+  getRdsSecret 'app' | jq '.username'
+}
+
+getRdsAppPassword() {
+  getRdsSecret 'app' | jq '.password'
+}
+
+
 
 getRdsHostname() {
   local rdsArn=$(
@@ -882,7 +1140,7 @@ runStackActionCommand() {
   fi
 
   if [ "$PROMPT" == 'false' ] ; then
-    echo "\nExecuting the following command(s):\n\n$(cat $cmdfile)\n"
+    printf "\nExecuting the following command(s):\n\n$(cat $cmdfile)\n"
     local answer='y'
   else
     printf "\nExecute the following command:\n\n$(cat $cmdfile)\n\n(y/n): "
@@ -891,4 +1149,30 @@ runStackActionCommand() {
   [ "$answer" == "y" ] && sh $cmdfile || echo "Cancelled."
 
   [ $? -gt 0 ] && echo "Cancelling..." && exit 1
+}
+
+awsVersion() {
+  aws --version 2>&1 | awk '{print $1}' | cut -d'/' -f2 | cut -d'.' -f1
+}
+
+getHostedZoneId() {
+  local commonName="$1"
+  aws route53 list-hosted-zones \
+    --output text \
+    --query 'HostedZones[?starts_with(Name, `'$commonName'`) == `true`].{id:Id}' 2> /dev/null
+}
+
+checkLegacyAccount() {
+  if [ "$task" == 'create-stack' ] || [ "$task" == 'recreate-stack' ] || [ "$task" == 'update-stack' ] || [ "$task" == 'set-cert-arn' ] ; then
+    if ! isBuCloudInfAccount ; then
+      LEGACY_ACCOUNT='true'
+      echo 'Current profile indicates legacy account.'
+      defaults['BUCKET_PATH']=$(echo "${defaults['BUCKET_PATH']}" | sed -i 's/kuali-config/kuali-research-ec2-setup/')
+      if [ "$LANDSCAPE" != 'prod' ] && [ -n "${defaults['CN']}" ] ; then
+        defaults['CN']="kuali-research-$LANDSCAPE.bu.edu"
+      fi
+    elif [ "$LANDSCAPE" != 'prod' ] && [ -n "${defaults['CN']}" ] ; then
+      defaults['CN']="kuali-research-css-$LANDSCAPE.bu.edu"
+    fi
+  fi
 }

@@ -66,13 +66,13 @@ setRdsParms() {
     if [ -f $errfile ] ; then
       cat $errfile
     fi
-    if [ $errcode -ge 991 ] && [ $errcode -le 996 ] ; then
+    if [ $errcode -ge 101 ] && [ $errcode -le 106 ] ; then
       printf "\nTunnel failed. Exiting."
       exit $errcode
     fi
     printf "\nTunnel established.\n"
   fi
-  [ -z "$DB_PASSWORD" ] && DB_PASSWORD="$(getRdsPassword)"
+  [ -z "$DB_PASSWORD" ] && DB_PASSWORD="$(getRdsAdminPassword)"
   [ -z "$DB_PASSWORD" ] && echo "ERROR! RDS DB password not provided and lookup failed." && exit 1
   [ -z "$DB_USER" ] && DB_USER="admin"
   [ -z "$DB_HOST" ] && DB_HOST="127.0.0.1"
