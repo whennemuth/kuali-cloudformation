@@ -145,7 +145,6 @@ EOF
     add_parameter $cmdfile 'PublicSubnet1' 'PUBLIC_SUBNET1'
     add_parameter $cmdfile 'PublicSubnet2' 'PUBLIC_SUBNET2'
     add_parameter $cmdfile 'CertificateArn' 'CERTIFICATE_ARN'
-    add_parameter $cmdfile 'PdfS3BucketName' 'PDF_BUCKET_NAME'
     add_parameter $cmdfile 'PdfImage' 'PDF_IMAGE'
     add_parameter $cmdfile 'KcImage' 'KC_IMAGE'
     add_parameter $cmdfile 'CoreImage' 'CORE_IMAGE'
@@ -159,6 +158,10 @@ EOF
     add_parameter $cmdfile 'MinClusterSize' 'MIN_CLUSTER_SIZE'
     add_parameter $cmdfile 'MaxClusterSize' 'MAX_CLUSTER_SIZE'
 
+    if [ "${PDF_BUCKET_NAME,,}" != 'none' ] ; then  
+      add_parameter $cmdfile 'PdfS3BucketName' PDF_BUCKET_NAME
+    fi
+
     if [ "$ROUTE53" == 'true' ] ; then
       HOSTED_ZONE_ID="$(getHostedZoneId $CN)"
       [ -z "$hostedZoneId" ] && echo "ERROR! Could not obtain hosted zone id for $CN" && exit 1
@@ -166,18 +169,7 @@ EOF
       addParameter $cmdfile 'HostedZoneCommonName' $CN
     fi
 
-    echo "      ]'" >> $cmdfile
-
-    if [ "$DEBUG" ] ; then
-      cat $cmdfile
-      exit 0
-    fi
-
-    printf "\nExecute the following command:\n\n$(cat $cmdfile)\n\n(y/n): "
-    read answer
-    [ "$answer" == "y" ] && sh $cmdfile || echo "Cancelled."
-
-    [ $? -gt 0 ] && echo "Cancelling..." && return 1
+    runStackActionCommand
   fi
 }
 

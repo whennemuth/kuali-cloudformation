@@ -13,7 +13,7 @@ declare -A defaults=(
   [NO_ROLLBACK]='true'
   [PROFILE]='infnprd'
   [KEYPAIR_NAME]='kuali-ec2-$LANDSCAPE-keypair'
-  [PDF_BUCKET_NAME]='kuali-pdf-$LANDSCAPE'
+  [PDF_BUCKET_NAME]='$GLOBAL_TAG-pdf-$LANDSCAPE'
   # -----------------------------------------------
   # No defaults - user must provide explicit value:
   # -----------------------------------------------
@@ -104,54 +104,26 @@ stackAction() {
       --parameters '[
 EOF
 
-    addParameter $cmdfile 'VpcId' $VpcId
-    addParameter $cmdfile 'CampusSubnet' $CAMPUS_SUBNET1
-    [ -n "$PDF_IMAGE" ] && \
-      addParameter $cmdfile 'PdfImage' $PDF_IMAGE
-    [ -n "$KC_IMAGE" ] && \
-      addParameter $cmdfile 'KcImage' $KC_IMAGE
-    [ -n "$CORE_IMAGE" ] && \
-      addParameter $cmdfile 'CoreImage' $CORE_IMAGE
-    [ -n "$PORTAL_IMAGE" ] && \
-      addParameter $cmdfile 'PortalImage' $PORTAL_IMAGE
-    [ -n "$LANDSCAPE" ] && \
-      addParameter $cmdfile 'Landscape' $LANDSCAPE
-    [ -n "$GLOBAL_TAG" ] && \
-      addParameter $cmdfile 'GlobalTag' $GLOBAL_TAG
-    [ -n "$EC2_INSTANCE_TYPE" ] && \
-      addParameter $cmdfile 'EC2InstanceType' $EC2_INSTANCE_TYPE
-    [ -n "$ENABLE_NEWRELIC_APM" ] && \
-      addParameter $cmdfile 'EnableNewRelicAPM' $ENABLE_NEWRELIC_APM
-    [ -n "$ENABLE_NEWRELIC_INFRASTRUCTURE" ] && \
-      addParameter $cmdfile 'EnableNewRelicInfrastructure' $ENABLE_NEWRELIC_INFRASTRUCTURE
-    [ -n "$KEYPAIR_NAME" ] && \
-      addParameter $cmdfile 'EC2KeypairName' $KEYPAIR_NAME
+    add_parameter $cmdfile 'GlobalTag' 'GLOBAL_TAG'
+    add_parameter $cmdfile 'Landscape' 'LANDSCAPE'
+    add_parameter $cmdfile 'VpcId' 'VpcId'
+    add_parameter $cmdfile 'CampusSubnet' 'CAMPUS_SUBNET1'
+    add_parameter $cmdfile 'PdfImage' 'PDF_IMAGE'
+    add_parameter $cmdfile 'KcImage' 'KC_IMAGE'
+    add_parameter $cmdfile 'CoreImage' 'CORE_IMAGE'
+    add_parameter $cmdfile 'PortalImage' 'PORTAL_IMAGE'
+    add_parameter $cmdfile 'EC2InstanceType' 'EC2_INSTANCE_TYPE'
+    add_parameter $cmdfile 'EnableNewRelicAPM' 'ENABLE_NEWRELIC_APM'
+    add_parameter $cmdfile 'EnableNewRelicInfrastructure' 'ENABLE_NEWRELIC_INFRASTRUCTURE'
+    add_parameter $cmdfile 'EC2KeypairName' 'KEYPAIR_NAME'
 
-    # The cloudformation template has instructions to create the pdf bucket with the name you provide
-    # or a default name unless you explicitly tell it "cancel". There are 2 "cancel" scenarios.
-    if [ -n "$PDF_BUCKET_NAME" ] ; then
-      if bucketExists "$PDF_BUCKET_NAME" ; then
-        PDF_BUCKET_NAME="cancel"
-      else
-        addParameter $cmdfile 'PdfS3BucketName' $PDF_BUCKET_NAME
-      fi
-    elif bucketExists "kuali-pdf-$LANDSCAPE" ; then
-      # The bucket with the default name already exists.
-      PDF_BUCKET_NAME="cancel"
-    fi      
+    if [ "${PDF_BUCKET_NAME,,}" != 'none' ] ; then  
+      add_parameter $cmdfile 'PdfS3BucketName' PDF_BUCKET_NAME
+    fi
 
     echo "      ]'" >> $cmdfile
 
-    if [ "$DEBUG" ] ; then
-      cat $cmdfile
-      exit 0
-    fi
-
-    printf "\nExecute the following command:\n\n$(cat $cmdfile)\n\n(y/n): "
-    read answer
-    [ "$answer" == "y" ] && sh $cmdfile || echo "Cancelled."
-
-    [ $? -gt 0 ] && echo "Cancelling..." && return 1
+    runStackActionCommand
   fi
 }
 
@@ -165,7 +137,18 @@ runTask() {
       createEc2KeyPair ;;
     create-stack)
       stackAction "create-stack" ;;
+    recreate-stack)
+      PROMPT='false'
+      task='delete-stack'
+      stackAction "delete-stack" 2> /dev/null
+      waitForStackToDelete ${STACK_NAME}-${LANDSCAPE}
+      task='create-stack'
+      stackAction "create-stack" ;;
     update-stack)
+      stackAction "update-stack" ;;
+    reupdate-stack)
+      PROMPT='false'
+      task='update-stack'
       stackAction "update-stack" ;;
     delete-stack)
       stackAction "delete-stack" ;;

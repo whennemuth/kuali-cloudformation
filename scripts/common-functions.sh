@@ -250,6 +250,7 @@ createEc2KeyPair() {
   fi
 
   if keypairExists $keyname ; then
+    [ "$PROMPT" == 'false' ] && return 0
     if ! askYesNo "$keyname already exists upstream, replace it?" ; then
       return 0
     fi

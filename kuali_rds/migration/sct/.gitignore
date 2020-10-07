@@ -1,4 +1,4 @@
-*.sql
+input/*.sql
 connection.details.txt
 oracleclient.env
 oracleclient.sh

@@ -42,10 +42,15 @@ Parameters:
   InstanceId2:
     Type: AWS::EC2::Instance::Id
     Description: The id of the second ec2 instance to register as a target with the target group
-      
+
   PdfS3BucketName:
     Type: String
-    Description: The name of the s3 bucket the pdf service is to use. 
+    Description: The name of the s3 bucket the pdf service is to use.
+    Default: empty
+
+
+Conditions:
+  createPdfS3bBucket: !Not [!Equals [!Ref PdfS3BucketName, empty]]
 
 
 Resources:
@@ -266,6 +271,7 @@ Resources:
 
   S3BucketForPDF:
     Type: AWS::S3::Bucket
+    Condition: createPdfS3bBucket
     Properties:
       AccessControl: Private
       BucketName: !Ref PdfS3BucketName

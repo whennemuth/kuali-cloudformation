@@ -62,6 +62,11 @@ Parameters:
   PdfS3BucketName:
     Type: String
     Description: The name of the s3 bucket the pdf service is to use.
+    Default: empty
+
+
+Conditions:
+  createPdfS3bBucket: !Not [!Equals [!Ref PdfS3BucketName, cancel]]
 
     
 Resources:
@@ -314,6 +319,7 @@ Resources:
 
   S3BucketForPDF:
     Type: AWS::S3::Bucket
+    Condition: createPdfS3bBucket
     Properties:
       AccessControl: Private
       BucketName: !Ref PdfS3BucketName

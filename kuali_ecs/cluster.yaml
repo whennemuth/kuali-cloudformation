@@ -22,6 +22,7 @@ Parameters:
   PdfS3BucketName:
     Type: String
     Description: The name of the s3 bucket the pdf service is to use.
+    Default: empty
 
   Landscape:
     Description: Specify which landscape to build into the VPC
@@ -131,6 +132,7 @@ Parameters:
 Conditions: 
   CreateProfile: !Equals [ !Ref InstanceProfile, "create" ]
   CreateRole: !Equals [ !Ref InstanceRole, "create" ]
+  CreateLogsGroup: !Equals [ !Ref EC2InstanceLogsGroupArn, "create" ]
 
 
 Resources:
@@ -182,8 +184,16 @@ Resources:
             Action:
             - rds:Describe*
             - rds:ListTagsForResource
-            Resource:
-            - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db:kuali-oracle-${Landscape}
+            - tag:GetResources
+            - tag:GetTagKeys
+            - tag:GetTagValues
+            Resource: "*"
+            # Used for resourcegroupstaggingapi get-resources function, so the following won't work:
+            # - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db:kuali-oracle-${Landscape}
+            # Condition:
+            #   StringEquals:
+            #     aws:ResourceTag/Name: !Sub kuali-oracle-${Landscape}
+            #     rds:db-tag/Name: !Sub kuali-oracle-${Landscape}
       - PolicyName:
           !Sub ${GlobalTag}-${Landscape}-ecs-service-policy
         PolicyDocument:
@@ -420,14 +430,17 @@ Resources:
           - ConfigSet: cmd01
           - ConfigSet: cmd02
           - ConfigSet: cmd03
-          # - ConfigSet: cmd04
+          - ConfigSet: cmd04
+          # - ConfigSet: cmd05
           cmd01:
           - 01_get_configs_from_s3
           cmd02:
           - 02_create_env_exports_file
           cmd03:
-          - 03_add_instance_to_cluster
+          - 03_process_kc-config_file
           cmd04:
+          - 03_add_instance_to_cluster
+          cmd05:
           - 04_start_cron_for_custom_cloudwatch_metrics
         getFiles:
           packages:
@@ -540,6 +553,7 @@ Resources:
                 TASK: get_configs_from_s3             
                 LANDSCAPE: !Sub "${Landscape}"
                 BUCKET_NAME: !Sub "${BucketName}"
+                AWS_DEFAULT_REGION: !Sub "${AWS::Region}"
               command: bash process-configs.sh
         02_create_env_exports_file:
           commands:
@@ -552,8 +566,19 @@ Resources:
                 ENV_FILE_FROM_S3_PORTAL: /opt/kuali/s3/portal/environment.variables.s3
                 ENV_FILE_FROM_S3_PDF: /opt/kuali/s3/pdf/environment.variables.s3
                 PDF_BUCKET_NAME: !Sub "${PdfS3BucketName}"
+                AWS_DEFAULT_REGION: !Sub "${AWS::Region}"
               command: bash process.env.file.sh
-        03_add_instance_to_cluster:
+        03_process_kc-config_file:
+          commands:
+            cmd01:
+              cwd: /opt/kuali/scripts
+              env:
+                TASK: process_kc-config_file
+                DNS_NAME: local
+                LANDSCAPE: !Sub "${Landscape}"
+                AWS_DEFAULT_REGION: !Sub "${AWS::Region}"
+              command: bash process-configs.sh
+        04_add_instance_to_cluster:
           commands:
             cmd01:
               command:
@@ -574,12 +599,13 @@ Resources:
                 files:
                 - /etc/awslogs/awslogs.conf
                 - /etc/awslogs/awscli.conf
-        04_start_cron_for_custom_cloudwatch_metrics:
+        05_start_cron_for_custom_cloudwatch_metrics:
           commands:
             cmd01:
               command: crontab -u root /opt/kuali/scripts/crontab
               env:
                 LANDSCAPE: !Sub "${Landscape}"
+                AWS_DEFAULT_REGION: !Sub "${AWS::Region}"
 
 
 Outputs:

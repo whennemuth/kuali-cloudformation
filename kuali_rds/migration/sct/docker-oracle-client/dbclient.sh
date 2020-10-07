@@ -51,6 +51,7 @@ build() {
 
 run() {
   [ -z "$(docker images oracle/sqlplus -q)" ] && build
+  [ -z "$(docker images oracle/sqlplus -q)" ] && echo "ERROR! Failed to build image oracle/sqlplus." && exit 1
   [ ! -d 'input' ] && mkdir input
   [ ! -d 'output' ] && mkdir output
   [ -z "$INPUT_MOUNT" ] && INPUT_MOUNT=$(getPwdForMount)/input
@@ -67,6 +68,7 @@ run() {
 
 shell() {
   [ -z "$(docker images oracle/sqlplus -q)" ] && build
+  [ -z "$(docker images oracle/sqlplus -q)" ] && echo "ERROR! Failed to build image oracle/sqlplus." && exit 1
   [ ! -d 'input' ] && mkdir input
   [ ! -d 'output' ] && mkdir output
   [ -z "$INPUT_MOUNT" ] && INPUT_MOUNT=$(getPwdForMount)/input
