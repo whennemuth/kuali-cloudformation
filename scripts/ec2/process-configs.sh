@@ -66,25 +66,58 @@ processEnvironmentVariableFile() {
   # Loop over the collection of environment.variables.s3 files.
   for f in $(env | grep 'ENV_FILE_FROM_S3') ; do
     envfile="$(echo $f | cut -d'=' -f2)"
-
+    if grep -iq 'pdf' <<<"$envfile" ; then
+      app='pdf'
+    elif grep -iq 'portal' <<<"$envfile" ; then
+      app='portal'
+    elif grep -iq 'core' <<<"$envfile" ; then
+      app='core'
+    fi
     # Replace the standard kuali-research-[env].bu.edu references with the dns address of this instances load balancer.
     sed -i -r "s/kuali-research.*.bu.edu/$common_name/g" "$envfile"
 
     # Correct the AWS_S3_BUCKET name value in case it disagrees with the templates parameter by removing it and putting it back with the provided value.
-    if grep -iq 'pdf' <<<"$envfile" ; then
+    if [ "$app" == 'pdf' ] ; then
       sed -i '/.*AWS_S3_BUCKET.*=.*/d' $envfile
       echo "AWS_S3_BUCKET=$PDF_BUCKET_NAME" >> $envfile
     fi
 
+    # If we are creating our own local mongo database, then replace whatever mongo hostname exists in the config file
+    # with the ip address of the mongo ec2 instance and comment out the rest (user, password, etc.) 
+    if [ -n "$MONGO_EC2_IP" ] ; then
+      case "$app" in
+        core)
+          sed -i 's/^\([^#]*MONGO_URI.*=.*\)/# \1/' $envfile
+          sed -i 's/^\([^#]*MONGO_PRIMARY_SHARD.*=.*\)/# \1/' $envfile
+          sed -i 's/^\([^#]*MONGO_USER.*=.*\)/# \1/' $envfile
+          sed -i 's/^\([^#]*MONGO_PASS.*=.*\)/# \1/' $envfile
+          echo "MONGO_URI=mongodb://${MONGO_EC2_IP}:27017/core-development" >> $envfile
+          ;;
+        portal)
+          sed -i 's/^\([^#]*MONGODB_URI.*=.*\)/# \1/' $envfile
+          sed -i 's/^\([^#]*MONGODB_USERNAME.*=.*\)/# \1/' $envfile
+          sed -i 's/^\([^#]*MONGODB_PASSWORD.*=.*\)/# \1/' $envfile
+          echo "MONGODB_URI=mongodb://${MONGO_EC2_IP}:27018/res-dashboard"
+          ;;
+        pdf)
+          sed -i 's/^\([^#]*SPRING_DATA_MONGODB_URI.*=.*\)/# \1/' $envfile
+          echo "SPRING_DATA_MONGODB_URI=mongodb://${MONGO_EC2_IP}:27019/test?retryWrites=true&w=majority" >> $envfile
+          ;;
+      esac
+    fi
+
     # Make sure values are set that permit self-signed certificates to be accepted by the applicable apps.
     if [ "${DNS_NAME,,}" == 'local' ] || [ -z "$DNS_NAME" ] ; then
-      if grep -iq 'pdf' <<<"$envfile" ; then
-        sed -i '/.*ALLOW_SELF_SIGNED_SSL.*=.*/d' $envfile
-        echo "ALLOW_SELF_SIGNED_SSL=true" >> $envfile
-      elif grep -iq 'portal' <<<"$envfile" ; then
-        sed -i '/.*NODE_TLS_REJECT_UNAUTHORIZED.*=.*/d' $envfile
-        echo "NODE_TLS_REJECT_UNAUTHORIZED=0" >> $envfile
-      fi 
+      case "$app" in
+        pdf)
+          sed -i '/.*ALLOW_SELF_SIGNED_SSL.*=.*/d' $envfile
+          echo "ALLOW_SELF_SIGNED_SSL=true" >> $envfile
+          ;;
+        portal)
+          sed -i '/.*NODE_TLS_REJECT_UNAUTHORIZED.*=.*/d' $envfile
+          echo "NODE_TLS_REJECT_UNAUTHORIZED=0" >> $envfile
+          ;;
+      esac
     fi
 
     # Create the export.sh file
@@ -111,7 +144,7 @@ processKcConfigFile() {
 # echo out the base subdomain address that the kuali applications are reachable on.
 getCommonName() {
   if [ "${DNS_NAME,,}" == 'local' ] || [ -z "$DNS_NAME" ] ; then
-    # There is no route53 or public load balancer name - the ec2 is all alone and can only be reached if 
+    # There is no route53 or public load balancer name - a single ec2 is all alone and can only be reached if 
     # the private subnet it is sitting in is linked to a bu network through a transit gateway attachment
     # and the user has logged on to that bu network before attempting to reach the application, knowing 
     # the private ip address of the ec2 instance and browsing to the app with it: https://[private ip]/kc.

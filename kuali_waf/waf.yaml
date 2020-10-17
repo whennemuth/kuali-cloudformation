@@ -17,12 +17,12 @@ Parameters:
   Service:
     Description: Service catalog name
     Type: String
-    Default: kc
+    Default: research-administration
 
   Function:
     Description: The Function within the Service
     Type: String
-    Default: waf
+    Default: kuali
 
   Landscape:
     Description: Specify which landscape to build into the VPC

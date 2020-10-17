@@ -36,6 +36,16 @@ Parameters:
     ConstraintDescription: >
       This parameter is restricted to the following values: sb, ci, qa, stg, prod
     Default: sb
+    
+  Service:
+    Description: Service catalog name
+    Type: String
+    Default: research-administration
+
+  Function:
+    Description: The Function within the Service
+    Type: String
+    Default: kuali
 
   CampusSubnet1:
     Type: AWS::EC2::Subnet::Id
@@ -302,6 +312,12 @@ Resources:
       MaxSize: 
         !Ref MinClusterSize
       Tags:
+      - Key: Landscape
+        Value: !Ref Landscape
+      - Key: Service
+        Value: !Ref Service
+      - Key: Function
+        Value: !Ref Function
       - Key: Name
         Value:
           !Sub ${GlobalTag}-${Landscape}-auto-scaling-group

@@ -6,6 +6,10 @@ windows() {
   [ -n "$(ls /c/ 2> /dev/null)" ] && true || false
 }
 
+isNumeric() {
+  [ -n "$(grep -P '^\d+$' <<< "$1")" ] && true || false
+}
+
 isCurrentDir() {
   local askDir="$1"
   # local thisDir="$(pwd | grep -oP '[^/]+$')"  # Will blow up if run on mac (-P switch)
@@ -72,12 +76,14 @@ setDefaults() {
 
 # Validate one or all cloudformation yaml templates.
 validateStack() {
+
   local silent="$1"
   local root=$(pwd)
     
-  cd $TEMPLATE_PATH
+  [ -d "$TEMPLATE_PATH" ] && cd $TEMPLATE_PATH
   rm -f $root/validate.valid 2> /dev/null
   rm -f $root/validate.invalid 2> /dev/null
+
   find . -type f -iname "*.yaml" | \
   while read line; do \
     local f=$(printf "$line" | sed 's/^.\///'); \
@@ -1161,6 +1167,26 @@ getHostedZoneId() {
   aws route53 list-hosted-zones \
     --output text \
     --query 'HostedZones[?starts_with(Name, `'$commonName'`) == `true`].{id:Id}' 2> /dev/null
+}
+
+getHostedZoneIdByLandscape() {
+  local landscape="${1:-$LANDSCAPE}"
+  # Only need to get the arn, the id will be part of it
+  aws resourcegroupstaggingapi get-resources \
+    --resource-type-filters route53:hostedzone \
+    --tag-filters \
+      "Key=Landscape,Values=$LANDSCAPE" \
+      'Key=Service,Values=research-administration' \
+      'Key=Function,Values=kuali' \
+    --output text \
+    --query 'ResourceTagMappingList[*].{arn:ResourceARN}' 2> /dev/null | cut -d'/' -f2
+}
+
+getHostedZoneNameByLandscape() {
+  aws route53 get-hosted-zone \
+    --id "$(getHostedZoneIdByLandscape $1)" \
+    --output text \
+    --query 'HostedZone.{name:Name}' 2> /dev/null
 }
 
 checkLegacyAccount() {

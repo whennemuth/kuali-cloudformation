@@ -6,7 +6,7 @@ declare -A defaults=(
   [LANDSCAPE]='sb'
   [BUCKET_PATH]='s3://kuali-conf/cloudformation/kuali_ec2'
   [TEMPLATE_PATH]='.'
-  [KC_IMAGE]='getLatestImage kuali-coeus-sandbox'
+  [KC_IMAGE]='getLatestImage kuali-coeus'
   [CORE_IMAGE]='getLatestImage kuali-core'
   [PORTAL_IMAGE]='getLatestImage kuali-portal'
   [PDF_IMAGE]='getLatestImage kuali-research-pdf'
@@ -14,6 +14,7 @@ declare -A defaults=(
   [PROFILE]='infnprd'
   [KEYPAIR_NAME]='kuali-ec2-$LANDSCAPE-keypair'
   [PDF_BUCKET_NAME]='$GLOBAL_TAG-pdf-$LANDSCAPE'
+  [CREATE_MONGO]='false'
   # -----------------------------------------------
   # No defaults - user must provide explicit value:
   # -----------------------------------------------
@@ -37,7 +38,7 @@ run() {
   task="${1,,}"
   shift
 
-  if [ "$task" != "test" ] ; then
+  if [ "$task" != "test" ] && [ "$task" != 'validate' ]; then
 
     parseArgs $@
 
@@ -77,6 +78,10 @@ stackAction() {
     aws s3 cp ../scripts/ec2/process-configs.sh s3://$BUCKET_NAME/cloudformation/scripts/ec2/
     aws s3 cp ../scripts/ec2/stop-instance.sh s3://$BUCKET_NAME/cloudformation/scripts/ec2/
     aws s3 cp ../scripts/ec2/cloudwatch-metrics.sh s3://$BUCKET_NAME/cloudformation/scripts/ec2/
+    if [ "${CREATE_MONGO,,}" == 'true' ] ; then
+      aws s3 cp ../kuali_mongo/mongo.yaml s3://$BUCKET_NAME/cloudformation/kuali_mongo/
+      aws s3 cp ../scripts/ec2/initialize-mongo-database.sh s3://$BUCKET_NAME/cloudformation/scripts/ec2/
+    fi
 
     case "$action" in
       create-stack)
@@ -116,6 +121,16 @@ EOF
     add_parameter $cmdfile 'EnableNewRelicAPM' 'ENABLE_NEWRELIC_APM'
     add_parameter $cmdfile 'EnableNewRelicInfrastructure' 'ENABLE_NEWRELIC_INFRASTRUCTURE'
     add_parameter $cmdfile 'EC2KeypairName' 'KEYPAIR_NAME'
+
+    if [ "${CREATE_MONGO,,}" == 'true' ] ; then
+      add_parameter $cmdfile 'MongoSubnetId' 'PRIVATE_SUBNET1'
+    fi
+
+    if [ "${USE_ROUTE53,,}" == 'true' ] ; then
+      local hostedZoneName="$(getHostedZoneNameByLandscape $LANDSCAPE)"
+      [ -z "$hostedZoneName" ] && echo "ERROR! Cannot acquire hosted zone name. Cancelling..." && exit 1
+      add_parameter $cmdfile 'HostedZoneName' $hostedZoneName
+    fi
 
     if [ "${PDF_BUCKET_NAME,,}" != 'none' ] ; then  
       add_parameter $cmdfile 'PdfS3BucketName' PDF_BUCKET_NAME

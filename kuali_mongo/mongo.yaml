@@ -1,0 +1,417 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+
+Description: >
+  Create a new ec2 instance that runs a number of mongo databases, one for each applicable kuali module
+  deployed as containers.
+
+
+Parameters:
+
+  GlobalTag:
+    Type: String
+    Description: >
+      A common value that all resources in this template will have prefixed to
+      their name and attached as a tag to establish a bundling through naming convention.
+    Default: kuali-mongo
+
+  BucketName:
+    Type: String
+    Description: The S3 bucket kuali research cloudformation templates, config files, keys, etc. are stored
+    Default: kuali-conf
+
+  Landscape:
+    Description: Specify which landscape to build into the VPC (currently just a label - kc-config.xml is hard-coded for now).
+    Type: String
+    AllowedValues:
+    - sb
+    - ci
+    - qa
+    - stg
+    - prod
+    ConstraintDescription: >
+      This parameter is restricted to the following values: sb, ci, qa, stg, prod
+    Default: sb
+    
+  Service:
+    Description: Service catalog name
+    Type: String
+    Default: research-administration
+
+  Function:
+    Description: The Function within the Service
+    Type: String
+    Default: kuali
+
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: The id of the vpc to deploy to.
+
+  MongoSubnet:
+    Type: AWS::EC2::Subnet::Id
+    Description: Id of the private subnet that the mongo ec2 instance is deployed to.
+    Default: empty
+
+  ApplicationSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: Id that identifies the security group for the ec2 instance
+
+  # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/retrieve-ecs-optimized_AMI.html
+  ECSAMI:
+    Description: AMI ID
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id
+
+  EC2InstanceType:
+    Type: String
+    Description: What type of EC2 instance should be used for hosting?
+    AllowedValues:
+    - t3.small
+    - t3.medium
+    - t3.large
+    - t3.xlarge
+    - m4.large
+    - m4.xlarge
+    - m5.large
+    - m5.xlarge
+    - c5.large
+    - c5.xlarge
+    ConstraintDescription: Specified instance type is not within selection list.
+    Default: t3.medium
+
+      
+Resources:
+
+  EC2SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VpcId
+      GroupDescription: !Sub Security group for mongodb instance in ${Landscape} landscape.
+      SecurityGroupIngress:
+      - SourceSecurityGroupId: !Ref ApplicationSecurityGroupId
+        IpProtocol: -1
+        Description: Allows inbound access to the mongo EC2 instance from the application ec2 instance(s) only.
+
+  EC2Role:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: "/"
+      RoleName: !Sub ${GlobalTag}-${Landscape}-ec2-role
+      AssumeRolePolicyDocument:
+        Statement:
+        - Action:
+          - sts:AssumeRole
+          Effect: Allow
+          Principal:
+            Service:
+            - ec2.amazonaws.com
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      - arn:aws:iam::aws:policy/AWSCloudFormationReadOnlyAccess
+      - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
+      - arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
+      - arn:aws:iam::aws:policy/CloudWatchFullAccess
+      Policies:
+      - PolicyName:
+          !Sub ${GlobalTag}-${Landscape}-stop-ec2-instance
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Action:
+            - ec2:StopInstances
+            Resource: 
+            - arn:aws:ec2:*:*:instance/*
+            Condition:
+              StringLike:
+                ec2:ResourceTag/Name:
+                  !Sub ${GlobalTag}-${Landscape}
+              StringEquals:
+                ec2:ResourceTag/self-stoppable:
+                  'true'
+
+  EC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: !Sub ${GlobalTag}-${Landscape}-profile
+      Path: "/"
+      Roles:
+      - !Ref EC2Role
+
+  EC2Instance:
+    Type: AWS::EC2::Instance
+    Description: EC2 instance for hosting mongo databases.
+    Properties:
+      Tags:
+      - Key: Name
+        Value: !Sub ${GlobalTag}-${Landscape}
+      - Key: self-stoppable
+        Value: 'false'
+      - Key: Landscape
+        Value: !Ref Landscape
+      - Key: Service
+        Value: !Ref Service
+      - Key: Function
+        Value: !Ref Function
+      ImageId: 
+        !Ref ECSAMI
+      InstanceType:
+        !Ref EC2InstanceType
+      SecurityGroupIds:
+      - !GetAtt EC2SecurityGroup.GroupId
+      IamInstanceProfile:
+        !Ref EC2InstanceProfile
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: 32
+            DeleteOnTermination: true
+      SubnetId: !Ref MongoSubnet
+
+      UserData: 
+        "Fn::Base64": !Sub |
+          #!/bin/bash
+          yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
+          yum install -y aws-cfn-bootstrap
+          yum install -y git
+          yum install -y zip unzip
+          yum install -y sysstat
+          yum install -y jq
+          
+          # Install and run docker
+          amazon-linux-extras install -y docker
+          service docker start
+          usermod -a -G docker ec2-user
+          chkconfig docker on
+          # Install docker-compose
+          curl \
+            -L https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m) \
+            -o /usr/local/bin/docker-compose
+          chmod +x /usr/local/bin/docker-compose
+          ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose
+
+          # Implement all the metadata in AWS::CloudFormation::Init
+          /opt/aws/bin/cfn-init \
+            -v \
+            --configsets AllConfigs \
+            --region ${AWS::Region} \
+            --stack ${AWS::StackName} \
+            --resource EC2Instance
+            
+          # Now that all initialization is done signal success
+          /opt/aws/bin/cfn-signal \
+            -e $? \
+            --region ${AWS::Region} \
+            --stack ${AWS::StackName} \
+            --resource EC2Instance
+
+    Metadata:
+      AWS::CloudFormation::Authentication:
+        # This authentication will make possible replacing inline file content with paths to files in s3
+        # https://aws.amazon.com/blogs/devops/authenticated-file-downloads-with-cloudformation/
+        S3AccessCreds:
+          type: S3
+          roleName:
+            !Ref EC2Role
+          buckets:
+          - !Ref BucketName
+
+
+      AWS::CloudFormation::Init:
+        configSets:
+          AllConfigs:
+          - YumUpdate
+          - SetCrontab
+          - ConfigSet: SetupLoggingConfig
+          - ConfigSet: ConfigureDockerConfig
+          - ConfigSet: RunDockerContainersConfig
+          SetupLoggingConfig:
+          - SetupLogging
+          ConfigureDockerConfig:
+          - ConfigureDocker
+          RunDockerContainersConfig:
+          - RunDockerContainers
+        YumUpdate:
+          commands:
+            Update:
+              command: yum update -y
+        SetupLogging:
+          packages:
+            yum:
+              awslogs: []
+          files:
+            /etc/cfn/cfn-hup.conf:
+              mode: "000400"
+              owner: root
+              group: root
+              content: !Sub |
+                [main]
+                stack=${AWS::StackId}
+                region=${AWS::Region}
+                # Change interval from default 15 minutes to 5
+                interval=5
+            /etc/cfn/hooks.d/cfn-auto-reloader.conf:
+              content: !Sub |
+                [cfn-auto-reloader-hook]
+                triggers=post.update
+                path=Resources.EC2Instance.Metadata.AWS::CloudFormation::Init
+                action=/opt/aws/bin/cfn-init -v --region ${AWS::Region} --stack ${AWS::StackName} --resource EC2Instance --configsets AllConfigs
+            /etc/awslogs/awscli.conf:
+              content: !Sub |
+                [plugins]
+                cwlogs = cwlogs
+                [default]
+                region = ${AWS::Region}
+            /etc/awslogs/awslogs.conf:
+              content: !Sub |
+                [general]
+                state_file = /var/lib/awslogs/agent-state
+                
+                [/var/log/dmesg]
+                file = /var/log/dmesg
+                log_group_name = ${GlobalTag}-${Landscape}
+                log_stream_name = /var/log/dmesg
+                
+                [/var/log/messages]
+                file = /var/log/messages
+                log_group_name = ${GlobalTag}-${Landscape}
+                log_stream_name = /var/log/messages
+                datetime_format = %b %d %H:%M:%S
+                
+                [/var/log/docker]
+                file = /var/log/docker
+                log_group_name = ${GlobalTag}-${Landscape}
+                log_stream_name = /var/log/docker
+                datetime_format = %Y-%m-%dT%H:%M:%S.%f
+          services:
+            sysvinit:
+              cfn-hup:
+                enabled: true
+                ensureRunning: true
+                files:
+                - /etc/cfn/cfn-hup.conf
+                - /etc/cfn/hooks.d/cfn-auto-reloader.conf
+              # awslogs:
+              # NOTE: If you are using Amazon Linux 2, the awslogs service is now called "awslogsd"
+              awslogsd:
+                enabled: true
+                ensureRunning: true
+                files:
+                - /etc/awslogs/awslogs.conf
+                - /etc/awslogs/awscli.conf
+        SetCrontab:
+          files:
+            /opt/kuali/crontab:
+              content: !Sub |
+                SHELL=/bin/bash
+                PATH=/sbin:/bin:/usr/sbin:/usr/bin
+                MAILTO=root
+                HOME=/
+                # 0 8 * * * /bin/bash /opt/kuali/stop-instance.sh ${AWS::Region}
+              mode: "000644"
+              owner: root
+              group: root
+            /opt/kuali/stop-instance.sh:
+              source: !Sub http://${BucketName}.s3.amazonaws.com/cloudformation/scripts/ec2/stop-instance.sh
+              content: !Sub |
+              mode: "000775"
+              owner: root
+              group: root
+          commands:
+            ActivateCrontab:
+              command: crontab -u root /opt/kuali/crontab
+              env:
+                LANDSCAPE: !Sub "${Landscape}"
+                AWS_DEFAULT_REGION: !Sub "${AWS::Region}"
+        ConfigureDocker:
+          # See following link for mongo docker image: https://hub.docker.com/_/mongo
+          files:
+            /opt/kuali/docker-compose.yaml:
+              content: !Sub |
+                version: '3'
+                services:
+
+                  mongo-cor-main:
+                    image: mongo
+                    container_name: mongo-cor-main
+                    restart: unless-stopped
+                    volumes:
+                      - /opt/kuali/mongo-data-cor-main:/data/db
+                    command: --bind_ip_all --noauth
+                    logging:
+                      driver: awslogs
+                      options:
+                        awslogs-region: ${AWS::Region}
+                        awslogs-group: ${GlobalTag}-${Landscape}
+                        awslogs-stream: mongo-core-container
+                        awslogs-create-group: "true"
+                    ports:
+                      - 27017:27017
+
+                  mongo-research-portal:
+                    image: mongo
+                    container_name: mongo-research-portal
+                    restart: unless-stopped
+                    volumes:
+                      - /opt/kuali/mongo-data-research-portal:/data/db
+                    command: --bind_ip_all --noauth
+                    logging:
+                      driver: awslogs
+                      options:
+                        awslogs-region: ${AWS::Region}
+                        awslogs-group: ${GlobalTag}-${Landscape}
+                        awslogs-stream: mongo-research-portal-container
+                        awslogs-create-group: "true"
+                    ports:
+                      - 27018:27017
+
+                  mongo-research-pdf:
+                    image: mongo
+                    container_name: mongo-research-pdf
+                    restart: unless-stopped
+                    volumes:
+                      - /opt/kuali/mongo-data-research-pdf:/data/db
+                    command: --bind_ip_all --noauth
+                    logging:
+                      driver: awslogs
+                      options:
+                        awslogs-region: ${AWS::Region}
+                        awslogs-group: ${GlobalTag}-${Landscape}
+                        awslogs-stream: mongo-research-pdf-container
+                        awslogs-create-group: "true"
+                    ports:
+                      - 27019:27017
+              mode: "000775"
+              owner: root
+              group: root
+            /opt/kuali/start.docker.containers.sh:
+              content: !Sub |
+                #!/bin/bash
+                
+                # Prepare directories for mounting
+                          
+                [ ! -d /opt/kuali/mongo-data-cor-main ] && mkdir -p /opt/kuali/mongo-data-cor-main
+                [ ! -d /opt/kuali/mongo-data-research-portal ] && mkdir -p /opt/kuali/mongo-data-research-portal
+                [ ! -d /opt/kuali/mongo-data-research-pdf ] && mkdir -p /opt/kuali/mongo-data-research-pdf
+
+                /usr/local/bin/docker-compose down 2> /dev/null || true
+
+                /usr/local/bin/docker-compose up --detach                
+              mode: "000775"
+              owner: root
+              group: root
+        RunDockerContainers:
+          commands:
+            StartContainers:
+              cwd: /opt/kuali
+              command: bash start.docker.containers.sh
+
+
+Outputs:
+
+  PrivateIP:
+    Value:
+      !GetAtt EC2Instance.PrivateIp
+
+  InstanceId:
+    Value:
+      !Ref EC2Instance

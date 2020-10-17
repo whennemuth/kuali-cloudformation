@@ -33,12 +33,12 @@ Parameters:
   Service:
     Description: Service catalog name
     Type: String
-    Default: kc
+    Default: research-administration
 
   Function:
     Description: The Function within the Service
     Type: String
-    Default: dns
+    Default: kuali
 
   CreateHostedZoneLogGroup:
     Description: Log activity for the hosted zone to cloudwatch?

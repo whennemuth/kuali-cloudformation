@@ -65,7 +65,7 @@ checkResourceBasedPolicy() {
     }'
 EOF
 
-runStackActionCommand
+  runStackActionCommand
 }
 
 # Create, update, or delete the cloudformation stack.

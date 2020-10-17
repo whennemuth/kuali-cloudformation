@@ -21,7 +21,7 @@ Parameters:
     Default: kuali-conf
 
   Landscape:
-    Description: Specify which landscape to build into the VPC (currently just a label - kc-config.xml is hard-coded for now).
+    Description: Specify which landscape to build into the VPC.
     Type: String
     AllowedValues:
     - sb
@@ -32,6 +32,16 @@ Parameters:
     ConstraintDescription: >
       This parameter is restricted to the following values: sb, ci, qa, stg, prod
     Default: sb
+    
+  Service:
+    Description: Service catalog name
+    Type: String
+    Default: research-administration
+
+  Function:
+    Description: The Function within the Service
+    Type: String
+    Default: kuali
 
   VpcId:
     Type: AWS::EC2::VPC::Id
@@ -39,7 +49,12 @@ Parameters:
 
   CampusSubnet:
     Type: AWS::EC2::Subnet::Id
-    Description: Id of the private application subnet that admits access from bu vpns through transit gateway attachment.
+    Description: Id of the application subnet that admits access from bu vpns through transit gateway attachment.
+
+  MongoSubnetId:
+    Type: String
+    Description: Id of the private application subnet where a new mongo database ec2 instance is optionally created.
+    Default: empty
 
   # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/retrieve-ecs-optimized_AMI.html
   ECSAMI:
@@ -110,9 +125,16 @@ Parameters:
     - "false"
     ConstraintDescription: Enter "true" or "false" only.
 
+  HostedZoneName:
+    Type: String
+    Description: If included, a DNS record will be created and registered with the specified HostedZone
+    Default: empty
 
 Conditions:
   createPdfS3bBucket: !Not [!Equals [!Ref PdfS3BucketName, empty]]
+  createMongoEc2Instance: !Not [!Equals [!Ref MongoSubnetId, empty]]
+  createDnsRecord: !Not [!Equals [!Ref HostedZoneName, empty]]
+  isTest: !Not [!And [!Equals [!Ref Landscape, prod], !Equals [!Ref Landscape, stg]]]
 
 Mappings:
   2faCidrs:
@@ -207,6 +229,7 @@ Resources:
             - tag:GetTagKeys
             - tag:GetTagValues
             Resource: "*"
+            # Used for resourcegroupstaggingapi get-resources function, so the following won't work:
             # - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db:kuali-oracle-${Landscape}
             # Condition:
             #   StringEquals:
@@ -243,6 +266,37 @@ Resources:
     Properties:
       LogGroupName: !Sub ${GlobalTag}-${Landscape}
       RetentionInDays: 30
+
+  MongoDbInstance:
+    Type: AWS::CloudFormation::Stack
+    Condition: createMongoEc2Instance
+    Properties:
+      TemplateURL: 
+        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_mongo/mongo.yaml
+      Parameters:
+        GlobalTag:
+          !Sub ${GlobalTag}-mongo
+        Landscape:
+          !Ref Landscape
+        VpcId:
+          !Ref VpcId
+        ApplicationSecurityGroupId:
+          !GetAtt EC2InstanceSecurityGroup.GroupId
+        MongoSubnet:
+          !Ref MongoSubnetId
+
+  KualiDNSRecord:
+    Type: AWS::Route53::RecordSet
+    Condition: createDnsRecord
+    Properties:
+      # See: https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/resource-record-sets-values-basic.html
+      HostedZoneName: !Sub ${HostedZoneName}.
+      Comment: !Sub DNS name for ${EC2Instance}.
+      Name: !Sub ${EC2Instance}.${AWS::Region}.${HostedZoneName}.
+      Type: A
+      TTL: '900'
+      ResourceRecords:
+      - !GetAtt EC2Instance.PrivateIp
       
   EC2Instance:
     Type: AWS::EC2::Instance
@@ -253,12 +307,18 @@ Resources:
         Value: !Sub ${GlobalTag}-${Landscape}-instance
       - Key: self-stoppable
         Value: 'false'
+      - Key: Landscape
+        Value: !Ref Landscape
+      - Key: Service
+        Value: !Ref Service
+      - Key: Function
+        Value: !Ref Function
       ImageId: 
         !Ref ECSAMI
       InstanceType:
         !Ref EC2InstanceType
       SecurityGroupIds:
-      - !GetAtt  EC2InstanceSecurityGroup.GroupId
+      - !GetAtt EC2InstanceSecurityGroup.GroupId
       KeyName: !Ref EC2KeypairName
       IamInstanceProfile:
         !Ref EC2InstanceProfile
@@ -272,14 +332,21 @@ Resources:
       UserData: 
         "Fn::Base64": !Sub |
           #!/bin/bash
+
+          # Install with yum:
+          # 1) Ssm agent so that this ec2 instance can participate in ssm sessions.
+          # 2) Mongo command line shell client (for those shelled in to this instance it provides quick way to test database connection)
+          # 3) Perl and zip libraries needed to unpack and run custom metric monitoring for cloudwatch.
+          # 4) Other utilities like git, sysstat etc.
           yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
+          yum install -y https://repo.mongodb.org/yum/amazon/2/mongodb-org/4.4/x86_64/RPMS/mongodb-org-shell-4.4.1-1.amzn2.x86_64.rpm
+          yum install -y perl-Switch perl-DateTime perl-Sys-Syslog perl-LWP-Protocol-https perl-Digest-SHA.x86_64
           yum install -y aws-cfn-bootstrap
           yum install -y git
-          # Add perl and zip libraries needed to unpack and run custom metric monitoring for cloudwatch.
-          yum install -y perl-Switch perl-DateTime perl-Sys-Syslog perl-LWP-Protocol-https perl-Digest-SHA.x86_64
           yum install -y zip unzip
           yum install -y sysstat
           yum install -y jq
+          
           # Install and run docker
           amazon-linux-extras install -y docker
           service docker start
@@ -302,6 +369,8 @@ Resources:
             -out /opt/kuali/nginx/certs/myec2.crt \
             -keyout /opt/kuali/nginx/certs/myec2.key \
             -subj "/C=US/ST=MA/L=Boston/O=BU/OU=IST/CN=Ec2Instance"
+
+          
 
           # Install required packages for scripts that will monitor and upload custom metrics to cloudwatch.
           curl https://aws-cloudwatch.s3.amazonaws.com/downloads/CloudWatchMonitoringScripts-1.2.2.zip \
@@ -343,21 +412,24 @@ Resources:
           GetFiles:
           - getFiles
           RunCommands:
-          - ConfigSet: cmd01
-          - ConfigSet: cmd02
-          - ConfigSet: cmd03
-          - ConfigSet: cmd04
-          # - ConfigSet: cmd05
-          cmd01:
+          - ConfigSet: GetConfigsFromS3
+          - ConfigSet: CreateEnvExportsFile
+          - ConfigSet: ProcessKcConfigFile
+          - ConfigSet: RunDockerContainers
+          - ConfigSet: InitializeCoreMongodbContent
+          # - ConfigSet: StartCronForCustomCloudwatchMetrics
+          GetConfigsFromS3:
           - 01_get_configs_from_s3
-          cmd02:
+          CreateEnvExportsFile:
           - 02_create_env_exports_file
-          cmd03:
+          ProcessKcConfigFile:
           - 03_process_kc-config_file
-          cmd04:
-          - 04_docker_run_container
-          cmd05:
-          - 05_start_cron_for_custom_cloudwatch_metrics
+          RunDockerContainers:
+          - 04_docker_run_containers
+          InitializeCoreMongodbContent:
+          - 05_initialize_core_mongodb_content
+          StartCronForCustomCloudwatchMetrics:
+          - 06_start_cron_for_custom_cloudwatch_metrics
         getFiles:
           packages:
             yum:
@@ -420,22 +492,28 @@ Resources:
                 
                 [/var/log/dmesg]
                 file = /var/log/dmesg
-                log_group_name = ${GlobalTag}-${Landscape}-LG
+                log_group_name = ${GlobalTag}-${Landscape}
                 log_stream_name = /var/log/dmesg
                 
                 [/var/log/messages]
                 file = /var/log/messages
-                log_group_name = ${GlobalTag}-${Landscape}-LG
+                log_group_name = ${GlobalTag}-${Landscape}
                 log_stream_name = /var/log/messages
                 datetime_format = %b %d %H:%M:%S
                 
                 [/var/log/docker]
                 file = /var/log/docker
-                log_group_name = ${GlobalTag}-${Landscape}-LG
+                log_group_name = ${GlobalTag}-${Landscape}
                 log_stream_name = /var/log/docker
                 datetime_format = %Y-%m-%dT%H:%M:%S.%f
             /opt/kuali/scripts/process-configs.sh:
               source: !Sub http://${BucketName}.s3.amazonaws.com/cloudformation/scripts/ec2/process-configs.sh
+              content: !Sub |
+              mode: "000775"
+              owner: root
+              group: root
+            /opt/kuali/scripts/initialize-mongo-database.sh:
+              source: !Sub http://${BucketName}.s3.amazonaws.com/cloudformation/scripts/ec2/initialize-mongo-database.sh
               content: !Sub |
               mode: "000775"
               owner: root
@@ -524,6 +602,8 @@ Resources:
                         awslogs-create-group: "true"
                     expose:
                       - "3000"
+                    ports:
+                      - 27017:27017
 
                   kuali-research:
                     image: ${!KC_IMAGE}
@@ -608,6 +688,9 @@ Resources:
                   upstream docker-core {
                     server cor-main:3000;
                   }
+                  upstream docker-core-local-mongo {
+                    server cor-main:27017;
+                  }
                   upstream docker-portal {
                     server research-portal:3005;
                   }
@@ -680,11 +763,20 @@ Resources:
                       # Anything left over goes to cor-main
                       proxy_pass http://docker-core;
                     }
-                  }                  
+                  }
+
+                  server { 
+                    server_name EC2_HOST;
+                    listen 27017;
+
+                    location / {
+                      proxy_pass http://docker-core-local-mongo;
+                    }
+                  }
                 }
         01_get_configs_from_s3:
           commands:
-            cmd01:
+            get_configs_from_s3:
               cwd: /opt/kuali/scripts
               env:
                 TASK: get_configs_from_s3             
@@ -694,30 +786,31 @@ Resources:
               command: bash process-configs.sh
         02_create_env_exports_file:
           commands:
-            cmd01:
+            create_env_exports_file:
               cwd: /opt/kuali/scripts
               env:
                 TASK: create_env_exports_file
-                DNS_NAME: local
+                DNS_NAME: !If [ createDnsRecord, !Ref HostedZoneName, local ]
                 ENV_FILE_FROM_S3_CORE: /opt/kuali/s3/core/environment.variables.s3
                 ENV_FILE_FROM_S3_PORTAL: /opt/kuali/s3/portal/environment.variables.s3
                 ENV_FILE_FROM_S3_PDF: /opt/kuali/s3/pdf/environment.variables.s3
+                MONGO_EC2_IP: !If [ createMongoEc2Instance, !GetAtt MongoDbInstance.Outputs.PrivateIP, '' ]
                 PDF_BUCKET_NAME: !Sub "${PdfS3BucketName}"
                 AWS_DEFAULT_REGION: !Sub "${AWS::Region}"
               command: bash process-configs.sh
         03_process_kc-config_file:
           commands:
-            cmd01:
+            process_kc-config_file:
               cwd: /opt/kuali/scripts
               env:
                 TASK: process_kc-config_file
-                DNS_NAME: local
+                DNS_NAME: !If [ createDnsRecord, !Ref HostedZoneName, local ]
                 LANDSCAPE: !Sub "${Landscape}"
                 AWS_DEFAULT_REGION: !Sub "${AWS::Region}"
               command: bash process-configs.sh
-        04_docker_run_container:
+        04_docker_run_containers:
           commands:
-            cmd01:
+            docker_run_containers:
               cwd: /opt/kuali/scripts
               env:
                 LANDSCAPE: !Sub "${Landscape}"
@@ -747,9 +840,33 @@ Resources:
                 files:
                 - /etc/awslogs/awslogs.conf
                 - /etc/awslogs/awscli.conf
-        05_start_cron_for_custom_cloudwatch_metrics:
+        05_initialize_core_mongodb_content:
           commands:
-            cmd01:
+            initialize_core_mongodb_content:
+              cwd: /opt/kuali/scripts
+              env:
+                TASK: update-core
+                DNS_NAME: !If [ createDnsRecord, !Ref HostedZoneName, local ]
+                DEBUG: 'false'
+                COLLECTIONS: 'incommons institutions users'
+                LANDSCAPE: !Sub "${Landscape}"
+                SHIB_HOST: !If [ isTest, 'shib-test.bu.edu', 'shib.bu.edu' ]
+                AWS_DEFAULT_REGION: !Sub "${AWS::Region}"
+                MONGO_URI:
+                  !If
+                  - createMongoEc2Instance
+                  - !Sub 
+                    - ${Url}:${Port}/${DbName}
+                    - Url: !GetAtt MongoDbInstance.Outputs.PrivateIP
+                      Port: 27017
+                      DbName: core-development
+                  - ''
+                # An empty MONGO_URI parameter will trigger a search for mongo parameters in this properties file:
+                ENV_FILE_FROM_S3_CORE: /opt/kuali/s3/core/environment.variables.s3
+              command: bash initialize-mongo-database.sh
+        06_start_cron_for_custom_cloudwatch_metrics:
+          commands:
+            start_cron_for_custom_cloudwatch_metrics:
               command: crontab -u root /opt/kuali/scripts/crontab
               env:
                 LANDSCAPE: !Sub "${Landscape}"
@@ -889,8 +1006,44 @@ Resources:
         FromPort: 1043
         ToPort: 1043
         CidrIp: !FindInMap [ 2faCidrs, "sixth", "cidr" ]
+        
+      - Description: "Mongodb: vpn.bu.edu/2fa On Campus, Group 1"
+        IpProtocol: tcp
+        FromPort: 27017
+        ToPort: 27017
+        CidrIp: !FindInMap [ 2faCidrs, "first", "cidr" ]
+      - Description: "Mongodb: vpn.bu.edu/2fa On Campus, Group 2 "
+        IpProtocol: tcp
+        FromPort: 27017
+        ToPort: 27017
+        CidrIp: !FindInMap [ 2faCidrs, "second", "cidr" ]
+      - Description: "Mongodb: vpn.bu.edu/2fa Off Campus"
+        IpProtocol: tcp
+        FromPort: 27017
+        ToPort: 27017
+        CidrIp: !FindInMap [ 2faCidrs, "third", "cidr" ]
+      - Description: "Mongodb: vpn.bu.edu/2fa Off Campus"
+        IpProtocol: tcp
+        FromPort: 27017
+        ToPort: 27017
+        CidrIp: !FindInMap [ 2faCidrs, "fourth", "cidr" ]
+      - Description: "Mongodb: vpn.bu.edu/2fa Off Campus"
+        IpProtocol: tcp
+        FromPort: 27017
+        ToPort: 27017
+        CidrIp: !FindInMap [ 2faCidrs, "fifth", "cidr" ]
+      - Description: "Mongodb: vpn.bu.edu/2fa Off Campus"
+        IpProtocol: tcp
+        FromPort: 27017
+        ToPort: 27017
+        CidrIp: !FindInMap [ 2faCidrs, "sixth", "cidr" ]
 
 Outputs:
+
   PrivateIP:
     Value:
       !GetAtt EC2Instance.PrivateIp
+
+  InstanceId:
+    Value:
+      !Ref EC2Instance

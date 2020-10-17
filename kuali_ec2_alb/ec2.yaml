@@ -31,6 +31,16 @@ Parameters:
     ConstraintDescription: >
       This parameter is restricted to the following values: sb, ci, qa, stg, prod
     Default: sb
+    
+  Service:
+    Description: Service catalog name
+    Type: String
+    Default: research-administration
+
+  Function:
+    Description: The Function within the Service
+    Type: String
+    Default: kuali
 
   CampusSubnet:
     Type: AWS::EC2::Subnet::Id
@@ -244,6 +254,12 @@ Resources:
         Value: !If [CreateProfile, !Sub "${GlobalTag}-${Landscape}-ec2-1", !Sub "${GlobalTag}-${Landscape}-ec2-2"]
       - Key: self-stoppable
         Value: 'false'
+      - Key: Landscape
+        Value: !Ref Landscape
+      - Key: Service
+        Value: !Ref Service
+      - Key: Function
+        Value: !Ref Function
       ImageId: 
         !Ref ECSAMI
       InstanceType:
@@ -271,6 +287,7 @@ Resources:
           yum install -y zip unzip
           yum install -y sysstat
           yum install -y jq
+
           # Install and run docker
           amazon-linux-extras install -y docker
           service docker start

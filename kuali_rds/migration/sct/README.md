@@ -130,6 +130,19 @@ The [AWS Schema Conversion tool](https://docs.aws.amazon.com/SchemaConversionToo
 
       `Filename: 03.create.kcoeus.user.sql`
 
+      By default, the user creation script will look like this:
+
+      ```
+      CREATE USER KCOEUS
+          IDENTIFIED BY user_password
+          DEFAULT TABLESPACE KUALI_DATA
+          TEMPORARY TABLESPACE TEMP
+          PROFILE NOEXPIRE
+      /
+      ```
+
+      Swap out the term "user_password" with the actual password and enclose it in double quotes.
+
    4. **KCOEUS tablespace grant:**
 
          - Create a file with the following content (does not involve the schema conversion tool):
@@ -152,6 +165,8 @@ The [AWS Schema Conversion tool](https://docs.aws.amazon.com/SchemaConversionToo
       - `Server Level Objects/Users/SNAPLOGIC`
 
       `Filename: 06.create.4.users.sql`
+
+      Open the file and replace each occurrence of "user_password"
 
    7. **4 Automation user tablespace grants:**
       Create a file with the following content (does not involve the schema conversion tool):
@@ -186,14 +201,14 @@ The [AWS Schema Conversion tool](https://docs.aws.amazon.com/SchemaConversionToo
       `Filename: 09.create.kcrmproc.user.sql`
 
    10. **KCRMPROC tablespace grant:**
-      Create a file with the following content (does not involve the schema conversion tool):
+     Create a file with the following content (does not involve the schema conversion tool):
 
-      ```
-      ALTER USER KCRMPROC QUOTA UNLIMITED ON KUALI_DATA;
-      /
-      ```
+     ```
+     ALTER USER KCRMPROC QUOTA UNLIMITED ON KUALI_DATA;
+     /
+     ```
 
-      Filename: `10.grant.tablespace.kcrmproc.sql`
+     Filename: `10.grant.tablespace.kcrmproc.sql`
 
    11. **KCRMPROC schema:**
 

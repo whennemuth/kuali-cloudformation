@@ -32,7 +32,9 @@ RUN dnf install -y dos2unix
 COPY bin/bash/*.sh /usr/local/sbin/
 COPY bin/sql/*.sql /usr/local/sbin/
 
-RUN dos2unix /usr/local/sbin/*
+RUN \
+  dos2unix /usr/local/sbin/* && \
+  chmod -R +x /usr/local/sbin/
 
 ENV CLIENT_HOME=/usr/lib/oracle/18.3/client64
 ENV ORACLE_HOME=$CLIENT_HOME
