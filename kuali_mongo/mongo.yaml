@@ -129,6 +129,13 @@ Resources:
                 ec2:ResourceTag/self-stoppable:
                   'true'
 
+  EC2InstanceLogsGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    Properties:
+      LogGroupName: !Sub ${GlobalTag}-${Landscape}
+      RetentionInDays: 30
+
   EC2InstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:

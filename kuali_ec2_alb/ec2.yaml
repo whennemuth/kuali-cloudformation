@@ -31,6 +31,10 @@ Parameters:
     ConstraintDescription: >
       This parameter is restricted to the following values: sb, ci, qa, stg, prod
     Default: sb
+
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: The id of the vpc to deploy to.
     
   Service:
     Description: Service catalog name
@@ -69,12 +73,11 @@ Parameters:
     ConstraintDescription: Specified instance type is not within selection list.
     Default: m4.large
 
-  # NOTE: The type below triggers a check by aws for existence of the keypair as part of a validation check.
-  # However, this makes the parameter required, even for stack updates. Use "String" as type to forego the
-  # validation check and allow the parameter to be optional during updates.
   EC2KeypairName:
-    Type: AWS::EC2::KeyPair::KeyName
+    # Type: AWS::EC2::KeyPair::KeyName
+    Type: String
     Description: The keypair for ssh use against the ec2 instance
+    Default: empty
 
   CoreImage:
     Type: String
@@ -123,6 +126,15 @@ Parameters:
     Type: String
     Description: The DNS name for the ALB. The app is publicly reachable at this address.
 
+  UsingRoute53:
+    Type: String
+    Description: Indicates if the DNSName is resolved with Route53 and exists in our hosted zone as an A record.
+    Default: "false"
+    AllowedValues:
+    - "true"
+    - "false"
+    ConstraintDescription: Enter "true" or "false" only.
+
   InstanceProfile:
     Type: String
     Description: If the instance profile already exists, provide its name here.
@@ -138,11 +150,19 @@ Parameters:
     Description: If the logs group already exists, provide its arn here.
     Default: "create"
 
+  MongoEc2Ip:
+    Type: String
+    Description: The private ip address of the ec2 instance hosting a simple mongo database (for test environments)
+    Default: empty
+
 
 Conditions: 
   CreateProfile: !Equals [ !Ref InstanceProfile, "create" ]
   CreateRole: !Equals [ !Ref InstanceRole, "create" ]
   CreateLogsGroup: !Equals [ !Ref EC2InstanceLogsGroupArn, "create" ]
+  UseMongoEc2Instance: !Not [!Equals [!Ref MongoEc2Ip, empty]]
+  UseKeypair: !Not [!Equals [!Ref EC2KeypairName, empty]]
+  IsTest: !Not [!And [!Equals [!Ref Landscape, prod], !Equals [!Ref Landscape, stg]]]
 
 
 Resources:
@@ -224,8 +244,17 @@ Resources:
             Action:
             - rds:Describe*
             - rds:ListTagsForResource
-            Resource:
-            - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db:kuali-oracle-${Landscape}
+            - tag:GetResources
+            - tag:GetTagKeys
+            - tag:GetTagValues
+            Resource: "*"
+            # Used for resourcegroupstaggingapi get-resources function, so the following won't work:
+            # - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db:kuali-oracle-${Landscape}
+            # Condition:
+            #   StringEquals:
+            #     aws:ResourceTag/Name: !Sub kuali-oracle-${Landscape}
+            #     rds:db-tag/Name: !Sub kuali-oracle-${Landscape}
+
 
 
   EC2InstanceProfile:
@@ -244,7 +273,7 @@ Resources:
     Properties:
       LogGroupName: !Sub ${GlobalTag}-${Landscape}
       RetentionInDays: 30
-      
+                
   EC2Instance:
     Type: AWS::EC2::Instance
     Description: EC2 instance for hosting kuali research modules.
@@ -266,7 +295,11 @@ Resources:
         !Ref InstanceType
       SecurityGroupIds:
       - !Ref SecurityGroupId
-      KeyName: !Ref EC2KeypairName
+      KeyName:
+        !If 
+          - UseKeypair
+          - !Ref EC2KeypairName
+          - !Ref AWS::NoValue
       IamInstanceProfile:
         !If [CreateProfile, !Ref EC2InstanceProfile, !Ref InstanceProfile]
       BlockDeviceMappings:
@@ -279,11 +312,17 @@ Resources:
       UserData: 
         "Fn::Base64": !Sub |
           #!/bin/bash
+
+          # Install with yum:
+          # 1) Ssm agent so that this ec2 instance can participate in ssm sessions.
+          # 2) Mongo command line shell client (for those shelled in to this instance it provides quick way to test database connection)
+          # 3) Perl and zip libraries needed to unpack and run custom metric monitoring for cloudwatch.
+          # 4) Other utilities like git, sysstat etc.
           yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
+          yum install -y https://repo.mongodb.org/yum/amazon/2/mongodb-org/4.4/x86_64/RPMS/mongodb-org-shell-4.4.1-1.amzn2.x86_64.rpm
+          yum install -y perl-Switch perl-DateTime perl-Sys-Syslog perl-LWP-Protocol-https perl-Digest-SHA.x86_64
           yum install -y aws-cfn-bootstrap
           yum install -y git
-          # Add perl and zip libraries needed to unpack and run custom metric monitoring for cloudwatch.
-          yum install -y perl-Switch perl-DateTime perl-Sys-Syslog perl-LWP-Protocol-https perl-Digest-SHA.x86_64
           yum install -y zip unzip
           yum install -y sysstat
           yum install -y jq
@@ -340,21 +379,27 @@ Resources:
           GetFiles:
           - getFiles
           RunCommands:
-          - ConfigSet: cmd01
-          - ConfigSet: cmd02
-          - ConfigSet: cmd03
-          - ConfigSet: cmd04
-          # - ConfigSet: cmd05
-          cmd01:
+          - ConfigSet: GetConfigsFromS3
+          - ConfigSet: CreateEnvExportsFile
+          - ConfigSet: ProcessKcConfigFile
+          - ConfigSet: StartProcesses
+          StartProcesses:
+          - 04_docker_run_containers
+          - 05_initialize_core_mongodb_content
+          # - 06_start_cron_for_custom_cloudwatch_metrics
+          GetConfigsFromS3:
           - 01_get_configs_from_s3
-          cmd02:
+          CreateEnvExportsFile:
           - 02_create_env_exports_file
-          cmd03:
+          ProcessKcConfigFile:
           - 03_process_kc-config_file
-          cmd04:
-          - 04_docker_run_container
-          cmd05:
-          - 05_start_cron_for_custom_cloudwatch_metrics
+          RunDockerContainers:
+          - 04_docker_run_containers
+          InitializeCoreMongodbContent:
+          - 05_initialize_core_mongodb_content
+          StartCronForCustomCloudwatchMetrics:
+          - 06_start_cron_for_custom_cloudwatch_metrics
+
         getFiles:
           packages:
             yum:
@@ -437,6 +482,12 @@ Resources:
               mode: "000775"
               owner: root
               group: root
+            /opt/kuali/scripts/initialize-mongo-database.sh:
+              source: !Sub http://${BucketName}.s3.amazonaws.com/cloudformation/scripts/ec2/initialize-mongo-database.sh
+              content: !Sub |
+              mode: "000775"
+              owner: root
+              group: root
             /opt/kuali/scripts/stop-instance.sh:
               source: !Sub http://${BucketName}.s3.amazonaws.com/cloudformation/scripts/ec2/stop-instance.sh
               content: !Sub |
@@ -481,6 +532,11 @@ Resources:
               group: root
             /opt/kuali/scripts/docker-compose.yaml:
               content: !Sub |
+                # NOTE: Make awslogs-create-group=false so that logging from the containers does not cause the logsGroup to 
+                # get recreated during stack deletion. Apparently, the logs group is getting deleted first during stack deletion
+                # and one or more of the containers continues to send data to cloudwatch before the ec2 instance can also be deleted.
+                # During the next stack creation, cloudformation errors out due to the log group already existing.
+
                 version: '3'
                 services:
 
@@ -497,7 +553,7 @@ Resources:
                         awslogs-region: ${AWS::Region}
                         awslogs-group: ${GlobalTag}-${Landscape}
                         awslogs-stream: core-docker-container
-                        awslogs-create-group: "true"
+                        awslogs-create-group: "false"
                     ports:
                     - 3000:3000
 
@@ -523,7 +579,7 @@ Resources:
                         awslogs-region: ${AWS::Region}
                         awslogs-group: ${GlobalTag}-${Landscape}
                         awslogs-stream: kc-docker-container
-                        awslogs-create-group: "true"
+                        awslogs-create-group: "false"
                     ports:
                     - 8080:8080
 
@@ -540,7 +596,7 @@ Resources:
                         awslogs-region: ${AWS::Region}
                         awslogs-group: ${GlobalTag}-${Landscape}
                         awslogs-stream: portal-docker-container
-                        awslogs-create-group: "true"
+                        awslogs-create-group: "false"
                     ports:
                     - 3005:3005
 
@@ -555,7 +611,7 @@ Resources:
                         awslogs-region: ${AWS::Region}
                         awslogs-group: ${GlobalTag}-${Landscape}
                         awslogs-stream: pdf-docker-container
-                        awslogs-create-group: "true"
+                        awslogs-create-group: "false"
                     ports:
                     - 3006:3006
 
@@ -564,7 +620,7 @@ Resources:
               group: root
         01_get_configs_from_s3:
           commands:
-            cmd01:
+            get_configs_from_s3:
               cwd: /opt/kuali/scripts
               env:
                 TASK: get_configs_from_s3             
@@ -574,7 +630,7 @@ Resources:
               command: bash process-configs.sh
         02_create_env_exports_file:
           commands:
-            cmd01:
+            create_env_exports_file:
               cwd: /opt/kuali/scripts
               env:
                 TASK: create_env_exports_file
@@ -582,22 +638,23 @@ Resources:
                 ENV_FILE_FROM_S3_CORE: /opt/kuali/s3/core/environment.variables.s3
                 ENV_FILE_FROM_S3_PORTAL: /opt/kuali/s3/portal/environment.variables.s3
                 ENV_FILE_FROM_S3_PDF: /opt/kuali/s3/pdf/environment.variables.s3
+                MONGO_EC2_IP: !If [ UseMongoEc2Instance, !Ref MongoEc2Ip, '' ]
                 PDF_BUCKET_NAME: !Sub "${PdfS3BucketName}"
                 AWS_DEFAULT_REGION: !Sub "${AWS::Region}"
               command: bash process-configs.sh
         03_process_kc-config_file:
           commands:
-            cmd01:
+            process_kc-config_file:
               cwd: /opt/kuali/scripts
               env:
                 TASK: process_kc-config_file
-                DNS_NAME: local
+                DNS_NAME: !Sub "${DNSName}"
                 LANDSCAPE: !Sub "${Landscape}"
                 AWS_DEFAULT_REGION: !Sub "${AWS::Region}"
               command: bash process-configs.sh
-        04_docker_run_container:
+        04_docker_run_containers:
           commands:
-            cmd01:
+            docker_run_containers:
               cwd: /opt/kuali/scripts
               env:
                 LANDSCAPE: !Sub "${Landscape}"
@@ -628,9 +685,34 @@ Resources:
                 files:
                 - /etc/awslogs/awslogs.conf
                 - /etc/awslogs/awscli.conf
-        05_start_cron_for_custom_cloudwatch_metrics:
+        05_initialize_core_mongodb_content:
           commands:
-            cmd01:
+            initialize_core_mongodb_content:
+              cwd: /opt/kuali/scripts
+              env:
+                TASK: update-core
+                DNS_NAME: !Sub "${DNSName}"
+                USING_ROUTE53: !Ref UsingRoute53
+                DEBUG: 'false'
+                COLLECTIONS: 'incommons institutions users'
+                LANDSCAPE: !Sub "${Landscape}"
+                SHIB_HOST: !If [ IsTest, 'shib-test.bu.edu', 'shib.bu.edu' ]
+                AWS_DEFAULT_REGION: !Sub "${AWS::Region}"
+                MONGO_URI:
+                  !If
+                  - UseMongoEc2Instance
+                  - !Sub 
+                    - ${Url}:${Port}/${DbName}
+                    - Url: !Ref MongoEc2Ip
+                      Port: 27017
+                      DbName: core-development
+                  - ''
+                # An empty MONGO_URI parameter will trigger a search for mongo parameters in this properties file:
+                ENV_FILE_FROM_S3_CORE: /opt/kuali/s3/core/environment.variables.s3
+              command: bash initialize-mongo-database.sh
+        06_start_cron_for_custom_cloudwatch_metrics:
+          commands:
+            start_cron_for_custom_cloudwatch_metrics:
               command: crontab -u root /opt/kuali/scripts/crontab
               env:
                 LANDSCAPE: !Sub "${Landscape}"
@@ -638,6 +720,10 @@ Resources:
 
 
 Outputs:
+
+  PrivateIP:
+    Value:
+      !GetAtt EC2Instance.PrivateIp
 
   InstanceId:
     Description: The id of the ec2 instance

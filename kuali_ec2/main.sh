@@ -12,13 +12,13 @@ declare -A defaults=(
   [PDF_IMAGE]='getLatestImage kuali-research-pdf'
   [NO_ROLLBACK]='true'
   [PROFILE]='infnprd'
-  [KEYPAIR_NAME]='kuali-ec2-$LANDSCAPE-keypair'
   [PDF_BUCKET_NAME]='$GLOBAL_TAG-pdf-$LANDSCAPE'
   [CREATE_MONGO]='false'
   # -----------------------------------------------
   # No defaults - user must provide explicit value:
   # -----------------------------------------------
-  #   [CAMPUS_SUBNET1]='???'
+  # [CAMPUS_SUBNET1]='???'
+  # [KEYPAIR_NAME]='kuali-ec2-$LANDSCAPE-keypair'
   # -----------------------------------------------
   # The following are defaulted in the yaml file itself, but can be overridden:
   # -----------------------------------------------
@@ -83,20 +83,7 @@ stackAction() {
       aws s3 cp ../scripts/ec2/initialize-mongo-database.sh s3://$BUCKET_NAME/cloudformation/scripts/ec2/
     fi
 
-    case "$action" in
-      create-stack)
-        # Prompt to create the keypair, even if it already exists (offer choice to replace with new one).
-        createEc2KeyPair $KEYPAIR_NAME
-        [ -f "$KEYPAIR_NAME" ] && chmod 600 $KEYPAIR_NAME
-        ;;
-      update-stack)
-        # Create the keypair without prompting, but only if it does not already exist
-        if ! keypairExists $KEYPAIR_NAME ; then
-          createEc2KeyPair $KEYPAIR_NAME
-          [ -f "$KEYPAIR_NAME" ] && chmod 600 $KEYPAIR_NAME
-        fi
-        ;;
-    esac
+    checkKeyPair
 
     cat <<-EOF > $cmdfile
     aws --profile=$PROFILE \\
@@ -126,14 +113,8 @@ EOF
       add_parameter $cmdfile 'MongoSubnetId' 'PRIVATE_SUBNET1'
     fi
 
-    if [ "${USE_ROUTE53,,}" == 'true' ] ; then
-      local hostedZoneName="$(getHostedZoneNameByLandscape $LANDSCAPE)"
-      [ -z "$hostedZoneName" ] && echo "ERROR! Cannot acquire hosted zone name. Cancelling..." && exit 1
-      add_parameter $cmdfile 'HostedZoneName' $hostedZoneName
-    fi
-
     if [ "${PDF_BUCKET_NAME,,}" != 'none' ] ; then  
-      add_parameter $cmdfile 'PdfS3BucketName' PDF_BUCKET_NAME
+      add_parameter $cmdfile 'PdfS3BucketName' 'PDF_BUCKET_NAME'
     fi
 
     echo "      ]'" >> $cmdfile
@@ -156,9 +137,13 @@ runTask() {
       PROMPT='false'
       task='delete-stack'
       stackAction "delete-stack" 2> /dev/null
-      waitForStackToDelete ${STACK_NAME}-${LANDSCAPE}
-      task='create-stack'
-      stackAction "create-stack" ;;
+      if waitForStackToDelete ${STACK_NAME}-${LANDSCAPE} ; then
+        task='create-stack'
+        stackAction "create-stack"
+      else
+        echo "ERROR! Stack deletion failed. Cancelling..."
+      fi
+      ;;
     update-stack)
       stackAction "update-stack" ;;
     reupdate-stack)
@@ -168,7 +153,10 @@ runTask() {
     delete-stack)
       stackAction "delete-stack" ;;
     test)
-      test ;;
+      # getHostedZoneNameByLandscape 'ci' ;;
+      # test ;;
+      setAcmCertArn 'kuali-research-css-ci.bu.edu'
+      echo $CERTIFICATE_ARN ;;
     *)
       if [ -n "$task" ] ; then
         echo "INVALID PARAMETER: No such task: $task"

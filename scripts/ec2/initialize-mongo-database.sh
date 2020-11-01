@@ -117,21 +117,15 @@ isLocalHost() {
 
 
 shibbolethDataAvailable() {
-  local using='true'
-  if isLocalHost "$DNS_NAME" ; then
-    using='false'
-  elif [ "${DNS_NAME,,}" == 'local' ] || [ -z "$DNS_NAME" ] ; then
-    using='false'
-  elif [ -z "$SHIB_HOST" ] ; then
+  if [ -z "$SHIB_HOST" ] ; then
     SHIB_HOST="$(getValueFromEnvVarFile 'SHIB_HOST')"
-    [ -z "$SHIB_HOST" ] && using='false'
   fi
-  [ $using == 'true' ] && true || false
+  [ -n "$SHIB_HOST" ] && true || false
 }
 
 
 runCommand() {
-  echo $cmd
+  echo "$cmd"
   [ "${DEBUG,,}" != 'true' ] && [ ! "${1,,}" == 'ignore-debug' ] && eval $cmd
 }
 
@@ -153,7 +147,7 @@ EOF
 updateInCommons() {
   
   if ! shibbolethDataAvailable ; then
-    echo "Updating Incommons: No shibboleth data available, cancelling... "
+    echo "No shibboleth data available, cannot update incommons collection, cancelling... "
     return 0
   fi
 
@@ -167,8 +161,9 @@ updateInCommons() {
 
   if [ -n "$cert" ] ; then
     if mongoCollectionExists 'incommons' ; then
-      # Clear out the incommons collecion so it can be repopulated.
-      runCommand "$(getMongoParameters) --quiet --eval 'db.getCollection("incommons").remove({})'"
+      echo "Clearing out the incommons collecion and repopulating..."
+      local cmd="$(getMongoParameters) --quiet --eval 'db.getCollection(\"incommons\").remove({})'"
+      runCommand "$cmd"
     fi
     local cmd=$(cat << EOF
     $(getMongoParameters) \
@@ -197,7 +192,7 @@ createInstitutionsCollection() {
 updateInstitutions() {
   echo "Updating institutions document..."
   local provider="kuali"
-  if shibbolethDataAvailable ; then
+  if [ "$USING_ROUTE53" == 'true' ] ; then
     provider="saml"
   fi
 	local cmd=$(cat << EOF
@@ -209,6 +204,7 @@ updateInstitutions() {
         {
           \$set: {
             "provider": "$provider",
+            "issuer": "https://$DNS_NAME/shibboleth",
             "signInExpiresIn" : 1209600000,
             "features.impersonation": true,
             "features.apps": {
@@ -237,12 +233,13 @@ EOF
 
 
 createUsersCollection() {
- getInstitutionRESTCall
+  # getInstitutionRESTCall
+  echo 'Creating users collection...'
 }
 
 
 updateUsers() {
-  echo 'TBD'
+  echo "Updating users..."
 }
 
 
@@ -250,8 +247,57 @@ updateUsers() {
 # Usually, browsing the application and logging in for the first time as admin will trigger the creaton of these
 # two collections, but you can accomplish the same by making a rest call to the institution module.
 getInstitutionRESTCall() {
-  local containerIpAddress=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' cor-main)
-  curl http://$containerIpAddress:3000/api/v1/institution
+
+  echo "Making REST call to cor-main container to trigger auto-create of institutions and/or users collection(s)..."
+
+  setContainerId() {
+    containerShortname=${1:-'cor-main'}
+    echo "docker ps -f name=$containerShortname -q ..."
+    containerId=$(docker ps -f name=$containerShortname -q 2> /dev/null)
+    echo "Container ID: $containerId"
+    if [ -z "$containerId" ] && [ -z "$1" ]; then 
+      # If the container is not named "cor-main", then we are running in an ecs stack, which names containers after a portion of the docker.
+      # image name. The -f filter will return partial matches, so as long as the container name has "kuali-core" in it, the ID will be found.
+      setContainerId 'kuali-core'
+    fi
+    [ -n "$containerId" ] && true || false
+  }
+
+  setContainerIpAddress() {
+    for attempt in {1..60} ; do
+      echo "$(whoami) running docker ps ..."
+      docker ps
+      if setContainerId ; then
+        containerIpAddress=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $containerId 2> /dev/null)
+        break;
+      fi
+      echo "Looks like core container isn't running yet, attempt $((attempt+1))..."
+      sleep 5
+    done
+    [ -z "$containerIpAddress" ] && echo "ERROR! It's been an 20 minutes with no success getting the core docker container ID. Quitting."
+    [ -n "$containerIpAddress" ] && true || false
+  }
+
+  makeRESTCall() {
+    for attempt in {1..30} ; do
+      echo "Attempting REST call to $containerShortname container to trigger auto-create of institutions and/or users collection(s)..."
+      echo "curl http://$containerIpAddress:3000/api/v1/institution"
+      local reply=$(curl http://$containerIpAddress:3000/api/v1/institution 2>&1)
+      local code=$?
+      echo "$code: $reply"
+      if [ $code -ne 0 ] || [ -n "$(grep -i 'connection refused' <<< $reply)" ] ; then
+        echo "Looks like $containerShortname container isn't ready yet, attempt $((attempt+1))..."
+        sleep 2
+      else
+        return 0
+      fi
+    done
+    echo "It's been a minute with no success contacting the $containerShortname container. Quitting."
+  }
+
+  if setContainerIpAddress ; then
+    makeRESTCall
+  fi
 }
 
 
@@ -285,7 +331,13 @@ initialize() {
     # the private subnet it is sitting in is linked to a bu network through a transit gateway attachment
     # and the user has logged on to that bu network before attempting to reach the application, knowing 
     # the private ip address of the ec2 instance and browsing to the app with it: https://[private ip]/kc.
+    # Dummy (Institutions.provider='kuali') authentication is the only option.
     DNS_NAME=$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4)
+  else
+    DNS_NAME=$(echo "$DNS_NAME" | sed -E 's/\.$//') # Strip off trailing dot (if exists).
+    # If we are using route53, ssl certificate for and an official dns name, which means we don't have to use dummy auth,
+    # that is provided the institutions and incommons collections tables are properly updated.
+    [ -z "$USING_ROUTE53" ] && USING_ROUTE53='true'
   fi
   SHIB_IDP_METADATA_URL=https://$SHIB_HOST/idp/shibboleth
 }
@@ -297,8 +349,8 @@ case "$task" in
   test)
     # getMongoParameters
     # getValueFromEnvVarFile 'SHIB_HOST'
-    # updateInCommons
-    updateInstitutions
+    updateInCommons
+    # updateInstitutions
     ;;
   update-core)
     updateCore

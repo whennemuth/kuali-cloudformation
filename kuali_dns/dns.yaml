@@ -3,7 +3,7 @@ AWSTemplateFormatVersion: '2010-09-09'
 # References:
 # https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/CreatingNewSubdomain.html
 # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_Route53.html
-# https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/quickref-route53.html#scenario-recordsetgroup-zoneapex
+# https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/quickref-route53.html
 
 
 Description: This template deploys an application load balancer that exposes the EC2 Instance (except for ssh access)

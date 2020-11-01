@@ -22,6 +22,8 @@ Metadata:
           - CampusSubnet2
           - PublicSubnet2
           - CertificateArn
+          - EnableWAF
+          - HostedZoneName
       - Label: 
           default: "Amazon EC2 Configuration"
         Parameters: 
@@ -129,12 +131,11 @@ Parameters:
     Type: String
     Description: The amazon resource name of a certificate that has already been put in ACM
 
-  # NOTE: The type below triggers a check by aws for existence of the keypair as part of a validation check.
-  # However, this makes the parameter required, even for stack updates. Use "String" as type to forego the
-  # validation check and allow the parameter to be optional during updates.
   EC2KeypairName:
-    Type: AWS::EC2::KeyPair::KeyName
+    # Type: AWS::EC2::KeyPair::KeyName
+    Type: String
     Description: The keypair for ssh use against the ec2 instance
+    Default: empty
 
   EnableNewRelicAPM:
     Type: String
@@ -154,31 +155,39 @@ Parameters:
     - "false"
     ConstraintDescription: Enter "true" or "false" only.
 
-  WAF:
+  EnableWAF:
     Type: String
     Description: Does the ALB traffic need to go through a WAF?
-    Default: "yes"
-    Allowedvalues:
-    - "yes"
-    - "no"
+    Default: "true"
+    AllowedValues:
+    - "true"
+    - "false"
 
-  # Must be included if HostedZoneCommonName is included.
-  HostedZoneId:
+  EnableALBLogging:
     Type: String
-    Description: The id of the hosted zone. This means that we are using route53 to be delegated the kuali-research subdomain.
+    Description: Does the ALB traffic need to go through a WAF?
+    Default: "false"
+    AllowedValues:
+    - "true"
+    - "false"
+
+  MongoSubnetId:
+    Type: String
+    Description: Id of the private application subnet where a new mongo database ec2 instance is optionally created.
     Default: empty
 
-  # Must be included if HostedZoneId is included.
-  HostedZoneCommonName:
+  HostedZoneName:
     Type: String
-    Description: >
-      The common name for the subdomain delegated to the hosted zone. Assumes the HostedZone name itself is set to this value.
+    Description: If included, a DNS record will be created and registered with the specified HostedZone
     Default: empty
 
 Conditions:
-    CreateWAF: !Equals [!Ref WAF, 'yes']
-    HostedZoneIdProvided: !Not [!Equals [!Ref HostedZoneId, empty]]
-    HostedZoneCommonNameProvided: !Not [!Equals [!Ref HostedZoneCommonName, empty]]
+  CreateWAF: !Equals [!Ref EnableWAF, 'true']
+  CreateDnsRecord: !Not [!Equals [!Ref HostedZoneName, empty]]
+  CreateMongoEc2Instance: !Not [!Equals [!Ref MongoSubnetId, empty]]
+  CreateAlbLogsBuckets: !Or [!Equals [!Ref EnableALBLogging, 'true' ], Condition: CreateWAF]
+  UseKeypair: !Not [!Equals [!Ref EC2KeypairName, empty]]
+
 
 Resources:
       
@@ -195,6 +204,18 @@ Resources:
         VpcId:
           !Ref VpcId
 
+  ALBWAFLogs:
+    Type: AWS::CloudFormation::Stack
+    Condition: CreateAlbLogsBuckets
+    Properties:
+      TemplateURL: 
+        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_alb/logs.yaml
+      Parameters:
+        GlobalTag:
+          !Ref GlobalTag
+        Landscape:
+          !Ref Landscape        
+
   WAF:
     Type: AWS::CloudFormation::Stack
     Condition: CreateWAF
@@ -206,12 +227,22 @@ Resources:
           !Ref GlobalTag
         Landscape:
           !Ref Landscape
+        AlbLogsBucketName:
+          !If
+            - CreateAlbLogsBuckets
+            - !GetAtt ALBWAFLogs.Outputs.ALBLogBucketName
+            - !Ref AWS::NoValue
+        GlueAccessLogsDatabaseName:
+          !If
+            - CreateAlbLogsBuckets
+            - !GetAtt ALBWAFLogs.Outputs.GlueAccessLogsDatabaseName
+            - !Ref AWS::NoValue
     
   ALB:
     Type: AWS::CloudFormation::Stack
     Properties:
       TemplateURL: 
-        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_ec2_alb/alb.yaml
+        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_alb/alb.yaml
       Parameters:
         GlobalTag:
           !Ref GlobalTag
@@ -223,8 +254,8 @@ Resources:
           !Ref PublicSubnet1
         Subnet2: 
           !Ref PublicSubnet2
-        SecurityGroups: 
-          !GetAtt SecurityGroups.Outputs.ALBSecurityGroups
+        SecurityGroup: 
+          !GetAtt SecurityGroups.Outputs.ALBSecurityGroup
         CertificateArn:
           !Ref CertificateArn
         WafWebAclArn:
@@ -232,11 +263,82 @@ Resources:
             - CreateWAF
             - !GetAtt WAF.Outputs.WafWebAclArn
             - !Ref AWS::NoValue
-        HostedZoneId:
+        HostedZoneName:
           !If
-            - HostedZoneIdProvided
-            - !Ref HostedZoneId
+            - CreateDnsRecord
+            - !Ref HostedZoneName
             - !Ref AWS::NoValue
+        AlbLogsBucketName:
+          !If
+            - CreateAlbLogsBuckets
+            - !GetAtt ALBWAFLogs.Outputs.ALBLogBucketName
+            - !Ref AWS::NoValue
+
+  # See notes in cleanup.yaml
+  AlbWafCleanupLambda:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: 
+        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_lambda/cleanup.yaml
+      Parameters:
+        GlobalTag: !Ref GlobalTag
+        Landscape: !Ref Landscape
+        BucketName: !Ref BucketName
+        AlbArn: !GetAtt ALB.Outputs.LoadBalancer
+        WafArn: !If [ CreateWAF, !GetAtt WAF.Outputs.WafWebAclArn, !Ref AWS::NoValue ]
+        AlbLogsBucketName: !If [ CreateAlbLogsBuckets, !GetAtt ALBWAFLogs.Outputs.ALBLogBucketName, !Ref AWS::NoValue ]
+        WafLogsBucketName: !If [ CreateWAF, !GetAtt WAF.Outputs.WafLogBucketName, !Ref AWS::NoValue ]
+        AthenaLogsBucketName: !If [ CreateWAF, !GetAtt ALBWAFLogs.Outputs.AthenaLogBucketName, !Ref AWS::NoValue ]
+        
+  CleanupBeforeDelete:
+    Type: Custom::Functions
+    Properties:
+      ServiceToken: !GetAtt AlbWafCleanupLambda.Outputs.LambdaArn
+      # Omiiting parameters is equivalent to specifying the most inclusive cleanup (both alb and waf logging is disabled an all 3 associated buckets are emptied)
+      #
+      # To limit logging disablement and bucket cleanup to the alb use:
+      # resource: 'alb'
+      #
+      # To limit logging disablement and bucket cleanup to the waf use:
+      # resource: 'waf'
+      #
+      # To only disable logging (alb and waf), but leave buckets alone use:
+      # target: 'logging'
+      # 
+      # To only cleanup buckets (alb, waf, & athena), but leave logging enabled use:
+      # target: 'bucket'
+      # 
+      # To only disable logging for the alb use:
+      # resource 'alb'
+      # target 'logging'
+      # 
+      # To only cleanup buckets for the waf use:
+      # resource: 'waf'
+      # target: 'bucket'
+      # 
+      # To only cleanup buckets for athena use:
+      # resource 'athena'
+      # target: 'bucket'
+      #
+      # etc...
+
+  MongoDbInstance:
+    Type: AWS::CloudFormation::Stack
+    Condition: CreateMongoEc2Instance
+    Properties:
+      TemplateURL: 
+        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_mongo/mongo.yaml
+      Parameters:
+        GlobalTag:
+          !Sub ${GlobalTag}-mongo
+        Landscape:
+          !Ref Landscape
+        VpcId:
+          !Ref VpcId
+        ApplicationSecurityGroupId:
+          !GetAtt SecurityGroups.Outputs.EC2SecurityGroupId
+        MongoSubnet:
+          !Ref MongoSubnetId
     
   Instance1:
     Type: AWS::CloudFormation::Stack
@@ -248,17 +350,25 @@ Resources:
           !Ref GlobalTag
         Landscape:
           !Ref Landscape
-        SecurityGroupsId:
-          !GetAtt SecurityGroups.Outputs.EC2SecurityGroupsId
+        VpcId:
+          !Ref VpcId
+        SecurityGroupId:
+          !GetAtt SecurityGroups.Outputs.EC2SecurityGroupId
         DNSName:
           !If 
-            - HostedZoneCommonNameProvided
-            - !Ref HostedZoneCommonName
+            - CreateDnsRecord
+            - !Ref HostedZoneName
             - !GetAtt ALB.Outputs.DNSName
+        UsingRoute53: !If [ CreateDnsRecord, 'true', 'false' ]
         InstanceType:
           !Ref InstanceType
         CampusSubnet:
           !Ref CampusSubnet1
+        MongoEc2Ip:
+          !If
+            - CreateMongoEc2Instance
+            - !GetAtt MongoDbInstance.Outputs.PrivateIP
+            - !Ref AWS::NoValue
         BucketName:
           !Ref BucketName
         PdfS3BucketName:
@@ -272,7 +382,10 @@ Resources:
         PdfImage:
           !Ref PdfImage
         EC2KeypairName:
-          !Ref EC2KeypairName
+          !If 
+            - UseKeypair
+            - !Ref EC2KeypairName
+            - !Ref AWS::NoValue
         EnableNewRelicAPM:
           !Ref EnableNewRelicAPM
         EnableNewRelicInfrastructure:
@@ -289,15 +402,23 @@ Resources:
           !Ref GlobalTag
         Landscape:
           !Ref Landscape
-        SecurityGroupsId:
-          !GetAtt SecurityGroups.Outputs.EC2SecurityGroupsId
+        VpcId:
+          !Ref VpcId
+        SecurityGroupId:
+          !GetAtt SecurityGroups.Outputs.EC2SecurityGroupId
         DNSName:
           !If 
-            - HostedZoneCommonNameProvided
-            - !Ref HostedZoneCommonName
+            - CreateDnsRecord
+            - !Ref HostedZoneName
             - !GetAtt ALB.Outputs.DNSName
+        UsingRoute53: !If [ CreateDnsRecord, 'true', 'false' ]
         CampusSubnet:
           !Ref CampusSubnet2
+        MongoEc2Ip:
+          !If
+            - CreateMongoEc2Instance
+            - !GetAtt MongoDbInstance.Outputs.PrivateIP
+            - !Ref AWS::NoValue
         InstanceType:
           !Ref InstanceType
         BucketName:
@@ -313,7 +434,10 @@ Resources:
         PdfImage:
           !Ref PdfImage
         EC2KeypairName:
-          !Ref EC2KeypairName
+          !If 
+            - UseKeypair
+            - !Ref EC2KeypairName
+            - !Ref AWS::NoValue
         EnableNewRelicAPM:
           !Ref EnableNewRelicAPM
         EnableNewRelicInfrastructure:
@@ -356,7 +480,7 @@ Outputs:
       !Sub 
       - https://${domain}/kc
       - domain: !If 
-        - HostedZoneCommonNameProvided
-        - !Ref HostedZoneCommonName
+        - CreateDnsRecord
+        - !Ref HostedZoneName
         - !GetAtt ALB.Outputs.DNSName
     

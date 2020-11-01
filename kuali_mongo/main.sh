@@ -86,9 +86,13 @@ runTask() {
       PROMPT='false'
       task='delete-stack'
       stackAction "delete-stack" 2> /dev/null
-      waitForStackToDelete ${STACK_NAME}-${LANDSCAPE}
-      task='create-stack'
-      stackAction "create-stack" ;;
+      if waitForStackToDelete ${STACK_NAME}-${LANDSCAPE} ; then
+        task='create-stack'
+        stackAction "create-stack"
+      else
+        echo "ERROR! Stack deletion failed. Cancelling..."
+      fi
+      ;;
     update-stack)
       stackAction "update-stack" ;;
     reupdate-stack)

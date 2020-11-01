@@ -36,6 +36,10 @@ Parameters:
     ConstraintDescription: >
       This parameter is restricted to the following values: sb, ci, qa, stg, prod
     Default: sb
+
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: The id of the vpc to deploy to.
     
   Service:
     Description: Service catalog name
@@ -78,12 +82,11 @@ Parameters:
     ConstraintDescription: Specified instance type is not within selection list.
     Default: m4.large
 
-  # NOTE: The type below triggers a check by aws for existence of the keypair as part of a validation check.
-  # However, this makes the parameter required, even for stack updates. Use "String" as type to forego the
-  # validation check and allow the parameter to be optional during updates.
   EC2KeypairName:
-    Type: AWS::EC2::KeyPair::KeyName
+    # Type: AWS::EC2::KeyPair::KeyName
+    Type: String
     Description: The keypair for ssh use against the ec2 instance
+    Default: empty
   
   EnableNewRelicAPM:
     Type: String
@@ -109,7 +112,16 @@ Parameters:
 
   DNSName:
     Type: String
-    Description: The DNS name for the ALB. The app is publicly reachable at this address.
+    Description: The DNS name for the ALB or a hosted zone that forwards to it. The app is publicly reachable at this address.
+
+  UsingRoute53:
+    Type: String
+    Description: Indicates if the DNSName is resolved with Route53 and exists in our hosted zone as an A record.
+    Default: "false"
+    AllowedValues:
+    - "true"
+    - "false"
+    ConstraintDescription: Enter "true" or "false" only.
 
   InstanceProfile:
     Type: String
@@ -138,11 +150,18 @@ Parameters:
     ConstraintDescription: Maximum cluster size is limited between 1 and 6 instances.
     Default: 3
 
+  MongoEc2Ip:
+    Type: String
+    Description: The private ip address of the ec2 instance hosting a simple mongo database (for test environments)
+    Default: empty
+
     
 Conditions: 
   CreateProfile: !Equals [ !Ref InstanceProfile, "create" ]
   CreateRole: !Equals [ !Ref InstanceRole, "create" ]
-  CreateLogsGroup: !Equals [ !Ref EC2InstanceLogsGroupArn, "create" ]
+  UseMongoEc2Instance: !Not [!Equals [!Ref MongoEc2Ip, empty]]
+  UseKeypair: !Not [!Equals [!Ref EC2KeypairName, empty]]
+  IsTest: !Not [!And [!Equals [!Ref Landscape, prod], !Equals [!Ref Landscape, stg]]]
 
 
 Resources:
@@ -294,6 +313,12 @@ Resources:
       Tags:
       - Key: Name
         Value: !Sub ${GlobalTag}-${Landscape}-cluster
+      - Key: Landscape
+        Value: !Ref Landscape
+      - Key: Service
+        Value: !Ref Service
+      - Key: Function
+        Value: !Ref Function
 
   ECSContainerInstanceAutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
@@ -314,14 +339,16 @@ Resources:
       Tags:
       - Key: Landscape
         Value: !Ref Landscape
+        PropagateAtLaunch: true
       - Key: Service
         Value: !Ref Service
+        PropagateAtLaunch: true
       - Key: Function
         Value: !Ref Function
-      - Key: Name
-        Value:
-          !Sub ${GlobalTag}-${Landscape}-auto-scaling-group
         PropagateAtLaunch: true
+      - Key: Name
+        Value: !Sub ${GlobalTag}-${Landscape}-auto-scaling-group
+        PropagateAtLaunch: false
     CreationPolicy:
       ResourceSignal:
         Count: 1
@@ -382,7 +409,11 @@ Resources:
         !Ref InstanceType
       SecurityGroups:
       - !Ref SecurityGroupId
-      KeyName: !Ref EC2KeypairName
+      KeyName:
+        !If 
+          - UseKeypair
+          - !Ref EC2KeypairName
+          - !Ref AWS::NoValue
       IamInstanceProfile:
         !If [CreateProfile, !Ref EC2InstanceProfile, !Ref InstanceProfile]
       BlockDeviceMappings:
@@ -394,11 +425,17 @@ Resources:
       UserData: 
         "Fn::Base64": !Sub |
           #!/bin/bash
+
+          # Install with yum:
+          # 1) Ssm agent so that this ec2 instance can participate in ssm sessions.
+          # 2) Mongo command line shell client (for those shelled in to this instance it provides quick way to test database connection)
+          # 3) Perl and zip libraries needed to unpack and run custom metric monitoring for cloudwatch.
+          # 4) Other utilities like git, sysstat etc.
           yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
+          yum install -y https://repo.mongodb.org/yum/amazon/2/mongodb-org/4.4/x86_64/RPMS/mongodb-org-shell-4.4.1-1.amzn2.x86_64.rpm
+          yum install -y perl-Switch perl-DateTime perl-Sys-Syslog perl-LWP-Protocol-https perl-Digest-SHA.x86_64
           yum install -y aws-cfn-bootstrap
           yum install -y git
-          # Add perl and zip libraries needed to unpack and run custom metric monitoring for cloudwatch.
-          yum install -y perl-Switch perl-DateTime perl-Sys-Syslog perl-LWP-Protocol-https perl-Digest-SHA.x86_64
           yum install -y zip unzip
           yum install -y sysstat
           yum install -y jq
@@ -412,17 +449,30 @@ Resources:
           # Implement all the metadata in AWS::CloudFormation::Init
           /opt/aws/bin/cfn-init \
               -v \
-              --configsets AllConfigs \
-              --region ${AWS::Region} \
-              --stack ${AWS::StackName} \
-              --resource ECSLaunchConfiguration
+            --configsets AllConfigs \
+            --region ${AWS::Region} \
+            --stack ${AWS::StackName} \
+            --resource ECSLaunchConfiguration
           
           # Now that all initialization is done signal the result of the cfn-init attempt
           /opt/aws/bin/cfn-signal \
-              -e $? \
-              --region ${AWS::Region} \
-              --stack ${AWS::StackName} \
-              --resource ECSContainerInstanceAutoScalingGroup
+            -e $? \
+            --region ${AWS::Region} \
+            --stack ${AWS::StackName} \
+            --resource ECSContainerInstanceAutoScalingGroup
+
+          # The systemd units for both ecs and docker have a directive to wait for cloud-init to finish before starting. 
+          # The cloud-init process isn't considered finished until your userdata has finished running. 
+          # So, triggering this next configuration must be done last and as a background process (using &) because it
+          # needs to talk to one of the docker containers, and these won't start until the same running configuration
+          # stops blocking the ecs agent because it is considered part of cloud-init. A process started in the background
+          # should be considered outside of the cloud-init process.        
+          /opt/aws/bin/cfn-init \
+            -v \
+            --configsets InitializeCoreMongodbContent \
+            --region ${AWS::Region} \
+            --stack ${AWS::StackName} \
+            --resource ECSLaunchConfiguration &
 
     Metadata:
       AWS::CloudFormation::Authentication:
@@ -443,21 +493,27 @@ Resources:
           GetFiles:
           - getFiles
           RunCommands:
-          - ConfigSet: cmd01
-          - ConfigSet: cmd02
-          - ConfigSet: cmd03
-          - ConfigSet: cmd04
-          # - ConfigSet: cmd05
-          cmd01:
+          - ConfigSet: GetConfigsFromS3
+          - ConfigSet: CreateEnvExportsFile
+          - ConfigSet: ProcessKcConfigFile
+          - ConfigSet: StartProcesses
+          StartProcesses:
+          - 04_add_instance_to_cluster
+          # - 05_initialize_core_mongodb_content
+          # - 06_start_cron_for_custom_cloudwatch_metrics
+          GetConfigsFromS3:
           - 01_get_configs_from_s3
-          cmd02:
+          CreateEnvExportsFile:
           - 02_create_env_exports_file
-          cmd03:
+          ProcessKcConfigFile:
           - 03_process_kc-config_file
-          cmd04:
-          - 03_add_instance_to_cluster
-          cmd05:
-          - 04_start_cron_for_custom_cloudwatch_metrics
+          AddInstanceToCluster:
+          - 04_add_instance_to_cluster
+          InitializeCoreMongodbContent:
+          - 05_initialize_core_mongodb_content
+          StartCronForCustomCloudwatchMetrics:
+          - 06_start_cron_for_custom_cloudwatch_metrics
+
         getFiles:
           packages:
             yum:
@@ -489,6 +545,35 @@ Resources:
               mode: "000644"
               owner: root
               group: root
+            /etc/profile.d/shortcuts.sh:
+              content: !Sub |
+                #!/bin/bash
+                # These are convenience functions for shelling in and testing/rerunning cfn-init configurations
+
+                # Run one of the cfn-init configs, placing a bit of space in the log file and then tailing the log file to see output as it happens.
+                runconfig() {
+                  echo "\n\n\n\n" >> /var/log/cfn-init.log
+                  /opt/aws/bin/cfn-init \
+                  -v \
+                  --configsets ${!1} \
+                  --region ${AWS::Region} \
+                  --stack ${AWS::StackName} \
+                  --resource ECSLaunchConfiguration &
+                  tail -f /var/log/cfn-init.log -n 200
+                }
+
+                runAll(){ runconfig 'AllConfigs'; }
+                getFiles(){ runconfig 'GetFiles'; }
+                getConfigs() { runconfig 'GetConfigsFromS3'; }
+                createEnvFile() { runconfig 'CreateEnvExportsFile'; }
+                processKcConfig() { runconfig 'ProcessKcConfigFile'; }
+                startProcesses() { runconfig 'StartProcesses'; }
+                initMongo() { runconfig 'InitializeCoreMongodbContent'; }
+                addToCluster() { runconfig 'AddInstanceToCluster'; }
+
+              mode: "000400"
+              owner: root
+              group: root              
             /etc/cfn/cfn-hup.conf:
               mode: "000400"
               owner: root
@@ -556,6 +641,12 @@ Resources:
               mode: "000775"
               owner: root
               group: root
+            /opt/kuali/scripts/initialize-mongo-database.sh:
+              source: !Sub http://${BucketName}.s3.amazonaws.com/cloudformation/scripts/ec2/initialize-mongo-database.sh
+              content: !Sub |
+              mode: "000775"
+              owner: root
+              group: root
             /opt/kuali/scripts/send-custom-cloudwatch-metrics.sh:
               source: !Sub http://${BucketName}.s3.amazonaws.com/cloudformation/scripts/ec2/cloudwatch-metrics.sh
               mode: "000744"
@@ -563,7 +654,7 @@ Resources:
               group: root
         01_get_configs_from_s3:
           commands:
-            cmd01:
+            get_configs_from_s3:
               cwd: /opt/kuali/scripts
               env:
                 TASK: get_configs_from_s3             
@@ -573,7 +664,7 @@ Resources:
               command: bash process-configs.sh
         02_create_env_exports_file:
           commands:
-            cmd01:
+            create_env_exports_file:
               cwd: /opt/kuali/scripts
               env:
                 TASK: create_env_exports_file
@@ -581,22 +672,23 @@ Resources:
                 ENV_FILE_FROM_S3_CORE: /opt/kuali/s3/core/environment.variables.s3
                 ENV_FILE_FROM_S3_PORTAL: /opt/kuali/s3/portal/environment.variables.s3
                 ENV_FILE_FROM_S3_PDF: /opt/kuali/s3/pdf/environment.variables.s3
+                MONGO_EC2_IP: !If [ UseMongoEc2Instance, !Ref MongoEc2Ip, '' ]
                 PDF_BUCKET_NAME: !Sub "${PdfS3BucketName}"
                 AWS_DEFAULT_REGION: !Sub "${AWS::Region}"
-              command: bash process.env.file.sh
+              command: bash process-configs.sh
         03_process_kc-config_file:
           commands:
-            cmd01:
+            process_kc-config_file:
               cwd: /opt/kuali/scripts
               env:
                 TASK: process_kc-config_file
-                DNS_NAME: local
+                DNS_NAME: !Sub "${DNSName}"
                 LANDSCAPE: !Sub "${Landscape}"
                 AWS_DEFAULT_REGION: !Sub "${AWS::Region}"
               command: bash process-configs.sh
         04_add_instance_to_cluster:
           commands:
-            cmd01:
+            add_instance_to_cluster:
               command:
                 !Sub echo ECS_CLUSTER=${ECSCluster} >> /etc/ecs/ecs.config
           services:
@@ -615,14 +707,38 @@ Resources:
                 files:
                 - /etc/awslogs/awslogs.conf
                 - /etc/awslogs/awscli.conf
-        05_start_cron_for_custom_cloudwatch_metrics:
+        05_initialize_core_mongodb_content:
           commands:
-            cmd01:
+            initialize_core_mongodb_content:
+              cwd: /opt/kuali/scripts
+              env:
+                TASK: update-core
+                DNS_NAME: !Sub "${DNSName}"
+                USING_ROUTE53: !Ref UsingRoute53
+                DEBUG: 'false'
+                COLLECTIONS: 'incommons institutions users'
+                LANDSCAPE: !Sub "${Landscape}"
+                SHIB_HOST: !If [ IsTest, 'shib-test.bu.edu', 'shib.bu.edu' ]
+                AWS_DEFAULT_REGION: !Sub "${AWS::Region}"
+                MONGO_URI:
+                  !If
+                  - UseMongoEc2Instance
+                  - !Sub 
+                    - ${Url}:${Port}/${DbName}
+                    - Url: !Ref MongoEc2Ip
+                      Port: 27017
+                      DbName: core-development
+                  - ''
+                # An empty MONGO_URI parameter will trigger a search for mongo parameters in this properties file:
+                ENV_FILE_FROM_S3_CORE: /opt/kuali/s3/core/environment.variables.s3
+              command: bash initialize-mongo-database.sh
+        06_start_cron_for_custom_cloudwatch_metrics:
+          commands:
+            start_cron_for_custom_cloudwatch_metrics:
               command: crontab -u root /opt/kuali/scripts/crontab
               env:
                 LANDSCAPE: !Sub "${Landscape}"
                 AWS_DEFAULT_REGION: !Sub "${AWS::Region}"
-
 
 Outputs:
 

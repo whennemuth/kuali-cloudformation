@@ -9,7 +9,7 @@ Use this template to perform the simplest form of deployment for kuali research,
 ### Features:
 
 1. **EC2:**
-   A single EC2 instance running in the default VPC with a public DNS address.
+   A single EC2 instance running the application modules and optionally a second EC2 instance running several mongo databases.te ip address.
 2. **Docker:**
    Part of EC2 initialization includes starting up docker containers for kc, core, dashboard and pdf modules.
 3. **Nginx:**

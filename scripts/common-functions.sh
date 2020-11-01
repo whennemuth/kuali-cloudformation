@@ -229,6 +229,27 @@ metaRefresh() {
   [ "$answer" == "y" ] && sh $cmdfile || echo "Cancelled."
 }
 
+checkKeyPair() {
+  if [ -n "$KEYPAIR_NAME" ] ; then
+    case "$action" in
+      create-stack)
+        # Prompt to create the keypair, even if it already exists (offer choice to replace with new one).
+        createEc2KeyPair $KEYPAIR_NAME
+        [ -f "$KEYPAIR_NAME" ] && chmod 600 $KEYPAIR_NAME
+        ;;
+      update-stack)
+        # Create the keypair without prompting, but only if it does not already exist
+        if ! keypairExists $KEYPAIR_NAME ; then
+          createEc2KeyPair $KEYPAIR_NAME
+          [ -f "$KEYPAIR_NAME" ] && chmod 600 $KEYPAIR_NAME
+        fi
+        ;;
+    esac
+  else
+    echo "No keypairs associated with ec2 instance(s) - use ssm start-session method for shell access."
+  fi
+}
+
 keypairExists() {
   local keyname="$1"
   aws ec2 describe-key-pairs --key-names $keyname > /dev/null 2>&1
@@ -303,24 +324,25 @@ printCertLookupSteps() {
     --------------------------------------------------------
         ACM CERTIFICATE
     --------------------------------------------------------
-    1) Use cli to find out if a certificate with the following CN (common name) 
+    1) If USING_ROUTE53=false, go to step 7
+    2) Use cli to find out if a certificate with the following CN (common name) 
        exists in acm and get its arn.
          CN: $CN
-    2) If not found, identify 3 files in current directory that can combine for 
+    3) If not found, identify 3 files in current directory that can combine for 
        certificate import.
-    3) If files found, prompt for import to acm to create new certificate entry.
-    4) If not accepted by user for import, search s3 in a known location for similar 
+    4) If files found, prompt for import to acm to create new certificate entry.
+    5) If not accepted by user for import, search s3 in a known location for similar 
        files and download to temp directory.
-    5) If files downloaded from s3 pass the same test, prompt user again.
+    6) If files downloaded from s3 pass the same test, prompt user again.
     --------------------------------------------------------
         SELF-SIGNED CERTIFICATE (IAM SERVER CERTIFICATE)
     --------------------------------------------------------
-    6) If user does not accept, prompt if they want to use a self-signed certificate.
-    7) If user accepts, look for a self-signed certificate in iam by the expected name.
-    8) If found, prompt the user if they want to continue to use it or.
-    9) If not accepted, prompt the user if they want to have a new self-signed 
+    7) If user does not accept, or not using route53, prompt to use a self-signed certificate.
+    8) If user accepts, look for a self-signed certificate in iam by the expected name.
+    9) If found, prompt the user if they want to continue to use it or.
+    10) If not accepted, prompt the user if they want to have a new self-signed 
        certificate created and uploaded to iam.
-    10) If no accepted, exit - there are no other options and cannot proceed 
+    11) If not accepted, exit - there are no other options and cannot proceed 
         with out a certificate.
 
 EOF
@@ -389,18 +411,18 @@ setAcmCertArn() {
         --certificate-arn $CERTIFICATE_ARN \
         --tags \
             Key=Name,Value=$domainName \
-            Key=Function,Value=acm \
-            Key=Service,Value=kc \
+            Key=Function,Value=research-administration \
+            Key=Service,Value=kuali \
             Key=Landscape,Value=$LANDSCAPE
 
     elif [ "$checkS3" == 'true' ] ; then
       if askYesNo "Check S3 for these files instead?" ; then
-        downloadAcmCertsFromS3 'import'
+        downloadAcmCertsFromS3 'import' "$domainName"
       fi
     fi
   else
     if askYesNo "Insufficient, unqualified, or no certificate/key files found in $(pwd)\nCheck s3 for them?" ; then
-      downloadAcmCertsFromS3 'import'
+      downloadAcmCertsFromS3 'import' "$domainName"
     fi
   fi
 }
@@ -421,9 +443,10 @@ EOF
 
 downloadAcmCertsFromS3() {
   local setArn="$1"
+  local $domainName="$2"
   echo "Searching $LANDSCAPE folder in s3 bucket for cert & key files..."
   local files=$(
-    aws s3 ls s3://$BUCKET_NAME/$LANDSCAPE/ \
+    aws s3 ls s3://$BUCKET_NAME/$LANDSCAPE/$domainName \
       --profile=infnprd \
       --recursive \
       | awk '{print $4}' \
@@ -500,9 +523,13 @@ isAChainFile() {
 setCertArn() {
   [ -n "$CERTIFICATE_ARN" ] && return 0
   printCertLookupSteps
-  setAcmCertArn "$CN"
+  if [ "${USING_ROUTE53,,}" == 'true' ] ; then
+    setAcmCertArn "$CN"
+  else
+    echo "Not using route53, which requires a self-signed certificate (which permissable with iam certificate, but not acm certificate)"
+  fi
   if [ -z "$CERTIFICATE_ARN" ] ; then
-    if askYesNo "Use a self-signed certificate instead?" ; then
+    if [ "${PROMPT,,}" == 'false' ] || askYesNo "Use a self-signed certificate instead?" ; then
       setSelfSignedCertArn
     fi
   fi
@@ -538,25 +565,27 @@ setSelfSignedCertArn() {
   
   if [ -n "$CERTIFICATE_ARN" ] ; then
     echo "Found arn for self-signed certificate: $CERTIFICATE_ARN"
-    select choice in \
-      'Use this self-signed certificate' \
-      'Replace with a new self-signed certificate' \
-      'Exit the process.' ; do 
-        case $REPLY in
-          1) 
-            break ;;
-          2) 
-            echo "Deleting existing iam server certificate..."
-            aws iam delete-server-certificate --server-certificate-name $certname
-            createSelfSignedCertificate $certname
-            break
-            ;;
-          3) 
-            exit 0 ;;
-          *) echo "Valid selctions are 1, 2, 3"
-        esac
-    done;
-  elif askYesNo "No self-signed certificate found. Create and upload a new one?" ; then
+    if [ "${PROMPT,,}" != 'false' ] ; then
+      select choice in \
+        'Use this self-signed certificate' \
+        'Replace with a new self-signed certificate' \
+        'Exit the process.' ; do 
+          case $REPLY in
+            1) 
+              break ;;
+            2) 
+              echo "Deleting existing iam server certificate..."
+              aws iam delete-server-certificate --server-certificate-name $certname
+              createSelfSignedCertificate $certname
+              break
+              ;;
+            3) 
+              exit 0 ;;
+            *) echo "Valid selctions are 1, 2, 3"
+          esac
+      done;
+    fi
+  elif [ "${PROMPT,,}" == 'false' ] || askYesNo "No self-signed certificate found. Create and upload a new one?" ; then
     createSelfSignedCertificate $certname
   fi
 }
@@ -1077,6 +1106,7 @@ waitForStackToDelete() {
     ((counter++))
     sleep 5
   done
+  [ "$status" == 'DELETED' ] && true || false
 }
 
 waitForEc2InstanceToFinishStarting() {
@@ -1186,7 +1216,8 @@ getHostedZoneNameByLandscape() {
   aws route53 get-hosted-zone \
     --id "$(getHostedZoneIdByLandscape $1)" \
     --output text \
-    --query 'HostedZone.{name:Name}' 2> /dev/null
+    --query 'HostedZone.{name:Name}' 2> /dev/null \
+    | sed -E 's/\.$//' # trim off any trailing dot
 }
 
 checkLegacyAccount() {
@@ -1198,8 +1229,67 @@ checkLegacyAccount() {
       if [ "$LANDSCAPE" != 'prod' ] && [ -n "${defaults['CN']}" ] ; then
         defaults['CN']="kuali-research-$LANDSCAPE.bu.edu"
       fi
-    elif [ "$LANDSCAPE" != 'prod' ] && [ -n "${defaults['CN']}" ] ; then
+    elif [ "$LANDSCAPE" != 'prod' ] && [ -n "${defaults['CN']}" ] && [ "${USING_ROUTE53,,}" == 'true' ] ; then
       defaults['CN']="kuali-research-css-$LANDSCAPE.bu.edu"
     fi
+  fi
+}
+
+# Cloudformation can only delete a bucket if it is empty (and has no versioning), so empty it out here.
+emptyBuckets() {
+  local success='true'
+  for bucket in $@ ; do
+    if bucketExists "$bucket" ; then
+      echo "aws --profile=$PROFILE s3 rm s3://$bucket --recursive..."
+      aws --profile=$PROFILE s3 rm s3://$bucket --recursive
+      local errcode=$?
+      if [ $errcode -gt 0 ] ; then
+        echo "ERROR! Emptying bucket $bucket, error code: $errcode"
+        success='false'
+      fi
+      # aws --profile=$PROFILE s3 rb --force $bucket
+    else
+      echo "Cannot empty bucket $bucket. Bucket does not exist."
+    fi
+  done
+  [ $success == 'true' ] && true || false
+}
+
+# Zip up one or more files in an archive with a specified name and upload it to s3 at a specified path.
+# Arg1: The s3 path, including name of the zip file (ie: s3://mybucket/mydir/myfile.zip)
+# Arg2 - ArgN: One or more files (ie: ../some/file.js).
+zipAndCopyToS3() {
+  local outputfile='temp-zip-file.zip'
+  local s3path="$1"
+  shift
+
+  [ -f $outputfile ] && rm -f $outputfile
+  while [ "$1" ] ; do
+    local inputfile="$1"
+    if [ ! -f $inputfile ] ; then
+      echo "ERROR! No such file: $inputfile"
+      local badzip='true'
+      break;
+    fi
+    if [ -n "$(zip --version 2> /dev/null)" ] ; then
+      echo "Adding $inputfile to $outputfile..."
+      zip $outputfile $inputfile
+    elif [ -f /c/Program\ Files/7-Zip/7z.exe ] ; then
+      echo "Adding $inputfile to $outputfile..."
+      /c/Program\ Files/7-Zip/7z.exe a $outputfile $inputfile
+    else
+      echo "No zip program!"
+      exit 1
+    fi
+    shift
+  done
+
+  if [ "$badzip" ] ; then
+    false
+  else
+    aws s3 cp $outputfile $s3path
+    local retval=$?
+    rm -f $outputfile
+    [ $retval -eq 0 ] && true || false
   fi
 }

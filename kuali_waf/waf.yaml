@@ -1,8 +1,9 @@
 AWSTemplateFormatVersion: 2010-09-09
 
 Description: >-
-    Combines standard AWS reference WAF Stack with Amazon Kinesis Data Firehose to capture and stream its 
-    data into a data lake built on Amazon S3 for analysis with tools like athena or resshift.
+  Combines standard AWS reference WAF Stack with Amazon Kinesis Data Firehose to capture and stream its 
+  data into a data lake built on Amazon S3 for analysis with tools like athena or redshift.
+  Based on: https://github.com/aws-samples/aws-waf-sample
 
 Parameters:
 
@@ -12,7 +13,7 @@ Parameters:
       A common value that all resources in this template will have prefixed to
       their name and attached as a tag to establish a bundling through naming convention. If a nested stack,
       this will most likely be the name of the top-most stack.
-    Default: kuali-ec2-alb
+    Default: kuali-waf
     
   Service:
     Description: Service catalog name
@@ -36,157 +37,300 @@ Parameters:
     ConstraintDescription: >
       This parameter is restricted to the following values: sb, ci, qa, stg, prod
     Default: sb
-    
-Resources:
-    WAF:
-      Type: AWS::CloudFormation::Stack
-      Properties:
-        TemplateURL: https://s3.amazonaws.com/solutions-reference/aws-waf-security-automations/latest/aws-waf-security-automations.template
-        Parameters:
-          ActivateAWSManagedRulesParam: 'yes'
-          ActivateScannersProbesProtectionParam: 'yes - AWS Lambda log parser'
-          AppAccessLogBucket: !Sub ${GlobalTag}-${Landscape}-alblogbucket
-          EndpointType: 'ALB'
 
-    WafLogBucket:
-      Type: AWS::S3::Bucket
-      Properties:
-        BucketName: !Sub ${GlobalTag}-${Landscape}-data-s3
-        Tags:
-          - Key: Name
-            Value: !Sub ${GlobalTag}-${Landscape}-data-s3
-          - Key: Service
-            Value: !Ref Service
-          - Key: Function
-            Value: !Ref Function
-          - Key: Landscape
-            Value: !Ref Landscape
-      DeletionPolicy: Retain
-        
-    FirehoseWAFLogsDeliveryStreamRole:
-      Type: AWS::IAM::Role
-      Properties:
-        AssumeRolePolicyDocument:
+  AlbLogsBucketName:
+    Type: String
+    Description: The name of the s3 bucket the ALB will log activity to. This parmarameter will be used if WafWebAclArn has a value.
+
+  GlueAccessLogsDatabaseName:
+    Type: String
+    Description: The name of the glue access logs database
+
+Resources:
+
+  WAF:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://s3.amazonaws.com/solutions-reference/aws-waf-security-automations/latest/aws-waf-security-automations.template
+      Parameters:
+        ActivateAWSManagedRulesParam: 'yes'
+        ActivateScannersProbesProtectionParam: 'yes - AWS Lambda log parser'
+        AppAccessLogBucket: !Ref AlbLogsBucketName
+        EndpointType: 'ALB'
+
+  WafLogBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${GlobalTag}-${Landscape}-waf
+      Tags:
+        - Key: Name
+          Value: !Sub ${GlobalTag}-${Landscape}-waf
+        - Key: Service
+          Value: !Ref Service
+        - Key: Function
+          Value: !Ref Function
+        - Key: Landscape
+          Value: !Ref Landscape
+    DeletionPolicy: Delete
+      
+  FirehoseWAFLogsDeliveryStreamRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: firehose.amazonaws.com
+          Action: sts:AssumeRole
+          Condition:
+            StringEquals:
+              sts:ExternalId: !Ref AWS::AccountId
+      Policies:
+      - PolicyName: S3Access
+        PolicyDocument:
+          Statement:
+            - Effect: Allow
+              Action:
+                - s3:AbortMultipartUpload
+                - s3:GetBucketLocation
+                - s3:GetObject
+                - s3:ListBucket
+                - s3:ListBucketMultipartUploads
+                - s3:PutObject
+              Resource:
+                - !Sub 'arn:aws:s3:::${WafLogBucket}'
+                - !Sub 'arn:aws:s3:::${WafLogBucket}/*'
+      - PolicyName: KinesisAccess
+        PolicyDocument:
+          Statement:
+            - Effect: Allow
+              Action:
+                - kinesis:DescribeStream
+                - kinesis:GetShardIterator
+                - kinesis:GetRecords
+              Resource:
+                - !Sub arn:aws:kinesis:${AWS::Region}:${AWS::AccountId}:stream/aws-waf-logs-${GlobalTag}-${Landscape}
+      - PolicyName: CloudWatchAccess
+        PolicyDocument:
+          Statement:
+            - Effect: Allow
+              Action:
+                - logs:PutLogEvents
+              Resource:
+                - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/kinesisfirehose/aws-waf-logs-${GlobalTag}-${Landscape}:*
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          -
+            id: W11
+            reason: "S3Access restricted to WafLogBucket and CloudWatchAccess to DeliveryStreamName."
+
+  FirehoseWAFLogsDeliveryStream:
+    Type: AWS::KinesisFirehose::DeliveryStream
+    Properties:
+      DeliveryStreamName: !Sub aws-waf-logs-${GlobalTag}-${Landscape}
+      DeliveryStreamType: DirectPut
+      ExtendedS3DestinationConfiguration:
+        BucketARN: !GetAtt "WafLogBucket.Arn"
+        BufferingHints:
+          IntervalInSeconds: 300
+          SizeInMBs: 5
+        CompressionFormat: GZIP
+        Prefix: 'AWSLogs/year=!{timestamp:yyyy}/month=!{timestamp:MM}/day=!{timestamp:dd}/hour=!{timestamp:HH}/'
+        ErrorOutputPrefix: 'AWSErrorLogs/result=!{firehose:error-output-type}/year=!{timestamp:yyyy}/month=!{timestamp:MM}/day=!{timestamp:dd}/hour=!{timestamp:HH}/'
+        RoleARN: !GetAtt FirehoseWAFLogsDeliveryStreamRole.Arn
+      Tags:
+        - Key: Service
+          Value: !Ref Service
+        - Key: Function
+          Value: !Ref Function
+        - Key: Landscape
+          Value: !Ref Landscape
+
+  GlueWafAccessLogsTable:
+    Type: AWS::Glue::Table
+    Properties:
+      DatabaseName: !Ref GlueAccessLogsDatabaseName
+      CatalogId: !Ref AWS::AccountId
+      TableInput:
+        Name: waf_access_logs
+        Parameters: {"EXTERNAL": "TRUE"}
+        # PartitionKeys:
+        #   - Name: year
+        #     Type: int
+        #   - Name: month
+        #     Type: int
+        #   - Name: day
+        #     Type: int
+        #   - Name: hour
+        #     Type: int
+        StorageDescriptor:
+          Location: !Sub s3://${WafLogBucket}/AWSLogs/
+          InputFormat: "org.apache.hadoop.mapred.TextInputFormat"
+          OutputFormat: "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat"
+          SerdeInfo:
+            Parameters: {
+              "paths": "action,formatVersion,httpRequest,httpSourceId,httpSourceName,nonTerminatingMatchingRules,rateBasedRuleList,ruleGroupList,terminatingRuleId,terminatingRuleType,timestamp,webaclId"
+            }
+            SerializationLibrary: "org.openx.data.jsonserde.JsonSerDe"
+          Compressed : true
+          StoredAsSubDirectories: false
+          Columns:
+            - Name: timestamp
+              Type: bigint
+            - Name: formatversion
+              Type: int
+            - Name: webaclid
+              Type: string
+            - Name: terminatingruleid
+              Type: string
+            - Name: terminatingruletype
+              Type: string
+            - Name: action
+              Type: string
+            - Name: httpsourcename
+              Type: string
+            - Name: httpsourceid
+              Type: string
+            - Name: rulegrouplist
+              Type: array<string>
+            - Name: ratebasedrulelist
+              Type: array<string>
+            - Name: nonterminatingmatchingrules
+              Type: array<string>
+            - Name: httprequest
+              Type: struct<clientip:string,country:string,headers:array<struct<name:string,value:string>>,uri:string,args:string,httpversion:string,httpmethod:string,requestid:string>
+
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/"
+      Policies:
+      - PolicyName: lambda-logging
+        PolicyDocument:
+          Version: '2012-10-17'
           Statement:
           - Effect: Allow
-            Principal:
-              Service: firehose.amazonaws.com
-            Action: sts:AssumeRole
-            Condition:
-              StringEquals:
-                sts:ExternalId: !Ref AWS::AccountId
-        Policies:
-        - PolicyName: S3Access
-          PolicyDocument:
-            Statement:
-              - Effect: Allow
-                Action:
-                  - s3:AbortMultipartUpload
-                  - s3:GetBucketLocation
-                  - s3:GetObject
-                  - s3:ListBucket
-                  - s3:ListBucketMultipartUploads
-                  - s3:PutObject
-                Resource:
-                  - !Sub 'arn:aws:s3:::${WafLogBucket}'
-                  - !Sub 'arn:aws:s3:::${WafLogBucket}/*'
-        - PolicyName: KinesisAccess
-          PolicyDocument:
-            Statement:
-              - Effect: Allow
-                Action:
-                  - kinesis:DescribeStream
-                  - kinesis:GetShardIterator
-                  - kinesis:GetRecords
-                Resource:
-                  - !Sub arn:aws:kinesis:${AWS::Region}:${AWS::AccountId}:stream/${GlobalTag}-${Landscape}
-        - PolicyName: CloudWatchAccess
-          PolicyDocument:
-            Statement:
-              - Effect: Allow
-                Action:
-                  - logs:PutLogEvents
-                Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/kinesisfirehose/${GlobalTag}-${Landscape}:*
-      Metadata:
-        cfn_nag:
-          rules_to_suppress:
-            -
-              id: W11
-              reason: "S3Access restricted to WafLogBucket and CloudWatchAccess to DeliveryStreamName."
+            Action:
+            - logs:*
+            Resource: arn:aws:logs:*:*:*
+      - PolicyName: waf-config
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - wafv2:PutLoggingConfiguration
+            - wafv2:GetLoggingConfiguration
+            - wafv2:GetWebACL
+            Resource:
+            - arn:aws:wafv2:*:*:*/*/*
+            # - arn:aws:waf-regional:*:*:*
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
 
-    FirehoseWAFLogsDeliveryStream:
-      Type: AWS::KinesisFirehose::DeliveryStream
-      Properties:
-        DeliveryStreamName: !Sub ${GlobalTag}-${Landscape}
-        DeliveryStreamType: DirectPut
-        ExtendedS3DestinationConfiguration:
-          BucketARN: !GetAtt "WafLogBucket.Arn"
-          BufferingHints:
-            IntervalInSeconds: 300
-            SizeInMBs: 5
-          CompressionFormat: GZIP
-          Prefix: 'AWSLogs/year=!{timestamp:yyyy}/month=!{timestamp:MM}/day=!{timestamp:dd}/hour=!{timestamp:HH}/'
-          ErrorOutputPrefix: 'AWSErrorLogs/result=!{firehose:error-output-type}/year=!{timestamp:yyyy}/month=!{timestamp:MM}/day=!{timestamp:dd}/hour=!{timestamp:HH}/'
-          RoleARN: !GetAtt FirehoseWAFLogsDeliveryStreamRole.Arn
 
-    GlueWafAccessLogsTable:
-      Type: AWS::Glue::Table
-      Properties:
-        DatabaseName: !Sub ${GlobalTag}-${Landscape}-gluedb
-        CatalogId: !Ref AWS::AccountId
-        TableInput:
-          Name: waf_access_logs
-          Parameters: {"EXTERNAL": "TRUE"}
-          # PartitionKeys:
-          #   - Name: year
-          #     Type: int
-          #   - Name: month
-          #     Type: int
-          #   - Name: day
-          #     Type: int
-          #   - Name: hour
-          #     Type: int
-          StorageDescriptor:
-            Location: !Sub s3://${WafLogBucket}/AWSLogs/
-            InputFormat: "org.apache.hadoop.mapred.TextInputFormat"
-            OutputFormat: "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat"
-            SerdeInfo:
-              Parameters: {
-                "paths": "action,formatVersion,httpRequest,httpSourceId,httpSourceName,nonTerminatingMatchingRules,rateBasedRuleList,ruleGroupList,terminatingRuleId,terminatingRuleType,timestamp,webaclId"
+  WafEnableLogging:
+    DependsOn: WAF
+    Type: Custom::Functions
+    Properties:
+      ServiceToken: !GetAtt WafLambda.Arn
+
+  WafLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: This Lambda function ensures that the new WAF web ACL has logging enabled.
+      Handler: index.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Runtime: nodejs12.x
+      Timeout: 30
+      FunctionName: !Sub ${GlobalTag}-${Landscape}-wafv2-logging-enabler
+      Environment:
+        Variables:
+          FIREHOSE_ARN: !GetAtt FirehoseWAFLogsDeliveryStream.Arn
+          WAF_ARN: !GetAtt WAF.Outputs.WAFWebACLArn
+      Code:
+        ZipFile: |
+          var AWS = require('aws-sdk');
+          var response = require('cfn-response');
+          exports.handler = function (event, context) {
+
+            var wafv2 = new AWS.WAFV2();
+
+            if (event.RequestType && event.RequestType.toUpperCase() == "DELETE") {              
+              sendResponse({
+                LoggingConfiguration: {
+                  ResourceArn: 'Stack operation is delete. Cancelling...'
+                }}, null);
+              return;
+            }
+
+            console.log('LOOKING UP LOGGING CONFIG...');
+            wafv2.getLoggingConfiguration({ResourceArn: process.env.WAF_ARN}, function(err, data) {
+              if (err) {
+                console.log('LOGGING CONFIG NOT FOUND...');
+                setLogging();
               }
-              SerializationLibrary: "org.openx.data.jsonserde.JsonSerDe"
-            Compressed : true
-            StoredAsSubDirectories: false
-            Columns:
-              - Name: timestamp
-                Type: bigint
-              - Name: formatversion
-                Type: int
-              - Name: webaclid
-                Type: string
-              - Name: terminatingruleid
-                Type: string
-              - Name: terminatingruletype
-                Type: string
-              - Name: action
-                Type: string
-              - Name: httpsourcename
-                Type: string
-              - Name: httpsourceid
-                Type: string
-              - Name: rulegrouplist
-                Type: array<string>
-              - Name: ratebasedrulelist
-                Type: array<string>
-              - Name: nonterminatingmatchingrules
-                Type: array<string>
-              - Name: httprequest
-                Type: struct<clientip:string,country:string,headers:array<struct<name:string,value:string>>,uri:string,args:string,httpversion:string,httpmethod:string,requestid:string>
-        
+              else{
+                console.log('LOGGING CONFIG ALREADY EXISTED...');
+                console.log(data); // successful response
+                sendResponse(data, err);
+              }
+            });
+
+            function setLogging() {
+              console.log('CREATING LOGGING CONFIG...');
+              var params = {
+                LoggingConfiguration: {
+                  LogDestinationConfigs: [
+                    process.env.FIREHOSE_ARN
+                  ],
+                  ResourceArn: process.env.WAF_ARN
+                }
+              }
+              wafv2.putLoggingConfiguration(params, function(err, data) {
+                sendResponse(data, err);
+              });
+            }
+
+            function sendResponse(data, err) {
+              if (err) {
+                console.log(err, err.stack);
+                var errdata = {
+                  LoggingConfiguration: {
+                    ResourceArn: 'FAILED TO ENABLE LOGGING - ' + err.name + ': ' + err.message
+                  }
+                }
+                response.send(event, context, response.FAILURE, errdata);
+              }
+              else {
+                console.log('SUCCESS!');
+                console.log(data); // successful response
+                response.send(event, context, response.SUCCESS, { ResourceArn: data.LoggingConfiguration.ResourceArn });
+              }
+            }
+          };
+
+
 Outputs:
 
   WafWebAclArn:
     Description: The ARN for the WAF Web ACL. Will be referred to by the ALB
     Value: !GetAtt WAF.Outputs.WAFWebACLArn
               
+  WafLoggingConfigurationArn:
+    Description: Indicates success or failure of the lambda in enabling logging for the waf.
+    Value: !GetAtt WafEnableLogging.ResourceArn
+
+  WafLogBucketName:
+    Description: The name of the s3 bucket waf activity will get logged to.
+    Value: !Ref WafLogBucket

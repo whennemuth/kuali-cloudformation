@@ -1,0 +1,163 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: >-
+  A stack delete operation will fail if any logging has been enabled for the alb or waf.
+  Cloudformation will not delete s3 buckets with contents in them - the stack delete operation will fail if they do.
+  The aws cli can be used as part of bash operation that issues the stack command to first empty the buckets that receive the logging.
+  However, after being emptied, these buckets continue to receive logging that occurs until the alb and waf resources themselves are deleted.
+  The related s3 buckets still fail to get deleted since they took on additional content in this small time window and the stack operation fails.
+  Therefore, you must also disable logging for the alb and waf. This lambda function does both (disables logging and empties buckets).
+  NOTE: Logging disablement and bucket clearing could be both be done with the cli, though such scripting is starting to pile up.
+
+
+Parameters:
+
+  GlobalTag:
+    Type: String
+    Description: >
+      A common value that all resources in this template will have prefixed to
+      their name and attached as a tag to establish a bundling through naming convention. If a nested stack,
+      this will most likely be the name of the top-most stack.
+    Default: kuali-waf
+    
+  Service:
+    Description: Service catalog name
+    Type: String
+    Default: research-administration
+
+  Function:
+    Description: The Function within the Service
+    Type: String
+    Default: kuali
+
+  Landscape:
+    Description: Specify which landscape to build into the VPC
+    Type: String
+    AllowedValues:
+    - sb
+    - ci
+    - qa
+    - stg
+    - prod
+    ConstraintDescription: >
+      This parameter is restricted to the following values: sb, ci, qa, stg, prod
+    Default: sb
+  
+  BucketName:
+    Type: String
+    Description: The S3 bucket kuali research cloudformation templates, config files, keys, etc. are stored
+    Default: kuali-conf
+
+  AlbArn:
+    Type: String
+    Description: Arn of the ALB whose logging needs to be disabled.
+
+  WafArn:
+    Type: String
+    Description: Arn of the WAF whose logging needs to be disabled.
+    Default: empty
+
+  AlbLogsBucketName:
+    Type: String
+    Description: The name of the s3 bucket the ALB will log activity to. This parmarameter will be used if WafWebAclArn has a value.
+    Default: empty
+
+  WafLogsBucketName:
+    Type: String
+    Description: The name of the s3 bucket the ALB will log activity to. This parmarameter will be used if WafWebAclArn has a value.
+    Default: empty
+
+  AthenaLogsBucketName:
+    Type: String
+    Description: The name of the s3 bucket the ALB will log activity to. This parmarameter will be used if WafWebAclArn has a value.
+    Default: empty
+
+
+Conditions:
+  WafArnIncluded: !Not [ !Equals [ !Ref WafArn, empty ] ]
+  WafBucketIncluded: !Not [ !Equals [ !Ref WafLogsBucketName, empty ] ]
+  AlbBucketIncluded: !Not [ !Equals [ !Ref AlbLogsBucketName, empty ] ]
+  AthenaBucketIncluded: !Not [ !Equals [ !Ref AthenaLogsBucketName, empty ] ]
+
+Resources:
+
+  WafLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/"
+      Policies:
+      - PolicyName: lambda-logging
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - logs:*
+            Resource: arn:aws:logs:*:*:*
+      - PolicyName: empty-s3-bucket
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - s3:DeleteObject
+            - s3:DeleteObjects
+            Resource:
+            - !Sub arn:aws:s3:::${GlobalTag}-${Landscape}-alb*
+      - PolicyName: alb-disable-logging
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - elbv2:ModifyLoadBalancerAttributes
+            Resource:
+            - !Sub arn:aws:elbv2:::${GlobalTag}-${Landscape}*
+      - PolicyName: waf-disable-logging
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - wafv2:DeleteLoggingConfiguration
+            Resource:
+            - !Sub arn:aws:wafv2:::*/*/${GlobalTag}-${Landscape}*
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+  # Should get called during stack delete, see: 
+  # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/crpg-ref-requesttypes-delete.html
+  AlbWafLoggingCleanupLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Turn off logging for ALB and WAF. Empty the buckets logged to. Stack delete will now succeed.
+      Handler: cleanup.handler
+      Role: !GetAtt WafLambdaExecutionRole.Arn
+      Runtime: nodejs12.x
+      Timeout: 300  # 5 minutes
+      FunctionName: !Sub ${GlobalTag}-${Landscape}-alb-waf-logging-cleanup
+      Environment:
+        Variables:
+          LOAD_BALANCER_ARN: !Ref AlbArn
+          WAF_ARN: !If [ WafArnIncluded, !Ref WafArn, !Ref AWS::NoValue ]
+          ALB_BUCKET_NAME: !If [ AlbBucketIncluded, !Ref AlbLogsBucketName, !Ref AWS::NoValue ]
+          WAF_BUCKET_NAME: !If [ WafBucketIncluded, !Ref WafLogsBucketName, !Ref AWS::NoValue ]
+          ATHENA_BUCKET_NAME: !If [ AthenaBucketIncluded, !Ref AthenaLogsBucketName, !Ref AWS::NoValue ]
+      Code:
+        S3Bucket: !Ref BucketName
+        S3Key: cloudformation/kuali_lambda/cleanup.zip
+
+Outputs:
+
+  LambdaArn:
+    Value:
+      !GetAtt AlbWafLoggingCleanupLambda.Arn

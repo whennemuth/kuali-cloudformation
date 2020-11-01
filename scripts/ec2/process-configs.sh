@@ -191,6 +191,7 @@ getRdsAppPassword() {
   getRdsSecret 'app' | jq '.password' | sed 's/"//g'
 }
 
+DNS_NAME=$(echo "$DNS_NAME" | sed -E 's/\.$//') # Strip off trailing dot (if exists).
 
 case "$TASK" in
   get_configs_from_s3)

@@ -19,6 +19,8 @@ Metadata:
           - CampusSubnet2
           - PublicSubnet2
           - CertificateArn
+          - EnableWAF
+          - HostedZoneName
       - Label: 
           default: "Amazon EC2 Configuration"
         Parameters: 
@@ -35,6 +37,7 @@ Metadata:
       - Label: 
           default: "Logging"
         Parameters: 
+          - EnableALBLogging
           - EnableNewRelicAPM
           - EnableNewRelicInfrastructure
 
@@ -142,12 +145,11 @@ Parameters:
     Type: String
     Description: The amazon resource name of a certificate that has already been put in ACM
 
-  # NOTE: The type below triggers a check by aws for existence of the keypair as part of a validation check.
-  # However, this makes the parameter required, even for stack updates. Use "String" as type to forego the
-  # validation check and allow the parameter to be optional during updates.
   EC2KeypairName:
-    Type: AWS::EC2::KeyPair::KeyName
+    # Type: AWS::EC2::KeyPair::KeyName
+    Type: String
     Description: The keypair for ssh use against the ec2 instance
+    Default: empty
 
   EnableNewRelicAPM:
     Type: String
@@ -167,32 +169,39 @@ Parameters:
     - "false"
     ConstraintDescription: Enter "true" or "false" only.
 
-  WAF:
+  EnableWAF:
     Type: String
     Description: Does the ALB traffic need to go through a WAF?
-    Default: "yes"
-    Allowedvalues:
-    - "yes"
-    - "no"
+    Default: "true"
+    AllowedValues:
+    - "true"
+    - "false"
 
-  # Must be included if HostedZoneCommonName is included.
-  HostedZoneId:
+  EnableALBLogging:
     Type: String
-    Description: The id of the hosted zone. This means that we are using route53 to be delegated the kuali-research subdomain.
+    Description: Does the ALB traffic need to go through a WAF?
+    Default: "false"
+    AllowedValues:
+    - "true"
+    - "false"
+
+  MongoSubnetId:
+    Type: String
+    Description: Id of the private application subnet where a new mongo database ec2 instance is optionally created.
     Default: empty
 
-  # Must be included if HostedZoneId is included.
-  HostedZoneCommonName:
+  HostedZoneName:
     Type: String
-    Description: >
-      The common name for the subdomain delegated to the hosted zone. Assumes the HostedZone name itself is set to this value.
+    Description: If included, a DNS record will be created and registered with the specified HostedZone
     Default: empty
 
 
 Conditions:
-    CreateWAF: !Equals [!Ref WAF, 'yes']
-    HostedZoneIdProvided: !Not [!Equals [!Ref HostedZoneId, empty]]
-    HostedZoneCommonNameProvided: !Not [!Equals [!Ref HostedZoneCommonName, empty]]
+  CreateWAF: !Equals [!Ref EnableWAF, 'true']
+  CreateDnsRecord: !Not [!Equals [!Ref HostedZoneName, empty]]
+  CreateMongoEc2Instance: !Not [!Equals [!Ref MongoSubnetId, empty]]
+  CreateAlbLogsBuckets: !Or [!Equals [!Ref EnableALBLogging, 'true' ], Condition: CreateWAF]
+  UseKeypair: !Not [!Equals [!Ref EC2KeypairName, empty]]
 
 
 Resources:
@@ -210,6 +219,18 @@ Resources:
         VpcId: 
           !Ref VpcId
 
+  ALBWAFLogs:
+    Type: AWS::CloudFormation::Stack
+    Condition: CreateAlbLogsBuckets
+    Properties:
+      TemplateURL: 
+        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_alb/logs.yaml
+      Parameters:
+        GlobalTag:
+          !Ref GlobalTag
+        Landscape:
+          !Ref Landscape
+
   WAF:
     Type: AWS::CloudFormation::Stack
     Condition: CreateWAF
@@ -221,12 +242,22 @@ Resources:
           !Ref GlobalTag
         Landscape:
           !Ref Landscape
+        AlbLogsBucketName:
+          !If
+            - CreateAlbLogsBuckets
+            - !GetAtt ALBWAFLogs.Outputs.ALBLogBucketName
+            - !Ref AWS::NoValue
+        GlueAccessLogsDatabaseName:
+          !If
+            - CreateAlbLogsBuckets
+            - !GetAtt ALBWAFLogs.Outputs.GlueAccessLogsDatabaseName
+            - !Ref AWS::NoValue
 
   ALB:
     Type: AWS::CloudFormation::Stack
     Properties:
       TemplateURL: 
-        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_ecs/alb.yaml
+        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_alb/alb.yaml
       Parameters:
         GlobalTag:
           !Ref GlobalTag
@@ -247,11 +278,34 @@ Resources:
             - CreateWAF
             - !GetAtt WAF.Outputs.WafWebAclArn
             - !Ref AWS::NoValue
-        HostedZoneId:
+        HostedZoneName:
           !If
-            - HostedZoneIdProvided
-            - !Ref HostedZoneId
+            - CreateDnsRecord
+            - !Ref HostedZoneName
             - !Ref AWS::NoValue
+        AlbLogsBucketName:
+          !If
+            - CreateAlbLogsBuckets
+            - !GetAtt ALBWAFLogs.Outputs.ALBLogBucketName
+            - !Ref AWS::NoValue
+
+  MongoDbInstance:
+    Type: AWS::CloudFormation::Stack
+    Condition: CreateMongoEc2Instance
+    Properties:
+      TemplateURL: 
+        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_mongo/mongo.yaml
+      Parameters:
+        GlobalTag:
+          !Sub ${GlobalTag}-mongo
+        Landscape:
+          !Ref Landscape
+        VpcId:
+          !Ref VpcId
+        ApplicationSecurityGroupId:
+          !GetAtt SecurityGroups.Outputs.ECSHostSecurityGroup
+        MongoSubnet:
+          !Ref MongoSubnetId
 
   ECS:
     Type: AWS::CloudFormation::Stack
@@ -265,17 +319,25 @@ Resources:
           !Ref Landscape
         SecurityGroupId:
           !GetAtt SecurityGroups.Outputs.ECSHostSecurityGroup
+        VpcId: 
+          !Ref VpcId
         DNSName:
           !If 
-            - HostedZoneCommonNameProvided
-            - !Ref HostedZoneCommonName
+            - CreateDnsRecord
+            - !Ref HostedZoneName
             - !GetAtt ALB.Outputs.DNSName
+        UsingRoute53: !If [ CreateDnsRecord, 'true', 'false' ]
         InstanceType:
           !Ref InstanceType
         CampusSubnet1:
           !Ref CampusSubnet1
         CampusSubnet2:
           !Ref CampusSubnet2
+        MongoEc2Ip:
+          !If
+            - CreateMongoEc2Instance
+            - !GetAtt MongoDbInstance.Outputs.PrivateIP
+            - !Ref AWS::NoValue
         MinClusterSize:
           !Ref MinClusterSize
         MaxClusterSize:
@@ -285,7 +347,10 @@ Resources:
         PdfS3BucketName: 
           !Ref PdfS3BucketName
         EC2KeypairName:
-          !Ref EC2KeypairName
+          !If 
+            - UseKeypair
+            - !Ref EC2KeypairName
+            - !Ref AWS::NoValue
         EnableNewRelicAPM:
           !Ref EnableNewRelicAPM
         EnableNewRelicInfrastructure:
@@ -314,56 +379,9 @@ Resources:
         CoreImage:
           !Ref CoreImage
 
-  KualiResearchService:
-    Type: AWS::CloudFormation::Stack
-    Properties:
-      TemplateURL: 
-        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_ecs/service-research.yaml
-      Parameters:
-        GlobalTag:
-          !Ref GlobalTag
-        Landscape:
-          !Ref Landscape
-        VpcId:
-          !Ref VpcId
-        ClusterId:
-          !GetAtt ECS.Outputs.Cluster
-        DesiredCount: !Ref MinClusterSize
-        MaxCount: !Ref MaxClusterSize
-        Listener:
-          !GetAtt ALB.Outputs.Listener
-        ECSContainerInstanceAutoScalingRoleARN:
-          !GetAtt ECS.Outputs.ECSContainerInstanceAutoScalingRoleARN
-        KcImage:
-          !Ref KcImage
-        EnableNewRelicAPM:
-          !Ref EnableNewRelicAPM
-
-  KualiDashboardService:
-    Type: AWS::CloudFormation::Stack
-    Properties:
-      TemplateURL: 
-        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_ecs/service-dashboard.yaml
-      Parameters:
-        GlobalTag:
-          !Ref GlobalTag
-        Landscape:
-          !Ref Landscape
-        VpcId:
-          !Ref VpcId
-        ClusterId:
-          !GetAtt ECS.Outputs.Cluster
-        DesiredCount: !Ref MinClusterSize
-        MaxCount: !Ref MaxClusterSize
-        Listener:
-          !GetAtt ALB.Outputs.Listener
-        ECSContainerInstanceAutoScalingRoleARN:
-          !GetAtt ECS.Outputs.ECSContainerInstanceAutoScalingRoleARN
-        PortalImage:
-          !Ref PortalImage
-
   KualiPdfService:
     Type: AWS::CloudFormation::Stack
+    DependsOn: KualiCoreService
     Properties:
       TemplateURL: 
         !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_ecs/service-pdf.yaml
@@ -387,6 +405,56 @@ Resources:
         PdfS3BucketName: 
           !Ref PdfS3BucketName
 
+  KualiDashboardService:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: KualiPdfService
+    Properties:
+      TemplateURL: 
+        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_ecs/service-dashboard.yaml
+      Parameters:
+        GlobalTag:
+          !Ref GlobalTag
+        Landscape:
+          !Ref Landscape
+        VpcId:
+          !Ref VpcId
+        ClusterId:
+          !GetAtt ECS.Outputs.Cluster
+        DesiredCount: !Ref MinClusterSize
+        MaxCount: !Ref MaxClusterSize
+        Listener:
+          !GetAtt ALB.Outputs.Listener
+        ECSContainerInstanceAutoScalingRoleARN:
+          !GetAtt ECS.Outputs.ECSContainerInstanceAutoScalingRoleARN
+        PortalImage:
+          !Ref PortalImage
+
+  KualiResearchService:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: KualiDashboardService
+    Properties:
+      TemplateURL: 
+        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_ecs/service-research.yaml
+      Parameters:
+        GlobalTag:
+          !Ref GlobalTag
+        Landscape:
+          !Ref Landscape
+        VpcId:
+          !Ref VpcId
+        ClusterId:
+          !GetAtt ECS.Outputs.Cluster
+        DesiredCount: !Ref MinClusterSize
+        MaxCount: !Ref MaxClusterSize
+        Listener:
+          !GetAtt ALB.Outputs.Listener
+        ECSContainerInstanceAutoScalingRoleARN:
+          !GetAtt ECS.Outputs.ECSContainerInstanceAutoScalingRoleARN
+        KcImage:
+          !Ref KcImage
+        EnableNewRelicAPM:
+          !Ref EnableNewRelicAPM
+
   LifeCycleHook:
     Type: AWS::CloudFormation::Stack
     Properties:
@@ -409,8 +477,8 @@ Outputs:
     Description: The URL endpoint for the kuali research service
     Value:
       !Sub 
-      - ${domain}/kc
+      - https://${domain}/kc
       - domain: !If 
-        - HostedZoneCommonNameProvided
-        - !Ref HostedZoneCommonName
+        - CreateDnsRecord
+        - !Ref HostedZoneName
         - !GetAtt ALB.Outputs.DNSName

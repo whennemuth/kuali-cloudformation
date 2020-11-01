@@ -8,19 +8,24 @@ declare -A defaults=(
   [TEMPLATE_PATH]='.'
   [CN]='kuali-research.bu.edu'
   [ROUTE53]='true'
-  [KC_IMAGE]='770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-coeus-sandbox:2001.0040'
-  [CORE_IMAGE]='770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-core:2001.0040'
-  [PORTAL_IMAGE]='770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-portal:2001.0040'
-  [PDF_IMAGE]='770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-research-pdf:2002.0003'
-  # [KC_IMAGE]='getLatestImage kuali-coeus-sandbox'
-  # [CORE_IMAGE]='getLatestImage kuali-core'
-  # [PORTAL_IMAGE]='getLatestImage kuali-portal'
-  # [PDF_IMAGE]='getLatestImage kuali-research-pdf'
+  # [KC_IMAGE]='770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-coeus-sandbox:2001.0040'
+  # [CORE_IMAGE]='770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-core:2001.0040'
+  # [PORTAL_IMAGE]='770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-portal:2001.0040'
+  # [PDF_IMAGE]='770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-research-pdf:2002.0003'
+  [KC_IMAGE]='getLatestImage kuali-coeus'
+  [CORE_IMAGE]='getLatestImage kuali-core'
+  [PORTAL_IMAGE]='getLatestImage kuali-portal'
+  [PDF_IMAGE]='getLatestImage kuali-research-pdf'
   [NO_ROLLBACK]='true'
   [PROFILE]='infnprd'
-  [KEYPAIR_NAME]='kuali-keypair-$LANDSCAPE'
   [PDF_BUCKET_NAME]='$GLOBAL_TAG-pdf-$LANDSCAPE'
+  [USING_ROUTE53]='false'
+  [CREATE_MONGO]='false'
+  [ENABLE_ALB_LOGGING]='false'
+  [CREATE_WAF]='true'
   # ----- Most of the following are defaulted in the yaml file itself:
+  # [ENABLE_ALB_LOGGING]='false'
+  # [KEYPAIR_NAME]='kuali-keypair-$LANDSCAPE'
   # [EC2_INSTANCE_TYPE]='m4.medium'
   # [VPC_ID]='???'
   # [CAMPUS_SUBNET1]='???'
@@ -47,7 +52,7 @@ run() {
   task="${1,,}"
   shift
 
-  if [ "$task" != "test" ] ; then
+  if [ "$task" != "test" ] && [ "$task" != 'validate' ]; then
 
     parseArgs $@
 
@@ -106,27 +111,48 @@ stackAction() {
     # Get the arn of any ssl cert (acm or self-signed in iam)
     setCertArn
 
-    # Upload the yaml file(s) to s3
+    checkKeyPair
+
+    # Validate and upload the yaml file(s) to s3
     uploadStack silent
     [ $? -gt 0 ] && exit 1
+
+    if [ "${CREATE_MONGO,,}" == 'true' ] ; then
+      echo "validating ../kuali_mongo/mongo.yaml..."
+      validate ../kuali_mongo/mongo.yaml > /dev/null
+      [ $? -gt 0 ] && exit 1
+      aws s3 cp ../kuali_mongo/mongo.yaml s3://$BUCKET_NAME/cloudformation/kuali_mongo/
+      aws s3 cp ../scripts/ec2/initialize-mongo-database.sh s3://$BUCKET_NAME/cloudformation/scripts/ec2/
+    fi
+    if [ "${ENABLE_ALB_LOGGING,,}" != 'false' ] || [ "${CREATE_WAF,,}" == 'true' ] ; then
+      echo "validating ../kuali_alb/logs.yaml..."
+      validate ../kuali_alb/logs.yaml > /dev/null
+      [ $? -gt 0 ] && exit 1
+      aws s3 cp ../kuali_alb/logs.yaml s3://$BUCKET_NAME/cloudformation/kuali_alb/
+
+      echo "validating ../kuali_waf/waf.yaml..."
+      [ $? -gt 0 ] && exit 1
+      aws s3 cp ../kuali_waf/waf.yaml s3://$BUCKET_NAME/cloudformation/kuali_waf/
+
+      echo "validating ../lambda/pre-alb-delete/cleanup.yaml..."
+      [ $? -gt 0 ] && exit 1
+      aws s3 cp ../lambda/pre-alb-delete/cleanup.yaml s3://$BUCKET_NAME/cloudformation/kuali_lambda/
+    fi
+
     # Upload scripts that will be run as part of AWS::CloudFormation::Init
+    aws s3 cp ../kuali_alb/alb.yaml s3://$BUCKET_NAME/cloudformation/kuali_alb/
     aws s3 cp ../scripts/ec2/process-configs.sh s3://$BUCKET_NAME/cloudformation/scripts/ec2/
     aws s3 cp ../scripts/ec2/cloudwatch-metrics.sh s3://$BUCKET_NAME/cloudformation/scripts/ec2/
 
-    case "$action" in
-      create-stack)
-        # Prompt to create the keypair, even if it already exists (offer choice to replace with new one).
-        createEc2KeyPair $KEYPAIR_NAME
-        [ -f "$KEYPAIR_NAME" ] && chmod 600 $KEYPAIR_NAME
-        ;;
-      update-stack)
-        # Create the keypair without prompting, but only if it does not already exist
-        if ! keypairExists $KEYPAIR_NAME ; then
-          createEc2KeyPair $KEYPAIR_NAME
-          [ -f "$KEYPAIR_NAME" ] && chmod 600 $KEYPAIR_NAME
-        fi
-        ;;
-    esac
+    # Upload lambda code used by custom resources
+    if [ "${ENABLE_ALB_LOGGING,,}" != 'false' ] || [ "${CREATE_WAF,,}" == 'true' ] ; then
+      if [ -f ../lambda/pre-alb-delete/cleanup.js ] ; then
+        cat ../lambda/pre-alb-delete/cleanup.js | gzip -f --keep --stdout | aws s3 cp - s3://$BUCKET_NAME/cloudformation/kuali_lambda/cleanup.zip
+      else
+        echo "ERROR! Cannot find "../lambda/pre-alb-delete/cleanup.js" for upload to s3";
+        exit 1
+      fi
+    fi
 
     cat <<-EOF > $cmdfile
     aws --profile=$PROFILE \\
@@ -157,17 +183,24 @@ EOF
     add_parameter $cmdfile 'EC2KeypairName' 'KEYPAIR_NAME'
     add_parameter $cmdfile 'MinClusterSize' 'MIN_CLUSTER_SIZE'
     add_parameter $cmdfile 'MaxClusterSize' 'MAX_CLUSTER_SIZE'
+    add_parameter $cmdfile 'EnableWAF' 'CREATE_WAF'
+    add_parameter $cmdfile 'EnableALBLogging' 'ENABLE_ALB_LOGGING'
+
+    if [ "${CREATE_MONGO,,}" == 'true' ] ; then
+      add_parameter $cmdfile 'MongoSubnetId' 'PRIVATE_SUBNET1'
+    fi
+
+    if [ "${USING_ROUTE53,,}" == 'true' ] ; then
+      HOSTED_ZONE_NAME="$(getHostedZoneNameByLandscape $LANDSCAPE)"
+      [ -z "$HOSTED_ZONE_NAME" ] && echo "ERROR! Cannot acquire hosted zone name. Cancelling..." && exit 1
+      add_parameter $cmdfile 'HostedZoneName' 'HOSTED_ZONE_NAME'
+    fi
 
     if [ "${PDF_BUCKET_NAME,,}" != 'none' ] ; then  
-      add_parameter $cmdfile 'PdfS3BucketName' PDF_BUCKET_NAME
+      add_parameter $cmdfile 'PdfS3BucketName' 'PDF_BUCKET_NAME'
     fi
 
-    if [ "$ROUTE53" == 'true' ] ; then
-      HOSTED_ZONE_ID="$(getHostedZoneId $CN)"
-      [ -z "$hostedZoneId" ] && echo "ERROR! Could not obtain hosted zone id for $CN" && exit 1
-      addParameter $cmdfile 'HostedZoneId' $hostedZoneId
-      addParameter $cmdfile 'HostedZoneCommonName' $CN
-    fi
+    echo "      ]'" >> $cmdfile
 
     runStackActionCommand
   fi
@@ -185,7 +218,22 @@ runTask() {
       createSelfSignedCertificate ;;
     create-stack)
       stackAction "create-stack" ;;
+    recreate-stack)
+      PROMPT='false'
+      task='delete-stack'
+      stackAction "delete-stack" 2> /dev/null
+      if waitForStackToDelete ${STACK_NAME}-${LANDSCAPE} ; then
+        task='create-stack'
+        stackAction "create-stack"
+      else
+        echo "ERROR! Stack deletion failed. Cancelling..."
+      fi
+      ;;
     update-stack)
+      stackAction "update-stack" ;;
+    reupdate-stack)
+      PROMPT='false'
+      task='update-stack'
       stackAction "update-stack" ;;
     delete-stack)
       stackAction "delete-stack" ;;

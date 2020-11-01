@@ -49,7 +49,7 @@ Parameters:
 
   CampusSubnet:
     Type: AWS::EC2::Subnet::Id
-    Description: Id of the application subnet that admits access from bu vpns through transit gateway attachment.
+    Description: Id of the private application subnet that admits access from bu vpns through transit gateway attachment.
 
   MongoSubnetId:
     Type: String
@@ -79,12 +79,11 @@ Parameters:
     ConstraintDescription: Specified instance type is not within selection list.
     Default: m4.large
 
-  # NOTE: The type below triggers a check by aws for existence of the keypair as part of a validation check.
-  # However, this makes the parameter required, even for stack updates. Use "String" as type to forego the
-  # validation check and allow the parameter to be optional during updates.
   EC2KeypairName:
-    Type: AWS::EC2::KeyPair::KeyName
+    # Type: AWS::EC2::KeyPair::KeyName
+    Type: String
     Description: The keypair for ssh use against the ec2 instance
+    Default: empty
 
   CoreImage:
     Type: String
@@ -125,16 +124,12 @@ Parameters:
     - "false"
     ConstraintDescription: Enter "true" or "false" only.
 
-  HostedZoneName:
-    Type: String
-    Description: If included, a DNS record will be created and registered with the specified HostedZone
-    Default: empty
 
 Conditions:
-  createPdfS3bBucket: !Not [!Equals [!Ref PdfS3BucketName, empty]]
-  createMongoEc2Instance: !Not [!Equals [!Ref MongoSubnetId, empty]]
-  createDnsRecord: !Not [!Equals [!Ref HostedZoneName, empty]]
-  isTest: !Not [!And [!Equals [!Ref Landscape, prod], !Equals [!Ref Landscape, stg]]]
+  CreatePdfS3bBucket: !Not [!Equals [!Ref PdfS3BucketName, empty]]
+  CreateMongoEc2Instance: !Not [!Equals [!Ref MongoSubnetId, empty]]
+  UseKeypair: !Not [!Equals [!Ref EC2KeypairName, empty]]
+  IsTest: !Not [!And [!Equals [!Ref Landscape, prod], !Equals [!Ref Landscape, stg]]]
 
 Mappings:
   2faCidrs:
@@ -247,7 +242,7 @@ Resources:
 
   S3BucketForPDF:
     Type: AWS::S3::Bucket
-    Condition: createPdfS3bBucket
+    Condition: CreatePdfS3bBucket
     Properties:
       AccessControl: Private
       BucketName: !Ref PdfS3BucketName
@@ -269,7 +264,7 @@ Resources:
 
   MongoDbInstance:
     Type: AWS::CloudFormation::Stack
-    Condition: createMongoEc2Instance
+    Condition: CreateMongoEc2Instance
     Properties:
       TemplateURL: 
         !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_mongo/mongo.yaml
@@ -284,22 +279,10 @@ Resources:
           !GetAtt EC2InstanceSecurityGroup.GroupId
         MongoSubnet:
           !Ref MongoSubnetId
-
-  KualiDNSRecord:
-    Type: AWS::Route53::RecordSet
-    Condition: createDnsRecord
-    Properties:
-      # See: https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/resource-record-sets-values-basic.html
-      HostedZoneName: !Sub ${HostedZoneName}.
-      Comment: !Sub DNS name for ${EC2Instance}.
-      Name: !Sub ${EC2Instance}.${AWS::Region}.${HostedZoneName}.
-      Type: A
-      TTL: '900'
-      ResourceRecords:
-      - !GetAtt EC2Instance.PrivateIp
       
   EC2Instance:
     Type: AWS::EC2::Instance
+    DependsOn: EC2InstanceLogsGroup
     Description: EC2 instance for hosting kuali research modules.
     Properties:
       Tags:
@@ -319,7 +302,11 @@ Resources:
         !Ref EC2InstanceType
       SecurityGroupIds:
       - !GetAtt EC2InstanceSecurityGroup.GroupId
-      KeyName: !Ref EC2KeypairName
+      KeyName:
+        !If 
+          - UseKeypair
+          - !Ref EC2KeypairName
+          - !Ref AWS::NoValue
       IamInstanceProfile:
         !Ref EC2InstanceProfile
       BlockDeviceMappings:
@@ -358,19 +345,6 @@ Resources:
             -o /usr/local/bin/docker-compose
           chmod +x /usr/local/bin/docker-compose
           ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose
-          
-          # Create certificates for ssl
-          mkdir -p /opt/kuali/nginx/certs
-          openssl req -newkey rsa:4096 \
-            -x509 \
-            -sha256 \
-            -days 3650 \
-            -nodes \
-            -out /opt/kuali/nginx/certs/myec2.crt \
-            -keyout /opt/kuali/nginx/certs/myec2.key \
-            -subj "/C=US/ST=MA/L=Boston/O=BU/OU=IST/CN=Ec2Instance"
-
-          
 
           # Install required packages for scripts that will monitor and upload custom metrics to cloudwatch.
           curl https://aws-cloudwatch.s3.amazonaws.com/downloads/CloudWatchMonitoringScripts-1.2.2.zip \
@@ -415,9 +389,11 @@ Resources:
           - ConfigSet: GetConfigsFromS3
           - ConfigSet: CreateEnvExportsFile
           - ConfigSet: ProcessKcConfigFile
-          - ConfigSet: RunDockerContainers
-          - ConfigSet: InitializeCoreMongodbContent
-          # - ConfigSet: StartCronForCustomCloudwatchMetrics
+          - ConfigSet: StartProcesses
+          StartProcesses:
+          - 04_docker_run_containers
+          - 05_initialize_core_mongodb_content
+          # - 06_start_cron_for_custom_cloudwatch_metrics
           GetConfigsFromS3:
           - 01_get_configs_from_s3
           CreateEnvExportsFile:
@@ -430,6 +406,7 @@ Resources:
           - 05_initialize_core_mongodb_content
           StartCronForCustomCloudwatchMetrics:
           - 06_start_cron_for_custom_cloudwatch_metrics
+          
         getFiles:
           packages:
             yum:
@@ -532,6 +509,17 @@ Resources:
             /opt/kuali/scripts/start.docker.containers.sh:
               content: !Sub |
                 #!/bin/bash
+          
+                # Create certificates from scratch
+                mkdir -p /opt/kuali/nginx/certs
+                openssl req -newkey rsa:4096 \
+                  -x509 \
+                  -sha256 \
+                  -days 3650 \
+                  -nodes \
+                  -out /opt/kuali/nginx/certs/myec2.crt \
+                  -keyout /opt/kuali/nginx/certs/myec2.key \
+                  -subj "/C=US/ST=MA/L=Boston/O=BU/OU=IST/CN=Ec2Instance"          
                 
                 # Prepare directories for mounting to kuali-research container
                 [ ! -d /opt/kuali/kc_printing ] && mkdir -p /opt/kuali/kc_printing
@@ -570,6 +558,11 @@ Resources:
               group: root
             /opt/kuali/scripts/docker-compose.yaml:
               content: !Sub |
+                # NOTE: Make awslogs-create-group=false so that logging from the containers does not cause the logsGroup to 
+                # get recreated during stack deletion. Apparently, the logs group is getting deleted first during stack deletion
+                # and one or more of the containers continues to send data to cloudwatch before the ec2 instance can also be deleted.
+                # During the next stack creation, cloudformation errors out due to the log group already existing.
+
                 version: '3'
                 services:
 
@@ -582,6 +575,13 @@ Resources:
                       - /opt/kuali/nginx/error.log:/etc/nginx/error.log
                       - /opt/kuali/nginx/access.log:/etc/nginx/access.log
                       - /opt/kuali/nginx/certs/:/etc/nginx/ssl/
+                    logging:
+                      driver: awslogs
+                      options:
+                        awslogs-region: ${AWS::Region}
+                        awslogs-group: ${GlobalTag}-${Landscape}
+                        awslogs-stream: nginx-docker-container
+                        awslogs-create-group: "false"
                     ports:
                       - 80:80
                       - 443:443
@@ -599,11 +599,9 @@ Resources:
                         awslogs-region: ${AWS::Region}
                         awslogs-group: ${GlobalTag}-${Landscape}
                         awslogs-stream: core-docker-container
-                        awslogs-create-group: "true"
+                        awslogs-create-group: "false"
                     expose:
                       - "3000"
-                    ports:
-                      - 27017:27017
 
                   kuali-research:
                     image: ${!KC_IMAGE}
@@ -627,7 +625,7 @@ Resources:
                         awslogs-region: ${AWS::Region}
                         awslogs-group: ${GlobalTag}-${Landscape}
                         awslogs-stream: kc-docker-container
-                        awslogs-create-group: "true"
+                        awslogs-create-group: "false"
                     expose:
                       - "8080"
                     # ports:
@@ -647,7 +645,7 @@ Resources:
                         awslogs-region: ${AWS::Region}
                         awslogs-group: ${GlobalTag}-${Landscape}
                         awslogs-stream: portal-docker-container
-                        awslogs-create-group: "true"
+                        awslogs-create-group: "false"
                     expose:
                     - "3005"
 
@@ -662,7 +660,7 @@ Resources:
                         awslogs-region: ${AWS::Region}
                         awslogs-group: ${GlobalTag}-${Landscape}
                         awslogs-stream: pdf-docker-container
-                        awslogs-create-group: "true"
+                        awslogs-create-group: "false"
                     expose:
                     - "3006"
 
@@ -687,9 +685,6 @@ Resources:
                   }
                   upstream docker-core {
                     server cor-main:3000;
-                  }
-                  upstream docker-core-local-mongo {
-                    server cor-main:27017;
                   }
                   upstream docker-portal {
                     server research-portal:3005;
@@ -764,15 +759,6 @@ Resources:
                       proxy_pass http://docker-core;
                     }
                   }
-
-                  server { 
-                    server_name EC2_HOST;
-                    listen 27017;
-
-                    location / {
-                      proxy_pass http://docker-core-local-mongo;
-                    }
-                  }
                 }
         01_get_configs_from_s3:
           commands:
@@ -790,11 +776,11 @@ Resources:
               cwd: /opt/kuali/scripts
               env:
                 TASK: create_env_exports_file
-                DNS_NAME: !If [ createDnsRecord, !Ref HostedZoneName, local ]
+                DNS_NAME: local
                 ENV_FILE_FROM_S3_CORE: /opt/kuali/s3/core/environment.variables.s3
                 ENV_FILE_FROM_S3_PORTAL: /opt/kuali/s3/portal/environment.variables.s3
                 ENV_FILE_FROM_S3_PDF: /opt/kuali/s3/pdf/environment.variables.s3
-                MONGO_EC2_IP: !If [ createMongoEc2Instance, !GetAtt MongoDbInstance.Outputs.PrivateIP, '' ]
+                MONGO_EC2_IP: !If [ CreateMongoEc2Instance, !GetAtt MongoDbInstance.Outputs.PrivateIP, '' ]
                 PDF_BUCKET_NAME: !Sub "${PdfS3BucketName}"
                 AWS_DEFAULT_REGION: !Sub "${AWS::Region}"
               command: bash process-configs.sh
@@ -804,7 +790,7 @@ Resources:
               cwd: /opt/kuali/scripts
               env:
                 TASK: process_kc-config_file
-                DNS_NAME: !If [ createDnsRecord, !Ref HostedZoneName, local ]
+                DNS_NAME: local
                 LANDSCAPE: !Sub "${Landscape}"
                 AWS_DEFAULT_REGION: !Sub "${AWS::Region}"
               command: bash process-configs.sh
@@ -846,15 +832,16 @@ Resources:
               cwd: /opt/kuali/scripts
               env:
                 TASK: update-core
-                DNS_NAME: !If [ createDnsRecord, !Ref HostedZoneName, local ]
+                DNS_NAME: local
+                USING_ROUTE53: 'false'
                 DEBUG: 'false'
                 COLLECTIONS: 'incommons institutions users'
                 LANDSCAPE: !Sub "${Landscape}"
-                SHIB_HOST: !If [ isTest, 'shib-test.bu.edu', 'shib.bu.edu' ]
+                SHIB_HOST: !If [ IsTest, 'shib-test.bu.edu', 'shib.bu.edu' ]
                 AWS_DEFAULT_REGION: !Sub "${AWS::Region}"
                 MONGO_URI:
                   !If
-                  - createMongoEc2Instance
+                  - CreateMongoEc2Instance
                   - !Sub 
                     - ${Url}:${Port}/${DbName}
                     - Url: !GetAtt MongoDbInstance.Outputs.PrivateIP
@@ -1005,37 +992,6 @@ Resources:
         IpProtocol: udp
         FromPort: 1043
         ToPort: 1043
-        CidrIp: !FindInMap [ 2faCidrs, "sixth", "cidr" ]
-        
-      - Description: "Mongodb: vpn.bu.edu/2fa On Campus, Group 1"
-        IpProtocol: tcp
-        FromPort: 27017
-        ToPort: 27017
-        CidrIp: !FindInMap [ 2faCidrs, "first", "cidr" ]
-      - Description: "Mongodb: vpn.bu.edu/2fa On Campus, Group 2 "
-        IpProtocol: tcp
-        FromPort: 27017
-        ToPort: 27017
-        CidrIp: !FindInMap [ 2faCidrs, "second", "cidr" ]
-      - Description: "Mongodb: vpn.bu.edu/2fa Off Campus"
-        IpProtocol: tcp
-        FromPort: 27017
-        ToPort: 27017
-        CidrIp: !FindInMap [ 2faCidrs, "third", "cidr" ]
-      - Description: "Mongodb: vpn.bu.edu/2fa Off Campus"
-        IpProtocol: tcp
-        FromPort: 27017
-        ToPort: 27017
-        CidrIp: !FindInMap [ 2faCidrs, "fourth", "cidr" ]
-      - Description: "Mongodb: vpn.bu.edu/2fa Off Campus"
-        IpProtocol: tcp
-        FromPort: 27017
-        ToPort: 27017
-        CidrIp: !FindInMap [ 2faCidrs, "fifth", "cidr" ]
-      - Description: "Mongodb: vpn.bu.edu/2fa Off Campus"
-        IpProtocol: tcp
-        FromPort: 27017
-        ToPort: 27017
         CidrIp: !FindInMap [ 2faCidrs, "sixth", "cidr" ]
 
 Outputs:

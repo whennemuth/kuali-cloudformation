@@ -1,0 +1,282 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: >-
+  Intended as a nested stack. Creates the s3 buckets to receive alb and optionally waf activity logging. 
+  Also creates athena infrastructure to introduce big data into the logging with the ability to query the logs using standard sql.
+
+Parameters:
+
+  GlobalTag:
+    Type: String
+    Description: >
+      A common value that all resources in this template will have prefixed to
+      their name and attached as a tag to establish a bundling through naming convention. If a nested stack,
+      this will most likely be the name of the top-most stack.
+    Default: kuali-alb
+    
+  Service:
+    Description: Service catalog name
+    Type: String
+    Default: research-administration
+
+  Function:
+    Description: The Function within the Service
+    Type: String
+    Default: kuali
+
+  Landscape:
+    Description: Specify which landscape to build into the VPC
+    Type: String
+    AllowedValues:
+    - sb
+    - ci
+    - qa
+    - stg
+    - prod
+    ConstraintDescription: >
+      This parameter is restricted to the following values: sb, ci, qa, stg, prod
+    Default: sb
+  
+  BucketName:
+    Type: String
+    Description: The S3 bucket kuali research cloudformation templates, config files, keys, etc. are stored
+    Default: kuali-conf
+
+
+Mappings:
+  # From table on https://docs.aws.amazon.com/elasticloadbalancing/latest/application/load-balancer-access-logs.html#access-logging-bucket-permissions
+  ELBAccount: 
+    us-east-1: { Id: 127311923021 }
+    us-east-2: { Id: 033677994240 }
+    us-west-1: { Id: 027434742980 }
+    us-west-2: { Id: 797873946194 }
+    af-south-1: { Id: 098369216593 }
+    ca-central-1: { Id: 985666609251 }
+    eu-central-1: { Id: 054676820928 }
+    eu-west-1: { Id: 156460612806 }
+    eu-west-2: { Id: 652711504416 }
+    eu-south-1: { Id: 635631232127 }
+    eu-west-3: { Id: 009996457667 }
+    eu-north-1: { Id: 897822967062 }
+    ap-east-1: { Id: 754344448648 }
+    ap-northeast-1: { Id: 582318560864 }
+    ap-northeast-2: { Id: 600734575887 }
+    ap-northeast-3: { Id: 383597477331 }
+    ap-southeast-1: { Id: 114774131450 }
+    ap-southeast-2: { Id: 783225319266 }
+    ap-south-1: { Id: 718504428378 }
+    me-south-1: { Id: 076674570225 }
+    sa-east-1: { Id: 507241528517 }
+
+Resources:
+
+  AthenaResultsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${GlobalTag}-${Landscape}-athena
+      Tags:
+        - Key: Name
+          Value: !Sub ${GlobalTag}-${Landscape}-athena
+        - Key: Service
+          Value: !Ref Service
+        - Key: Landscape
+          Value: !Ref Landscape
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+    DeletionPolicy: Delete
+
+  ALBLogBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${GlobalTag}-${Landscape}-alb
+      Tags:
+        - Key: Name
+          Value: !Sub ${GlobalTag}-${Landscape}-alb
+        - Key: Service
+          Value: !Ref Service
+        - Key: Landscape
+          Value: !Ref Landscape
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+        - Status: Enabled
+          Id: MoveToStorage
+          Transitions:
+          - StorageClass: 'STANDARD_IA'
+            TransitionInDays: '31'
+          - StorageClass: 'GLACIER'
+            TransitionInDays: '62'
+          ExpirationInDays: 92
+    DeletionPolicy: Delete
+
+  ALBLogBucketPolicy: 
+    Type: AWS::S3::BucketPolicy
+    Properties: 
+      Bucket: !Ref ALBLogBucket
+      PolicyDocument: 
+        Statement: 
+          - Effect: Allow
+            Principal: 
+              AWS: !Sub 
+                - arn:aws:iam::${ELBAccountId}:root
+                - ELBAccountId: !FindInMap [ ELBAccount, !Ref AWS::Region, Id ]
+            Action: s3:PutObject
+            Resource: !Sub "arn:aws:s3:::${ALBLogBucket}/AWSLogs/${AWS::AccountId}/*"
+          - Effect: Allow
+            Principal:
+              Service: delivery.logs.amazonaws.com
+            Action: s3:PutObject
+            Resource: !Sub "arn:aws:s3:::${ALBLogBucket}/AWSLogs/${AWS::AccountId}/*"
+            Condition:
+              StringEquals:
+                s3:x-amz-acl: bucket-owner-full-control
+          - Effect: Allow
+            Principal:
+              Service: delivery.logs.amazonaws.com
+            Action: s3:GetBucketAcl
+            Resource: !Sub arn:aws:s3:::${ALBLogBucket}
+
+  MyAthenaWorkGroup:
+    Type: AWS::Athena::WorkGroup
+    Properties:
+      Name: !Sub ${GlobalTag}-${Landscape}-workgroup
+      Description: !Sub Workgroup for ${GlobalTag}-${Landscape}
+      State: ENABLED
+      Tags:
+        - Key: Name
+          Value: !Sub ${GlobalTag}-${Landscape}-workgroup
+        - Key: Service
+          Value: !Ref Service
+        - Key: Landscape
+          Value: !Ref Landscape
+      WorkGroupConfiguration:
+        BytesScannedCutoffPerQuery: 200000000
+        EnforceWorkGroupConfiguration: true
+        PublishCloudWatchMetricsEnabled: false
+        ResultConfiguration:
+          OutputLocation: !Sub s3://${AthenaResultsBucket}/results/
+          
+  GlueAccessLogsDatabase:
+    Type: AWS::Glue::Database
+    Properties:
+      DatabaseInput:
+        Name: !Sub ${GlobalTag}-${Landscape}
+        Description: !Sub ${GlobalTag}-${Landscape} ALB and WAF logs
+      CatalogId: !Ref AWS::AccountId
+
+  ALBGlueAppAccessLogsTable:
+    Type: AWS::Glue::Table
+    Properties:
+      DatabaseName: !Ref GlueAccessLogsDatabase
+      CatalogId: !Ref AWS::AccountId
+      TableInput:
+        Name: alb_access_logs
+        Description: !Sub ${GlobalTag}-${Landscape} - ALB Access Logs
+        Parameters: {"EXTERNAL": "TRUE"}
+        TableType: EXTERNAL_TABLE
+        # PartitionKeys:
+        #     - Name: year
+        #       Type: int
+        #     - Name: month
+        #       Type: int
+        #     - Name: day
+        #       Type: int
+        #     - Name: hour
+        #       Type: int
+        StorageDescriptor:
+          Location: !Sub
+            - "s3://${AppAccessLogBucket}/AWSLogs/"
+            - {"AppAccessLogBucket" : !Ref ALBLogBucket}
+          InputFormat: "org.apache.hadoop.mapred.TextInputFormat"
+          OutputFormat: "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat"
+          SerdeInfo:
+            Parameters: {
+              "serialization.format": "1",
+              "input.regex": "([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*):([0-9]*) ([^ ]*)[:-]([0-9]*) ([-.0-9]*) ([-.0-9]*) ([-.0-9]*) (|[-0-9]*) (-|[-0-9]*) ([-0-9]*) ([-0-9]*) \"([^ ]*) ([^ ]*) (- |[^ ]*)\" \"([^\"]*)\" ([A-Z0-9-]+) ([A-Za-z0-9.-]*) ([^ ]*) \"([^\"]*)\" \"([^\"]*)\" \"([^\"]*)\" ([-.0-9]*) ([^ ]*) \"([^\"]*)\" \"([^\"]*)\"($| \"[^ ]*\")(.*)"
+            }
+            SerializationLibrary: "org.apache.hadoop.hive.serde2.RegexSerDe"
+          Compressed : true
+          StoredAsSubDirectories: false
+          Columns:
+            - Name: type
+              Type: string
+            - Name: time
+              Type: string
+            - Name: elb
+              Type: string
+            - Name: client_ip
+              Type: string
+            - Name: client_port
+              Type: int
+            - Name: target_ip
+              Type: string
+            - Name: target_port
+              Type: int
+            - Name: request_processing_time
+              Type: double
+            - Name: target_processing_time
+              Type: double
+            - Name: response_processing_time
+              Type: double
+            - Name: elb_status_code
+              Type: string
+            - Name: target_status_code
+              Type: string
+            - Name: received_bytes
+              Type: bigint
+            - Name: sent_bytes
+              Type: bigint
+            - Name: request_verb
+              Type: string
+            - Name: request_url
+              Type: string
+            - Name: request_proto
+              Type: string
+            - Name: user_agent
+              Type: string
+            - Name: ssl_cipher
+              Type: string
+            - Name: ssl_protocol
+              Type: string
+            - Name: target_group_arn
+              Type: string
+            - Name: trace_id
+              Type: string
+            - Name: domain_name
+              Type: string
+            - Name: chosen_cert_arn
+              Type: string
+            - Name: matched_rule_priority
+              Type: string
+            - Name: request_creation_time
+              Type: string
+            - Name: actions_executed
+              Type: string
+            - Name: redirect_url
+              Type: string
+            - Name: lambda_error_reason
+              Type: string
+            - Name: new_field
+              Type: string      
+
+
+Outputs:
+
+  ALBLogBucketName:
+    Description: The name of the s3 bucket to receive alb activity logging.
+    Value: !Ref ALBLogBucket
+
+  AthenaLogBucketName:
+    Description: The name of the s3 bucket to receive alb activity logging.
+    Value: !Ref AthenaResultsBucket
+
+  GlueAccessLogsDatabaseName:
+    Description: The name of the glue database.
+    Value: !Ref GlueAccessLogsDatabase
