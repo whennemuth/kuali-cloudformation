@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "aws-sdk": "latest",
+    "cfn-response": "latest"
+  }
+}

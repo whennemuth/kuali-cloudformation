@@ -2,7 +2,7 @@
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  * SPDX-License-Identifier: MIT-0
  * 
- * NOTE: You won't need this module if you are supplying you code as an inline yaml segment with the "ZipFile" property.
+ * NOTE: You won't need this module if you are supplying your code as an inline yaml segment with the "ZipFile" property.
  * This is because Cloudformation will automatically include it for you. However, if you are packaging you own code
  * and supplying it through the "S3Bucket" and "S3key" properties, you have to supply your own response code or this 
  * module in the zipped package that you create.

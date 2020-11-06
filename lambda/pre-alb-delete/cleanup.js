@@ -4,7 +4,7 @@ try {
 }
 catch(e){
   var AWS = require('./mock-aws-sdk');
-  var response = require('./mock-cfn-response');
+  var response = require('../mock-cfn-response');
 }
 
 exports.handler = function (event, context) {

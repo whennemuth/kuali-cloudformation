@@ -51,6 +51,8 @@ Resources:
   WAF:
     Type: AWS::CloudFormation::Stack
     Properties:
+      # https://docs.aws.amazon.com/solutions/latest/aws-waf3-security-automations/welcome.html
+      # https://github.com/awslabs/aws-waf-security-automations
       TemplateURL: https://s3.amazonaws.com/solutions-reference/aws-waf-security-automations/latest/aws-waf-security-automations.template
       Parameters:
         ActivateAWSManagedRulesParam: 'yes'

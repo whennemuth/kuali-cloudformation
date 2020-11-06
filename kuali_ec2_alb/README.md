@@ -14,14 +14,22 @@ Use these template to perform the median form of deployment for kuali research, 
    Part of EC2 initialization includes starting up docker containers for kc, core, dashboard and pdf modules.
 3. **Application Load Balancer:**
    [Reverse proxying](https://medium.com/commutatus/how-to-configure-a-reverse-proxy-in-aws-b164de91176e) is accomplished through the [application load balancer](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/introduction.html) that takes in all traffic bound for the ec2 instances over ports 80 (http) and 443 (https) and routes according to path-based rules to the appropriate ports on the EC2 hosts . The corresponding docker container is published on the appropriate ec2 host port. This removes the need for an [apache ](https://httpd.apache.org/docs/2.4/howto/reverse_proxy.html) or [nginx reverse proxy](https://docs.nginx.com/nginx/admin-guide/web-server/reverse-proxy/) running inside the ec2 host.
-4. **Cloudformation:**
+   See: [kuali_alb](../kuali_alb/README.md)
+4. **[OPTIONAL]** 
+   - **Web Application Firewall (WAF)**
+      The [AWS Web Application Firewall (WAF)](https://docs.aws.amazon.com/waf/latest/developerguide/waf-chapter.html) is included by default and is something you have to explicitly opt out of using. If you do, the stack is automatically deployed with a security group applied to the application load balancer that only allows traffic originating from within one or more BU vpns. In other word, you have to be logged into the BU network to reach the application. Otherwise the ALB is public and exposed to attacks from the outside world, and a WAF is mandatory.
+      See: [kuali_waf](../kuali_waf/README.md)
+   - **Route 53 Hosted Zone**
+      The [Route 53](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/Welcome.html) service includes a [Hosted Zone](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/AboutHZWorkingWith.html). The BU DNS service has had an NS record added for *.kuali-research.bu.edu that essentially delegates all DNS resolution for urls matching that pattern to the hosted zone created in this stack. As with the WAF, you have to opt out of using this when you create the stack, otherwise it is assumed that public access is required and the accompanying public domain name.
+      See: [kuali_dns](../kuali_dns/README.md)
+5. **Cloudformation:**
    Create, update, or delete the cloud formation stack for the infrastructure and app deployment.
    Resources created are the EC2 instances (with profile, role, security group, log group, & application load balancer) as shown above.
 
 ### Prerequisites:
 
 - **AWS CLI:** 
-  If you don't have the AWS commandline iterface, you can download it here:
+  If you don't have the AWS command line interface, you can download it here:
   [https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html)
 - **IAM User/Role:**
   The cli needs to be configured with the [access key ID and secret access key](https://docs.aws.amazon.com/general/latest/gr/aws-sec-cred-types.html#access-keys-and-secret-access-keys) of an (your) IAM user. This user needs to have a role with policies sufficient to cover all of the actions to be carried out (ECR access, stack creation, certificate upload, ssm sessions, etc.). Preferably your user will have an admin role and all policies will be covered.

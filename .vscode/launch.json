@@ -10,6 +10,25 @@
       "name": "Launch Chrome against localhost",
       "url": "http://localhost:8080",
       "webRoot": "${workspaceFolder}"
+    },
+    {
+      "env": {
+        "DEBUG": "true",
+        "AWS_SDK_LOAD_CONFIG": "1",
+        "AWS_PROFILE": "infnprd",
+        // "AWS_REGION": "us-east-1",
+        "ALB": "arn:aws:elasticloadbalancing:us-east-1:770203350335:loadbalancer/app/kuali-ec2-alb-ci-ALB/5c69c378532c3933"
+      },
+      "cwd": "${workspaceFolder}/lambda/post-waf-create",
+      "name": "Post WAF Create",
+      "type": "node",
+      "request": "launch",
+      "program": "debug.js",
+      "args": [
+        "apples",
+        "oranges",
+        "pears"
+      ]
     }
   ]
 }
