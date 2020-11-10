@@ -1,3 +1,0 @@
-[submodule "kuali_waf/aws-waf-security-automations"]
-	path = kuali_waf/aws-waf-security-automations
-	url = https://github.com/awslabs/aws-waf-security-automations.git

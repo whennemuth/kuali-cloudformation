@@ -40,6 +40,7 @@ Metadata:
       - Label: 
           default: "Logging"
         Parameters: 
+          - EnableALBLogging
           - EnableNewRelicAPM
           - EnableNewRelicInfrastructure
 
@@ -165,7 +166,7 @@ Parameters:
 
   EnableALBLogging:
     Type: String
-    Description: Does the ALB traffic need to go through a WAF?
+    Description: Does the ALB traffic need to be logged and/or go through a WAF?
     Default: "false"
     AllowedValues:
     - "true"
@@ -215,6 +216,7 @@ Resources:
           !Ref GlobalTag
         Landscape:
           !Ref Landscape        
+        BucketName: !Ref BucketName
 
   WAF:
     Type: AWS::CloudFormation::Stack
@@ -237,6 +239,7 @@ Resources:
             - CreateAlbLogsBuckets
             - !GetAtt ALBWAFLogs.Outputs.GlueAccessLogsDatabaseName
             - !Ref AWS::NoValue
+        BucketName: !Ref BucketName
     
   ALB:
     Type: AWS::CloudFormation::Stack
@@ -339,6 +342,7 @@ Resources:
           !GetAtt SecurityGroups.Outputs.EC2SecurityGroupId
         MongoSubnet:
           !Ref MongoSubnetId
+        BucketName: !Ref BucketName
     
   Instance1:
     Type: AWS::CloudFormation::Stack

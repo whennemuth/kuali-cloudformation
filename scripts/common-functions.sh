@@ -78,13 +78,14 @@ setDefaults() {
 validateStack() {
 
   local silent="$1"
+  local singlefile="$2"
   local root=$(pwd)
     
   [ -d "$TEMPLATE_PATH" ] && cd $TEMPLATE_PATH
   rm -f $root/validate.valid 2> /dev/null
   rm -f $root/validate.invalid 2> /dev/null
 
-  find . -type f -iname "*.yaml" | \
+  # find . -type f -iname "*.yaml" | \
   while read line; do \
     local f=$(printf "$line" | sed 's/^.\///'); \
     [ -n "$TEMPLATE" ] && [ "$TEMPLATE" != "$f" ] && continue;
@@ -95,12 +96,12 @@ validateStack() {
       echo $f >> $root/validate.invalid
     fi
     echo " "
-  done
+  done <<< $([ -n "$singlefile" ] && echo $singlefile || find . -type f -iname "*.yaml")
   cd $root
   if [ -z "$silent" ] ; then
     cat $root/validate.valid
   fi
-  if [ -f $root/validate.invalid ] && [ -n "$(cat $root/validate.invalid)" ]; then
+  if isValidationError "$root/validate.invalid" ; then
     cat $root/validate.invalid
     rm -f $root/validate.invalid 2> /dev/null
     rm -f $root/validate.valid 2> /dev/null
@@ -110,6 +111,16 @@ validateStack() {
     rm -f $root/validate.valid 2> /dev/null
     echo "SUCCESS! (no errors found)"
   fi
+}
+
+isValidationError() {
+  local errfile="$1"
+  local err='false'
+  if [ -f $errfile ] && [ -n "$(cat $errfile)" ]; then
+    # A template over 51200 will show up as an error, but will be ok as long as it is obtained from an s3 bucket when running stack operation. 
+    [ -z "$(cat $errfile | grep 'Member must have length less than or equal to 51200')" ] && err='true'
+  fi
+  [ $err == 'true' ] && true || false
 }
 
 # Validate a single cloudformation yaml file

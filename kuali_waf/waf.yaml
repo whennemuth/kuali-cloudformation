@@ -37,6 +37,11 @@ Parameters:
     ConstraintDescription: >
       This parameter is restricted to the following values: sb, ci, qa, stg, prod
     Default: sb
+  
+  BucketName:
+    Type: String
+    Description: The S3 bucket kuali research cloudformation templates, config files, keys, etc. are stored
+    Default: kuali-conf
 
   AlbLogsBucketName:
     Type: String
@@ -53,7 +58,9 @@ Resources:
     Properties:
       # https://docs.aws.amazon.com/solutions/latest/aws-waf3-security-automations/welcome.html
       # https://github.com/awslabs/aws-waf-security-automations
-      TemplateURL: https://s3.amazonaws.com/solutions-reference/aws-waf-security-automations/latest/aws-waf-security-automations.template
+      # TemplateURL: https://s3.amazonaws.com/solutions-reference/aws-waf-security-automations/latest/aws-waf-security-automations.template
+      TemplateURL: 
+        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_waf/aws-waf-security-automations-custom.yaml
       Parameters:
         ActivateAWSManagedRulesParam: 'yes'
         ActivateScannersProbesProtectionParam: 'yes - AWS Lambda log parser'

@@ -179,7 +179,7 @@ Parameters:
 
   EnableALBLogging:
     Type: String
-    Description: Does the ALB traffic need to go through a WAF?
+    Description: Does the ALB traffic need to be logged? (If WAF is enabled, the value you set here will be overriden to true)
     Default: "false"
     AllowedValues:
     - "true"
@@ -230,6 +230,7 @@ Resources:
           !Ref GlobalTag
         Landscape:
           !Ref Landscape
+        BucketName: !Ref BucketName
 
   WAF:
     Type: AWS::CloudFormation::Stack
@@ -252,6 +253,7 @@ Resources:
             - CreateAlbLogsBuckets
             - !GetAtt ALBWAFLogs.Outputs.GlueAccessLogsDatabaseName
             - !Ref AWS::NoValue
+        BucketName: !Ref BucketName
 
   ALB:
     Type: AWS::CloudFormation::Stack
@@ -306,6 +308,7 @@ Resources:
           !GetAtt SecurityGroups.Outputs.ECSHostSecurityGroup
         MongoSubnet:
           !Ref MongoSubnetId
+        BucketName: !Ref BucketName
 
   ECS:
     Type: AWS::CloudFormation::Stack

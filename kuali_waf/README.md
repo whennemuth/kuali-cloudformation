@@ -21,18 +21,51 @@ Alternatively, the only way to provide enough protection without a WAF is to res
 
 ### Architecture:
 
-*Note: Our implementation does not include [cloudfront](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/Introduction.html) in the web app resources as depicted below, just the ALB.* 
+*Note: Of the two "Web Application Resources" choices depicted below, our implementation used the [ALB](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/introduction.html), not [cloudfront](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/Introduction.html).* 
 
 ![architecture](./architecture.png)
 
 ### Kuali specific adjustments:
 
 - **Lambda function to turn on WAF logging**:
-  Content pending...
+  A cloudformation resource for [WAF](https://docs.aws.amazon.com/waf/latest/developerguide/waf-chapter.html) does not come with an attribute for logging to be turned on automatically.
+  However, this can be done on an existing [WAF](https://docs.aws.amazon.com/waf/latest/developerguide/waf-chapter.html) using the CLI, API, or the management console. To automate this as part of stack creation, a [custom resource](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/template-custom-resources.html) is used to invoke a lambda function written with an API call to turn on logging after the [WAF](https://docs.aws.amazon.com/waf/latest/developerguide/waf-chapter.html) has been created.
+  
 - **Lambda function to cleanup S3 after stack deletion:**
-  Content pending...
-- **Lambda function to adjust WAF WebAcl rules**:
-  Content pending...
+  In most cases it is desirable to have a stack fully "clean up after itself" when being deleted. However, for S3 buckets to be included in this cleanup, they first need to be emptied. A [custom resource](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/template-custom-resources.html) is included in the main application stack that invokes a lambda function to:
+  
+  1. Turn off logging for the [ALB](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/introduction.html). The load balancer is configured to have an S3 bucket capture logs of its activity. If bucket were to be emptied without first disabling the logging, it would start to fill up again before the deletion attempt could be made. This will cause the stack deletion to fail
+  2. Turn off logging for the [WAF](https://docs.aws.amazon.com/waf/latest/developerguide/waf-chapter.html). The is done for the same reason it is done for the ALB.
+  3. Empty the ALB logs bucket of content
+  4. Empty the WAF logs bucket of content
+  5. These buckets were created with a retention policy of delete, so cloudformation will do the rest (and delete the buckets).
+  
+- **Modified WAF WebAcl to adjust AWS-AWSManagedRulesCommonRuleSet rules**:
+  Out-of-the-box, the AWS WAF Security Automations stack deploys, among other rules, a "common" rule set of 22 rules.
+  5 of these rules cause false-positive blocks to the application, resulting in 403 status codes in the browser:
+  
+  1. **CrossSiteScripting_COOKIE**: Inspects the value of cookie headers and blocks common cross-site scripting (XSS) patterns using the built-in XSS detection rule in AWS WAF. Example patterns include scripts like `<script>alert("hello")</script>`.
+  2. **SizeRestrictions_BODY**: Verifies that the request body size is within the bounds common for many applications.
+  3. **GenericRFI_BODY**: Inspects the values of the request body and blocks requests attempting to exploit RFI (Remote File Inclusion) in web applications. Examples include patterns like `://`.
+  4. **GenericRFI_QUERYARGUMENTS**: Inspects the values of all query parameters and blocks requests attempting to exploit RFI (Remote File Inclusion) in web applications. Examples include patterns like `://`.
+  5. **NoUserAgent_HEADER**: Blocks requests with no HTTP User-Agent header.
+  
+  While these modifications can be made manually through the AWS console once the standard [template](https://s3.amazonaws.com/solutions-reference/aws-waf-security-automations/latest/aws-waf-security-automations.template) from AWS has been run and the WAF created, keeping the entire stack creation process automated is a goal and so this same template has been downloaded and modified to turn off these 5 rules. Any other custom rules can added against this copy. This means that checks should be made by routine to determine if the original template from AWS has changed with additions or updates so they can be pulled and merged with the copy.
+  
+  ```
+  # Clone this repository.
+  cd kuali_waf
+  
+  # curl in two of the standard templates.
+  curl https://s3.amazonaws.com/solutions-reference/aws-waf-security-automations/latest/aws-waf-security-automations.template \
+  -o aws-waf-security-automations.template
+  curl https://s3.amazonaws.com/solutions-reference/aws-waf-security-automations/latest/aws-waf-security-automations-webacl.template \
+  -o aws-waf-security-automations-webacl.template
+  
+  # Updates made to these standard templates should be easy enough to tell apart from the overridding customizations.
+  diff aws-waf-security-automations.template aws-waf-security-automations-custom.yaml
+  diff aws-waf-security-automations-webacl.template aws-waf-security-automations-webacl-custom.yaml
+  ```
 
 ### Upload the template to S3:
 

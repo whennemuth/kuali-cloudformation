@@ -131,10 +131,22 @@ stackAction() {
       aws s3 cp ../kuali_alb/logs.yaml s3://$BUCKET_NAME/cloudformation/kuali_alb/
 
       echo "validating ../kuali_waf/waf.yaml..."
+      validate ../kuali_waf/waf.yaml
       [ $? -gt 0 ] && exit 1
       aws s3 cp ../kuali_waf/waf.yaml s3://$BUCKET_NAME/cloudformation/kuali_waf/
 
+      echo "validating ../kuali_waf/aws-waf-security-automations-custom.yaml..."
+      validate ../kuali_waf/aws-waf-security-automations-custom.yaml
+      [ $? -gt 0 ] && exit 1
+      aws s3 cp ../kuali_waf/aws-waf-security-automations-custom.yaml s3://$BUCKET_NAME/cloudformation/kuali_waf/
+
+      echo "validating ../kuali_waf/aws-waf-security-automations-webacl-custom.yaml..."
+      validate ../kuali_waf/aws-waf-security-automations-webacl-custom.yaml
+      [ $? -gt 0 ] && exit 1
+      aws s3 cp ../kuali_waf/aws-waf-security-automations-webacl-custom.yaml s3://$BUCKET_NAME/cloudformation/kuali_waf/
+
       echo "validating ../lambda/pre-alb-delete/cleanup.yaml..."
+      validate ../lambda/pre-alb-delete/cleanup.yaml
       [ $? -gt 0 ] && exit 1
       aws s3 cp ../lambda/pre-alb-delete/cleanup.yaml s3://$BUCKET_NAME/cloudformation/kuali_lambda/
     fi
