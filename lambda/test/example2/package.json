@@ -1,0 +1,13 @@
+{
+  "name": "cleanup",
+  "dependencies": {
+    "cfn-response": "latest"
+  },
+  "devDependencies": {
+    "aws-sdk": "latest",
+    "adm-zip": "^0.4.16"
+  },
+  "scripts": {
+    "pack": "node zip.js"
+  }
+}

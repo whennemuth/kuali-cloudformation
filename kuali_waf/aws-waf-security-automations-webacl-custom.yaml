@@ -417,8 +417,6 @@ Resources:
           Priority: 0
           Action:
             Block: {}
-          # OverrideAction: 
-          #   None: {}
           VisibilityConfig:
             SampledRequestsEnabled: true
             CloudWatchMetricsEnabled: true

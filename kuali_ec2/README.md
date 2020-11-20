@@ -61,7 +61,7 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
      stack_name=my-standalone-ec2-stack \
      global_tag=my-standalone-ec2 \
      no_rollback=true \
-     bucket_path=s3://mybucket/stacks/kuali_ec2_alb \
+     template_bucket_path=s3://mybucket/stacks/kuali_ec2_alb \
      ec2_instance_type=m5.large \
      kc_image=770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-coeus-sandbox:2001.0040 \
      core_image=770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-core:2001.0040 \

@@ -25,6 +25,11 @@ Parameters:
       this will most likely be the name of the top-most stack.
     Default: ECS-test
 
+  TemplateBucketName:
+    Type: String
+    Description: The S3 bucket kuali research cloudformation templates, config files, keys, etc. are stored
+    Default: kuali-conf
+
 
 # This is a test of the output of lambda functionality created with lambda.template
 # at the time it is generated during stack creation.
@@ -35,7 +40,7 @@ Resources:
   Utils:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: https://s3.amazonaws.com/kuali-conf/cloudformation/lambda/lambda.yaml
+      TemplateURL: !Sub https://s3.amazonaws.com/${TemplateBucketName}/cloudformation/lambda/test/example1/lambda.yaml
       Parameters:
         GlobalPrefix:
           Ref: GlobalPrefix

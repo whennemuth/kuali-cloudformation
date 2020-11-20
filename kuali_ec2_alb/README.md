@@ -16,11 +16,12 @@ Use these template to perform the median form of deployment for kuali research, 
    [Reverse proxying](https://medium.com/commutatus/how-to-configure-a-reverse-proxy-in-aws-b164de91176e) is accomplished through the [application load balancer](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/introduction.html) that takes in all traffic bound for the ec2 instances over ports 80 (http) and 443 (https) and routes according to path-based rules to the appropriate ports on the EC2 hosts . The corresponding docker container is published on the appropriate ec2 host port. This removes the need for an [apache ](https://httpd.apache.org/docs/2.4/howto/reverse_proxy.html) or [nginx reverse proxy](https://docs.nginx.com/nginx/admin-guide/web-server/reverse-proxy/) running inside the ec2 host.
    See: [kuali_alb](../kuali_alb/README.md)
 4. **[OPTIONAL]** 
+   While optional, you have to opt out of these as they are included by default.
    - **Web Application Firewall (WAF)**
       The [AWS Web Application Firewall (WAF)](https://docs.aws.amazon.com/waf/latest/developerguide/waf-chapter.html) is included by default and is something you have to explicitly opt out of using. If you do, the stack is automatically deployed with a security group applied to the application load balancer that only allows traffic originating from within one or more BU vpns. In other word, you have to be logged into the BU network to reach the application. Otherwise the ALB is public and exposed to attacks from the outside world, and a WAF is mandatory.
       See: [kuali_waf](../kuali_waf/README.md)
    - **Route 53 Hosted Zone**
-      The [Route 53](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/Welcome.html) service includes a [Hosted Zone](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/AboutHZWorkingWith.html). The BU DNS service has had an NS record added for *.kuali-research.bu.edu that essentially delegates all DNS resolution for urls matching that pattern to the hosted zone created in this stack. As with the WAF, you have to opt out of using this when you create the stack, otherwise it is assumed that public access is required and the accompanying public domain name.
+      The [Route 53](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/Welcome.html) service includes a [Hosted Zone](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/AboutHZWorkingWith.html). The BU DNS service has had an [NS record](http://linux-training.be/networking/ch11.html#idp69406720) added for *.kuali-research.bu.edu that essentially delegates all DNS resolution for urls matching that pattern to the hosted zone created in this stack. As with the WAF, you have to opt out of using this when you create the stack, otherwise it is assumed that public access is required and the accompanying public domain name.
       See: [kuali_dns](../kuali_dns/README.md)
 5. **Cloudformation:**
    Create, update, or delete the cloud formation stack for the infrastructure and app deployment.
@@ -70,7 +71,7 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
       sh main.sh cert
       
       # Example 2): Upload certificate to another bucket path (bucket will be created if it does not already exist).
-      sh main.sh cert bucket_path=s3://my_bucket/some/directory
+      sh main.sh cert template_bucket_path=s3://my_bucket/some/directory
       ```
 
       *IMPORTANT: When creating the stack, for some reason cloudformation returns a "CertificateNotFound" error when the arn of a certificate uploaded to ACM is used to configure the listener for ssl. However, it has no problem with an arn of uploaded iam server certificates. This may have something to do with the self-signed certificates being considered invalid. Put your certificates (at least, your self-signed certificates) in IAM for now until more is known about the issue.*
@@ -96,7 +97,7 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
           
       # Example 3): Same as scenario 1, except create/use a custom S3 bucket, and overrides default ec2 instance size
       sh main.sh create-stack \
-          bucket_path=s3://my_bucket/some/directory \
+          template_bucket_path=s3://my_bucket/some/directory \
           ec2_instance_type=m4.xlarge \
           kc_image=770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-coeus-sandbox:2001.0040 \
           core_image=770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-core:2001.0040 \
@@ -120,7 +121,7 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
           ec2_instance_type=m5.large \
           availability_zone1=us-west-1a \
           availability_zone2=us-west-1b \
-          bucket_path=s3://my_bucket/some/directory \
+          template_bucket_path=s3://my_bucket/some/directory \
           certificate_arn=arn:aws:iam::770203350335:server-certificate/kuali-ec2-alb-cert \
           kc_image=770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-coeus-sandbox:2001.0040 \
           core_image=770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-core:2001.0040 \

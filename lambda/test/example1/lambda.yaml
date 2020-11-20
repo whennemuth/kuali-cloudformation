@@ -53,7 +53,7 @@ Resources:
       Handler: edu.bu.ist.apps.aws.lambda.CustomResourceHandler
       Code:
         S3Bucket: kuali-conf
-        S3Key: cloudformation/lambda/lambda-utils.jar
+        S3Key: cloudformation/lambda/test/example1/lambda-utils.jar
 
   NodeHelperFunction:
     Type: AWS::Lambda::Function

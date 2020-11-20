@@ -4,7 +4,7 @@ declare -A defaults=(
   [STACK_NAME]='kuali-ec2-alb'
   [GLOBAL_TAG]='kuali-ec2-alb'
   [LANDSCAPE]='sb'
-  [BUCKET_PATH]='s3://kuali-conf/cloudformation/kuali_ec2_alb'
+  [TEMPLATE_BUCKET_PATH]='s3://kuali-conf/cloudformation/kuali_ec2_alb'
   [TEMPLATE_PATH]='.'
   [CN]='kuali-research.bu.edu'
   [ROUTE53]='true'
@@ -100,49 +100,49 @@ stackAction() {
       if [ "${CREATE_MONGO,,}" == 'true' ] ; then
         validateStack silent ../kuali_mongo/mongo.yaml > /dev/null
         [ $? -gt 0 ] && exit 1
-        aws s3 cp ../kuali_mongo/mongo.yaml s3://$BUCKET_NAME/cloudformation/kuali_mongo/
-        aws s3 cp ../scripts/ec2/initialize-mongo-database.sh s3://$BUCKET_NAME/cloudformation/scripts/ec2/
+        aws s3 cp ../kuali_mongo/mongo.yaml s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_mongo/
+        aws s3 cp ../scripts/ec2/initialize-mongo-database.sh s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/
       fi
       if [ "${ENABLE_ALB_LOGGING,,}" != 'false' ] || [ "${CREATE_WAF,,}" == 'true' ] ; then
         validateStack silent ../kuali_alb/logs.yaml > /dev/null
         [ $? -gt 0 ] && exit 1
-        aws s3 cp ../kuali_alb/logs.yaml s3://$BUCKET_NAME/cloudformation/kuali_alb/
+        aws s3 cp ../kuali_alb/logs.yaml s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_alb/
 
         validateStack silent ../kuali_waf/waf.yaml
         [ $? -gt 0 ] && exit 1
-        aws s3 cp ../kuali_waf/waf.yaml s3://$BUCKET_NAME/cloudformation/kuali_waf/
+        aws s3 cp ../kuali_waf/waf.yaml s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_waf/
 
         validateStack silent ../kuali_waf/aws-waf-security-automations-custom.yaml
         [ $? -gt 0 ] && exit 1
-        aws s3 cp ../kuali_waf/aws-waf-security-automations-custom.yaml s3://$BUCKET_NAME/cloudformation/kuali_waf/
+        aws s3 cp ../kuali_waf/aws-waf-security-automations-custom.yaml s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_waf/
 
         validateStack silent ../kuali_waf/aws-waf-security-automations-webacl-custom.yaml
         [ $? -gt 0 ] && exit 1
-        aws s3 cp ../kuali_waf/aws-waf-security-automations-webacl-custom.yaml s3://$BUCKET_NAME/cloudformation/kuali_waf/
+        aws s3 cp ../kuali_waf/aws-waf-security-automations-webacl-custom.yaml s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_waf/
 
-        validateStack silent ../lambda/pre-alb-delete/cleanup.yaml
-        [ $? -gt 0 ] && exit 1
-        aws s3 cp ../lambda/pre-alb-delete/cleanup.yaml s3://$BUCKET_NAME/cloudformation/kuali_lambda/
+        # validateStack silent ../lambda/pre-alb-delete/cleanup.yaml
+        # [ $? -gt 0 ] && exit 1
+        # aws s3 cp ../lambda/pre-alb-delete/cleanup.yaml s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_lambda/
       fi
 
       # Upload scripts that will be run as part of AWS::CloudFormation::Init
-      aws s3 cp ../kuali_alb/alb.yaml s3://$BUCKET_NAME/cloudformation/kuali_alb/
-      aws s3 cp ../scripts/ec2/process-configs.sh s3://$BUCKET_NAME/cloudformation/scripts/ec2/
-      aws s3 cp ../scripts/ec2/stop-instance.sh s3://$BUCKET_NAME/cloudformation/scripts/ec2/
-      aws s3 cp ../scripts/ec2/cloudwatch-metrics.sh s3://$BUCKET_NAME/cloudformation/scripts/ec2/
+      aws s3 cp ../kuali_alb/alb.yaml s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_alb/
+      aws s3 cp ../scripts/ec2/process-configs.sh s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/
+      aws s3 cp ../scripts/ec2/stop-instance.sh s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/
+      aws s3 cp ../scripts/ec2/cloudwatch-metrics.sh s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/
 
       # Upload lambda code used by custom resources
-      if [ "${ENABLE_ALB_LOGGING,,}" != 'false' ] || [ "${CREATE_WAF,,}" == 'true' ] ; then
-        if [ -f ../lambda/pre-alb-delete/cleanup.js ] ; then
-          zipAndCopyToS3 \
-            s3://$BUCKET_NAME/cloudformation/kuali_lambda/cleanup.zip \
-            ../lambda/pre-alb-delete/cleanup.js \
-            ../lambda/cfn-response.js
-        else
-          echo "ERROR! Cannot find "../lambda/pre-alb-delete/cleanup.js" for upload to s3";
-          exit 1
-        fi
-      fi
+      # if [ "${ENABLE_ALB_LOGGING,,}" != 'false' ] || [ "${CREATE_WAF,,}" == 'true' ] ; then
+      #   if [ -f ../lambda/pre-alb-delete/cleanup.js ] ; then
+      #     zipAndCopyToS3 \
+      #       s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_lambda/cleanup.zip \
+      #       ../lambda/pre-alb-delete/cleanup.js \
+      #       ../lambda/cfn-response.js
+      #   else
+      #     echo "ERROR! Cannot find "../lambda/pre-alb-delete/cleanup.js" for upload to s3";
+      #     exit 1
+      #   fi
+      # fi
     fi
 
     cat <<-EOF > $cmdfile

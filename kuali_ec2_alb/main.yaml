@@ -13,6 +13,8 @@ Metadata:
         Parameters: 
           - GlobalTag
           - Landscape
+          - Service
+          - Function
       - Label:
           default: Network/Load-balancing
         Parameters:
@@ -28,7 +30,7 @@ Metadata:
           default: "Amazon EC2 Configuration"
         Parameters: 
           - InstanceType
-          - BucketName
+          - TemplateBucketName
       - Label: 
           default: "Kuali Services / Docker images"
         Parameters: 
@@ -65,6 +67,16 @@ Parameters:
     ConstraintDescription: >
       This parameter is restricted to the following values: sb, ci, qa, stg, prod
     Default: sb
+    
+  Service:
+    Description: Service catalog name
+    Type: String
+    Default: research-administration
+
+  Function:
+    Description: The Function within the Service
+    Type: String
+    Default: kuali
 
   VpcId:
     Type: AWS::EC2::VPC::Id
@@ -103,7 +115,7 @@ Parameters:
     ConstraintDescription: Specified instance type is not within selection list.
     Default: m4.large
   
-  BucketName:
+  TemplateBucketName:
     Type: String
     Description: The S3 bucket kuali research cloudformation templates, config files, keys, etc. are stored
     Default: kuali-conf
@@ -166,7 +178,7 @@ Parameters:
 
   EnableALBLogging:
     Type: String
-    Description: Does the ALB traffic need to be logged and/or go through a WAF?
+    Description: Does the ALB traffic need to be logged? (If WAF is enabled, the value you set here will be overriden to true)
     Default: "false"
     AllowedValues:
     - "true"
@@ -196,7 +208,7 @@ Resources:
     Type: AWS::CloudFormation::Stack
     Properties:
       TemplateURL: 
-        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_ec2_alb/security-group.yaml
+        !Sub https://s3.amazonaws.com/${TemplateBucketName}/cloudformation/kuali_ec2_alb/security-group.yaml
       Parameters:
         GlobalTag:
           !Ref GlobalTag
@@ -205,30 +217,56 @@ Resources:
         VpcId:
           !Ref VpcId
 
-  ALBWAFLogs:
+  BucketEmptierLambda:
     Type: AWS::CloudFormation::Stack
+    DependsOn: ToggleWafLoggingLambda
     Condition: CreateAlbLogsBuckets
     Properties:
       TemplateURL: 
-        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_alb/logs.yaml
+        !Sub https://s3.amazonaws.com/${TemplateBucketName}/cloudformation/kuali_lambda/bucket_emptier.yaml
+      Parameters:
+        GlobalTag: !Ref GlobalTag
+        Landscape: !Ref Landscape
+        TemplateBucketName: !Ref TemplateBucketName
+        Service: !Ref Service
+        Function: !Ref Function
+
+  ALBWAFLogs:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: BucketEmptierLambda
+    Condition: CreateAlbLogsBuckets
+    Properties:
+      TemplateURL: 
+        !Sub https://s3.amazonaws.com/${TemplateBucketName}/cloudformation/kuali_alb/logs.yaml
       Parameters:
         GlobalTag:
           !Ref GlobalTag
         Landscape:
-          !Ref Landscape        
-        BucketName: !Ref BucketName
+          !Ref Landscape
+        Service:
+          !Ref Service
+        Function:
+          !Ref Function
+        TemplateBucketName:
+          !Ref TemplateBucketName
+        BucketEmptierLambdaArn:
+          !GetAtt BucketEmptierLambda.Outputs.LambdaArn
 
   WAF:
     Type: AWS::CloudFormation::Stack
     Condition: CreateWAF
     Properties:
       TemplateURL: 
-        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_waf/waf.yaml
+        !Sub https://s3.amazonaws.com/${TemplateBucketName}/cloudformation/kuali_waf/waf.yaml
       Parameters:
         GlobalTag:
           !Ref GlobalTag
         Landscape:
           !Ref Landscape
+        Service:
+          !Ref Service
+        Function:
+          !Ref Function
         AlbLogsBucketName:
           !If
             - CreateAlbLogsBuckets
@@ -239,18 +277,25 @@ Resources:
             - CreateAlbLogsBuckets
             - !GetAtt ALBWAFLogs.Outputs.GlueAccessLogsDatabaseName
             - !Ref AWS::NoValue
-        BucketName: !Ref BucketName
+        TemplateBucketName: 
+          !Ref TemplateBucketName
+        BucketEmptierLambdaArn:
+          !GetAtt BucketEmptierLambda.Outputs.LambdaArn
     
   ALB:
     Type: AWS::CloudFormation::Stack
     Properties:
       TemplateURL: 
-        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_alb/alb.yaml
+        !Sub https://s3.amazonaws.com/${TemplateBucketName}/cloudformation/kuali_alb/alb.yaml
       Parameters:
         GlobalTag:
           !Ref GlobalTag
         Landscape:
           !Ref Landscape
+        Service:
+          !Ref Service
+        Function:
+          !Ref Function
         VpcId:
           !Ref VpcId
         Subnet1: 
@@ -261,6 +306,10 @@ Resources:
           !GetAtt SecurityGroups.Outputs.ALBSecurityGroup
         CertificateArn:
           !Ref CertificateArn
+        # TemplateBucketName: 
+        #   !Ref TemplateBucketName
+        BucketEmptierLambdaArn:
+          !GetAtt BucketEmptierLambda.Outputs.LambdaArn
         WafWebAclArn:
           !If
             - CreateWAF
@@ -277,60 +326,12 @@ Resources:
             - !GetAtt ALBWAFLogs.Outputs.ALBLogBucketName
             - !Ref AWS::NoValue
 
-  # See notes in cleanup.yaml
-  AlbWafCleanupLambda:
-    Type: AWS::CloudFormation::Stack
-    Properties:
-      TemplateURL: 
-        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_lambda/cleanup.yaml
-      Parameters:
-        GlobalTag: !Ref GlobalTag
-        Landscape: !Ref Landscape
-        BucketName: !Ref BucketName
-        AlbArn: !GetAtt ALB.Outputs.LoadBalancer
-        WafArn: !If [ CreateWAF, !GetAtt WAF.Outputs.WafWebAclArn, !Ref AWS::NoValue ]
-        AlbLogsBucketName: !If [ CreateAlbLogsBuckets, !GetAtt ALBWAFLogs.Outputs.ALBLogBucketName, !Ref AWS::NoValue ]
-        WafLogsBucketName: !If [ CreateWAF, !GetAtt WAF.Outputs.WafLogBucketName, !Ref AWS::NoValue ]
-        AthenaLogsBucketName: !If [ CreateWAF, !GetAtt ALBWAFLogs.Outputs.AthenaLogBucketName, !Ref AWS::NoValue ]
-        
-  CleanupBeforeDelete:
-    Type: Custom::Functions
-    Properties:
-      ServiceToken: !GetAtt AlbWafCleanupLambda.Outputs.LambdaArn
-      # Omiiting parameters is equivalent to specifying the most inclusive cleanup (both alb and waf logging is disabled an all 3 associated buckets are emptied)
-      #
-      # To limit logging disablement and bucket cleanup to the alb use:
-      # resource: 'alb'
-      #
-      # To limit logging disablement and bucket cleanup to the waf use:
-      # resource: 'waf'
-      #
-      # To only disable logging (alb and waf), but leave buckets alone use:
-      # target: 'logging'
-      # 
-      # To only cleanup buckets (alb, waf, & athena), but leave logging enabled use:
-      # target: 'bucket'
-      # 
-      # To only disable logging for the alb use:
-      # resource 'alb'
-      # target 'logging'
-      # 
-      # To only cleanup buckets for the waf use:
-      # resource: 'waf'
-      # target: 'bucket'
-      # 
-      # To only cleanup buckets for athena use:
-      # resource 'athena'
-      # target: 'bucket'
-      #
-      # etc...
-
   MongoDbInstance:
     Type: AWS::CloudFormation::Stack
     Condition: CreateMongoEc2Instance
     Properties:
       TemplateURL: 
-        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_mongo/mongo.yaml
+        !Sub https://s3.amazonaws.com/${TemplateBucketName}/cloudformation/kuali_mongo/mongo.yaml
       Parameters:
         GlobalTag:
           !Sub ${GlobalTag}-mongo
@@ -342,22 +343,22 @@ Resources:
           !GetAtt SecurityGroups.Outputs.EC2SecurityGroupId
         MongoSubnet:
           !Ref MongoSubnetId
-        BucketName: !Ref BucketName
+        TemplateBucketName: !Ref TemplateBucketName
     
   Instance1:
     Type: AWS::CloudFormation::Stack
     Properties:
       TemplateURL: 
-        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_ec2_alb/ec2.yaml
+        !Sub https://s3.amazonaws.com/${TemplateBucketName}/cloudformation/kuali_ec2_alb/ec2.yaml
       Parameters:
         GlobalTag:
           !Ref GlobalTag
         Landscape:
           !Ref Landscape
-        VpcId:
-          !Ref VpcId
         SecurityGroupId:
           !GetAtt SecurityGroups.Outputs.EC2SecurityGroupId
+        VpcId:
+          !Ref VpcId
         DNSName:
           !If 
             - CreateDnsRecord
@@ -373,8 +374,8 @@ Resources:
             - CreateMongoEc2Instance
             - !GetAtt MongoDbInstance.Outputs.PrivateIP
             - !Ref AWS::NoValue
-        BucketName:
-          !Ref BucketName
+        TemplateBucketName:
+          !Ref TemplateBucketName
         PdfS3BucketName:
           !Ref PdfS3BucketName
         CoreImage:
@@ -400,7 +401,7 @@ Resources:
     DependsOn: Instance1
     Properties:
       TemplateURL: 
-        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_ec2_alb/ec2.yaml
+        !Sub https://s3.amazonaws.com/${TemplateBucketName}/cloudformation/kuali_ec2_alb/ec2.yaml
       Parameters:
         GlobalTag:
           !Ref GlobalTag
@@ -425,8 +426,8 @@ Resources:
             - !Ref AWS::NoValue
         InstanceType:
           !Ref InstanceType
-        BucketName:
-          !Ref BucketName
+        TemplateBucketName:
+          !Ref TemplateBucketName
         PdfS3BucketName: 
           !Ref PdfS3BucketName
         CoreImage:
@@ -458,7 +459,7 @@ Resources:
     DependsOn: Instance2
     Properties:
       TemplateURL: 
-        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_ec2_alb/services.yaml
+        !Sub https://s3.amazonaws.com/${TemplateBucketName}/cloudformation/kuali_ec2_alb/services.yaml
       Parameters:
         GlobalTag:
           !Ref GlobalTag

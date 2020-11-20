@@ -39,7 +39,7 @@ Parameters:
     Type: AWS::EC2::VPC::Id
     Description: The id of the vpc to deploy to.
   
-  BucketName:
+  TemplateBucketName:
     Type: String
     Description: The S3 bucket kuali research cloudformation templates, config files, keys, etc. are stored
     Default: kuali-conf
@@ -401,9 +401,10 @@ Resources:
     Condition: CreateJumpboxInstance
     Properties:
       TemplateURL: 
-        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_rds/jumpbox/jumpbox.yaml
+        !Sub https://s3.amazonaws.com/${TemplateBucketName}/cloudformation/kuali_rds/jumpbox/jumpbox.yaml
       Parameters:
         Landscape: !Ref Landscape
+        TemplateBucketName: !Ref TemplateBucketName
         JumpboxInstanceType: !Ref JumpboxInstanceType
         VpcId: !Ref VpcId
         DBSubnet1: !Ref DBSubnet1

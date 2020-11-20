@@ -62,7 +62,7 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
    sh main.sh cert
    
    # Example 2): Upload certificate to another bucket path (bucke will be created if it does not already exist).
-   sh main.sh cert bucket_path=s3://my_bucket/some/directory
+   sh main.sh cert template_bucket_path=s3://my_bucket/some/directory
    ```
 
    *IMPORTANT: When creating the stack, for some reason cloudformation returns a "CertificateNotFound" error when the arn of a certificate uploaded to ACM is used to configure the listener for ssl. However, it has no problem with an arn of uploaded iam server certificates. This may have something to do with the self-signed certificates being considered invalid. Put your certificates (at least, your self-signed certificates) in IAM for now until more is known about the issue.*
@@ -82,7 +82,7 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
        ec2_instance_type=m5.large \
        availability_zone1=us-west-1a \
        availability_zone2=us-west-1b \
-       bucket_path=s3://my_bucket/some/directory \
+       template_bucket_path=s3://my_bucket/some/directory \
        certificate_arn=arn:aws:iam::770203350335:server-certificate/kuali-ecs-cert \
        kc_image=770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-coeus-sandbox:2001.0040 \
        core_image=770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-core:2001.0040 \

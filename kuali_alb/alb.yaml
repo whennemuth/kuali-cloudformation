@@ -30,6 +30,21 @@ Parameters:
     ConstraintDescription: >
       This parameter is restricted to the following values: sb, ci, qa, stg, prod
     Default: sb
+    
+  Service:
+    Description: Service catalog name
+    Type: String
+    Default: research-administration
+
+  Function:
+    Description: The Function within the Service
+    Type: String
+    Default: kuali
+  
+  # TemplateBucketName:
+  #   Type: String
+  #   Description: The S3 bucket kuali research cloudformation templates, config files, keys, etc. are stored
+  #   Default: kuali-conf
 
   VpcId:
     Type: AWS::EC2::VPC::Id
@@ -98,8 +113,13 @@ Resources:
         Value: !If [ AlbLogsBucketProvided, !Ref AlbLogsBucketName, !Ref AWS::NoValue ]
       Tags:
       - Key: Name
-        Value: 
-          !Sub "${GlobalTag}-${Landscape}-ALB"
+        Value: !Sub "${GlobalTag}-${Landscape}-ALB"
+      - Key: Landscape
+        Value: !Ref Landscape
+      - Key: Service
+        Value: !Ref Service
+      - Key: Function
+        Value: !Ref Function
 
   WafWebAclAssociation:
     Type: AWS::WAFv2::WebACLAssociation
@@ -202,7 +222,32 @@ Resources:
       AliasTarget:
         HostedZoneId: !GetAtt ALB.CanonicalHostedZoneID
         DNSName: !GetAtt ALB.DNSName
-      
+
+  # Looks like cloudformation would have already deleted the alb BEFORE its s3 logging buckets.
+  # This means that there's no need to turn off logging since the ALB is already gone.
+  #
+  # ToggleAlbLoggingLambda:
+  #   Type: AWS::CloudFormation::Stack
+  #   Condition: AlbLogsBucketProvided
+  #   DependsOn: ALB
+  #   Properties:
+  #     TemplateURL: 
+  #       !Sub https://s3.amazonaws.com/${TemplateBucketName}/cloudformation/kuali_lambda/toggle_alb_logging.yaml
+  #     Parameters:
+  #       GlobalTag: !Ref GlobalTag
+  #       Landscape: !Ref Landscape
+  #       TemplateBucketName: !Ref TemplateBucketName
+  #       Service: !Ref Service
+  #       Function: !Ref Function
+
+  # ToggleAlbLogging:
+  #   Type: Custom::Functions
+  #   Condition: AlbLogsBucketProvided
+  #   Properties:
+  #     ServiceToken: !GetAtt ToggleAlbLoggingLambda.Outputs.LambdaArn
+  #     AlbArn: !Ref ALB
+
+
 Outputs:
 
   DNSName:

@@ -43,7 +43,7 @@ Parameters:
       This parameter is restricted to the following values: sb, ci, qa, stg, prod
     Default: sb
   
-  BucketName:
+  TemplateBucketName:
     Type: String
     Description: The S3 bucket kuali research cloudformation templates, config files, keys, etc. are stored
     Default: kuali-conf
@@ -52,9 +52,9 @@ Parameters:
     Type: String
     Description: Arn of the ALB whose logging needs to be disabled.
 
-  WafArn:
+  WebAclArn:
     Type: String
-    Description: Arn of the WAF whose logging needs to be disabled.
+    Description: Arn of the WebAcl whose logging needs to be disabled.
     Default: empty
 
   AlbLogsBucketName:
@@ -74,7 +74,7 @@ Parameters:
 
 
 Conditions:
-  WafArnIncluded: !Not [ !Equals [ !Ref WafArn, empty ] ]
+  WebAclArnIncluded: !Not [ !Equals [ !Ref WebAclArn, empty ] ]
   WafBucketIncluded: !Not [ !Equals [ !Ref WafLogsBucketName, empty ] ]
   AlbBucketIncluded: !Not [ !Equals [ !Ref AlbLogsBucketName, empty ] ]
   AthenaBucketIncluded: !Not [ !Equals [ !Ref AthenaLogsBucketName, empty ] ]
@@ -119,7 +119,7 @@ Resources:
           Statement:
           - Effect: Allow
             Action:
-            - elbv2:ModifyLoadBalancerAttributes
+            - elasticloadbalancing:ModifyLoadBalancerAttributes
             Resource:
             - !Sub arn:aws:elbv2:::${GlobalTag}-${Landscape}*
       - PolicyName: waf-disable-logging
@@ -148,12 +148,12 @@ Resources:
       Environment:
         Variables:
           LOAD_BALANCER_ARN: !Ref AlbArn
-          WAF_ARN: !If [ WafArnIncluded, !Ref WafArn, !Ref AWS::NoValue ]
+          WEBACL_ARN: !If [ WebAclArnIncluded, !Ref WebAclArn, !Ref AWS::NoValue ]
           ALB_BUCKET_NAME: !If [ AlbBucketIncluded, !Ref AlbLogsBucketName, !Ref AWS::NoValue ]
           WAF_BUCKET_NAME: !If [ WafBucketIncluded, !Ref WafLogsBucketName, !Ref AWS::NoValue ]
           ATHENA_BUCKET_NAME: !If [ AthenaBucketIncluded, !Ref AthenaLogsBucketName, !Ref AWS::NoValue ]
       Code:
-        S3Bucket: !Ref BucketName
+        S3Bucket: !Ref TemplateBucketName
         S3Key: cloudformation/kuali_lambda/cleanup.zip
 
 Outputs:

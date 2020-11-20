@@ -32,7 +32,7 @@ Metadata:
           - Function
           - Service
           - Landscape
-          - BucketName
+          - TemplateBucketName
 
       - Label:
           default: Protection List
@@ -72,7 +72,7 @@ Metadata:
       Landscape:
         Environment (staging, qa, etc.)
 
-      BucketName:
+      TemplateBucketName:
         The bucket where other cfn templates are found
 
       ActivateAWSManagedRulesParam:
@@ -147,7 +147,7 @@ Parameters:
       This parameter is restricted to the following values: sb, ci, qa, stg, prod
     Default: sb
   
-  BucketName:
+  TemplateBucketName:
     Type: String
     Description: The S3 bucket kuali research cloudformation templates, config files, keys, etc. are stored
     Default: kuali-conf
@@ -398,7 +398,7 @@ Resources:
     DependsOn: CheckRequirements
     Properties:
       TemplateURL: 
-        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_waf/aws-waf-security-automations-webacl-custom.yaml
+        !Sub https://s3.amazonaws.com/${TemplateBucketName}/cloudformation/kuali_waf/aws-waf-security-automations-webacl-custom.yaml
       Parameters:
         GlobalTag: !Ref GlobalTag
         Service: !Ref Service

@@ -1,13 +1,21 @@
-try {
-  var AWS = require('aws-sdk');
-  var response = require('./cfn-response');
+// Fix this later with dependency injection.
+switch(process.env.MODE) {
+  case 'mocked':
+    var AWS = require('./mock-aws-sdk');
+    var response = require('../mock-cfn-response');
+    break;
+  case 'unmocked':
+    var AWS = require('aws-sdk');
+    var response = require('cfn-response');
+    break;
+  default:
+    var response = require('cfn-response');
+    break;
 }
-catch(e){
-  var AWS = require('./mock-aws-sdk');
-  var response = require('../mock-cfn-response');
-}
+var getParameters = require('./parameters');
 
 exports.handler = function (event, context) {
+
 
   /**
    * Process a series of tasks. Each task runs an async operation, completion upon which the next task is called.
@@ -24,11 +32,14 @@ exports.handler = function (event, context) {
    *    WAF_BUCKET_NAME
    *    ATHENA_BUCKET_NAME
    *    LOAD_BALANCER_ARN
-   *    WAF_ARN
+   *    WEBACL_ARN
+   *    or...
+   *    LANDSCAPE
    */
   this.processor = function () {
     this.setResource = (r) => { this.resource = r; };
     this.setTarget = (t) => { this.target = t; };
+    this.setParameters = (p) => { this.parameters = p; };
     this.failMessage = '';
 
     this.start = () => {
@@ -36,16 +47,19 @@ exports.handler = function (event, context) {
     };
 
     this.isEligible = function(task) {
-      if(this.resource && this.resource != task.resource) return false;
-      if(this.target && this.target != task.target) return false;
-      return true;
+      return isEligibleTask(this.resource, this.target, task);
     };
 
+    /**
+     * Provided a bucket name, empty all of its contents. Then invoke the provided callback.
+     * @param {*} bucketName 
+     * @param {*} callback 
+     */
     this.emptyBucket = function(bucketName, callback) {
       var s3 = new AWS.S3();
       var bucket = this;
       bucket.counter = 0;
-      console.log('Emptying bucket: ' + bucketName + '...');
+      console.log(`Emptying bucket: ${bucketName}...`);
 
       this.delete = function(items, bucketName, callback) { 
         var deleteParams = { Bucket: bucketName, Key: items[bucket.counter].Key }; 
@@ -54,7 +68,7 @@ exports.handler = function (event, context) {
         
         s3.deleteObject(deleteParams, function (err, data) {
           if (err) {
-            console.log("ERROR: Cannot delete " + deleteParams.Key);
+            console.log(`ERROR: Cannot delete ${deleteParams.Key}`);
             console.log(err, err.stack); 
             callback(err, data) ;             
           }
@@ -74,7 +88,7 @@ exports.handler = function (event, context) {
 
       s3.listObjects({ Bucket: bucketName }, function (err, data) {
         if (err) {
-          console.log("ERROR: Cannot list bucket objects: " + err);
+          console.log(`ERROR: Cannot list bucket objects: ${err}`);
           console.log(err, err.stack);
         }
         else if( !data || ! data.Contents || data.Contents.length == 0) {
@@ -86,8 +100,16 @@ exports.handler = function (event, context) {
       });
     };
 
+    /**
+     * This function represents a collection of all tasks, both elligible and inelligible for being executed.
+     * @param {*} processor 
+     */
     this.tasks = function(processor) {
 
+      /**
+       * This function executes a member task if that task indicates it is elligible, else moves on to the next task and repeats.  
+       * @param {*} task 
+       */
       this.nextTask = (task) => {
         if (processor.failMessage) {
           (new this.sendResponse(processor, this)).execute();
@@ -118,6 +140,11 @@ exports.handler = function (event, context) {
         }
       };
 
+      /**
+       * Disable logging for the application load balancer. 
+       * @param {*} processor 
+       * @param {*} tasks 
+       */
       this.disableAlbLogging = function(processor, tasks) {
         this.resource = 'alb';
         this.target = 'logging';
@@ -129,7 +156,7 @@ exports.handler = function (event, context) {
         };
         this.execute = function() {
           var self = this;
-          console.log('DISABLING ALB LOGGING FOR: ' + process.env.LOAD_BALANCER_ARN + '...');
+          console.log(`DISABLING ALB LOGGING FOR: ${processor.parameters.albArn}...`);
           var elbv2 = new AWS.ELBv2();
           var params = {
             Attributes: [{
@@ -153,6 +180,11 @@ exports.handler = function (event, context) {
         }
       };
 
+      /**
+       * Disable logging for the web application firewall.
+       * @param {*} processor 
+       * @param {*} tasks 
+       */
       this.disableWafLogging = function(processor, tasks) {
         this.resource = 'waf';
         this.target = 'logging';
@@ -164,9 +196,9 @@ exports.handler = function (event, context) {
         };
         this.execute = function() {
           var self = this;
-          console.log('DISABLING WAF LOGGING FOR: ' + process.env.WAF_ARN + '...');
+          console.log('DISABLING WAF LOGGING FOR: ' + process.env.WEBACL_ARN + '...');
           var wafv2 = new AWS.WAFV2();
-          wafv2.deleteLoggingConfiguration({ResourceArn: process.env.WAF_ARN}, function(err, data) {
+          wafv2.deleteLoggingConfiguration({ResourceArn: process.env.WEBACL_ARN}, function(err, data) {
             if(err) {
               processor.failMessage = 'Failed to disable waf logging (see cloudwatch logs for detail)';
               console.log('ERROR DISABLING WAF LOGGING...');
@@ -181,6 +213,11 @@ exports.handler = function (event, context) {
         }        
       };
 
+      /**
+       * Empty out all items from the alb logging s3 bucket.
+       * @param {*} processor 
+       * @param {*} tasks 
+       */
       this.emptyAlbLoggingBucket = function(processor, tasks) {
         this.resource = 'alb';
         this.target = 'bucket';
@@ -205,6 +242,11 @@ exports.handler = function (event, context) {
         };
       };
 
+      /**
+       * Empty out all items from the waf logging s3 bucket
+       * @param {*} processor 
+       * @param {*} tasks 
+       */
       this.emptyWafLoggingBucket = function(processor, tasks) {
         this.resource = 'waf';
         this.target = 'bucket';
@@ -229,6 +271,11 @@ exports.handler = function (event, context) {
         };
       };
 
+      /**
+       * Empty all items from the athena logging s3 bucket
+       * @param {*} processor 
+       * @param {*} tasks 
+       */
       this.emptyAthenaLoggingBucket = function(processor, tasks) {
         this.resource = 'athena';
         this.target = 'bucket';
@@ -253,6 +300,11 @@ exports.handler = function (event, context) {
         };
       };
 
+      /**
+       * Send an http response back to cloudformation indicating the success/fail status after execution of tasks.
+       * @param {*} processor 
+       * @param {*} tasks 
+       */
       this.sendResponse = function(processor, tasks) {
         this.next = () => {
           return 'nothing';
@@ -274,19 +326,52 @@ exports.handler = function (event, context) {
     }
   }
 
+  
+  /**
+   * All tasks are elligible if no resource or target properties were provided to setResource() and setTarget().
+   * Otherwise, anything provided to a these setters has to match the tasks corresponding attribute for that task
+   * to be elligible. The more setter use, the more exclusive task elligibility will be.
+   * @param {*} task 
+   */
+  const isEligibleTask = (resource, target, task) => {
+    if(resource && resource != task.resource) return false;
+    if(target && target != task.target) return false;
+    return true;
+  };
+
+  this.printError = (e) => {
+    var msg = e.name + ': ' + e.message;
+    console.log(msg);
+    if(e.stack) {
+      console.log(e.stack);
+    }
+    return msg;
+  }
+
+  /**
+   * Run all elligible tasks if cloudformation is performing a stack deletion.
+   */
   if (event.RequestType && event.RequestType.toUpperCase() == "DELETE") {
-    try {       
-      var proc = new this.processor();
-      proc.setResource(event.ResourceProperties.resource);
-      proc.setTarget(event.ResourceProperties.target);
-      proc.start();
+    try { 
+      getParameters(event, isEligibleTask, (parms) => {
+        if(parms.errors.length > 0) {
+          for(let i=0; i<parms.errors.length; i++) {
+            var msg = this.printError(parms.errors[i]);
+          }
+          response.send(event, context, response.SUCCESS, { Reply: msg });
+        }
+        else {
+          var proc = new this.processor();
+          proc.setParameters(parms);
+          console.log('Parameters: ' + JSON.stringify(parms, null, '  '));
+          proc.setResource(event.ResourceProperties.resource);
+          proc.setTarget(event.ResourceProperties.target);
+          proc.start();
+        }
+      });
     }
     catch(e) {
-      var msg = e.name + ': ' + e.message;
-      console.log(msg);
-      if(e.stack) {
-        console.log(e.stack);
-      }
+      this.printError(e);
       response.send(event, context, response.SUCCESS, { Reply: msg });
     }
   }

@@ -67,11 +67,11 @@ setDefaults() {
   TEMPLATE_PATH=$(echo "$TEMPLATE_PATH" | sed 's/\/*$//')
   [ "$SILENT" != 'true' ] && echo "TEMPLATE_PATH = $TEMPLATE_PATH"
   # Get the http location of the bucket path 
-  BUCKET_URL="$(echo "$BUCKET_PATH" | sed 's/s3:\/\//https:\/\/s3.amazonaws.com\//')"
+  BUCKET_URL="$(echo "$TEMPLATE_BUCKET_PATH" | sed 's/s3:\/\//https:\/\/s3.amazonaws.com\//')"
   [ "$SILENT" != 'true' ] && echo "BUCKET_URL = $BUCKET_URL"
   # Fish out just the bucket name from the larger bucket path
-  BUCKET_NAME="$(echo "$BUCKET_PATH" | grep -oP '(?<=s3://)([^/]+)')"
-  [ "$SILENT" != 'true' ] && echo "BUCKET_NAME = $BUCKET_NAME"
+  TEMPLATE_BUCKET_NAME="$(echo "$TEMPLATE_BUCKET_PATH" | grep -oP '(?<=s3://)([^/]+)')"
+  [ "$SILENT" != 'true' ] && echo "TEMPLATE_BUCKET_NAME = $TEMPLATE_BUCKET_NAME"
 }
 
 # Validate one or all cloudformation yaml templates.
@@ -138,16 +138,16 @@ uploadStack() {
 
   if [ -n "$TEMPLATE" ] ; then
     if [ -f $TEMPLATE ] ; then
-      echo "aws s3 cp $TEMPLATE $BUCKET_PATH/" > $cmdfile
+      echo "aws s3 cp $TEMPLATE $TEMPLATE_BUCKET_PATH/" > $cmdfile
     elif [ -f $TEMPLATE_PATH/$TEMPLATE ] ; then
-      echo "aws s3 cp $TEMPLATE_PATH/$TEMPLATE $BUCKET_PATH/" > $cmdfile
+      echo "aws s3 cp $TEMPLATE_PATH/$TEMPLATE $TEMPLATE_BUCKET_PATH/" > $cmdfile
     else
       echo "$TEMPLATE not found!"
       exit 1
     fi
   else
     cat <<-EOF > $cmdfile
-    aws s3 cp $TEMPLATE_PATH $BUCKET_PATH \\
+    aws s3 cp $TEMPLATE_PATH $TEMPLATE_BUCKET_PATH \\
       --exclude=* \\
       --include=*.yaml \\
       --recursive
@@ -160,8 +160,8 @@ EOF
   fi
   
   # Create an s3 bucket for the app if it doesn't already exist
-  if ! bucketExists "$BUCKET_NAME" ; then
-    aws s3 mb s3://$BUCKET_NAME
+  if ! bucketExists "$TEMPLATE_BUCKET_NAME" ; then
+    aws s3 mb s3://$TEMPLATE_BUCKET_NAME
   fi
 
   if [ "$PROMPT" == 'false' ] ; then
@@ -283,8 +283,8 @@ createEc2KeyPair() {
   local cleanup="$2"
   # Create an s3 bucket for the app if it doesn't already exist
   
-  if ! bucketExists "$BUCKET_NAME" ; then
-    aws s3 mb s3://$BUCKET_NAME
+  if ! bucketExists "$TEMPLATE_BUCKET_NAME" ; then
+    aws s3 mb s3://$TEMPLATE_BUCKET_NAME
   fi
 
   if keypairExists $keyname ; then
@@ -314,7 +314,7 @@ createEc2KeyPair() {
     --public-key-material $filespec
     
   # Upload the private key to the s3 bucket
-  aws s3 cp ./$keyname s3://$BUCKET_NAME/
+  aws s3 cp ./$keyname s3://$TEMPLATE_BUCKET_NAME/
   # Remove the keypair locally
   if [ -n "$cleanup" ] ; then
     rm -f $keyname && rm -f $keyname.pub
@@ -457,7 +457,7 @@ downloadAcmCertsFromS3() {
   local $domainName="$2"
   echo "Searching $LANDSCAPE folder in s3 bucket for cert & key files..."
   local files=$(
-    aws s3 ls s3://$BUCKET_NAME/$LANDSCAPE/$domainName \
+    aws s3 ls s3://$TEMPLATE_BUCKET_NAME/$LANDSCAPE/$domainName \
       --profile=infnprd \
       --recursive \
       | awk '{print $4}' \
@@ -467,7 +467,7 @@ downloadAcmCertsFromS3() {
   rm -rf $tempdir
   for path in $files ; do
     [ ! -d $tempdir ] && mkdir $tempdir
-    aws s3 cp s3://$BUCKET_NAME/$path $tempdir/
+    aws s3 cp s3://$TEMPLATE_BUCKET_NAME/$path $tempdir/
   done
   if [ $(ls -1 $tempdir/ | wc -l) -ge 3 ] ; then
     if [ "$setArn" ] ; then
@@ -643,12 +643,12 @@ createSelfSignedCertificate() {
   )
 
   # Create an s3 bucket for the app if it doesn't already exist
-  if ! bucketExists "$BUCKET_NAME" ; then
-    aws s3 mb s3://$BUCKET_NAME
+  if ! bucketExists "$TEMPLATE_BUCKET_NAME" ; then
+    aws s3 mb s3://$TEMPLATE_BUCKET_NAME
   fi
   # Upload the arn and keyset to the s3 bucket
-  aws s3 cp ./${GLOBAL_TAG}-self-signed.crt s3://$BUCKET_NAME/$LANDSCAPE/
-  aws s3 cp ./${GLOBAL_TAG}-self-signed.key s3://$BUCKET_NAME/$LANDSCAPE/  
+  aws s3 cp ./${GLOBAL_TAG}-self-signed.crt s3://$TEMPLATE_BUCKET_NAME/$LANDSCAPE/
+  aws s3 cp ./${GLOBAL_TAG}-self-signed.key s3://$TEMPLATE_BUCKET_NAME/$LANDSCAPE/  
 }
 
 
@@ -992,7 +992,7 @@ getRdsHostname() {
 
 getKcConfigDb() {
   if [ ! -f 'kc-config.xml.temp' ] ; then
-    aws s3 cp s3://$BUCKET_NAME/$LANDSCAPE/kuali/main/config/kc-config.xml 'kc-config.xml.temp' > /dev/null
+    aws s3 cp s3://$TEMPLATE_BUCKET_NAME/$LANDSCAPE/kuali/main/config/kc-config.xml 'kc-config.xml.temp' > /dev/null
     [ ! -f 'kc-config.xml.temp' ] && return 1
   fi
 
@@ -1015,7 +1015,7 @@ getKcConfigLine() {
     if [ -f 'kc-config.xml.temp' ] ; then
       cat 'kc-config.xml.temp'
     else
-      aws s3 cp s3://$BUCKET_NAME/$LANDSCAPE/kuali/main/config/kc-config.xml - 2> /dev/null
+      aws s3 cp s3://$TEMPLATE_BUCKET_NAME/$LANDSCAPE/kuali/main/config/kc-config.xml - 2> /dev/null
     fi
   } | grep $1
 }
@@ -1236,7 +1236,7 @@ checkLegacyAccount() {
     if ! isBuCloudInfAccount ; then
       LEGACY_ACCOUNT='true'
       echo 'Current profile indicates legacy account.'
-      defaults['BUCKET_PATH']=$(echo "${defaults['BUCKET_PATH']}" | sed -i 's/kuali-config/kuali-research-ec2-setup/')
+      defaults['TEMPLATE_BUCKET_PATH']=$(echo "${defaults['TEMPLATE_BUCKET_PATH']}" | sed -i 's/kuali-config/kuali-research-ec2-setup/')
       if [ "$LANDSCAPE" != 'prod' ] && [ -n "${defaults['CN']}" ] ; then
         defaults['CN']="kuali-research-$LANDSCAPE.bu.edu"
       fi

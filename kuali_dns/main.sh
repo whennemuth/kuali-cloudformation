@@ -3,7 +3,7 @@
 declare -A defaults=(
   [STACK_NAME]='kuali-dns'
   [GLOBAL_TAG]='kuali-dns'
-  [BUCKET_PATH]='s3://kuali-conf/cloudformation/kuali_dns'
+  [TEMPLATE_BUCKET_PATH]='s3://kuali-conf/cloudformation/kuali_dns'
   [TEMPLATE_PATH]='.'
   [NO_ROLLBACK]='true'
 )

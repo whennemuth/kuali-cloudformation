@@ -38,7 +38,7 @@ Parameters:
       This parameter is restricted to the following values: sb, ci, qa, stg, prod
     Default: sb
   
-  BucketName:
+  TemplateBucketName:
     Type: String
     Description: The S3 bucket kuali research cloudformation templates, config files, keys, etc. are stored
     Default: kuali-conf
@@ -51,6 +51,17 @@ Parameters:
     Type: String
     Description: The name of the glue access logs database
 
+  BucketEmptierLambdaArn:
+    Type: String
+    Description: >-
+      The arn of the lambda function used to empty the s3 bucket of waf logging content 
+      during a stack delete (s3 buckets cannot be deleted unless they are empty).
+    Default: none
+
+Conditions:
+  EmptyBuckets: !Not [!Equals [!Ref BucketEmptierLambdaArn, empty]]
+
+
 Resources:
 
   WAF:
@@ -60,17 +71,22 @@ Resources:
       # https://github.com/awslabs/aws-waf-security-automations
       # TemplateURL: https://s3.amazonaws.com/solutions-reference/aws-waf-security-automations/latest/aws-waf-security-automations.template
       TemplateURL: 
-        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_waf/aws-waf-security-automations-custom.yaml
+        !Sub https://s3.amazonaws.com/${TemplateBucketName}/cloudformation/kuali_waf/aws-waf-security-automations-custom.yaml
       Parameters:
         ActivateAWSManagedRulesParam: 'yes'
         ActivateScannersProbesProtectionParam: 'yes - AWS Lambda log parser'
         AppAccessLogBucket: !Ref AlbLogsBucketName
         EndpointType: 'ALB'
+        Landscape: !Ref Landscape
+        GlobalTag: !Ref GlobalTag
+        TemplateBucketName: !Ref TemplateBucketName
+        Service: !Ref Service
+        Function: !Ref Function
 
   WafLogBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub ${GlobalTag}-${Landscape}-waf
+      TemplateBucketName: !Sub ${GlobalTag}-${Landscape}-waf
       Tags:
         - Key: Name
           Value: !Sub ${GlobalTag}-${Landscape}-waf
@@ -210,124 +226,39 @@ Resources:
             - Name: httprequest
               Type: struct<clientip:string,country:string,headers:array<struct<name:string,value:string>>,uri:string,args:string,httpversion:string,httpmethod:string,requestid:string>
 
-  LambdaExecutionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-        - Effect: Allow
-          Principal:
-            Service:
-            - lambda.amazonaws.com
-          Action:
-          - sts:AssumeRole
-      Path: "/"
-      Policies:
-      - PolicyName: lambda-logging
-        PolicyDocument:
-          Version: '2012-10-17'
-          Statement:
-          - Effect: Allow
-            Action:
-            - logs:*
-            Resource: arn:aws:logs:*:*:*
-      - PolicyName: waf-config
-        PolicyDocument:
-          Version: '2012-10-17'
-          Statement:
-          - Effect: Allow
-            Action:
-            - wafv2:PutLoggingConfiguration
-            - wafv2:GetLoggingConfiguration
-            - wafv2:GetWebACL
-            Resource:
-            - arn:aws:wafv2:*:*:*/*/*
-            # - arn:aws:waf-regional:*:*:*
-      ManagedPolicyArns:
-      - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
-
-
-  WafEnableLogging:
+  ToggleWafLoggingLambda:
+    Type: AWS::CloudFormation::Stack
     DependsOn: WAF
+    Properties:
+      TemplateURL: 
+        !Sub https://s3.amazonaws.com/${TemplateBucketName}/cloudformation/kuali_lambda/toggle_alb_logging.yaml
+      Parameters:
+        GlobalTag: !Ref GlobalTag
+        Landscape: !Ref Landscape
+        TemplateBucketName: !Ref TemplateBucketName
+        Service: !Ref Service
+        Function: !Ref Function
+
+  # The lambda backing this custom resource will detect if a stack deletion is in progress and only then the will operate.
+  # The lambdas function is to empty the s3 bucket of waf logs so that cloudformation will succeed in deleting it.
+  EmptyWafLoggingBucket:
     Type: Custom::Functions
+    DependsOn: ToggleWafLoggingLambda
+    Condition: EmptyBuckets
     Properties:
-      ServiceToken: !GetAtt WafLambda.Arn
+      ServiceToken: !Ref BucketEmptierLambdaArn
+      BucketName: !Ref WafLogBucket
+      MaxKeys: 50 # Indicates how many s3 bucket items deleted at a time until the bucket is empty
 
-  WafLambda:
-    Type: AWS::Lambda::Function
+  # The lambdas function is to create a logging configuration for the waf so that it writes out activity to an s3 bucket.
+  # It will remove this logging configuration during a stack deletion to halt incoming content while EmptyWafLoggingBucket does its work.
+  ToggleWafLogging:
+    Type: Custom::Functions
+    DependsOn: EmptyWafLoggingBucket
     Properties:
-      Description: This Lambda function ensures that the new WAF web ACL has logging enabled.
-      Handler: index.handler
-      Role: !GetAtt LambdaExecutionRole.Arn
-      Runtime: nodejs12.x
-      Timeout: 30
-      FunctionName: !Sub ${GlobalTag}-${Landscape}-wafv2-logging-enabler
-      Environment:
-        Variables:
-          FIREHOSE_ARN: !GetAtt FirehoseWAFLogsDeliveryStream.Arn
-          WAF_ARN: !GetAtt WAF.Outputs.WAFWebACLArn
-      Code:
-        ZipFile: |
-          var AWS = require('aws-sdk');
-          var response = require('cfn-response');
-          exports.handler = function (event, context) {
-
-            var wafv2 = new AWS.WAFV2();
-
-            if (event.RequestType && event.RequestType.toUpperCase() == "DELETE") {              
-              sendResponse({
-                LoggingConfiguration: {
-                  ResourceArn: 'Stack operation is delete. Cancelling...'
-                }}, null);
-              return;
-            }
-
-            console.log('LOOKING UP LOGGING CONFIG...');
-            wafv2.getLoggingConfiguration({ResourceArn: process.env.WAF_ARN}, function(err, data) {
-              if (err) {
-                console.log('LOGGING CONFIG NOT FOUND...');
-                setLogging();
-              }
-              else{
-                console.log('LOGGING CONFIG ALREADY EXISTED...');
-                console.log(data); // successful response
-                sendResponse(data, err);
-              }
-            });
-
-            function setLogging() {
-              console.log('CREATING LOGGING CONFIG...');
-              var params = {
-                LoggingConfiguration: {
-                  LogDestinationConfigs: [
-                    process.env.FIREHOSE_ARN
-                  ],
-                  ResourceArn: process.env.WAF_ARN
-                }
-              }
-              wafv2.putLoggingConfiguration(params, function(err, data) {
-                sendResponse(data, err);
-              });
-            }
-
-            function sendResponse(data, err) {
-              if (err) {
-                console.log(err, err.stack);
-                var errdata = {
-                  LoggingConfiguration: {
-                    ResourceArn: 'FAILED TO ENABLE LOGGING - ' + err.name + ': ' + err.message
-                  }
-                }
-                response.send(event, context, response.FAILURE, errdata);
-              }
-              else {
-                console.log('SUCCESS!');
-                console.log(data); // successful response
-                response.send(event, context, response.SUCCESS, { ResourceArn: data.LoggingConfiguration.ResourceArn });
-              }
-            }
-          };
+      ServiceToken: !GetAtt ToggleWafLoggingLambda.Outputs.LambdaArn
+      WebAclArn: !GetAtt WAF.Outputs.WAFWebACLArn
+      FirehoseArn: !GetAtt FirehoseWAFLogsDeliveryStream.Arn
 
 
 Outputs:
@@ -343,3 +274,7 @@ Outputs:
   WafLogBucketName:
     Description: The name of the s3 bucket waf activity will get logged to.
     Value: !Ref WafLogBucket
+
+  FirehoseDeliveryStreamArn:
+    Description: The arn of the firehose delivery stream.
+    Value: !GetAtt FirehoseWAFLogsDeliveryStream.Arn

@@ -32,7 +32,7 @@ build() {
 }
 
 pkg="mvn package shade:shade"
-s3="s3://kuali-conf/cloudformation/lambda/lambda-utils.jar"
+s3="s3://kuali-conf/cloudformation/lambda/test/example1/lambda-utils.jar"
 
 prePublishCheck
 

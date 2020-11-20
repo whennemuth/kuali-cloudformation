@@ -1,0 +1,109 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: Toggle logging for a web application firewall (WAF).
+
+Parameters: 
+
+  GlobalTag:
+    Type: String
+    Description: >
+      A common value that all resources in this template will have prefixed to
+      their name and attached as a tag to establish a bundling through naming convention. If a nested stack,
+      this will most likely be the name of the top-most stack.
+    Default: kuali-waf
+    
+  Service:
+    Description: Service catalog name
+    Type: String
+    Default: research-administration
+
+  Function:
+    Description: The Function within the Service
+    Type: String
+    Default: kuali
+
+  Landscape:
+    Description: Specify which landscape to build into the VPC
+    Type: String
+    AllowedValues:
+    - sb
+    - ci
+    - qa
+    - stg
+    - prod
+    ConstraintDescription: >
+      This parameter is restricted to the following values: sb, ci, qa, stg, prod
+    Default: sb
+  
+  TemplateBucketName:
+    Type: String
+    Description: The S3 bucket kuali research cloudformation templates, config files, keys, etc. are stored
+    Default: kuali-conf
+
+
+Resources:
+
+  LambdaWafExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/"
+      Policies:
+      - PolicyName: !Sub ${GlobalTag}-${Landscape}-lambda-logging
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - logs:*
+            Resource: arn:aws:logs:*:*:*
+      - PolicyName: !Sub ${GlobalTag}-${Landscape}-waf-toggle-logging
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+              - wafv2:Get*
+              - wafv2:List*
+              - wafv2:Describe*
+              - wafv2:PutLoggingConfiguration
+              - wafv2:DeleteLoggingConfiguration
+            Resource:
+            - !Sub arn:aws:wafv2:*:*:regional/webacl/${GlobalPrefix}-${Landscape}-*/*
+            # - arn:aws:wafv2:*:*:*/*/*
+          - Effect: Allow
+            Action:
+            - tag:Get*
+            Resource:
+            - "*"
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+  # Should get called during stack delete, see: 
+  # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/crpg-ref-requesttypes-delete.html
+  ToggleWafLoggingLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Turn off logging for the specified WebAcl.
+      Handler: toggle_waf_logging.handler
+      Role: !GetAtt WafLambdaExecutionRole.Arn
+      Runtime: nodejs12.x
+      Timeout: 15  # 15 seconds
+      FunctionName: !Sub ${GlobalTag}-${Landscape}-waf-logging-toggler
+      Code:
+        S3Bucket: !Ref TemplateBucketName
+        S3Key: cloudformation/kuali_lambda/toggle_waf_logging.zip
+
+Outputs:
+
+  LambdaArn:
+    Value:
+      !GetAtt ToggleWafLoggingLambda.Arn

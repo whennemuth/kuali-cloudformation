@@ -5,30 +5,74 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "type": "pwa-chrome",
-      "request": "launch",
-      "name": "Launch Chrome against localhost",
-      "url": "http://localhost:8080",
-      "webRoot": "${workspaceFolder}"
-    },
-    {
       "env": {
-        "DEBUG": "true",
+        "DEBUG_MODE": "local",
         "AWS_SDK_LOAD_CONFIG": "1",
-        "AWS_PROFILE": "infnprd",
-        // "AWS_REGION": "us-east-1",
-        "ALB": "arn:aws:elasticloadbalancing:us-east-1:770203350335:loadbalancer/app/kuali-ec2-alb-ci-ALB/5c69c378532c3933"
+        "AWS_PROFILE": "infnprd"
       },
-      "cwd": "${workspaceFolder}/lambda/post-waf-create",
-      "name": "Post WAF Create",
+      "cwd": "${workspaceFolder}/lambda/toggle_alb_logging",
+      "name": "Toggle ALB Logging 1",
       "type": "node",
       "request": "launch",
       "program": "debug.js",
       "args": [
-        "apples",
-        "oranges",
-        "pears"
+        "{ AlbArn: 'arn:aws:elasticloadbalancing:us-east-1:770203350335:loadbalancer/app/kuali-ec2-alb-ci-ALB/f40c3f208a1ba443' }"
       ]
-    }
+    },
+    {
+      "env": {
+        "DEBUG_MODE": "local",
+        "AWS_SDK_LOAD_CONFIG": "1",
+        "AWS_PROFILE": "infnprd"
+      },
+      "cwd": "${workspaceFolder}/lambda/toggle_waf_logging",
+      "name": "Toggle WAF Logging 1",
+      "type": "node",
+      "request": "launch",
+      "program": "debug.js",
+      "args": [
+        "{ WebAclArn: 'arn:aws:wafv2:us-east-1:770203350335:regional/webacl/kuali-ec2-alb-ci-WAF-1K836IL85EGS0-WAF-1QTT9XDG7DBBB/c832f859-564e-4ff7-b9c9-9de072dd303c' }",
+        "{ FirehoseArn: 'arn:aws:firehose:us-east-1:770203350335:deliverystream/aws-waf-logs-kuali-ec2-alb-ci' }"
+      ]
+    },    
+    {
+      "env": {
+        "DEBUG_MODE": "local_mocked",
+        "AWS_SDK_LOAD_CONFIG": "1",
+        "AWS_PROFILE": "infnprd"
+      },
+      "cwd": "${workspaceFolder}/lambda/bucket_emptier",
+      "name": "Empty s3 bucket mocked",
+      "type": "node",
+      "request": "launch",
+      "program": "debug.js",
+      "args": [
+        "{ BucketName: 'bucket2' }",
+        "{ MaxKeys: 2}"
+      ]
+    },
+    {
+      "env": {
+        "DEBUG_MODE": "local_unmocked",
+        "AWS_SDK_LOAD_CONFIG": "1",
+        "AWS_PROFILE": "infnprd"
+      },
+      "cwd": "${workspaceFolder}/lambda/bucket_emptier",
+      "name": "Empty s3 bucket unmocked",
+      "type": "node",
+      "request": "launch",
+      "program": "debug.js",
+      "args": [
+        "{ BucketName: 'kuali-ec2-alb-ci-waf' }",
+        "{ MaxKeys: 50}"
+      ]
+    },
+    {
+      "cwd": "${workspaceFolder}/lambda/pre-alb-delete",
+      "name": "Pack",
+      "type": "node",
+      "request": "launch",
+      "program": "zip.js",
+    }    
   ]
 }

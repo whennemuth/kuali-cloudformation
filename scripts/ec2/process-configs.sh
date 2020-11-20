@@ -12,10 +12,10 @@ downloadConfigsFromS3() {
     --include "portal/*" \
     --include "pdf/*" \
     --include "kc/kc-config.xml" \
-    s3://${BUCKET_NAME}/${LANDSCAPE}/ .
+    s3://${TEMPLATE_BUCKET_NAME}/${LANDSCAPE}/ .
   mv /opt/kuali/s3/kc/kc-config-rds.xml /opt/kuali/s3/kc/kc-config.xml
-  aws s3 cp s3://${BUCKET_NAME}/rice.cer /opt/kuali/s3/kc/
-  aws s3 cp s3://${BUCKET_NAME}/rice.keystore /opt/kuali/s3/kc/
+  aws s3 cp s3://${TEMPLATE_BUCKET_NAME}/rice.cer /opt/kuali/s3/kc/
+  aws s3 cp s3://${TEMPLATE_BUCKET_NAME}/rice.keystore /opt/kuali/s3/kc/
 }
 
 # The name=value pair files acquired from s3 will have some default entries whose actual values could 

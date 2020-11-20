@@ -80,6 +80,10 @@ sh upload.sh profile=[your profile]
 
 - [AWS WAF security automations source code](https://github.com/awslabs/aws-waf-security-automations)
   This is a useful for answering certain specific questions as to how the WAF stack works.
+- [AWS Managed Rules rule groups list](https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-list.html)
+  Describes each of the rules in the AWS security automations rules group list.
+- [Working with managed rule groups](https://docs.aws.amazon.com/waf/latest/developerguide/waf-using-managed-rule-groups.html)
+  Describes how to override rules in a managed rule group.
 - [aws-waf-and-shield-advanced-developer-guide](https://github.com/awsdocs/aws-waf-and-shield-advanced-developer-guide)
   Contains tons of in depth documentation on WAF specifics.
 - [How can I detect false positives caused by AWS Managed Rules and add them to a safe list?](https://aws.amazon.com/premiumsupport/knowledge-center/waf-detect-false-positives-from-amrs/)

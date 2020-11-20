@@ -37,10 +37,20 @@ Parameters:
       This parameter is restricted to the following values: sb, ci, qa, stg, prod
     Default: sb
   
-  BucketName:
+  TemplateBucketName:
     Type: String
     Description: The S3 bucket kuali research cloudformation templates, config files, keys, etc. are stored
     Default: kuali-conf
+
+  BucketEmptierLambdaArn:
+    Type: String
+    Description: >-
+      The arn of the lambda function used to empty the s3 bucket of waf logging content 
+      during a stack delete (s3 buckets cannot be deleted unless they are empty).
+    Default: none
+
+Conditions:
+  EmptyBuckets: !Not [!Equals [!Ref BucketEmptierLambdaArn, empty]]
 
 
 Mappings:
@@ -79,6 +89,8 @@ Resources:
           Value: !Sub ${GlobalTag}-${Landscape}-athena
         - Key: Service
           Value: !Ref Service
+        - Key: Function
+          Value: !Ref Function
         - Key: Landscape
           Value: !Ref Landscape
       PublicAccessBlockConfiguration:
@@ -97,6 +109,8 @@ Resources:
           Value: !Sub ${GlobalTag}-${Landscape}-alb
         - Key: Service
           Value: !Ref Service
+        - Key: Function
+          Value: !Ref Function
         - Key: Landscape
           Value: !Ref Landscape
       PublicAccessBlockConfiguration:
@@ -265,6 +279,28 @@ Resources:
               Type: string
             - Name: new_field
               Type: string      
+ 
+  # The lambda backing this custom resource will detect if a stack deletion is in progress and only then the will operate.
+  # The lambdas function is to empty the s3 bucket of alb logs so that cloudformation will succeed in deleting it.
+  EmptyAlbLoggingBucket:
+    Type: Custom::Functions
+    DependsOn: ALBLogBucket
+    Condition: EmptyBuckets
+    Properties:
+      ServiceToken: !Ref BucketEmptierLambdaArn
+      BucketName: !Ref ALBLogBucket
+      MaxKeys: 100 # Indicates how many s3 bucket items deleted at a time until the bucket is empty
+
+  # The lambda backing this custom resource will detect if a stack deletion is in progress and only then the will operate.
+  # The lambdas function is to empty the s3 bucket of athena logs so that cloudformation will succeed in deleting it.
+  EmptyAthenaLoggingBucket:
+    Type: Custom::Functions
+    DependsOn: AthenaResultsBucket
+    Condition: EmptyBuckets
+    Properties:
+      ServiceToken: !Ref BucketEmptierLambdaArn
+      BucketName: !Ref AthenaResultsBucket
+      MaxKeys: 100 # Indicates how many s3 bucket items deleted at a time until the bucket is empty
 
 
 Outputs:

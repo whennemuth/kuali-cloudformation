@@ -4,7 +4,7 @@ declare -A defaults=(
   [STACK_NAME]='kuali-rds-oracle'
   [GLOBAL_TAG]='kuali-oracle'
   [LANDSCAPE]='sb'
-  [BUCKET_PATH]='s3://kuali-conf/cloudformation/kuali_rds'
+  [TEMPLATE_BUCKET_PATH]='s3://kuali-conf/cloudformation/kuali_rds'
   [TEMPLATE_PATH]='.'
   [NO_ROLLBACK]='true'
   [ENGINE]='oracle-se2'
@@ -92,7 +92,7 @@ stackAction() {
     uploadStack
     [ $? -gt 0 ] && exit 1
     # Upload scripts that will be run as part of AWS::CloudFormation::Init
-    aws s3 cp ../scripts/ec2/stop-instance.sh s3://$BUCKET_NAME/cloudformation/scripts/ec2/
+    aws s3 cp ../scripts/ec2/stop-instance.sh s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/
 
     cat <<-EOF > $cmdfile
     aws cloudformation $action \\
@@ -110,7 +110,7 @@ EOF
     add_parameter $cmdfile 'DBSubnet2' 'PRIVATE_SUBNET2'
     add_parameter $cmdfile 'DBSubnetCIDR1' 'PRIVATE_SUBNET1_CIDR'
     add_parameter $cmdfile 'DBSubnetCIDR2' 'PRIVATE_SUBNET2_CIDR'
-    add_parameter $cmdfile 'BucketName' 'BUCKET_NAME'
+    add_parameter $cmdfile 'TemplateBucketName' 'TEMPLATE_BUCKET_NAME'
     add_parameter $cmdfile 'Landscape' 'LANDSCAPE'
     add_parameter $cmdfile 'GlobalTag' 'GLOBAL_TAG'
     add_parameter $cmdfile 'DBInstanceClass' 'DB_INSTANCE_CLASS'

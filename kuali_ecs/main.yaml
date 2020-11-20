@@ -10,6 +10,8 @@ Metadata:
         Parameters: 
           - GlobalTag
           - Landscape
+          - Service
+          - Function
       - Label:
           default: Network/Load-balancing
         Parameters:
@@ -25,7 +27,7 @@ Metadata:
           default: "Amazon EC2 Configuration"
         Parameters: 
           - InstanceType
-          - BucketName
+          - TemplateBucketName
       - Label: 
           default: "Kuali Services / Docker images"
         Parameters: 
@@ -62,6 +64,16 @@ Parameters:
     ConstraintDescription: >
       This parameter is restricted to the following values: sb, ci, qa, stg, prod
     Default: sb
+    
+  Service:
+    Description: Service catalog name
+    Type: String
+    Default: research-administration
+
+  Function:
+    Description: The Function within the Service
+    Type: String
+    Default: kuali
 
   VpcId:
     Type: AWS::EC2::VPC::Id
@@ -100,7 +112,7 @@ Parameters:
     ConstraintDescription: Specified instance type is not within selection list.
     Default: m4.large
   
-  BucketName:
+  TemplateBucketName:
     Type: String
     Description: The S3 bucket kuali research cloudformation templates, config files, keys, etc. are stored
     Default: kuali-conf
@@ -210,7 +222,7 @@ Resources:
     Type: AWS::CloudFormation::Stack
     Properties:
       TemplateURL: 
-        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_ecs/security-group.yaml
+        !Sub https://s3.amazonaws.com/${TemplateBucketName}/cloudformation/kuali_ecs/security-group.yaml
       Parameters:
         GlobalTag:
           !Ref GlobalTag
@@ -219,30 +231,56 @@ Resources:
         VpcId: 
           !Ref VpcId
 
-  ALBWAFLogs:
+  BucketEmptierLambda:
     Type: AWS::CloudFormation::Stack
+    DependsOn: ToggleWafLoggingLambda
     Condition: CreateAlbLogsBuckets
     Properties:
       TemplateURL: 
-        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_alb/logs.yaml
+        !Sub https://s3.amazonaws.com/${TemplateBucketName}/cloudformation/kuali_lambda/bucket_emptier.yaml
+      Parameters:
+        GlobalTag: !Ref GlobalTag
+        Landscape: !Ref Landscape
+        TemplateBucketName: !Ref TemplateBucketName
+        Service: !Ref Service
+        Function: !Ref Function
+
+  ALBWAFLogs:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: BucketEmptierLambda
+    Condition: CreateAlbLogsBuckets
+    Properties:
+      TemplateURL: 
+        !Sub https://s3.amazonaws.com/${TemplateBucketName}/cloudformation/kuali_alb/logs.yaml
       Parameters:
         GlobalTag:
           !Ref GlobalTag
         Landscape:
           !Ref Landscape
-        BucketName: !Ref BucketName
+        Service:
+          !Ref Service
+        Function:
+          !Ref Function
+        TemplateBucketName:
+          !Ref TemplateBucketName
+        BucketEmptierLambdaArn:
+          !GetAtt BucketEmptierLambda.Outputs.LambdaArn
 
   WAF:
     Type: AWS::CloudFormation::Stack
     Condition: CreateWAF
     Properties:
       TemplateURL: 
-        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_waf/waf.yaml
+        !Sub https://s3.amazonaws.com/${TemplateBucketName}/cloudformation/kuali_waf/waf.yaml
       Parameters:
         GlobalTag:
           !Ref GlobalTag
         Landscape:
           !Ref Landscape
+        Service:
+          !Ref Service
+        Function:
+          !Ref Function
         AlbLogsBucketName:
           !If
             - CreateAlbLogsBuckets
@@ -253,18 +291,25 @@ Resources:
             - CreateAlbLogsBuckets
             - !GetAtt ALBWAFLogs.Outputs.GlueAccessLogsDatabaseName
             - !Ref AWS::NoValue
-        BucketName: !Ref BucketName
+        TemplateBucketName: 
+          !Ref TemplateBucketName
+        BucketEmptierLambdaArn:
+          !GetAtt BucketEmptierLambda.Outputs.LambdaArn
 
   ALB:
     Type: AWS::CloudFormation::Stack
     Properties:
       TemplateURL: 
-        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_alb/alb.yaml
+        !Sub https://s3.amazonaws.com/${TemplateBucketName}/cloudformation/kuali_alb/alb.yaml
       Parameters:
         GlobalTag:
           !Ref GlobalTag
         Landscape:
           !Ref Landscape
+        Service:
+          !Ref Service
+        Function:
+          !Ref Function
         VpcId: 
           !Ref VpcId
         Subnet1: 
@@ -275,6 +320,10 @@ Resources:
           !GetAtt SecurityGroups.Outputs.ALBSecurityGroup
         CertificateArn:
           !Ref CertificateArn
+        # TemplateBucketName: 
+        #   !Ref TemplateBucketName
+        BucketEmptierLambdaArn:
+          !GetAtt BucketEmptierLambda.Outputs.LambdaArn
         WafWebAclArn:
           !If
             - CreateWAF
@@ -296,7 +345,7 @@ Resources:
     Condition: CreateMongoEc2Instance
     Properties:
       TemplateURL: 
-        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_mongo/mongo.yaml
+        !Sub https://s3.amazonaws.com/${TemplateBucketName}/cloudformation/kuali_mongo/mongo.yaml
       Parameters:
         GlobalTag:
           !Sub ${GlobalTag}-mongo
@@ -308,13 +357,13 @@ Resources:
           !GetAtt SecurityGroups.Outputs.ECSHostSecurityGroup
         MongoSubnet:
           !Ref MongoSubnetId
-        BucketName: !Ref BucketName
+        TemplateBucketName: !Ref TemplateBucketName
 
   ECS:
     Type: AWS::CloudFormation::Stack
     Properties:
       TemplateURL: 
-        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_ecs/cluster.yaml
+        !Sub https://s3.amazonaws.com/${TemplateBucketName}/cloudformation/kuali_ecs/cluster.yaml
       Parameters:
         GlobalTag:
           !Ref GlobalTag
@@ -345,8 +394,8 @@ Resources:
           !Ref MinClusterSize
         MaxClusterSize:
           !Ref MaxClusterSize
-        BucketName:
-          !Ref BucketName
+        TemplateBucketName:
+          !Ref TemplateBucketName
         PdfS3BucketName: 
           !Ref PdfS3BucketName
         EC2KeypairName:
@@ -363,7 +412,7 @@ Resources:
     Type: AWS::CloudFormation::Stack
     Properties:
       TemplateURL: 
-        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_ecs/service-core.yaml
+        !Sub https://s3.amazonaws.com/${TemplateBucketName}/cloudformation/kuali_ecs/service-core.yaml
       Parameters:
         GlobalTag:
           !Ref GlobalTag
@@ -387,7 +436,7 @@ Resources:
     DependsOn: KualiCoreService
     Properties:
       TemplateURL: 
-        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_ecs/service-pdf.yaml
+        !Sub https://s3.amazonaws.com/${TemplateBucketName}/cloudformation/kuali_ecs/service-pdf.yaml
       Parameters:
         GlobalTag:
           !Ref GlobalTag
@@ -413,7 +462,7 @@ Resources:
     DependsOn: KualiPdfService
     Properties:
       TemplateURL: 
-        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_ecs/service-dashboard.yaml
+        !Sub https://s3.amazonaws.com/${TemplateBucketName}/cloudformation/kuali_ecs/service-dashboard.yaml
       Parameters:
         GlobalTag:
           !Ref GlobalTag
@@ -437,7 +486,7 @@ Resources:
     DependsOn: KualiDashboardService
     Properties:
       TemplateURL: 
-        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_ecs/service-research.yaml
+        !Sub https://s3.amazonaws.com/${TemplateBucketName}/cloudformation/kuali_ecs/service-research.yaml
       Parameters:
         GlobalTag:
           !Ref GlobalTag
@@ -462,7 +511,7 @@ Resources:
     Type: AWS::CloudFormation::Stack
     Properties:
       TemplateURL: 
-        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_ecs/lifecycle-hook.yaml
+        !Sub https://s3.amazonaws.com/${TemplateBucketName}/cloudformation/kuali_ecs/lifecycle-hook.yaml
       Parameters:
         GlobalTag:
           !Ref GlobalTag

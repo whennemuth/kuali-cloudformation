@@ -2,7 +2,7 @@
 source ../scripts/common-functions.sh
 
 declare -A defaults=(
-  [BUCKET_PATH]='s3://kuali-conf/cloudformation/kuali_waf'
+  [TEMPLATE_BUCKET_PATH]='s3://kuali-conf/cloudformation/kuali_waf'
   [TEMPLATE_PATH]='.'
 )
 

@@ -4,7 +4,7 @@ declare -A defaults=(
   [STACK_NAME]='kuali-ec2'
   [GLOBAL_TAG]='kuali-ec2'
   [LANDSCAPE]='sb'
-  [BUCKET_PATH]='s3://kuali-conf/cloudformation/kuali_ec2'
+  [TEMPLATE_BUCKET_PATH]='s3://kuali-conf/cloudformation/kuali_ec2'
   [TEMPLATE_PATH]='.'
   [KC_IMAGE]='getLatestImage kuali-coeus'
   [CORE_IMAGE]='getLatestImage kuali-core'
@@ -75,12 +75,12 @@ stackAction() {
     uploadStack silent
     [ $? -gt 0 ] && exit 1
     # Upload scripts that will be run as part of AWS::CloudFormation::Init
-    aws s3 cp ../scripts/ec2/process-configs.sh s3://$BUCKET_NAME/cloudformation/scripts/ec2/
-    aws s3 cp ../scripts/ec2/stop-instance.sh s3://$BUCKET_NAME/cloudformation/scripts/ec2/
-    aws s3 cp ../scripts/ec2/cloudwatch-metrics.sh s3://$BUCKET_NAME/cloudformation/scripts/ec2/
+    aws s3 cp ../scripts/ec2/process-configs.sh s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/
+    aws s3 cp ../scripts/ec2/stop-instance.sh s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/
+    aws s3 cp ../scripts/ec2/cloudwatch-metrics.sh s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/
     if [ "${CREATE_MONGO,,}" == 'true' ] ; then
-      aws s3 cp ../kuali_mongo/mongo.yaml s3://$BUCKET_NAME/cloudformation/kuali_mongo/
-      aws s3 cp ../scripts/ec2/initialize-mongo-database.sh s3://$BUCKET_NAME/cloudformation/scripts/ec2/
+      aws s3 cp ../kuali_mongo/mongo.yaml s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_mongo/
+      aws s3 cp ../scripts/ec2/initialize-mongo-database.sh s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/
     fi
 
     checkKeyPair

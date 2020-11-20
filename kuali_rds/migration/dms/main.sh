@@ -4,7 +4,7 @@ declare -A defaults=(
   [STACK_NAME]='kuali-dms-oracle'
   [GLOBAL_TAG]='kuali-dms-oracle'
   [LANDSCAPE]='sb'
-  [BUCKET_PATH]='s3://kuali-conf/cloudformation/kuali_rds'
+  [TEMPLATE_BUCKET_PATH]='s3://kuali-conf/cloudformation/kuali_rds'
   [TEMPLATE_PATH]='.'
   [NO_ROLLBACK]='true'
   # [MULTI_AZ]=['???']
@@ -35,7 +35,7 @@ run() {
   if ! isBuCloudInfAccount ; then
     LEGACY_ACCOUNT='true'
     echo 'Current profile indicates legacy account.'
-    defaults['BUCKET_PATH']='s3://kuali-research-ec2-setup/cloudformation/kuali_rds/migration/dms'
+    defaults['TEMPLATE_BUCKET_PATH']='s3://kuali-research-ec2-setup/cloudformation/kuali_rds/migration/dms'
   fi
 
   if [ "$task" == "test" ] ; then

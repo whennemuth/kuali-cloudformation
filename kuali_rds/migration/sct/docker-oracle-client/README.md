@@ -144,7 +144,7 @@ You can drive what the container does with name=value parameter pairs:
 
    ```
    LANDSCAPE=ci
-   BUCKET_NAME=kuali-research-ec2-setup
+   TEMPLATE_BUCKET_NAME=kuali-research-ec2-setup
    Using default aws profile
    {
        "RequestId": "68a23ff0-3b39-47c8-888c-9f96c6448610",

@@ -13,7 +13,7 @@ canLookupInS3() {
   [ -n "$AWS_SECRET_ACCESS_KEY" ] && ((reqs++))
   [ -n "$AWS_REGION" ] && ((reqs++))
   [ -n "$LANDSCAPE" ] && ((reqs++))
-  [ -n "$BUCKET_NAME" ] && ((reqs++))
+  [ -n "$TEMPLATE_BUCKET_NAME" ] && ((reqs++))
   [ $reqs -eq 5 ] && true || false
 }
 

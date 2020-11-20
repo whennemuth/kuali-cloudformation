@@ -4,7 +4,7 @@ declare -A defaults=(
   [STACK_NAME]='kuali-secrets'
   [GLOBAL_TAG]='kuali-secrets'
   [LANDSCAPE]='sb'
-  [BUCKET_PATH]='s3://kuali-conf/cloudformation/kuali_rds'
+  [TEMPLATE_BUCKET_PATH]='s3://kuali-conf/cloudformation/kuali_rds'
   [TEMPLATE_PATH]='.'
   [NO_ROLLBACK]='true'
   # [RDS_APP_USERNAME]='???'
@@ -42,7 +42,7 @@ run() {
   if ! isBuCloudInfAccount ; then
     LEGACY_ACCOUNT='true'
     echo 'Current profile indicates legacy account.'
-    defaults['BUCKET_PATH']='s3://kuali-research-ec2-setup/cloudformation/kuali_secrets'
+    defaults['TEMPLATE_BUCKET_PATH']='s3://kuali-research-ec2-setup/cloudformation/kuali_secrets'
   fi
 
   setDefaults

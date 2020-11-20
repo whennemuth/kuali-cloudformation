@@ -15,7 +15,7 @@ Parameters:
       their name and attached as a tag to establish a bundling through naming convention.
     Default: kuali-ec2
 
-  BucketName:
+  TemplateBucketName:
     Type: String
     Description: The S3 bucket kuali research cloudformation templates, config files, keys, etc. are stored
     Default: kuali-conf
@@ -267,7 +267,7 @@ Resources:
     Condition: CreateMongoEc2Instance
     Properties:
       TemplateURL: 
-        !Sub https://s3.amazonaws.com/${BucketName}/cloudformation/kuali_mongo/mongo.yaml
+        !Sub https://s3.amazonaws.com/${TemplateBucketName}/cloudformation/kuali_mongo/mongo.yaml
       Parameters:
         GlobalTag:
           !Sub ${GlobalTag}-mongo
@@ -376,7 +376,7 @@ Resources:
           roleName:
             !Ref EC2Role
           buckets:
-          - !Ref BucketName
+          - !Ref TemplateBucketName
 
       AWS::CloudFormation::Init:
         configSets:
@@ -434,7 +434,7 @@ Resources:
                 # Check the system log for any errors this script encounters"
                 # * * * * * /opt/kuali/scripts/send-custom-cloudwatch-metrics.sh "custom1"
                 # * * * * * /opt/kuali/scripts/send-custom-cloudwatch-metrics.sh "custom2" "ec2"
-                # * * * * * /opt/kuali/scripts/send-custom-cloudwatch-metrics.sh "psuedo"  "ec2" "${BucketName}" "${AWS::Region}"
+                # * * * * * /opt/kuali/scripts/send-custom-cloudwatch-metrics.sh "psuedo"  "ec2" "${TemplateBucketName}" "${AWS::Region}"
                 #
                 0 8 * * * /bin/bash /opt/kuali/scripts/stop-instance.sh ${AWS::Region}
               mode: "000644"
@@ -484,25 +484,25 @@ Resources:
                 log_stream_name = /var/log/docker
                 datetime_format = %Y-%m-%dT%H:%M:%S.%f
             /opt/kuali/scripts/process-configs.sh:
-              source: !Sub http://${BucketName}.s3.amazonaws.com/cloudformation/scripts/ec2/process-configs.sh
+              source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/cloudformation/scripts/ec2/process-configs.sh
               content: !Sub |
               mode: "000775"
               owner: root
               group: root
             /opt/kuali/scripts/initialize-mongo-database.sh:
-              source: !Sub http://${BucketName}.s3.amazonaws.com/cloudformation/scripts/ec2/initialize-mongo-database.sh
+              source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/cloudformation/scripts/ec2/initialize-mongo-database.sh
               content: !Sub |
               mode: "000775"
               owner: root
               group: root
             /opt/kuali/scripts/stop-instance.sh:
-              source: !Sub http://${BucketName}.s3.amazonaws.com/cloudformation/scripts/ec2/stop-instance.sh
+              source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/cloudformation/scripts/ec2/stop-instance.sh
               content: !Sub |
               mode: "000775"
               owner: root
               group: root
             /opt/kuali/scripts/send-custom-cloudwatch-metrics.sh:
-              source: !Sub http://${BucketName}.s3.amazonaws.com/cloudformation/scripts/ec2/cloudwatch-metrics.sh
+              source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/cloudformation/scripts/ec2/cloudwatch-metrics.sh
               mode: "000744"
               owner: root
               group: root
@@ -767,7 +767,7 @@ Resources:
               env:
                 TASK: get_configs_from_s3             
                 LANDSCAPE: !Sub "${Landscape}"
-                BUCKET_NAME: !Sub "${BucketName}"
+                TEMPLATE_BUCKET_NAME: !Sub "${TemplateBucketName}"
                 AWS_DEFAULT_REGION: !Sub "${AWS::Region}"
               command: bash process-configs.sh
         02_create_env_exports_file:
