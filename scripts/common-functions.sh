@@ -2,6 +2,14 @@
 
 cmdfile=last-cmd.sh
 
+outputHeading() {
+  local border='*******************************************************************************'
+  echo ""
+  echo "$border"
+  echo "       $1"
+  echo "$border"
+}
+
 windows() {
   [ -n "$(ls /c/ 2> /dev/null)" ] && true || false
 }
@@ -164,14 +172,16 @@ EOF
     aws s3 mb s3://$TEMPLATE_BUCKET_NAME
   fi
 
-  if [ "$PROMPT" == 'false' ] ; then
-    echo "\nExecuting the following command(s):\n\n$(cat $cmdfile)\n"
-    local answer='y'
-  else
-    printf "\nExecute the following command:\n\n$(cat $cmdfile)\n\n(y/n): "
-    read answer
-  fi
-  [ "$answer" == "y" ] && sh $cmdfile || echo "Cancelled."
+  # if [ "$PROMPT" == 'false' ] ; then
+  #   echo "\nExecuting the following command(s):\n\n$(cat $cmdfile)\n"
+  #   local answer='y'
+  # else
+  #   printf "\nExecute the following command:\n\n$(cat $cmdfile)\n\n(y/n): "
+  #   read answer
+  # fi
+  # [ "$answer" == "y" ] && sh $cmdfile || echo "Cancelled."
+
+  sh $cmdfile
 }
 
 # Add on key=value entry to the construction of an aws cli function call to 
@@ -533,7 +543,7 @@ isAChainFile() {
 
 setCertArn() {
   [ -n "$CERTIFICATE_ARN" ] && return 0
-  printCertLookupSteps
+  # printCertLookupSteps
   if [ "${USING_ROUTE53,,}" == 'true' ] ; then
     setAcmCertArn "$CN"
   else
@@ -541,6 +551,7 @@ setCertArn() {
   fi
   if [ -z "$CERTIFICATE_ARN" ] ; then
     if [ "${PROMPT,,}" == 'false' ] || askYesNo "Use a self-signed certificate instead?" ; then
+      [ "${PROMPT,,}" != 'false' ] && printCertLookupSteps
       setSelfSignedCertArn
     fi
   fi
@@ -1232,7 +1243,7 @@ getHostedZoneNameByLandscape() {
 }
 
 checkLegacyAccount() {
-  if [ "$task" == 'create-stack' ] || [ "$task" == 'recreate-stack' ] || [ "$task" == 'update-stack' ] || [ "$task" == 'set-cert-arn' ] ; then
+  if [[ "$task" == *create-stack ]] || [[ "$task" == *update-stack ]] || [[ "$task" == 'set-cert-arn' ]] ; then
     if ! isBuCloudInfAccount ; then
       LEGACY_ACCOUNT='true'
       echo 'Current profile indicates legacy account.'
@@ -1269,7 +1280,7 @@ emptyBuckets() {
 # Zip up one or more files in an archive with a specified name and upload it to s3 at a specified path.
 # Arg1: The s3 path, including name of the zip file (ie: s3://mybucket/mydir/myfile.zip)
 # Arg2 - ArgN: One or more files (ie: ../some/file.js).
-zipAndCopyToS3() {
+zipAndCopyToS3Basic() {
   local outputfile='temp-zip-file.zip'
   local s3path="$1"
   shift
@@ -1303,4 +1314,32 @@ zipAndCopyToS3() {
     rm -f $outputfile
     [ $retval -eq 0 ] && true || false
   fi
+}
+
+zipPackageAndCopyToS3() {
+  local rootPath="$1"
+  [ ! -d "$rootPath" ] && echo "root path: \"$rootPath\" does not exist" && cd - && return 1
+  cd $rootPath
+  local s3path="$2"
+  [ -z "$s3path" ] && echo "Target path in s3 was ommitted!" && cd - && return 1
+
+  npm run pack
+
+  # BUG in node when accessed from gitbash or cygwin: "stdout is not a tty"
+  # Workaround seems to be to call node.exe instead of just node.
+  # Not an issue on linux. Mac?
+  # https://github.com/nodejs/node/issues/14100
+  local gitbash="$(node.exe --version > /dev/null 2>&1 && [ "$?" == "0" ] && echo 'true')"
+
+  # Create the a node command to parse package.json as json and output the version property.
+  local cmd="node"
+  [ $gitbash ] && cmd="${cmd}.exe"
+  local name=$($cmd -pe 'JSON.parse(process.argv[1]).name' "$(cat package.json)" 2> /dev/null);
+
+  [ ! "$name" ] && echo "Cannot determine name from package.json file to give zip file!" && cd - && return 1
+  local zipfile="${name}.zip"
+  [ ! -f "$zipfile" ] && echo "Failed to generate $zipfile to upload to s3!" && cd - && return 1
+
+  aws s3 cp $zipfile $s3path
+  cd -
 }

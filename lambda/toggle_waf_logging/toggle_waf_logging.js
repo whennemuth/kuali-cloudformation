@@ -1,7 +1,6 @@
 var AWS = require('aws-sdk');
 var response = require('cfn-response');
 
-
 const toggleWafLogging = (webAclArn, firehoseArn, enableLogs, callback) => {
   try {
     var wafv2 = new AWS.WAFV2();
@@ -19,29 +18,35 @@ const toggleWafLogging = (webAclArn, firehoseArn, enableLogs, callback) => {
             }
           }
           wafv2.putLoggingConfiguration(params, function(err, data) {
-            if(data) {
-              console.log(`Logging configuration created for ${webAclArn}`);
+            if(err) {
+              callback(err, 'failed');
             }
-            callback(err, data);
+            else {
+              console.log(`Logging configuration created for ${webAclArn}`);
+              callback(null, 'succeeded');
+            }
           });
         }
         else {
           console.log('No logging configuration exists to be deleted, cancelling...');
-          callback();
+          callback(null, 'cancelled');
         }
       }
       else {
         if(enableLogs) {
           console.log('Logging configuration already exists for ${webAclArn}, cancelling...');
-          callback();
+          callback(null, 'cancelled');
         }
         else {
           console.log('Deleting existing waf logging configuration...');
           wafv2.deleteLoggingConfiguration({ResourceArn: webAclArn}, function(err, data) {
-            if( ! err) {
-              console.log(`Logging configuration deleted for ${webAclArn}`);
+            if(err) {
+              callback(err, data);
             }
-            callback(err, data);
+            else {
+              console.log(`Logging configuration deleted for ${webAclArn}`);
+              callback(null, 'succeeded');
+            }
           });
         }
       }
@@ -52,9 +57,9 @@ const toggleWafLogging = (webAclArn, firehoseArn, enableLogs, callback) => {
   }
 }
 
-const sendResponse = (event, context, responseType, reply) => {
+const sendResponse = (event, context, responseType, result) => {
   try {
-    response.send(event, context, responseType, reply);
+    response.send(event, context, responseType, { Reply: `${result}` });
   }
   catch(e) {
     if( process.env.DEBUG_MODE && process.env.DEBUG_MODE == 'local') {
@@ -69,7 +74,7 @@ const sendErrorResponse = (event, context, err) => {
   var msg = err.name + ': ' + err.message;
   var toggle = (event && event.RequestType && /^delete$/i.test(event.RequestType)) ? 'disable' : 'enable';
   try {
-    response.send(event, context, response.FAILURE, { Reply: `Failed to ${toggle} waf logging: ${msg}, (see cloudwatch logs for detail)` });
+    response.send(event, context, response.FAILED, { Reply: `Failed to ${toggle} waf logging: ${msg}, (see cloudwatch logs for detail)` });
   }
   catch(e) {
     if( process.env.DEBUG_MODE && process.env.DEBUG_MODE == 'local') {
@@ -95,9 +100,9 @@ exports.handler = function (event, context) {
         else {
           switch(result) {
             case 'succeeded':
-              sendResponse(event, context, response.SUCCESS, { Reply: `${result}` }); break;
-            default:
-              sendResponse(event, context, response.FAILURE, { Reply: `${result}` }); break;
+              sendResponse(event, context, response.SUCCESS, result); break;
+            default: 
+              sendResponse(event, context, response.FAILED, result); break;
           }          
         }
       })

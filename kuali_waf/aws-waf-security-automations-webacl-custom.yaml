@@ -53,6 +53,13 @@ Parameters:
       This parameter is restricted to the following values: sb, ci, qa, stg, prod
     Default: sb
 
+  LogGroupRetention:
+    Type: Number
+    Description: How old in days can Lambda function loggroups content get before it is deleted?
+    AllowedValues: [1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 3653]
+    ConstraintDescription: Allowed values - 1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, and 3653
+    Default: 365
+
   ActivateAWSManagedRulesParam:
     Type: String
   ActivateSqlInjectionProtectionParam:
@@ -364,16 +371,25 @@ Resources:
             Statement:
               - Effect: Allow
                 Action:
-                  - 'logs:CreateLogGroup'
+                  # - 'logs:CreateLogGroup'
                   - 'logs:CreateLogGroup'
                   - 'logs:CreateLogStream'
                   - 'logs:PutLogEvents'
                 Resource:
-                  - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*CustomTimer*'
+                  # - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*CustomTimer*'
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${GlobalTag}-${Landscape}-waf-lambda-custom-timer
+
+  CustomTimerLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    Properties: 
+      LogGroupName: !Sub ${GlobalTag}-${Landscape}-waf-lambda-custom-timer
+      RetentionInDays: !Ref LogGroupRetention
 
   CustomTimer:
     Type: 'AWS::Lambda::Function'
     Properties:
+      FunctionName: !Sub ${GlobalTag}-${Landscape}-waf-lambda-custom-timer
       Description: >-
         This lambda function counts X seconds and can be used to slow down component creation in CloudFormation
       Handler: 'timer.lambda_handler'

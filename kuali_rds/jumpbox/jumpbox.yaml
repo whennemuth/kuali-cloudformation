@@ -176,11 +176,12 @@ Resources:
     Type: AWS::Logs::LogGroup
     DeletionPolicy: Delete
     Properties:
-      LogGroupName: !Sub ${GlobalTag}-${Landscape}
+      LogGroupName: !Sub ${GlobalTag}-${Landscape}-jumpbox
       RetentionInDays: 30
       
   JumpboxInstance:
     Type: AWS::EC2::Instance
+    DependsOn: JumpboxInstanceLogsGroup
     Description: EC2 instance providing jumpbox access to RDS database instances in the same VPC.
     Properties:
       Tags:
@@ -232,23 +233,44 @@ Resources:
             yum:
               awslogs: []
           files: 
-              /etc/cron.d/stop-instance:
-                content: !Sub |
-                  SHELL=/bin/bash
-                  PATH=/sbin:/bin:/usr/sbin:/usr/bin
-                  MAILTO=root
+            /etc/awslogs/awscli.conf:
+              content: !Sub |
+                [plugins]
+                cwlogs = cwlogs
+                [default]
+                region = ${AWS::Region}
+            /etc/awslogs/awslogs.conf:
+              content: !Sub |
+                [general]
+                state_file = /var/lib/awslogs/agent-state
+                
+                [/var/log/dmesg]
+                file = /var/log/dmesg
+                log_group_name = ${GlobalTag}-${Landscape}-jumpbox
+                log_stream_name = {instance_id}/var/log/dmesg
+                
+                [/var/log/messages]
+                file = /var/log/messages
+                log_group_name = ${GlobalTag}-${Landscape}-jumpbox
+                log_stream_name = {instance_id}/var/log/messages
+                datetime_format = %b %d %H:%M:%S
+            /etc/cron.d/stop-instance:
+              content: !Sub |
+                SHELL=/bin/bash
+                PATH=/sbin:/bin:/usr/sbin:/usr/bin
+                MAILTO=root
 
-                  # Stop this instance at the same time daily:
-                  ${StopInstanceCronSchedule} root sh /usr/local/sbin/stop-instance.sh
-                mode: "000644"
-                owner: root
-                group: root
-              /usr/local/sbin/stop-instance.sh:
-                source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/cloudformation/scripts/ec2/stop-instance.sh
-                content: !Sub |
-                mode: "000775"
-                owner: root
-                group: root
+                # Stop this instance at the same time daily:
+                ${StopInstanceCronSchedule} root sh /usr/local/sbin/stop-instance.sh
+              mode: "000644"
+              owner: root
+              group: root
+            /usr/local/sbin/stop-instance.sh:
+              source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/cloudformation/scripts/ec2/stop-instance.sh
+              content: !Sub |
+              mode: "000775"
+              owner: root
+              group: root
  
 Outputs:
 

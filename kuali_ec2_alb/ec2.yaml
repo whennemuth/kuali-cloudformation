@@ -289,6 +289,8 @@ Resources:
         Value: !Ref Service
       - Key: Function
         Value: !Ref Function
+      - Key: LogsGroup
+        Value: !If [CreateLogsGroup, !Ref EC2InstanceLogsGroup, !Ref EC2InstanceLogsGroupArn]
       ImageId: 
         !Ref ECSAMI
       InstanceType:
@@ -463,18 +465,18 @@ Resources:
                 [/var/log/dmesg]
                 file = /var/log/dmesg
                 log_group_name = ${GlobalTag}-${Landscape}
-                log_stream_name = /var/log/dmesg
+                log_stream_name = {instance_id}/var/log/dmesg
                 
                 [/var/log/messages]
                 file = /var/log/messages
                 log_group_name = ${GlobalTag}-${Landscape}
-                log_stream_name = /var/log/messages
+                log_stream_name = {instance_id}/var/log/messages
                 datetime_format = %b %d %H:%M:%S
                 
                 [/var/log/docker]
                 file = /var/log/docker
                 log_group_name = ${GlobalTag}-${Landscape}
-                log_stream_name = /var/log/docker
+                log_stream_name = {instance_id}/var/log/docker
                 datetime_format = %Y-%m-%dT%H:%M:%S.%f
             /opt/kuali/scripts/process-configs.sh:
               source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/cloudformation/scripts/ec2/process-configs.sh

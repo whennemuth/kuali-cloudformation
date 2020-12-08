@@ -48,9 +48,17 @@ Parameters:
     Description: The name of the s3 bucket the pdf service is to use.
     Default: empty
 
+  BucketEmptierLambdaArn:
+    Type: String
+    Description: >-
+      The arn of the lambda function used to empty the s3 bucket of waf logging content 
+      during a stack delete (s3 buckets cannot be deleted unless they are empty).
+    Default: empty
+
 
 Conditions:
-  createPdfS3bBucket: !Not [!Equals [!Ref PdfS3BucketName, empty]]
+  createPdfS3Bucket: !Not [!Equals [!Ref PdfS3BucketName, empty]]
+  EmptyBucket: !And [!Not [!Equals [!Ref BucketEmptierLambdaArn, empty]], Condition: createPdfS3Bucket]
 
 
 Resources:
@@ -271,7 +279,7 @@ Resources:
 
   S3BucketForPDF:
     Type: AWS::S3::Bucket
-    Condition: createPdfS3bBucket
+    Condition: createPdfS3Bucket
     Properties:
       AccessControl: Private
       BucketName: !Ref PdfS3BucketName
@@ -283,6 +291,17 @@ Resources:
           Transitions:
             - TransitionInDays: '30'
               StorageClass: ONEZONE_IA
+
+  # The lambda backing this custom resource will detect if a stack deletion is in progress and only then the will operate.
+  # The lambdas function is to empty the s3 bucket of waf logs so that cloudformation will succeed in deleting it.
+  EmptyPdfBucket:
+    Type: Custom::Functions
+    DependsOn: S3BucketForPDF
+    Condition: EmptyBucket
+    Properties:
+      ServiceToken: !Ref BucketEmptierLambdaArn
+      BucketName: !Ref PdfS3BucketName
+      MaxKeys: 50 # Indicates how many s3 bucket items deleted at a time until the bucket is empty
 
 
   ################################################
@@ -338,3 +357,4 @@ Resources:
       Conditions: 
       # Since core is last in priority, it handles all remaining paths, as it should.
       - { Field: path-pattern, Values: [ "/*" ] }
+

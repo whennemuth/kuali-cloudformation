@@ -6,7 +6,7 @@
 # For example, you could forward traffic from a remote port 80 handled by a web server on a private ec2 instance to port 8080 
 # on your laptop. You could then access the default web page of web server in your browser at: http://localhost:8080/
 
-source ../common-functions.sh
+source ./common-functions.sh
 
 parseArgs $@
 

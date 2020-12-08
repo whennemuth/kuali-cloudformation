@@ -110,7 +110,12 @@ Resources:
       - Key: access_logs.s3.enabled
         Value: !If [ AlbLogsBucketProvided, "true", "false" ]
       - Key: access_logs.s3.bucket
-        Value: !If [ AlbLogsBucketProvided, !Ref AlbLogsBucketName, !Ref AWS::NoValue ]
+        Value: !If [ AlbLogsBucketProvided, !Ref AlbLogsBucketName, "not_applicable" ] 
+      # - !If 
+      #   - AlbLogsBucketProvided
+      #   - - Key: access_logs.s3.bucket
+      #       Value: !Ref AlbLogsBucketName
+      #   - !Ref AWS::NoValue
       Tags:
       - Key: Name
         Value: !Sub "${GlobalTag}-${Landscape}-ALB"

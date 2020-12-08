@@ -63,16 +63,19 @@
       "request": "launch",
       "program": "debug.js",
       "args": [
-        "{ BucketName: 'kuali-ec2-alb-ci-waf' }",
+        "{ BucketName: 'some_really_obscure_name_eelmrvlsiennmvsldee' }",
         "{ MaxKeys: 50}"
       ]
     },
     {
-      "cwd": "${workspaceFolder}/lambda/pre-alb-delete",
+      "cwd": "${workspaceFolder}/lambda/bucket_emptier",
       "name": "Pack",
       "type": "node",
       "request": "launch",
-      "program": "zip.js",
+      "program": "../zip.js",
+      "args": [
+        "bucket_emptier.js"
+      ]
     }    
   ]
 }

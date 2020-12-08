@@ -43,7 +43,7 @@ Parameters:
 
 Resources:
 
-  LambdaWafExecutionRole:
+  LambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -57,15 +57,15 @@ Resources:
           - sts:AssumeRole
       Path: "/"
       Policies:
-      - PolicyName: !Sub ${GlobalTag}-${Landscape}-lambda-logging
-        PolicyDocument:
-          Version: '2012-10-17'
-          Statement:
-          - Effect: Allow
-            Action:
-            - logs:*
-            Resource: arn:aws:logs:*:*:*
-      - PolicyName: !Sub ${GlobalTag}-${Landscape}-waf-toggle-logging
+      # - PolicyName: !Sub ${GlobalTag}-${Landscape}-lambda-logging
+      #   PolicyDocument:
+      #     Version: '2012-10-17'
+      #     Statement:
+      #     - Effect: Allow
+      #       Action:
+      #       - logs:*
+      #       Resource: arn:aws:logs:*:*:*
+      - PolicyName: !Sub ${GlobalTag}-${Landscape}-waf-toggle-logging-execution
         PolicyDocument:
           Version: '2012-10-17'
           Statement:
@@ -77,24 +77,42 @@ Resources:
               - wafv2:PutLoggingConfiguration
               - wafv2:DeleteLoggingConfiguration
             Resource:
-            - !Sub arn:aws:wafv2:*:*:regional/webacl/${GlobalPrefix}-${Landscape}-*/*
-            # - arn:aws:wafv2:*:*:*/*/*
+            - !Sub arn:aws:wafv2:*:*:regional/webacl/${GlobalTag}-${Landscape}-*/*
           - Effect: Allow
             Action:
             - tag:Get*
             Resource:
             - "*"
-      ManagedPolicyArns:
-      - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      - PolicyName: !Sub ${GlobalTag}-${Landscape}-waf-toggle-logging-cloudwatch
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            # - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            Resource: "*"
+      # ManagedPolicyArns:
+      # - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+  LambdaLogsGroup:
+    Type: AWS::Logs::LogGroup
+    # DeletionPolicy: Retain
+    DeletionPolicy: Delete
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${GlobalTag}-${Landscape}-waf-logging-toggler
+      RetentionInDays: 30
 
   # Should get called during stack delete, see: 
   # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/crpg-ref-requesttypes-delete.html
   ToggleWafLoggingLambda:
     Type: AWS::Lambda::Function
+    DependsOn: LambdaLogsGroup
     Properties:
       Description: Turn off logging for the specified WebAcl.
       Handler: toggle_waf_logging.handler
-      Role: !GetAtt WafLambdaExecutionRole.Arn
+      Role: !GetAtt LambdaExecutionRole.Arn
       Runtime: nodejs12.x
       Timeout: 15  # 15 seconds
       FunctionName: !Sub ${GlobalTag}-${Landscape}-waf-logging-toggler

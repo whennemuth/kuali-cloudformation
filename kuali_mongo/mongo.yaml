@@ -87,10 +87,20 @@ Resources:
     Properties:
       VpcId: !Ref VpcId
       GroupDescription: !Sub Security group for mongodb instance in ${Landscape} landscape.
+      GroupName: !Sub ${GlobalTag}-${Landscape}-mongo-security-group
       SecurityGroupIngress:
       - SourceSecurityGroupId: !Ref ApplicationSecurityGroupId
         IpProtocol: -1
         Description: Allows inbound access to the mongo EC2 instance from the application ec2 instance(s) only.
+      Tags:
+        - Key: Name
+          Value: !Sub ${GlobalTag}-${Landscape}-mongo-security-group
+        - Key: Landscape
+          Value: !Ref Landscape
+        - Key: Service
+          Value: !Ref Service
+        - Key: Function
+          Value: !Ref Function
 
   EC2Role:
     Type: AWS::IAM::Role

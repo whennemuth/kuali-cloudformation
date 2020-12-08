@@ -36,9 +36,9 @@ const toggleAlbLogging = (albArn, enableLogs, callback) => {
   }
 }
 
-const sendResponse = (event, context, responseType, reply) => {
+const sendResponse = (event, context, responseType, result) => {
   try {
-    response.send(event, context, responseType, reply);
+    response.send(event, context, responseType, { Reply: `${result}` });
   }
   catch(e) {
     if( process.env.DEBUG_MODE && process.env.DEBUG_MODE == 'local') {
@@ -53,7 +53,7 @@ const sendErrorResponse = (event, context, err) => {
   var msg = err.name + ': ' + err.message;
   var toggle = (event && event.RequestType && /^delete$/i.test(event.RequestType)) ? 'disable' : 'enable';
   try {
-    response.send(event, context, response.FAILURE, { Reply: `Failed to ${toggle} alb logging: ${msg}, (see cloudwatch logs for detail)` });
+    response.send(event, context, response.FAILED, { Reply: `Failed to ${toggle} alb logging: ${msg}, (see cloudwatch logs for detail)` });
   }
   catch(e) {
     if( process.env.DEBUG_MODE && process.env.DEBUG_MODE == 'local') {
@@ -78,9 +78,9 @@ exports.handler = function (event, context) {
         else {
           switch(result) {
             case 'succeeded':
-              sendResponse(event, context, response.SUCCESS, { Reply: `${result}` }); break;
+              sendResponse(event, context, response.SUCCESS, result); break;
             default:
-              sendResponse(event, context, response.FAILURE, { Reply: `${result}` }); break;
+              sendResponse(event, context, response.FAILED, result); break;
           }          
         }
       })

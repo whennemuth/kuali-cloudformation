@@ -86,7 +86,7 @@ Resources:
   WafLogBucket:
     Type: AWS::S3::Bucket
     Properties:
-      TemplateBucketName: !Sub ${GlobalTag}-${Landscape}-waf
+      BucketName: !Sub ${GlobalTag}-${Landscape}-waf
       Tags:
         - Key: Name
           Value: !Sub ${GlobalTag}-${Landscape}-waf
@@ -231,7 +231,7 @@ Resources:
     DependsOn: WAF
     Properties:
       TemplateURL: 
-        !Sub https://s3.amazonaws.com/${TemplateBucketName}/cloudformation/kuali_lambda/toggle_alb_logging.yaml
+        !Sub https://s3.amazonaws.com/${TemplateBucketName}/cloudformation/kuali_lambda/toggle_waf_logging.yaml
       Parameters:
         GlobalTag: !Ref GlobalTag
         Landscape: !Ref Landscape
@@ -250,8 +250,9 @@ Resources:
       BucketName: !Ref WafLogBucket
       MaxKeys: 50 # Indicates how many s3 bucket items deleted at a time until the bucket is empty
 
-  # The lambdas function is to create a logging configuration for the waf so that it writes out activity to an s3 bucket.
-  # It will remove this logging configuration during a stack deletion to halt incoming content while EmptyWafLoggingBucket does its work.
+  # The lambdas function is to create a logging configuration for the waf so that it writes out activity to an s3 bucket. It does this
+  # during stack creation, but it will do the reverse and remove this logging configuration during a stack deletion to halt incoming
+  # content while EmptyWafLoggingBucket does its work.
   ToggleWafLogging:
     Type: Custom::Functions
     DependsOn: EmptyWafLoggingBucket
@@ -267,9 +268,9 @@ Outputs:
     Description: The ARN for the WAF Web ACL. Will be referred to by the ALB
     Value: !GetAtt WAF.Outputs.WAFWebACLArn
               
-  WafLoggingConfigurationArn:
+  WafLoggingToggleResult:
     Description: Indicates success or failure of the lambda in enabling logging for the waf.
-    Value: !GetAtt WafEnableLogging.ResourceArn
+    Value: !GetAtt ToggleWafLogging.Reply
 
   WafLogBucketName:
     Description: The name of the s3 bucket waf activity will get logged to.

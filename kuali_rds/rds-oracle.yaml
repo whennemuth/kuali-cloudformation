@@ -313,9 +313,43 @@ Resources:
         IpProtocol: tcp
         ToPort: !Ref Port
 
+  # Anticipate the name of, and create the log groups that the rds instances "EnableCloudwatchLogsExports"
+  # setting is configured to automatically create so that cloudformation has control of the retention settings
+  # and deletion policy. Included are "DependsOn" settings that ensure that these log groups get created BEFORE
+  # the rds instance so that there is no race condition during stack creation. This should be enough to ensure
+  # that these log groups are removed when the stack is deleted and are not orphaned.
+  TraceLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    Properties: 
+      LogGroupName: !Sub ${GlobalTag}-${Landscape}/trace
+      RetentionInDays: !Ref LogGroupRetention
+  AuditLogGroup:
+    Type: AWS::Logs::LogGroup
+    DependsOn: TraceLogGroup
+    DeletionPolicy: Delete
+    Properties: 
+      LogGroupName: !Sub ${GlobalTag}-${Landscape}/audit
+      RetentionInDays: !Ref LogGroupRetention
+  AlertLogGroup:
+    Type: AWS::Logs::LogGroup
+    DependsOn: AuditLogGroup
+    DeletionPolicy: Delete
+    Properties: 
+      LogGroupName: !Sub ${GlobalTag}-${Landscape}/alert
+      RetentionInDays: !Ref LogGroupRetention
+  ListenerLogGroup:
+    Type: AWS::Logs::LogGroup
+    DependsOn: AlertLogGroup
+    DeletionPolicy: Delete
+    Properties: 
+      LogGroupName: !Sub ${GlobalTag}-${Landscape}/listener
+      RetentionInDays: !Ref LogGroupRetention
+
   DBInstance:
     Type: AWS::RDS::DBInstance
     # DependsOn: MasterUserPassword
+    DependsOn: ListenerLogGroup
     Properties:
       AllocatedStorage: !Ref AllocatedStorage 
       AllowMajorVersionUpgrade: true

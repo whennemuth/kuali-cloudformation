@@ -224,17 +224,15 @@ Resources:
       TemplateURL: 
         !Sub https://s3.amazonaws.com/${TemplateBucketName}/cloudformation/kuali_ecs/security-group.yaml
       Parameters:
-        GlobalTag:
-          !Ref GlobalTag
-        Landscape:
-          !Ref Landscape
-        VpcId: 
-          !Ref VpcId
+        GlobalTag: !Ref GlobalTag
+        Landscape: !Ref Landscape
+        Service: !Ref Service
+        Function: !Ref Function
+        VpcId: !Ref VpcId
+        PublicALB: !If [ CreateWAF, 'true', 'false' ]
 
   BucketEmptierLambda:
     Type: AWS::CloudFormation::Stack
-    DependsOn: ToggleWafLoggingLambda
-    Condition: CreateAlbLogsBuckets
     Properties:
       TemplateURL: 
         !Sub https://s3.amazonaws.com/${TemplateBucketName}/cloudformation/kuali_lambda/bucket_emptier.yaml
@@ -317,13 +315,14 @@ Resources:
         Subnet2: 
           !Ref PublicSubnet2
         SecurityGroup: 
-          !GetAtt SecurityGroups.Outputs.ALBSecurityGroup
+          !If 
+            - CreateWAF
+            - !GetAtt SecurityGroups.Outputs.ALBSecurityGroup
+            - !GetAtt SecurityGroups.Outputs.EC2SecurityGroupId
         CertificateArn:
           !Ref CertificateArn
         # TemplateBucketName: 
         #   !Ref TemplateBucketName
-        BucketEmptierLambdaArn:
-          !GetAtt BucketEmptierLambda.Outputs.LambdaArn
         WafWebAclArn:
           !If
             - CreateWAF
@@ -456,6 +455,8 @@ Resources:
           !Ref PdfImage
         PdfS3BucketName: 
           !Ref PdfS3BucketName
+        BucketEmptierLambdaArn:
+          !GetAtt BucketEmptierLambda.Outputs.LambdaArn
 
   KualiDashboardService:
     Type: AWS::CloudFormation::Stack

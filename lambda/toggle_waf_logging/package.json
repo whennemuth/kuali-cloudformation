@@ -1,13 +1,13 @@
 {
-  "name": "toggle_alb_logging",
+  "name": "toggle_waf_logging",
   "dependencies": {
     "cfn-response": "latest"
   },
   "devDependencies": {
     "aws-sdk": "latest",
-    "adm-zip": "^0.4.16"
+    "zip": "file:../zip"
   },
   "scripts": {
-    "pack": "node zip.js"
+    "pack": "sh -c 'npm install' & node node_modules/zip/zip.js toggle_waf_logging.js"
   }
 }

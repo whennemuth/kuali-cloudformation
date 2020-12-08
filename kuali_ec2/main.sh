@@ -12,7 +12,7 @@ declare -A defaults=(
   [PDF_IMAGE]='getLatestImage kuali-research-pdf'
   [NO_ROLLBACK]='true'
   [PROFILE]='infnprd'
-  [PDF_BUCKET_NAME]='$GLOBAL_TAG-pdf-$LANDSCAPE'
+  [PDF_BUCKET_NAME]='$GLOBAL_TAG-$LANDSCAPE-pdf'
   [CREATE_MONGO]='false'
   # -----------------------------------------------
   # No defaults - user must provide explicit value:

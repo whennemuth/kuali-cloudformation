@@ -252,10 +252,10 @@ getInstitutionRESTCall() {
 
   setContainerId() {
     containerShortname=${1:-'cor-main'}
-    echo "docker ps -f name=$containerShortname -q ..."
-    containerId=$(docker ps -f name=$containerShortname -q 2> /dev/null)
+    echo "docker ps -f name=${containerShortname} -q ..."
+    containerId=$(docker ps -f name=${containerShortname} -q 2> /dev/null)
     echo "Container ID: $containerId"
-    if [ -z "$containerId" ] && [ -z "$1" ]; then 
+    if [ -z "$containerId" ] && [ -z "$1" ]; then
       # If the container is not named "cor-main", then we are running in an ecs stack, which names containers after a portion of the docker.
       # image name. The -f filter will return partial matches, so as long as the container name has "kuali-core" in it, the ID will be found.
       setContainerId 'kuali-core'
@@ -264,7 +264,7 @@ getInstitutionRESTCall() {
   }
 
   setContainerIpAddress() {
-    for attempt in {1..60} ; do
+    for attempt in {1..240} ; do
       echo "$(whoami) running docker ps ..."
       docker ps
       if setContainerId ; then

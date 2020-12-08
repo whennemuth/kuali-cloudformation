@@ -95,7 +95,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - "autoscaling:CompleteLifecycleAction"
-                  - "logs:CreateLogGroup"
+                  # - "logs:CreateLogGroup"
                   - "logs:CreateLogStream"
                   - "logs:PutLogEvents"
                   - "ec2:DescribeInstances"
@@ -131,13 +131,22 @@ Resources:
       Action: "lambda:InvokeFunction"
       Principal: sns.amazonaws.com
       SourceArn: !Ref NotificationTopic
+          
+  LambdaLogsGroup:
+    Type: AWS::Logs::LogGroup
+    # DeletionPolicy: Retain
+    DeletionPolicy: Delete
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${GlobalTag}-${Landscape}-lifecycle-handler-function
+      RetentionInDays: 30
 
   LifecycleHandlerFunction:
     Type: AWS::Lambda::Function
     Properties:
+      FunctionName: !Sub ${GlobalTag}-${Landscape}-lifecycle-handler-function
       Tags:
       - Key: Name
-        Value: !Sub ${GlobalTag}-${Landscape}-${AWS::Region}-lifecycle-handler-function
+        Value: !Sub ${GlobalTag}-${Landscape}-lifecycle-handler-function
       Environment:
         Variables:
           CLUSTER: !Ref Cluster

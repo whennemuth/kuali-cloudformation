@@ -210,17 +210,15 @@ Resources:
       TemplateURL: 
         !Sub https://s3.amazonaws.com/${TemplateBucketName}/cloudformation/kuali_ec2_alb/security-group.yaml
       Parameters:
-        GlobalTag:
-          !Ref GlobalTag
-        Landscape:
-          !Ref Landscape
-        VpcId:
-          !Ref VpcId
+        GlobalTag: !Ref GlobalTag
+        Landscape: !Ref Landscape
+        Service: !Ref Service
+        Function: !Ref Function
+        VpcId: !Ref VpcId
+        PublicALB: !If [ CreateWAF, 'true', 'false' ]
 
   BucketEmptierLambda:
     Type: AWS::CloudFormation::Stack
-    DependsOn: ToggleWafLoggingLambda
-    Condition: CreateAlbLogsBuckets
     Properties:
       TemplateURL: 
         !Sub https://s3.amazonaws.com/${TemplateBucketName}/cloudformation/kuali_lambda/bucket_emptier.yaml
@@ -299,17 +297,21 @@ Resources:
         VpcId:
           !Ref VpcId
         Subnet1: 
-          !Ref PublicSubnet1
+          !If 
+            - CreateWAF
+            - !Ref PublicSubnet1
+            - !Ref CampusSubnet1
         Subnet2: 
-          !Ref PublicSubnet2
+          !If 
+            - CreateWAF
+            - !Ref PublicSubnet2
+            - !Ref CampusSubnet2
         SecurityGroup: 
-          !GetAtt SecurityGroups.Outputs.ALBSecurityGroup
+           !GetAtt SecurityGroups.Outputs.ALBSecurityGroup
         CertificateArn:
           !Ref CertificateArn
         # TemplateBucketName: 
         #   !Ref TemplateBucketName
-        BucketEmptierLambdaArn:
-          !GetAtt BucketEmptierLambda.Outputs.LambdaArn
         WafWebAclArn:
           !If
             - CreateWAF
@@ -475,6 +477,7 @@ Resources:
           !GetAtt Instance2.Outputs.InstanceId
         PdfS3BucketName: 
           !Ref PdfS3BucketName
+        BucketEmptierLambdaArn: !GetAtt BucketEmptierLambda.Outputs.LambdaArn
 
 
 Outputs:

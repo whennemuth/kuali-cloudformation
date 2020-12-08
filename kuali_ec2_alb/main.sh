@@ -18,14 +18,13 @@ declare -A defaults=(
   # [PDF_IMAGE]='770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-research-pdf:2002.0003'
   [NO_ROLLBACK]='true'
   [PROFILE]='infnprd'
-  [PDF_BUCKET_NAME]='$GLOBAL_TAG-pdf-$LANDSCAPE'
+  [PDF_BUCKET_NAME]='$GLOBAL_TAG-$LANDSCAPE-pdf'
   [USING_ROUTE53]='false'
   [CREATE_MONGO]='false'
   [ENABLE_ALB_LOGGING]='false'
+  [CREATE_WAF]='false'
   [DEEP_VALIDATION]='true'
-  [CREATE_WAF]='true'
   # ----- Most of the following are defaulted in the yaml file itself:
-  # [ENABLE_ALB_LOGGING]='false'
   # [KEYPAIR_NAME]='kuali-keypair-$LANDSCAPE'
   # [EC2_INSTANCE_TYPE]='m4.medium'
   # [VPC_ID]='???'
@@ -51,6 +50,7 @@ run() {
   task="${1,,}"
   shift
 
+  outputHeading "Validating/Parsing parameters..."
   if [ "$task" != "test" ] && [ "$task" != 'validate' ]; then
 
     parseArgs $@
@@ -68,18 +68,6 @@ stackAction() {
   local action=$1
 
   if [ "$action" == 'delete-stack' ] ; then
-
-    # Cloudformation can only delete a bucket if it is empty (and has no versioning), so empty it out here.
-    # if ! emptyBuckets \
-    #   "$PDF_BUCKET_NAME" \
-    #   "${GLOBAL_TAG}-${LANDSCAPE}-athena" \
-    #   "${GLOBAL_TAG}-${LANDSCAPE}-waf" \
-    #   "${GLOBAL_TAG}-${LANDSCAPE}-alb" ; then
-    #   "Cancelling..." && return 1
-    # fi
-
-    # Lambda function will stop logging and clear out related buckets.
-    
     aws --profile=$PROFILE cloudformation $action --stack-name ${STACK_NAME}-${LANDSCAPE}
   else
     # checkSubnets will also assign a value to VPC_ID
@@ -93,10 +81,12 @@ stackAction() {
     checkKeyPair
 
     # Validate and upload the yaml files to s3
+    outputHeading "Validating and uploading main template(s)..."
     uploadStack silent
     [ $? -gt 0 ] && exit 1
 
     if [ "$DEEP_VALIDATION" == 'true' ] ; then
+      outputHeading "Validating and uploading nested templates..."
       if [ "${CREATE_MONGO,,}" == 'true' ] ; then
         validateStack silent ../kuali_mongo/mongo.yaml > /dev/null
         [ $? -gt 0 ] && exit 1
@@ -120,29 +110,39 @@ stackAction() {
         [ $? -gt 0 ] && exit 1
         aws s3 cp ../kuali_waf/aws-waf-security-automations-webacl-custom.yaml s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_waf/
 
-        # validateStack silent ../lambda/pre-alb-delete/cleanup.yaml
-        # [ $? -gt 0 ] && exit 1
-        # aws s3 cp ../lambda/pre-alb-delete/cleanup.yaml s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_lambda/
+        validateStack silent ../lambda/toggle_alb_logging/toggle_alb_logging.yaml
+        [ $? -gt 0 ] && exit 1
+        aws s3 cp ../lambda/toggle_alb_logging/toggle_alb_logging.yaml s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_lambda/
+
+        validateStack silent ../lambda/toggle_waf_logging/toggle_waf_logging.yaml
+        [ $? -gt 0 ] && exit 1
+        aws s3 cp ../lambda/toggle_waf_logging/toggle_waf_logging.yaml s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_lambda/
       fi
 
-      # Upload scripts that will be run as part of AWS::CloudFormation::Init
+      validateStack silent ../kuali_alb/alb.yaml > /dev/null
+      [ $? -gt 0 ] && exit 1
       aws s3 cp ../kuali_alb/alb.yaml s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_alb/
+
+      validateStack silent ../lambda/bucket_emptier/bucket_emptier.yaml
+      [ $? -gt 0 ] && exit 1
+      aws s3 cp ../lambda/bucket_emptier/bucket_emptier.yaml s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_lambda/
+
+      # Upload scripts that will be run as part of AWS::CloudFormation::Init
+      outputHeading "Uploading bash scripts involved in AWS::CloudFormation::Init..."
       aws s3 cp ../scripts/ec2/process-configs.sh s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/
       aws s3 cp ../scripts/ec2/stop-instance.sh s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/
       aws s3 cp ../scripts/ec2/cloudwatch-metrics.sh s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/
 
       # Upload lambda code used by custom resources
-      # if [ "${ENABLE_ALB_LOGGING,,}" != 'false' ] || [ "${CREATE_WAF,,}" == 'true' ] ; then
-      #   if [ -f ../lambda/pre-alb-delete/cleanup.js ] ; then
-      #     zipAndCopyToS3 \
-      #       s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_lambda/cleanup.zip \
-      #       ../lambda/pre-alb-delete/cleanup.js \
-      #       ../lambda/cfn-response.js
-      #   else
-      #     echo "ERROR! Cannot find "../lambda/pre-alb-delete/cleanup.js" for upload to s3";
-      #     exit 1
-      #   fi
-      # fi
+      zipPackageAndCopyToS3 '../lambda/bucket_emptier' 's3://kuali-conf/cloudformation/kuali_lambda/bucket_emptier.zip'
+      [ $? -gt 0 ] && echo "ERROR! Could not upload bucket_emptier.zip to s3." && exit 1
+      if [ "${ENABLE_ALB_LOGGING,,}" != 'false' ] || [ "${CREATE_WAF,,}" == 'true' ] ; then        
+        zipPackageAndCopyToS3 '../lambda/toggle_alb_logging' 's3://kuali-conf/cloudformation/kuali_lambda/toggle_alb_logging.zip'
+        [ $? -gt 0 ] && echo "ERROR! Could not upload toggle_alb_logging.zip to s3." && exit 1
+        
+        zipPackageAndCopyToS3 '../lambda/toggle_waf_logging' 's3://kuali-conf/cloudformation/kuali_lambda/toggle_waf_logging.zip'
+        [ $? -gt 0 ] && echo "ERROR! Could not upload toggle_waf_logging.zip to s3." && exit 1
+      fi
     fi
 
     cat <<-EOF > $cmdfile

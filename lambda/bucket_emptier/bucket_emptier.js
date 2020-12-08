@@ -8,6 +8,7 @@ switch(process.env.DEBUG_MODE) {
     var response = require('./mock-cfn-response');
     break;
   default:
+    var AWS = require('aws-sdk');
     var response = require('cfn-response');
     break;
 }
@@ -20,29 +21,40 @@ switch(process.env.DEBUG_MODE) {
  */
 const bucketExists = (s3, bucketName, callback) => {
   try {
-    console.log(`Checking s3 bucket ${bucketName} exists...`);
-    s3.listBuckets({}, function(err, data) {
+    console.log(`Checking that s3 bucket "${bucketName}" exists...`);
+    s3.headBucket({Bucket: bucketName}, function(err, data) {
       try {
         if(err) {
-          console.log('Error listing s3 buckets!');
-          callback(err, null);
+          switch(err.statusCode) {
+            case 404:
+              console.log(`Bucket "${bucketName}" does not exist.`);
+              callback(null, false);
+              break;
+            case 403:
+              console.log(`Bucket "${bucketName}" may exist but access is forbidden.`);
+              console.log('Is this bucket in the right account?');
+              console.log('Are you running with a role that has a policy with sufficient actions or resource expression that matches the bucket arn?');
+              callback(null, false);
+              break;
+            default:
+              console.log(`Bucket "${bucketName}" existence cannot be verified.`);                
+              callback(err, null);
+              break;
+          }
         }
         else {
-          var bucketMatch = data.Buckets.find(bucket => {
-            return bucket.Name == bucketName;
-          });
-          console.log(`Bucket ${bucketName} ${bucketMatch ? 'exists' : 'does not exist' }`);
-          callback(null, bucketMatch);
+          console.log(`Bucket "${bucketName}" exists.`);
+          callback(null, true);
         }
       }
       catch(e) {
-        console.log(`Error s3 buckets to find ${bucketName}!`);
+        console.log(`Error getting head bucket: "${bucketName}"!`);
         callback(e, null);
       }
     });
   }
   catch(e) {
-    console.log(`Error checking s3 bucket ${bucketName}`);
+    console.log(`Error checking s3 bucket "${bucketName}"`);
     callback(e, null);
   }
 };
@@ -106,7 +118,7 @@ const deleteS3Objects = (s3, listParms, callback) => {
     });
   }
   catch(e) {
-    console.log(`Error deleting objects from ${bucketName}`);
+    console.log(`Error deleting objects from ${listParms.Bucket}`);
     callback(e, null);
   }
 };
@@ -117,7 +129,7 @@ const emptyBucket = (bucketName, maxKeys, callback) => {
     var s3 = new AWS.S3();
     bucketExists(s3, bucketName, (err, exists) => {
       if(err) {
-        callback(e, null);
+        callback(err, null);
       }
       else {
         if(exists) {
@@ -126,7 +138,7 @@ const emptyBucket = (bucketName, maxKeys, callback) => {
           });
         }
         else {
-          callback(null, 'NO_SUCH_BUCKET');
+          callback(null, 'UNAVAILABLE');
         }
       }
     });
@@ -142,10 +154,10 @@ const sendErrorResponse = (event, context, err) => {
     var msg = err.name + ': ' + err.message;
     var bucketName = event.ResourceProperties.BucketName;
     if( ! bucketName) bucketName = 'unknown'
-    response.send(event, context, response.FAILURE, { Reply: `Failed to empty s3 bucket: ${bucketName}: ${msg}, (see cloudwatch logs for detail)` });
+    response.send(event, context, response.FAILED, { Reply: `Failed to empty s3 bucket: "${bucketName}": ${msg}, (see cloudwatch logs for detail)` });
   }
   catch(e) {
-    response.send(event, context, response.FAILURE, { Reply: `Failed to empty s3 bucket, (see cloudwatch logs for detail)` });
+    response.send(event, context, response.FAILED, { Reply: `Failed to empty s3 bucket, (see cloudwatch logs for detail)` });
   }
 }
 
@@ -167,17 +179,19 @@ exports.handler = function (event, context) {
           sendErrorResponse(event, context, err);
         }
         else {
-          if(result == 'NO_SUCH_BUCKET') {
-            var reply = `${bucketName} does not exist.`;
+          var responseCode = response.SUCCESS
+          if(result == 'UNAVAILABLE') {
+            var reply = `"${bucketName}" does not exist or is forbidden access.`;
+            responseCode = response.FAILED
           }
           else if(deleted == 0) {
-            var reply = `${bucketName} was already empty.`;
+            var reply = `"${bucketName}" was already empty.`;
           }
           else {
-            var reply = `${bucketName} emptied - ${deleted} objects deleted.`;
+            var reply = `"${bucketName}" emptied - ${deleted} objects deleted.`;
           }
           console.log(reply);
-          response.send(event, context, response.SUCCESS, { Reply: reply });  
+          response.send(event, context, responseCode, { Reply: reply });  
         } 
       })
     }

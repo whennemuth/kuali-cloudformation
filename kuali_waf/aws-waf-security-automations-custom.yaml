@@ -33,6 +33,7 @@ Metadata:
           - Service
           - Landscape
           - TemplateBucketName
+          - LogGroupRetention
 
       - Label:
           default: Protection List
@@ -61,19 +62,22 @@ Metadata:
 
     ParameterLabels:
       GlobalTag:
-        Common identifier shared across the stack and nested stacks
+        default: Common identifier shared across the stack and nested stacks
 
       Function:
-        The Function within the Service
+        default: The Function within the Service
 
       Service:
-        Service catalog name
+        default: Service catalog name
 
       Landscape:
-        Environment (staging, qa, etc.)
+        default: Environment (staging, qa, etc.)
 
       TemplateBucketName:
-        The bucket where other cfn templates are found
+        default: The bucket where other cfn templates are found
+
+      LogGroupRetention:
+        default: How old in days can Lambda function loggroups content get before it is deleted?
 
       ActivateAWSManagedRulesParam:
         default: Activate AWS Managed Rules Protection
@@ -151,6 +155,13 @@ Parameters:
     Type: String
     Description: The S3 bucket kuali research cloudformation templates, config files, keys, etc. are stored
     Default: kuali-conf
+
+  LogGroupRetention:
+    Type: Number
+    Description: How old in days can Lambda function loggroups content get before it is deleted?
+    AllowedValues: [1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 3653]
+    ConstraintDescription: Allowed values - 1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, and 3653
+    Default: 365
 
   ActivateAWSManagedRulesParam:
     Type: String
@@ -461,11 +472,12 @@ Resources:
             Statement:
               - Effect: Allow
                 Action:
-                  - 'logs:CreateLogGroup'
+                  # - 'logs:CreateLogGroup'
                   - 'logs:CreateLogStream'
                   - 'logs:PutLogEvents'
                 Resource:
-                  - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*Helper*'
+                  # - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*Helper*'
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${GlobalTag}-${Landscape}-waf-lambda-helper
     Metadata:
       cfn_nag:
         rules_to_suppress:
@@ -495,11 +507,12 @@ Resources:
             Statement:
               - Effect: Allow
                 Action:
-                  - 'logs:CreateLogGroup'
+                  # - 'logs:CreateLogGroup'
                   - 'logs:CreateLogStream'
                   - 'logs:PutLogEvents'
                 Resource:
-                  - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*BadBotParser*'
+                  # - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*BadBotParser*'
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${GlobalTag}-${Landscape}-waf-lambda-bad-bot-parser
         - PolicyName: 'CloudFormationAccess'
           PolicyDocument:
             Statement:
@@ -551,11 +564,12 @@ Resources:
             Statement:
               - Effect: Allow
                 Action:
-                  - 'logs:CreateLogGroup'
+                  # - 'logs:CreateLogGroup'
                   - 'logs:CreateLogStream'
                   - 'logs:PutLogEvents'
                 Resource:
-                  - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*ReputationListsParser*'
+                  # - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*ReputationListsParser*'
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${GlobalTag}-${Landscape}-waf-lambda-reputation-lists-parser
         - PolicyName: WAFGetAndUpdateIPSet
           PolicyDocument:
             Statement:
@@ -730,11 +744,12 @@ Resources:
             Statement:
               - Effect: Allow
                 Action:
-                  - 'logs:CreateLogGroup'
+                  # - 'logs:CreateLogGroup'
                   - 'logs:CreateLogStream'
                   - 'logs:PutLogEvents'
                 Resource:
-                  - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*LogParser*'
+                  # - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*LogParser*'
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${GlobalTag}-${Landscape}-waf-lambda-log-parser
         - PolicyName: CloudWatchAccess
           PolicyDocument:
             Statement:
@@ -878,11 +893,12 @@ Resources:
             Statement:
               - Effect: Allow
                 Action:
-                  - 'logs:CreateLogGroup'
+                  # - 'logs:CreateLogGroup'
                   - 'logs:CreateLogStream'
                   - 'logs:PutLogEvents'
                 Resource:
-                  - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*CustomResource*'
+                  # - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*CustomResource*'
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${GlobalTag}-${Landscape}-waf-lambda-custom-resource
     Metadata:
       cfn_nag:
         rules_to_suppress:
@@ -936,11 +952,12 @@ Resources:
             Statement:
               - Effect: Allow
                 Action:
-                  - 'logs:CreateLogGroup'
+                  # - 'logs:CreateLogGroup'
                   - 'logs:CreateLogStream'
                   - 'logs:PutLogEvents'
                 Resource:
-                  - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*MoveS3LogsForPartition*'
+                  # - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*MoveS3LogsForPartition*'
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${GlobalTag}-${Landscape}-waf-lambda-move-s3-logs-for-partition
 
   LambdaRoleAddAthenaPartitions:
     Type: 'AWS::IAM::Role'
@@ -1048,15 +1065,24 @@ Resources:
             Statement:
               - Effect: Allow
                 Action:
-                  - 'logs:CreateLogGroup'
+                  # - 'logs:CreateLogGroup'
                   - 'logs:CreateLogStream'
                   - 'logs:PutLogEvents'
                 Resource:
-                  - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*AddAthenaPartitions*'
+                  # - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*AddAthenaPartitions*'
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${GlobalTag}-${Landscape}-waf-lambda-add-athena-partitions
+
+  HelperLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    Properties: 
+      LogGroupName: !Sub ${GlobalTag}-${Landscape}-waf-lambda-helper
+      RetentionInDays: !Ref LogGroupRetention
 
   Helper:
     Type: 'AWS::Lambda::Function'
     Properties:
+      FunctionName: !Sub ${GlobalTag}-${Landscape}-waf-lambda-helper
       Description: >-
         This lambda function verifies the main project's dependencies, requirements and implement auxiliary functions.
       Handler: 'helper.lambda_handler'
@@ -1122,6 +1148,13 @@ Resources:
                     reason: "WafLogBucket does not require a bucket policy."
 
 
+  LogParserLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    Properties: 
+      LogGroupName: !Sub ${GlobalTag}-${Landscape}-waf-lambda-log-parser
+      RetentionInDays: !Ref LogGroupRetention
+
   LogParser:
     Type: 'AWS::Lambda::Function'
     Condition: LogParser
@@ -1132,6 +1165,7 @@ Resources:
             id: W58
             reason: "Log permissions are defined in the LambdaRoleLogParser policies"
     Properties:
+      FunctionName: !Sub ${GlobalTag}-${Landscape}-waf-lambda-log-parser
       Description: >-
             This function parses access logs to identify suspicious behavior, such as an abnormal amount of errors.
             It then blocks those IP addresses for a customer-defined period of time.
@@ -1171,6 +1205,13 @@ Resources:
       MemorySize: 512
       Timeout: 300
 
+  MoveS3LogsForPartitionLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    Properties: 
+      LogGroupName: !Sub ${GlobalTag}-${Landscape}-waf-lambda-move-s3-logs-for-partition
+      RetentionInDays: !Ref LogGroupRetention
+
   MoveS3LogsForPartition:
     Type: 'AWS::Lambda::Function'
     Condition: ScannersProbesAthenaLogParser
@@ -1181,6 +1222,7 @@ Resources:
             id: W58
             reason: "Log permissions are defined in the LambdaRolePartitionS3Logs policies"
     Properties:
+      FunctionName: !Sub ${GlobalTag}-${Landscape}-waf-lambda-move-s3-logs-for-partition
       Description: >-
             This function is triggered by S3 event to move log files(upon their arrival in s3) from their original location
             to a partitioned folder structure created per timestamps in file names, hence allowing the usage of partitioning
@@ -1199,6 +1241,13 @@ Resources:
       MemorySize: 512
       Timeout: 300
 
+  AddAthenaPartitionsLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    Properties: 
+      LogGroupName: !Sub ${GlobalTag}-${Landscape}-waf-lambda-add-athena-partitions
+      RetentionInDays: !Ref LogGroupRetention
+
   AddAthenaPartitions:
     Type: 'AWS::Lambda::Function'
     Condition: AthenaLogParser
@@ -1209,6 +1258,7 @@ Resources:
             id: W58
             reason: "Log permissions are defined in the LambdaRoleAddAthenaPartitions policies"
     Properties:
+      FunctionName: !Sub ${GlobalTag}-${Landscape}-waf-lambda-add-athena-partitions
       Description: >-
             This function adds a new hourly partition to athena table.
             It runs every hour, triggered by a CloudWatch event.
@@ -1334,6 +1384,13 @@ Resources:
       Principal: events.amazonaws.com
       SourceArn: !GetAtt LambdaAthenaAppLogParser.Arn
 
+  ReputationListsParserLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    Properties: 
+      LogGroupName: !Sub ${GlobalTag}-${Landscape}-waf-lambda-reputation-lists-parser
+      RetentionInDays: !Ref LogGroupRetention
+
   ReputationListsParser:
     Type: 'AWS::Lambda::Function'
     Condition: ReputationListsProtectionActivated
@@ -1344,6 +1401,7 @@ Resources:
             id: W58
             reason: "Log permissions are defined in the LambdaRoleReputationListsParser policies"
     Properties:
+      FunctionName: !Sub ${GlobalTag}-${Landscape}-waf-lambda-reputation-lists-parser
       Description: >-
         This lambda function checks third-party IP reputation lists hourly for new IP ranges to
         block. These lists include the Spamhaus Dont Route Or Peer (DROP) and Extended Drop (EDROP)
@@ -1420,6 +1478,13 @@ Resources:
       Principal: events.amazonaws.com
       SourceArn: !GetAtt ReputationListsParserEventsRule.Arn
 
+  BadBotParserLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    Properties: 
+      LogGroupName: !Sub ${GlobalTag}-${Landscape}-waf-lambda-bad-bot-parser
+      RetentionInDays: !Ref LogGroupRetention
+
   BadBotParser:
     Type: 'AWS::Lambda::Function'
     Condition: BadBotProtectionActivated
@@ -1430,6 +1495,7 @@ Resources:
             id: W58
             reason: "Log permissions are defined in the LambdaRoleBadBot policies"
     Properties:
+      FunctionName: !Sub ${GlobalTag}-${Landscape}-waf-lambda-bad-bot-parser
       Description: >-
         This lambda function will intercepts and inspects trap endpoint requests to extract its IP
         address, and then add it to an AWS WAF block list.
@@ -1571,7 +1637,11 @@ Resources:
 
   ApiGatewayBadBotStageAccessLogGroup:
     Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
     Condition: BadBotProtectionActivated
+    Properties:
+      LogGroupName: !Sub ${GlobalTag}-${Landscape}-waf-lambda-api-gateway-bad-bot-stage-access
+      RetentionInDays: !Ref LogGroupRetention
 
   ApiGatewayBadBotCloudWatchRole:
     Type: AWS::IAM::Role
@@ -1609,6 +1679,13 @@ Resources:
       DependsOn:
         - ApiGatewayBadBot
 
+  CustomResourceLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    Properties: 
+      LogGroupName: !Sub ${GlobalTag}-${Landscape}-waf-lambda-custom-resource
+      RetentionInDays: !Ref LogGroupRetention
+
   CustomResource:
     Type: 'AWS::Lambda::Function'
     Metadata:
@@ -1618,6 +1695,7 @@ Resources:
             id: W58
             reason: "Log permissions are defined in the LambdaRoleCustomResource policies"
     Properties:
+      FunctionName: !Sub ${GlobalTag}-${Landscape}-waf-lambda-custom-resource
       Description: >-
         This lambda function configures the Web ACL rules based on the features enabled in the
         CloudFormation template.
