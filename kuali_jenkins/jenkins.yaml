@@ -1,0 +1,820 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+
+Description: >
+  Create a single ec2 instance that runs a jenkins server for the building and deploying of kuali modules and cloudformation stacks
+
+
+Parameters:
+
+  GlobalTag:
+    Type: String
+    Description: >
+      A common value that all resources in this template will have prefixed to
+      their name and attached as a tag to establish a bundling through naming convention.
+    Default: kuali-mongo
+
+  TemplateBucketName:
+    Type: String
+    Description: The S3 bucket kuali research cloudformation templates, config files, keys, etc. are stored
+    Default: kuali-conf
+    
+  Service:
+    Description: Service catalog name
+    Type: String
+    Default: research-administration
+
+  Function:
+    Description: The Function within the Service
+    Type: String
+    Default: kuali
+
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: The id of the vpc to deploy to.
+
+  JenkinsSubnet:
+    Type: AWS::EC2::Subnet::Id
+    Description: Id of the private subnet that the jenkins ec2 instance is deployed to.
+    Default: empty
+
+  JavaVersion:
+    Type: String
+    Description: Java 8 or Java 11 (earlier versions of jenkins need java 8)
+    Default: 11
+    AllowedValues:
+    - 8
+    - 11
+
+  # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/retrieve-ecs-optimized_AMI.html
+  EC2AMI:
+    Description: AMI ID
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2
+    # Default: /aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id
+
+  EC2InstanceType:
+    Type: String
+    Description: What type of EC2 instance should be used for hosting?
+    AllowedValues:
+    - t3.small
+    - t3.medium
+    - t3.large
+    - t3.xlarge
+    - m4.large
+    - m4.xlarge
+    - m5.large
+    - m5.xlarge
+    - c5.large
+    - c5.xlarge
+    ConstraintDescription: Specified instance type is not within selection list.
+    Default: m5.xlarge
+
+
+Resources:
+
+  EC2SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VpcId
+      GroupDescription: !Sub Security group for jenkins ec2 instance.
+      GroupName: !Sub ${GlobalTag}-ec2-security-group
+      SecurityGroupIngress:
+      - Description: Allows inbound http access
+        IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: 0.0.0.0/0
+      - Description: Allows inbound http access
+        IpProtocol: tcp
+        FromPort: 8080
+        ToPort: 8080
+        CidrIp: 0.0.0.0/0
+      - Description: Allows inbound https access
+        IpProtocol: tcp
+        FromPort: 443
+        ToPort: 443
+        CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub ${GlobalTag}-jenkins-security-group
+        - Key: Service
+          Value: !Ref Service
+        - Key: Function
+          Value: !Ref Function
+
+  EC2Role:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: "/"
+      RoleName: !Sub ${GlobalTag}-ec2-role
+      AssumeRolePolicyDocument:
+        Statement:
+        - Action:
+          - sts:AssumeRole
+          Effect: Allow
+          Principal:
+            Service:
+            - ec2.amazonaws.com
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+      - PolicyName:
+          !Sub ${GlobalTag}-read-ec2-tags
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Resource: "*"
+            Action:
+            - ec2:DescribeTags
+      - PolicyName:
+          !Sub ${GlobalTag}-s3-access
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Resource:
+            - arn:aws:s3:::kuali-*/*
+            # - arn:aws:s3:::kuali-conf*
+            # - arn:aws:s3:::kuali-docker-run-stdout*
+            Action: "*"
+      - PolicyName:
+          !Sub ${GlobalTag}-read-secrets
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Action:
+            - secretsmanager:GetResourcePolicy
+            - secretsmanager:GetSecretValue
+            - secretsmanager:DescribeSecret
+            - secretsmanager:ListSecretVersionIds
+            Resource:
+            - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:kuali/*/*
+      - PolicyName:
+          !Sub ${GlobalTag}-cloudformation
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Action: "*"
+            Resource: 
+            - arn:aws:cloudformation:*:*:stack/kuali-*
+      - PolicyName:
+          !Sub ${GlobalTag}-logging
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Action: "*"
+            Resource:
+              - arn:aws:logs:*:*:log-group:*kuali*
+              - arn:aws:logs:*:*:log-group:*kuali*:log-stream:*
+            
+
+  EC2InstanceLogsGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    Properties:
+      LogGroupName: !Sub ${GlobalTag}
+      RetentionInDays: 30
+
+  EC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: !Sub ${GlobalTag}-profile
+      Path: "/"
+      Roles:
+      - !Ref EC2Role
+
+  EC2Instance:
+    Type: AWS::EC2::Instance
+    Description: EC2 instance for hosting jenkins.
+    Properties:
+      Tags:
+      - Key: Name
+        Value: !Sub ${GlobalTag}
+      - Key: ShortName
+        Value: jenkins  
+      - Key: Service
+        Value: !Ref Service
+      - Key: Function
+        Value: !Ref Function
+      ImageId: 
+        !Ref EC2AMI
+      InstanceType:
+        !Ref EC2InstanceType
+      SecurityGroupIds:
+      - !GetAtt EC2SecurityGroup.GroupId
+      IamInstanceProfile:
+        !Ref EC2InstanceProfile
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: 64
+            DeleteOnTermination: true
+      SubnetId: !Ref JenkinsSubnet
+
+      UserData: 
+        "Fn::Base64": !Sub |
+          #!/bin/bash
+
+          yum install -y aws-cfn-bootstrap
+
+          # Perform initialization, output is logged to /var/log/cfn-init.log
+          /opt/aws/bin/cfn-init \
+            -v --configsets AllConfigs \
+            --region ${AWS::Region} \
+            --stack ${AWS::StackName} \
+            --resource EC2Instance
+            
+          # Now that all initialization is done signal success
+          /opt/aws/bin/cfn-signal \
+            -e $? \
+            --region \
+            ${AWS::Region}  \
+            --stack ${AWS::StackName} \
+            --resource EC2Instance
+
+    Metadata:
+      AWS::CloudFormation::Authentication:
+        # This authentication will make possible replacing inline file content with paths to files in s3
+        # https://aws.amazon.com/blogs/devops/authenticated-file-downloads-with-cloudformation/
+        S3AccessCreds:
+          type: S3
+          roleName:
+            !Ref EC2Role
+          buckets:
+          - !Ref TemplateBucketName
+
+      AWS::CloudFormation::Init:
+        configSets:
+          AllConfigs:
+            - ConfigSet: GetHelperScripts
+            - ConfigSet: YumInstall
+            - ConfigSet: InstallVarious
+            - ConfigSet: InstallJenkins
+            - ConfigSet: ConfigureJenkins
+            - ConfigSet: LoadPlugins
+            - ConfigSet: PullJobsFromGit
+          GetHelperScripts:
+            - 01_get_helper_scripts
+          YumInstall:
+            - 02_yum_install
+          InstallVarious:
+            - 03_install_various
+          InstallJenkins:
+            - 04_install_jenkins
+          ConfigureJenkins:
+            - 05_configure_jenkins
+          LoadPlugins:
+            - 06_load_jenkins_plugins
+          PullJobsFromGit:
+            - 07_pull_jobs_from_git
+          
+
+        01_get_helper_scripts:
+          packages:
+            yum:
+              awslogs: []
+          files:
+            /etc/cfn/cfn-hup.conf:
+              mode: "000400"
+              owner: root
+              group: root
+              content: !Sub |
+                [main]
+                stack=${AWS::StackId}
+                region=${AWS::Region}
+                # Change interval from default 15 minutes to 5
+                interval=5
+            /etc/cfn/hooks.d/cfn-auto-reloader.conf:
+              content: !Sub |
+                [cfn-auto-reloader-hook]
+                triggers=post.update
+                path=Resources.EC2Instance.Metadata.AWS::CloudFormation::Init
+                action=/opt/aws/bin/cfn-init -v --region ${AWS::Region} --stack ${AWS::StackName} --resource EC2Instance --configsets AllConfigs
+            /etc/awslogs/awscli.conf:
+              content: !Sub |
+                [plugins]
+                cwlogs = cwlogs
+                [default]
+                region = ${AWS::Region}
+            /etc/awslogs/awslogs.conf:
+              content: !Sub |
+                [general]
+                state_file = /var/lib/awslogs/agent-state
+                
+                [/var/log/dmesg]
+                file = /var/log/dmesg
+                log_group_name = ${GlobalTag}
+                log_stream_name = /var/log/dmesg
+                
+                [/var/log/messages]
+                file = /var/log/messages
+                log_group_name = ${GlobalTag}
+                log_stream_name = /var/log/messages
+                datetime_format = %b %d %H:%M:%S
+                
+                [/var/log/cfn-init]
+                file = /var/log/cfn-init.log
+                log_group_name = ${GlobalTag}
+                log_stream_name = /var/log/cfn-init
+                datetime_format = %Y-%m-%d %H:%M:%S
+                # multi_line_start_pattern = \d{4}\-\d{2}\-\d{2} \d{2}:\d{2}:\d{2},\d{3}
+
+                [/var/log/jenkins/jenkins.log]
+                file = /var/log/jenkins/jenkins.log
+                log_group_name = ${GlobalTag}
+                log_stream_name = /var/log/jenkins/jenkins.log
+                datetime_format = %Y-%m-%d %H:%M:%S
+            /var/scripts/utils.sh:
+              content: !Sub |
+                #!/bin/bash
+
+                jenkinsIsSecure() {
+                  if [ -f /var/lib/jenkins/config.xml ] ; then
+                    local secure=$(grep -Po '(?<=<useSecurity>)[^<]+' /var/lib/jenkins/config.xml)
+                  else
+                    # On first startup, jenkins is secure by default
+                    local secure='true'
+                  fi
+                  [ "${!secure}" == 'true' ] && true || false
+                }
+
+                turnOffSecurity() {
+                  [ ! -f /var/lib/jenkins/config.xml ] && return 0
+                  sed -i 's/\(<useSecurity>\)true/\1false/' /var/lib/jenkins/config.xml
+                  restartJenkins
+                }
+
+                getAdminPassword() {
+                  if jenkinsIsSecure ; then
+                    if [ -n "${!passwd}" ] ; then
+                      echo "${!passwd}"
+                    elif [ -f secrets/initialAdminPassword ] ; then
+                      cat secrets/initialAdminPassword
+                    fi
+                  fi
+                }
+
+                getAdminUserCliParm() {
+                  echo "--user admin:$(getAdminPassword)"
+                }
+
+                # The secret password file won't appear immediately after start up, so wait for it (it takes a couple of seconds)
+                waitUntilPasswordIsReady() {
+                  echo "Checking for $(pwd)/secrets/initialAdminPassword..."
+                  local counter=0
+                  while true ; do
+                    ((counter++))
+                    if [ -f secrets/initialAdminPassword ] ; then
+                      echo "Found it!"
+                      passwd=$(cat secrets/initialAdminPassword)
+                      break;
+                    fi
+                    echo "Not found! Trying again..."
+                    if [ $counter -gt 120 ] ; then
+                      echo "It's been a minute and the file has not turned up."
+                      echo "Exiting..."
+                      exit 1
+                    fi
+                    sleep .5
+                  done
+                }
+
+                # Ostensibly, if the jenkins website is ready, then most everything else is ready.
+                waitUntilServletContainerIsReady() {
+                  echo 'Checking jenkins status code...'
+                  local counter=0
+                  while true ; do
+                    ((counter++))
+                    statuscode="$(curl -I -s http://localhost:8080 $(getAdminUserCliParm) | grep HTTP | awk '{print $2}')"
+                    echo "Jenkins status code: ${!statuscode}"
+                    if [ "${!statuscode:0:2}" == '20' ] ; then
+                      echo "Status code ${!statuscode} is what we've been waiting for, Jenkins is ready!"
+                      break;
+                    fi
+                    if [ $counter -gt 60 ] ; then
+                      echo "It's been a minute and jenkins is not ready."
+                      echo "Exiting..."
+                      exit 1
+                    fi
+                    sleep 1
+                  done
+                }
+
+                # Files and state get generated as jenkins is starting up. But, it isn't immediate, so a small wait time is needed.
+                waitUntilJenkinsIsReady() {
+                  if jenkinsIsSecure ; then
+                    waitUntilPasswordIsReady
+                  fi
+                  waitUntilServletContainerIsReady
+                  # Wait a little more for good measures
+                  sleep 5
+                }
+
+                startJenkins() {
+                  echo "Starting Jenkins..."
+                  sudo service jenkins start
+                    # Equivalent to:
+                    # /etc/alternatives/java \
+                    #   -Dcom.sun.akuma.Daemon=daemonized \
+                    #   -Djava.awt.headless=true \
+                    #   -DJENKINS_HOME=/var/lib/jenkins \
+                    #   -jar /usr/lib/jenkins/jenkins.war \
+                    #   --logfile=/var/log/jenkins/jenkins.log \
+                    #   --webroot=/var/cache/jenkins/war \
+                    #   --daemon \
+                    #   --httpPort=8080 \
+                    #   --debug=5 \
+                    #   --handlerCountMax=100 \
+                    #   --handlerCountMaxIdle=20
+                  waitUntilJenkinsIsReady
+                }
+
+                restartJenkins() {
+                  echo "Restarting Jenkins..."
+                  sudo service jenkins restart
+                  waitUntilJenkinsIsReady
+                }
+
+                getCLI() {
+                  # https://www.jenkins.io/doc/book/managing/cli/
+                  # https://wiki.jenkins.io/display/JENKINS//Starting+and+Accessing+Jenkins
+
+                  echo "Getting the jenkins-cli.jar..."
+                  curl http://localhost:8080/jnlpJars/jenkins-cli.jar -o cli.jar
+                  chown jenkins:jenkins cli.jar
+                  chmod +x cli.jar
+
+                  # Print cli commands
+                  # java -jar cli.jar -auth admin:${!passwd} -s http://localhost:8080 help
+                }
+
+                login() {
+                  # Get a crumb
+                  crumb=$(
+                    curl -s -c cookies.txt \
+                    -X GET http://localhost:8080/crumbIssuer/api/json $(getAdminUserCliParm) \
+                    | jq '.crumb' | sed 's/"//g'
+                  )
+
+                  # Use crumb in header, maintain the same session (using session cookie) and post a first-time login attempt
+                  curl -v \
+                    -b cookies.txt \
+                    -d j_username=admin \
+                    -d j_password=${!passwd} \
+                    -H "Jenkins-Crumb: ${!crumb}" \
+                    http://localhost:8080/j_spring_security_check $(getAdminUserCliParm)
+                }
+          services:
+            sysvinit:
+              cfn-hup:
+                enabled: true
+                ensureRunning: true
+                files:
+                - /etc/cfn/cfn-hup.conf
+                - /etc/cfn/hooks.d/cfn-auto-reloader.conf
+              # awslogs:
+              # NOTE: If you are using Amazon Linux 2, the awslogs service is now called "awslogsd"
+              awslogsd:
+                enabled: true
+                ensureRunning: true
+                files:
+                - /etc/awslogs/awslogs.conf
+                - /etc/awslogs/awscli.conf
+          commands:
+            print_blank_lines:
+              command: printf "\n\n"
+
+        02_yum_install:
+          files:
+            /var/scripts/02_yum_install.sh:
+              content: !Sub |
+                #!/bin/bash
+                yum update -y
+                yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
+                yum install -y git
+                yum install -y zip unzip
+                yum install -y sysstat
+                yum install -y jq
+                yum install -y vim
+                printf "\n\n"
+              mode: "000775"
+              owner: root
+              group: root
+          commands:
+            Update:
+              cwd: /var/scripts
+              command: bash 02_yum_install.sh
+
+        03_install_various:
+          files:
+            /var/scripts/03_install_various.sh:
+              content: !Sub |
+                #!/bin/bash
+
+                # Install docker
+                amazon-linux-extras install -y docker
+                service docker start
+                usermod -a -G docker ec2-user
+                chkconfig docker on
+
+                # Replace version 1 of awscli with version 2
+                cliVersion=$(aws --version 2>&1 | awk '{print $1}' | cut -d'/' -f2 | cut -d'.' -f1)
+                case "$cliVersion" in
+                  1)
+                    # Upgrade to version 2
+                    curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+                    unzip awscliv2.zip
+                    ./aws/install --bin-dir /bin --install-dir /usr/local/aws-cli --update
+                    aws --version
+                    ;;
+                  2)
+                    # Update version 2
+                    aws --version
+                    ;;
+                esac
+
+                if [ "${JavaVersion}" == '8' ] ; then
+                  yum install java-1.8.0-openjdk -y
+                  javaExe=$(namei -v java | grep -P '^l\s+' | tail -1 | awk '{print $4}')                  
+                else
+                  # Install latest available java openjdk
+                  jdkVersion=$(amazon-linux-extras list | grep java | tail -1 | awk '{print $2}')
+                  if [ -n "$jdkVersion" ] ; then
+                    echo "Installing $jdkVersion..."
+                    amazon-linux-extras install -y $jdkVersion
+                    javaExe=$(update-alternatives --list | grep -E '^java\s' | awk '{print $3}')
+                  else
+                    echo "JDK NOT AVAILABLE!"
+                    exit 1
+                  fi
+                fi
+                JAVA_HOME=$(dirname $(dirname $javaExe))
+                echo "JAVA_HOME = ${!JAVA_HOME}"
+                echo "${!JAVA_HOME}" > JAVA_HOME
+                echo "" >> /etc/bashrc
+                echo "JAVA_HOME=${!JAVA_HOME}" >> /etc/bashrc
+
+                # Install maven
+                mkdir -p /usr/share/maven \
+                && curl -fsSL http://apache.osuosl.org/maven/maven-3/3.6.3/binaries/apache-maven-3.6.3-bin.tar.gz \
+                  | tar -xzC /usr/share/maven --strip-components=1 \
+                && ln -s /usr/share/maven/bin/mvn /usr/bin/mvn
+                mvn --version
+
+                # Install nginx
+                amazon-linux-extras install -y nginx1
+
+                # Install node
+                curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.34.0/install.sh | bash
+                . /.nvm/nvm.sh
+                nvm install node
+
+                printf "\n\n"
+              mode: "000775"
+              owner: root
+              group: root
+          commands:
+            Install:
+              cwd: /var/scripts
+              command: bash 03_install_various.sh
+
+        04_install_jenkins:
+          files:
+            /var/scripts/04_install_jenkins.sh:
+              content: !Sub |
+                #!/bin/bash
+                
+                wget -O /etc/yum.repos.d/jenkins.repo https://pkg.jenkins.io/redhat/jenkins.repo
+                rpm --import https://pkg.jenkins.io/redhat/jenkins.io.key
+                # sudo yum --showduplicates list jenkins | expand
+                yum install jenkins -y
+                # yum install --nogpgcheck jenkins-2.150-1.1 -y
+                
+                sudo usermod -a -G docker jenkins
+                sudo usermod --shell /bin/bash jenkins
+                sudo chkconfig --add jenkins
+
+                printf "\n\n"
+              mode: "000775"
+              owner: root
+              group: root
+          commands:
+            Install:
+              cwd: /var/scripts
+              env:
+                SERVICE: !Ref Service
+                FUNCTION: !Ref Function
+              command: bash 04_install_jenkins.sh
+
+        05_configure_jenkins:
+          files:
+            /var/scripts/05_configure_jenkins.sh:
+              content: !Sub |
+                #!/bin/bash
+                
+                source /var/scripts/utils.sh
+
+                startJenkins
+
+                turnOffSecurity
+
+                # Inject the jdk setting into the configuration file (JAVA_HOME should be a file with the jdk home in it).
+                JDKS=$(cat <<EOF
+                <jdks>
+                    <jdk>
+                      <name>jdk-11</name>
+                      <home>$(cat /var/scripts/JAVA_HOME)/</home>
+                      <properties/>
+                    </jdk>
+                  </jdks>
+                EOF
+                ) && JDKS=$(echo "$JDKS" | tr '\n' '#' | sed 's/#/\\n/g')
+                sed -i 's@<jdks/>@'"$JDKS"'@' config.xml
+
+                chown -R jenkins:jenkins /var/lib/jenkins
+
+                restartJenkins
+
+                printf "\n\n"
+              mode: "000775"
+              owner: root
+              group: root
+          commands:
+            Install:
+              cwd: /var/lib/jenkins
+              env:
+                SERVICE: !Ref Service
+                FUNCTION: !Ref Function
+              command: bash /var/scripts/05_configure_jenkins.sh
+
+        06_load_jenkins_plugins:
+          files:
+            /var/lib/jenkins/plugin-list:
+              content: |
+                uno-choice:2.5.1
+                build-timeout:1.20
+                email-ext:2.80
+                # environment-script:1.2.5
+                git-parameter:0.9.13
+                icon-shim:2.0.3
+                workflow-aggregator:2.6
+                saml:1.1.7
+                ssh-agent:1.20
+                ssh-slaves:1.31.3
+                timestamper:1.11.8
+                ws-cleanup:0.38
+              mode: "000644"
+              owner: jenkins
+              group: jenkins
+            /var/scripts/06_load_jenkins_plugins.sh:
+              content: !Sub |
+                #!/bin/bash
+                
+                source /var/scripts/utils.sh
+
+                getCLI
+
+                # # Download any .jpi file available directly from s3:
+                # aws s3 cp s3://${TemplateBucketName}/cloudformation/kuali_jenkins/plugin-files/dynamicparameter.jpi plugins/
+                # chown jenkins:jenkins 
+
+                # Download the rest from the download center:
+                for plugin in $(cat plugin-list | sed 's/\ \+//g') ; do
+                  if [ "${!plugin:0:1}" != '#' ] ; then
+                    java -jar cli.jar -auth admin:${!passwd} -s http://localhost:8080 install-plugin ${!plugin}
+                  fi
+                done
+
+                chown -R jenkins:jenkins /var/lib/jenkins
+
+                restartJenkins
+
+                printf "\n\n"
+              mode: "000755"
+              owner: jenkins
+              group: jenkins
+          commands:
+            Install:
+              cwd: /var/lib/jenkins
+              env:
+                SERVICE: !Ref Service
+                FUNCTION: !Ref Function
+              command: bash /var/scripts/06_load_jenkins_plugins.sh
+
+        07_pull_jobs_from_git:
+          files:
+            /var/lib/jenkins/.ssh/bu_github_id_coi_rsa:
+              source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/bu_github_id_coi_rsa
+              mode: "000600"
+              owner: jenkins
+              group: jenkins
+            /var/lib/jenkins/.ssh/bu_github_id_core_common_rsa:
+              source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/bu_github_id_core_common_rsa
+              mode: "000600"
+              owner: jenkins
+              group: jenkins
+            /var/lib/jenkins/.ssh/bu_github_id_core_rsa:
+              source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/bu_github_id_core_rsa
+              mode: "000600"
+              owner: jenkins
+              group: jenkins
+            /var/lib/jenkins/.ssh/bu_github_id_docker_rsa:
+              source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/bu_github_id_docker_rsa
+              mode: "000600"
+              owner: jenkins
+              group: jenkins
+            /var/lib/jenkins/.ssh/bu_github_id_jenkins_rsa:
+              source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/bu_github_id_jenkins_rsa
+              mode: "000600"
+              owner: jenkins
+              group: jenkins
+            /var/lib/jenkins/.ssh/bu_github_id_kc_rsa:
+              source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/bu_github_id_kc_rsa
+              mode: "000600"
+              owner: jenkins
+              group: jenkins
+            /var/lib/jenkins/.ssh/bu_github_id_research_portal_rsa:
+              source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/bu_github_id_research_portal_rsa
+              mode: "000600"
+              owner: jenkins
+              group: jenkins
+            /var/lib/jenkins/.ssh/bu_github_id_rice_rsa:
+              source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/bu_github_id_rice_rsa
+              mode: "000600"
+              owner: jenkins
+              group: jenkins
+            /var/lib/jenkins/.ssh/bu_kuali_id_jenkins_rsa:
+              source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/bu_kuali_id_jenkins_rsa
+              mode: "000600"
+              owner: jenkins
+              group: jenkins
+            /var/scripts/07_pull_jobs_from_git.sh:
+              content: !Sub |
+                #!/bin/bash
+
+                # Adjust file/directory permissions
+                chmod 700 .ssh
+                ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
+                ssh-keyscan -t rsa github.com >> /var/lib/jenkins/.ssh/known_hosts
+
+                # Configure github access
+                [ ! -d jobs ] && mkdir jobs
+                cd /var/lib/jenkins/jobs
+                [ ! -d .git ] && git init
+                git config user.email "jenkins@bu.edu"
+                git config user.name jenkins
+                git remote add github git@github.com:bu-ist/kuali-research-jenkins.git
+                if [ ! -f .gitignore ] ; then
+                  cat <<EOF > .gitignore
+                  # Ignore everything in subdirectories
+                  /*/*
+                  # ...except the config.xml file in those subdirectories
+                  !/**/config.xml
+                  #...and this file
+                  !.gitignore
+                  #...and javajobs
+                  !/javajobs/ContinuousIntegration/
+                  #...and the config.xml backup file
+                  !config.xml.bkp
+                EOF
+                fi
+
+                # Pull all main/job configuration files from github
+                eval `ssh-agent -s`
+                ssh-add ../.ssh/bu_github_id_jenkins_rsa
+                echo "Fetching from upstream and performing hard reset"
+                git fetch github master
+                git reset --hard FETCH_HEAD
+                eval `ssh-agent -k`
+
+                # Set global configurations
+                cat ../config.xml > ../config.xml.last
+                cat config.xml.bkp > ../config.xml
+
+                chown -R jenkins:jenkins /var/lib/jenkins
+
+                restartJenkins
+
+                printf "\n\n"
+              mode: "000775"
+              owner: root
+              group: root
+          commands:
+            Install:
+              cwd: /var/lib/jenkins
+              env:
+                SERVICE: !Ref Service
+                FUNCTION: !Ref Function
+              command: bash /var/scripts/07_pull_jobs_from_git
+
+Outputs:
+
+  JenkinsPrivateUrl:
+    Value:
+      !Sub
+        - http://${ec2_ip}:8080
+        - ec2_ip: !GetAtt EC2Instance.PrivateIp
+
+  InstanceId:
+    Value:
+      !Ref EC2Instance

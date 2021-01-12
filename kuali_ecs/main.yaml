@@ -23,6 +23,7 @@ Metadata:
           - CertificateArn
           - EnableWAF
           - HostedZoneName
+          - UsingShibboleth
       - Label: 
           default: "Amazon EC2 Configuration"
         Parameters: 
@@ -55,15 +56,6 @@ Parameters:
   Landscape:
     Description: Specify which landscape to build for.
     Type: String
-    AllowedValues:
-    - sb
-    - ci
-    - qa
-    - stg
-    - prod
-    ConstraintDescription: >
-      This parameter is restricted to the following values: sb, ci, qa, stg, prod
-    Default: sb
     
   Service:
     Description: Service catalog name
@@ -184,7 +176,7 @@ Parameters:
   EnableWAF:
     Type: String
     Description: Does the ALB traffic need to go through a WAF?
-    Default: "true"
+    Default: "false"
     AllowedValues:
     - "true"
     - "false"
@@ -207,6 +199,15 @@ Parameters:
     Description: If included, a DNS record will be created and registered with the specified HostedZone
     Default: empty
 
+  UsingShibboleth:
+    Type: String
+    Description: True if using the BU shibboleth IDP for authentication, else dummy authentication (cor-main becomes its own IDP & SP).
+    Default: "false"
+    AllowedValues:
+    - "true"
+    - "false"
+    ConstraintDescription: Enter "true" or "false" only.
+
 
 Conditions:
   CreateWAF: !Equals [!Ref EnableWAF, 'true']
@@ -214,6 +215,7 @@ Conditions:
   CreateMongoEc2Instance: !Not [!Equals [!Ref MongoSubnetId, empty]]
   CreateAlbLogsBuckets: !Or [!Equals [!Ref EnableALBLogging, 'true' ], Condition: CreateWAF]
   UseKeypair: !Not [!Equals [!Ref EC2KeypairName, empty]]
+  IsProd: !Equals [!Ref Landscape, prod]
 
 
 Resources:
@@ -311,14 +313,17 @@ Resources:
         VpcId: 
           !Ref VpcId
         Subnet1: 
-          !Ref PublicSubnet1
-        Subnet2: 
-          !Ref PublicSubnet2
-        SecurityGroup: 
           !If 
             - CreateWAF
-            - !GetAtt SecurityGroups.Outputs.ALBSecurityGroup
-            - !GetAtt SecurityGroups.Outputs.EC2SecurityGroupId
+            - !Ref PublicSubnet1
+            - !Ref CampusSubnet1
+        Subnet2: 
+          !If 
+            - CreateWAF
+            - !Ref PublicSubnet2
+            - !Ref CampusSubnet2
+        SecurityGroup: 
+           !GetAtt SecurityGroups.Outputs.ALBSecurityGroup
         CertificateArn:
           !Ref CertificateArn
         # TemplateBucketName: 
@@ -375,7 +380,10 @@ Resources:
         DNSName:
           !If 
             - CreateDnsRecord
-            - !Ref HostedZoneName
+            - !If
+              - IsProd
+              - !Ref HostedZoneName
+              - !Sub ${Landscape}.${HostedZoneName}
             - !GetAtt ALB.Outputs.DNSName
         UsingRoute53: !If [ CreateDnsRecord, 'true', 'false' ]
         InstanceType:
@@ -389,6 +397,8 @@ Resources:
             - CreateMongoEc2Instance
             - !GetAtt MongoDbInstance.Outputs.PrivateIP
             - !Ref AWS::NoValue
+        UsingShibboleth:
+          !Ref UsingShibboleth
         MinClusterSize:
           !Ref MinClusterSize
         MaxClusterSize:
@@ -533,5 +543,21 @@ Outputs:
       - https://${domain}/kc
       - domain: !If 
         - CreateDnsRecord
-        - !Ref HostedZoneName
+        - !If
+          - IsProd
+          - !Ref HostedZoneName
+          - !Sub ${Landscape}.${HostedZoneName}
+        - !GetAtt ALB.Outputs.DNSName
+
+  KualiCorMainUrl:
+    Description: The URL endpoint for the kuali research service
+    Value:
+      !Sub 
+      - https://${domain}/apps
+      - domain: !If 
+        - CreateDnsRecord
+        - !If
+          - IsProd
+          - !Ref HostedZoneName
+          - !Sub ${Landscape}.${HostedZoneName}
         - !GetAtt ALB.Outputs.DNSName

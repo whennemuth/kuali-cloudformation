@@ -2,6 +2,9 @@
 
 It is better for secrets in [Secrets Manager](https://docs.aws.amazon.com/secretsmanager/latest/userguide/intro.html) to be created from their own stack as these may be consumed by resources from multiple other stacks and it is therefore best to separate concerns.
 
+This stack is used to quickly get started with a one shot creation of a number of secrets for kuali (mostly rds db user/passwords for dms and sct).
+It is not intended to add more secrets, or edit existing secrets through stack updates since it would be onerous to gather up and pass in all of the prior parameters again. Instead, additional secrets should be added through the cli or api.
+
 Resources in other stacks can have properties that dynamically look up fields in any given secret.
 Example:
 
@@ -14,6 +17,25 @@ aws secretsmanager get-secret-value \
   --secret-id kuali/$Landscape/kuali-oracle-ec2-dms-password \
   --output text \
   --query '{SecretString:SecretString}' | jq '.password'
+```
+
+Adding another secret with the AWS CLI, would look like this:
+
+```
+Landscape=sb
+aws --profile=infnprd secretsmanager create-secret \
+  --name "kuali/$Landscape/kuali-oracle-rds-app-password" \
+  --description "The application user (probably KCOEUS) and password for the kc rds $Landscape database" \
+  --secret-string '[
+    {"username": "KUALICO"},
+    {"password": "my_password"}
+  ]' \
+  --tags '[
+    {"Key": "Name", "Value": "kuali/'$Landscape'/kuali-oracle-rds-app-password"},
+    {"Key": "Service", "Value": "research-administration"},
+    {"Key": "Function", "Value": "kuali"},
+    {"Key": "Landscape", "Value": "'$Landscape'"}
+  ]'
 ```
 
 

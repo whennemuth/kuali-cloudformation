@@ -12,16 +12,6 @@ Parameters:
       Specify which landscape to build and elasticsearch cluster for.
       The DomainName for the cluster will be based on this.
     Type: String
-    AllowedValues:
-    - sb
-    - ci
-    - qa
-    - stg
-    - prod
-    - ALL
-    ConstraintDescription: >
-      This parameter is restricted to the following values: sb, ci, qa, stg, prod
-    Default: ALL
 
 Conditions:
   isALL: !Equals [!Ref Landscape, ALL]

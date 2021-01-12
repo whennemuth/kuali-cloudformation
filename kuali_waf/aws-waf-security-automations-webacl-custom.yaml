@@ -43,15 +43,6 @@ Parameters:
   Landscape:
     Description: Specify which landscape to build into the VPC
     Type: String
-    AllowedValues:
-    - sb
-    - ci
-    - qa
-    - stg
-    - prod
-    ConstraintDescription: >
-      This parameter is restricted to the following values: sb, ci, qa, stg, prod
-    Default: sb
 
   LogGroupRetention:
     Type: Number

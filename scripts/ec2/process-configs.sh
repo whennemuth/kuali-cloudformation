@@ -13,14 +13,145 @@ downloadConfigsFromS3() {
     --include "pdf/*" \
     --include "kc/kc-config.xml" \
     s3://${TEMPLATE_BUCKET_NAME}/${LANDSCAPE}/ .
-  mv /opt/kuali/s3/kc/kc-config-rds.xml /opt/kuali/s3/kc/kc-config.xml
   aws s3 cp s3://${TEMPLATE_BUCKET_NAME}/rice.cer /opt/kuali/s3/kc/
   aws s3 cp s3://${TEMPLATE_BUCKET_NAME}/rice.keystore /opt/kuali/s3/kc/
 }
 
 # The name=value pair files acquired from s3 will have some default entries whose actual values could 
-# not have be known ahead of time, but can be looked up now and copied over the defaults here.
-processEnvironmentVariableFile() {
+# not have been known ahead of time, but can be looked up now and copied over the defaults here.
+processEnvironmentVariableFiles() {
+  local common_name="$(getCommonName)"
+
+  # Loop over the collection of environment.variables.s3 files.
+  for f in $(env | grep 'ENV_FILE_FROM_S3') ; do
+    envfile="$(echo $f | cut -d'=' -f2)"
+    if grep -iq 'pdf' <<<"$envfile" ; then
+      app='pdf'
+    elif grep -iq 'portal' <<<"$envfile" ; then
+      app='portal'
+    elif grep -iq 'core' <<<"$envfile" ; then
+      app='core'
+    fi
+
+    # Replace the standard kuali-research-[env].bu.edu references with the dns address of this instances load balancer.
+    # sed -i -r "s/kuali-research.*.bu.edu/$common_name/g" "$envfile"
+    sed -i -r 's/[a-z]+\.kuali-research.bu.edu/'$common_name'/g' "$envfile"
+
+    # Make changes to environment variable values:
+    # 1) Simplify the mongo connection data if localhost
+    # 2) Eliminate shibboleth-related entries if localhost or not using known dns with hosted zone
+    # 3) Make sure values are set that permit self-signed certificates to be accepted by the applicable apps.
+    #    Assumes that if route 53 is not in use, then a load balancer or ec2 instance ip is the app address, which entails self-signed cert.
+    case "$app" in
+      core)
+        if [ -n "$MONGO_EC2_IP" ] || [ -n "$MONGO_URI" ]; then
+          removeLine $envfile 'MONGO_PRIMARY_SHARD'
+          removeLine $envfile 'MONGO_USER'
+          removeLine $envfile 'MONGO_PASS'
+          setNewValue $envfile 'MONGO_URI' "mongodb://${MONGO_EC2_IP}:27017/core-development"
+          # or... (Would not be setting both MONGO_EC2_IP and MONGO_URI at the same time).
+          checkValue $envfile 'MONGO_URI'
+        fi
+
+        if [ "${USING_ROUTE53,,}" != 'true' ] ; then
+          removeLine $envfile 'SHIB_HOST'
+          removeLine $envfile 'BU_LOGOUT_URL'
+        else
+          # Unless explicit values are provided, shibboleth is out of the picture and core will be its own IDP, and logout url will default to "/apps"
+          checkValue $envfile 'SHIB_HOST'
+          checkValue $envfile 'BU_LOGOUT_URL'
+        fi
+
+        checkValue $envfile 'CORE_HOST' "$common_name"
+        # 99% of the time, what's in the env file for the following values already will do, but still providing the option to override here.
+        checkValue $envfile 'LANDSCAPE'
+        checkValue $envfile 'UPDATE_INSTITUTION'
+        checkValue $envfile 'SMTP_HOST'
+        checkValue $envfile 'SMTP_PORT'
+        checkValue $envfile 'JOBS_SCHEDULER'
+        checkValue $envfile 'REDIS_URI'
+        checkValue $envfile 'SERVICE_SECRET_1'
+        checkValue $envfile 'SERVICE_SECRET_2'
+        checkValue $envfile 'AWS_DEFAULT_REGION'
+        checkValue $envfile 'START_CMD'
+        ;;
+      pdf)
+        if [ -n "$MONGO_EC2_IP" ] || [ -n "$SPRING_DATA_MONGODB_URI" ] ; then
+          setNewValue $envfile 'SPRING_DATA_MONGODB_URI' "mongodb://${MONGO_EC2_IP}:27019/test?retryWrites=true&w=majority"
+          # or... (Would not be setting both MONGO_EC2_IP and SPRING_DATA_MONGODB_URI at the same time).
+          checkValue $envfile 'SPRING_DATA_MONGODB_URI'
+        fi
+        if [ "${USING_ROUTE53,,}" == 'false' ] ; then
+          setNewValue $envfile 'ALLOW_SELF_SIGNED_SSL' 'true'
+        fi
+        if [ -n "$AWS_S3_BUCKET" ] ; then
+          setNewValue $envfile 'AWS_S3_BUCKET' "$AWS_S3_BUCKET"
+          setNewValue $envfile 'AWS_S3_ENABLED' 'true'
+        elif [ "$AWS_S3_ENABLED" != 'false' ] ; then
+          setNewValue $envfile 'AWS_S3_BUCKET' "kuali-pdf-${LANDSCAPE}"
+          setNewValue $envfile 'AWS_S3_ENABLED' 'true'
+        fi
+        checkValue $envfile 'LANDSCAPE'
+        checkValue $envfile 'AWS_S3_BUCKET' $PDF_BUCKET_NAME
+        checkValue $envfile 'AUTH_ENABLED' 
+        checkValue $envfile 'AUTH_BASEURL' "$common_name"
+        checkValue $envfile 'AUTH_SERVICE2SERVICE_SECRETS'
+        checkValue $envfile 'MONGO_ENABLED'
+        checkValue $envfile 'AWS_REGION'
+        ;;
+      portal)
+        if [ -n "$MONGO_EC2_IP" ] || [ -n "$MONGODB_URI" ]; then
+          # removeLine $envfile 'MONGODB_USERNAME'
+          # removeLine $envfile 'MONGODB_PASSWORD'
+          setNewValue $envfile 'MONGODB_URI' "mongodb://${MONGO_EC2_IP}:27018/res-dashboard"
+          # or... (Would not be setting both MONGO_EC2_IP and MONGODB_URI at the same time).
+          checkValue $envfile 'MONGODB_URI'
+        fi
+        if [ "${USING_ROUTE53,,}" == 'false' ] ; then
+          setNewValue $envfile 'NODE_TLS_REJECT_UNAUTHORIZED' '0'
+        fi
+        if [ -n "$CORE_AUTH_BASE_URL" ] ; then
+          setNewValue 'CORE_AUTH_BASE_URL' "$CORE_AUTH_BASE_URL"
+        else
+          setNewValue 'CORE_AUTH_BASE_URL' "https://${common_name}"
+        fi
+        if [ -n "$RESEARCH_URL" ] ; then
+          setNewValue 'RESEARCH_URL' "$RESEARCH_URL"
+        else
+          setNewValue 'RESEARCH_URL' "https://${common_name}/kc"
+        fi
+        if [ -n "$PORTAL_HOST" ] ; then
+          setNewValue 'PORTAL_HOST' "$PORTAL_HOST"
+        else
+          setNewValue 'PORTAL_HOST' "https://${common_name}/kc"
+        fi
+        checkValue $envfile 'MONGODB_USERNAME'
+        checkValue $envfile 'MONGODB_PASSWORD'
+        checkValue $envfile 'MONGO_DB_NAME'
+        checkValue $envfile 'LANDSCAPE'
+        checkValue $envfile 'CACHE_RES_REQUESTS'
+        checkValue $envfile 'ELASTICSEARCH_URL'
+        checkValue $envfile 'ELASTICSEARCH_INDEX_NAME'
+        checkValue $envfile 'LOG_LEVEL'
+        checkValue $envfile 'NODE_ENV'
+        checkValue $envfile 'PORT'
+        checkValue $envfile 'REQUEST_LOG_LEVEL'
+        checkValue $envfile 'RESEARCH_SECRET'
+        checkValue $envfile 'START_CMD'
+        checkValue $envfile 'USE_LEGACY_APIS'
+        ;;
+    esac
+
+    if [ "${CREATE_EXPORT_FILE,,}" == 'true' ] ; then
+      # Create the export.sh file
+      createExportFile "$envfile"
+    fi
+  done
+}
+
+
+# Create a script to export all environment variables in the mounted directory before starting node
+createExportFile() {
   # Turn a name=value line into an "export name='value'" line
   getLineExport() {
     local line=$(echo -n "$1" | xargs) # Use xargs to trim the line.
@@ -35,97 +166,30 @@ processEnvironmentVariableFile() {
     fi
   }
   
-  # Create a script to export all environment variables in the mounted directory before starting node
-  createExportFile() {
-    local ENV_FILE_FROM_S3="$1"
-    if [ ! -f $ENV_FILE_FROM_S3 ] ; then
-      echo "ERROR! MISSING $ENV_FILE_FROM_S3"
-      exit 1
-    else
-      cd $(dirname $ENV_FILE_FROM_S3)
-      rm -f export.sh
-      echo "Creating $(pwd)/export.sh..."
-      while read line ; do
-        expline="$(getLineExport "$line")" 
-        [ -z "$expline" ] && continue
-        prop=$(echo "$line" | cut -f1 -d '=')
-        # Override some of the existing environment variables
-        [ "${prop^^}" == "SHIB_HOST" ] && expline="export SHIB_HOST="
-        [ "${prop^^}" == "ROOT_DIR" ]  && expline="export ROOT_DIR=/var/core-temp"
-        echo "Setting env var $prop" 
-        echo "$expline" >> export.sh
-      done < $ENV_FILE_FROM_S3
-      
-      # In case the file from s3 originated on a windows file system, remove return carriage chars
-      sed -i 's/\r//g' export.sh
-    fi
-  }
-
-  local common_name="$(getCommonName)"
-
-  # Loop over the collection of environment.variables.s3 files.
-  for f in $(env | grep 'ENV_FILE_FROM_S3') ; do
-    envfile="$(echo $f | cut -d'=' -f2)"
-    if grep -iq 'pdf' <<<"$envfile" ; then
-      app='pdf'
-    elif grep -iq 'portal' <<<"$envfile" ; then
-      app='portal'
-    elif grep -iq 'core' <<<"$envfile" ; then
-      app='core'
-    fi
-    # Replace the standard kuali-research-[env].bu.edu references with the dns address of this instances load balancer.
-    sed -i -r "s/kuali-research.*.bu.edu/$common_name/g" "$envfile"
-
-    # Correct the AWS_S3_BUCKET name value in case it disagrees with the templates parameter by removing it and putting it back with the provided value.
-    if [ "$app" == 'pdf' ] ; then
-      sed -i '/.*AWS_S3_BUCKET.*=.*/d' $envfile
-      echo "AWS_S3_BUCKET=$PDF_BUCKET_NAME" >> $envfile
-    fi
-
-    # If we are creating our own local mongo database, then replace whatever mongo hostname exists in the config file
-    # with the ip address of the mongo ec2 instance and comment out the rest (user, password, etc.) 
-    if [ -n "$MONGO_EC2_IP" ] ; then
-      case "$app" in
-        core)
-          sed -i 's/^\([^#]*MONGO_URI.*=.*\)/# \1/' $envfile
-          sed -i 's/^\([^#]*MONGO_PRIMARY_SHARD.*=.*\)/# \1/' $envfile
-          sed -i 's/^\([^#]*MONGO_USER.*=.*\)/# \1/' $envfile
-          sed -i 's/^\([^#]*MONGO_PASS.*=.*\)/# \1/' $envfile
-          echo "MONGO_URI=mongodb://${MONGO_EC2_IP}:27017/core-development" >> $envfile
-          ;;
-        portal)
-          sed -i 's/^\([^#]*MONGODB_URI.*=.*\)/# \1/' $envfile
-          sed -i 's/^\([^#]*MONGODB_USERNAME.*=.*\)/# \1/' $envfile
-          sed -i 's/^\([^#]*MONGODB_PASSWORD.*=.*\)/# \1/' $envfile
-          echo "MONGODB_URI=mongodb://${MONGO_EC2_IP}:27018/res-dashboard"
-          ;;
-        pdf)
-          sed -i 's/^\([^#]*SPRING_DATA_MONGODB_URI.*=.*\)/# \1/' $envfile
-          echo "SPRING_DATA_MONGODB_URI=mongodb://${MONGO_EC2_IP}:27019/test?retryWrites=true&w=majority" >> $envfile
-          ;;
-      esac
-    fi
-
-    # Make sure values are set that permit self-signed certificates to be accepted by the applicable apps.
-    if [ "${DNS_NAME,,}" == 'local' ] || [ -z "$DNS_NAME" ] ; then
-      case "$app" in
-        pdf)
-          sed -i '/.*ALLOW_SELF_SIGNED_SSL.*=.*/d' $envfile
-          echo "ALLOW_SELF_SIGNED_SSL=true" >> $envfile
-          ;;
-        portal)
-          sed -i '/.*NODE_TLS_REJECT_UNAUTHORIZED.*=.*/d' $envfile
-          echo "NODE_TLS_REJECT_UNAUTHORIZED=0" >> $envfile
-          ;;
-      esac
-    fi
-
-    # Create the export.sh file
-    createExportFile "$envfile"
-  done
+  local envfile="$1"
+  if [ ! -f $envfile ] ; then
+    echo "ERROR! MISSING $envfile"
+    exit 1
+  else
+    cd $(dirname $envfile)
+    rm -f export.sh
+    echo "Creating $(pwd)/export.sh..."
+    while read line ; do
+      expline="$(getLineExport "$line")" 
+      [ -z "$expline" ] && continue
+      prop=$(echo "$line" | cut -f1 -d '=')
+      # Override some of the existing environment variables
+      [ "${prop^^}" == "SHIB_HOST" ] && expline="export SHIB_HOST="
+      [ "${prop^^}" == "ROOT_DIR" ]  && expline="export ROOT_DIR=/var/core-temp"
+      echo "Setting env var $prop" 
+      echo "$expline" >> export.sh
+    done < $envfile
     
-  exit 0
+    # In case the file from s3 originated on a windows file system, remove return carriage chars
+    sed -i 's/\r//g' export.sh
+  fi
 }
+
 
 # The kc-config.xml file downloaded from s3 will have placeholders for certain parameter values that
 # could not have been known ahead of time, but can be looked up now and filled out in the file.
@@ -139,6 +203,22 @@ processKcConfigFile() {
   sed -i "s/KUALI_DB_HOST/$(getRdsHostname)/"           /opt/kuali/s3/kc/kc-config.xml
   sed -i "s/KUALI_DB_USERNAME/$(getRdsAppUsername)/"    /opt/kuali/s3/kc/kc-config.xml
   sed -i "s/KUALI_DB_PASSWORD/$(getRdsAppPassword)/"    /opt/kuali/s3/kc/kc-config.xml
+}
+
+# There is no environment variables file downloaded from s3 for the kc docker container to mount to.
+# Instead, these variables were put into the environment of this running script, so put them as name=value pairs into a file for mounting.
+createKcEnvironmentVariableFile() {
+  echo "LANDSCAPE=$LANDSCAPE" > $TARGET_FILE
+  echo "NEW_RELIC_LICENSE_KEY=$NEW_RELIC_LICENSE_KEY" >> $TARGET_FILE
+  echo "NEW_RELIC_AGENT_ENABLED=$NEW_RELIC_AGENT_ENABLED" >> $TARGET_FILE
+  echo "NEW_RELIC_INFRASTRUCTURE_ENABLED=$NEW_RELIC_INFRASTRUCTURE_ENABLED" >> $TARGET_FILE
+  echo "JAVA_ENV=$JAVA_ENV" >> $TARGET_FILE
+  echo "DNS_NAME=$DNS_NAME" >> $TARGET_FILE
+
+  if [ "${CREATE_EXPORT_FILE,,}" == 'true' ] ; then
+    # Create the export.sh file
+    createExportFile "$TARGET_FILE"
+  fi
 }
 
 # echo out the base subdomain address that the kuali applications are reachable on.
@@ -155,7 +235,37 @@ getCommonName() {
   echo $cn | cut -d'/' -f3 # Strips off the "http://" portion and trailing "/"
 }
 
+removeLine() {
+  local file=$1
+  local name=$2
+  local comment=$3
+  if [ "$comment" == 'true' ] ; then
+    sed -i 's/^\([^#]*'$name'.*=.*\)/# \1/' $file
+  else 
+    sed -i '/.*'$name'.*=.*/d' $envfile
+  fi
+}
+
+setNewValue() {
+  local file=$1
+  local name=$2
+  local newvalue="$3"
+  local comment=$4
+  removeLine $file $name $comment
+  echo "$name=$newvalue" >> $file
+}
+
+checkValue() {
+  local file=$1
+  local name=$2
+  local value="$3"
+  [ -z "$value" ] &&  eval "local value=\$$name"
+  [ -z "$value" ] && return 0
+  setNewValue $file $name "$value"
+}
+
 getRdsHostname() {
+  [ -n "$RDS_HOSTNAME" ] && echo "$RDS_HOSTNAME" && return 0
   local rdsArn=$(
     aws resourcegroupstaggingapi get-resources \
       --resource-type-filters rds \
@@ -164,11 +274,14 @@ getRdsHostname() {
       --query 'ResourceTagMappingList[].{ARN:ResourceARN}' 2> /dev/null
   )
   if [ -n "$rdsArn" ] && [ "${rdsArn,,}" != 'none' ] ; then
-    aws rds describe-db-instances \
-      --db-instance-identifier $rdsArn \
-      --output text \
-      --query 'DBInstances[].{addr:Endpoint.Address}' 2> /dev/null
+    RDS_HOSTNAME=$(
+      aws rds describe-db-instances \
+        --db-instance-identifier $rdsArn \
+        --output text \
+        --query 'DBInstances[].{addr:Endpoint.Address}' 2> /dev/null
+      )
   fi
+  echo $RDS_HOSTNAME
 }
 
 getRdsSecret() {
@@ -184,11 +297,15 @@ getRdsSecret() {
 }
 
 getRdsAppUsername() {
-  getRdsSecret 'app' | jq '.username' | sed 's/"//g'
+  [ -n "$RDS_USERNAME" ] && echo "$RDS_USERNAME" && return 0
+  RDS_USERNAME=$(getRdsSecret 'app' | jq '.username' | sed 's/"//g')
+  echo $RDS_USERNAME
 }
 
 getRdsAppPassword() {
-  getRdsSecret 'app' | jq '.password' | sed 's/"//g'
+  [ -n "$RDS_PASSWORD" ] && echo "$RDS_PASSWORD" && return 0
+  RDS_PASSWORD=$(getRdsSecret 'app' | jq '.password' | sed 's/"//g')
+  echo $RDS_PASSWORD
 }
 
 DNS_NAME=$(echo "$DNS_NAME" | sed -E 's/\.$//') # Strip off trailing dot (if exists).
@@ -196,8 +313,10 @@ DNS_NAME=$(echo "$DNS_NAME" | sed -E 's/\.$//') # Strip off trailing dot (if exi
 case "$TASK" in
   get_configs_from_s3)
     downloadConfigsFromS3 ;;
-  create_env_exports_file)
-    processEnvironmentVariableFile ;;
+  process_env_files)
+    processEnvironmentVariableFiles ;;
+  create_kc_env_file)
+    createKcEnvironmentVariableFile ;;
   process_kc-config_file)
     processKcConfigFile ;;
 esac

@@ -13,15 +13,6 @@ Parameters:
   Landscape:
     Description: Specify which landscape to build for.
     Type: String
-    AllowedValues:
-    - sb
-    - ci
-    - qa
-    - stg
-    - prod
-    ConstraintDescription: >
-      This parameter is restricted to the following values: sb, ci, qa, stg, prod
-    Default: sb
     
   Service:
     Description: Service catalog name
@@ -44,11 +35,6 @@ Parameters:
     AllowedValues:
     - "true"
     - "false"
-
-
-Conditions:
-  AlbIsPublic: !Equals [!Ref PublicALB, 'true']
-  AlbIsPrivate: !Equals [!Ref PublicALB, 'false']
 
 
 Mappings:
@@ -77,17 +63,32 @@ Resources:
       GroupName:
         !Sub ${GlobalTag}-${Landscape}-alb-security-group
       GroupDescription:
-        This security group defines who/where is allowed to access the application
-        load balancer that sits in front of the private subnets. Currently open to the public 
-        internet (0.0.0.0/0) but can be restricted to certain ports.
+        !Join
+        - " "
+        - - This security group defines who/where is allowed to access the ALB
+          - that sits in front of the private subnets. Open to the public
+          - internet (0.0.0.0/0) with a WAF, else restricted to requests
+          - originating from within bu 2fa networks only.
       Tags:
-      - Key: Name
-        Value: 
-          !Sub ${GlobalTag}-${Landscape}-alb-security-group
+        - Key: Name
+          Value: !Sub ${GlobalTag}-${Landscape}-alb-security-group
+        - Key: Landscape
+          Value: !Ref Landscape
+        - Key: Service
+          Value: !Ref Service
+        - Key: Function
+          Value: !Ref Function
       SecurityGroupIngress:
-      - CidrIp: 0.0.0.0/0
-        IpProtocol: -1
-        Description: Allow public access - all ports
+        - Description: "HTTP ingress"
+          IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - Description: "HTTPS ingress"
+          IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
 
   EC2SecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -102,75 +103,96 @@ Resources:
           - 2) SSH access into the ec2 hosts
       VpcId: !Ref VpcId
       Tags:
-      - Key: Name
-        Value: !Sub ${GlobalTag}-${Landscape}-ec2-security-group
+        - Key: Name
+          Value: !Sub ${GlobalTag}-${Landscape}-ec2-security-group
+        - Key: Landscape
+          Value: !Ref Landscape
+        - Key: Service
+          Value: !Ref Service
+        - Key: Function
+          Value: !Ref Function
       SecurityGroupIngress:
-      - IpProtocol: -1
-        SourceSecurityGroupId:
-          !Ref ALBSecurityGroup
-        Description: Allows inbound access to the EC2 instance from the ALB only.
+        - IpProtocol: -1
+          SourceSecurityGroupId: !Ref ALBSecurityGroup
+          Description: Allows inbound access to the EC2 instance from the ALB only.
       
-      - Description: "HTTP: vpn.bu.edu/2fa On Campus, Group 1"
-        IpProtocol: tcp
-        FromPort: 80
-        ToPort: 80
-        CidrIp: !FindInMap [ 2faCidrs, "first", "cidr" ]
-      - Description: "HTTP: vpn.bu.edu/2fa On Campus, Group 2 "
-        IpProtocol: tcp
-        FromPort: 80
-        ToPort: 80
-        CidrIp: !FindInMap [ 2faCidrs, "second", "cidr" ]
-      - Description: "HTTP: vpn.bu.edu/2fa Off Campus"
-        IpProtocol: tcp
-        FromPort: 80
-        ToPort: 80
-        CidrIp: !FindInMap [ 2faCidrs, "third", "cidr" ]
-      - Description: "HTTP: vpn.bu.edu/2fa Off Campus"
-        IpProtocol: tcp
-        FromPort: 80
-        ToPort: 80
-        CidrIp: !FindInMap [ 2faCidrs, "fourth", "cidr" ]
-      - Description: "HTTP: vpn.bu.edu/2fa Off Campus"
-        IpProtocol: tcp
-        FromPort: 80
-        ToPort: 80
-        CidrIp: !FindInMap [ 2faCidrs, "fifth", "cidr" ]
-      - Description: "HTTP: vpn.bu.edu/2fa Off Campus"
-        IpProtocol: tcp
-        FromPort: 80
-        ToPort: 80
-        CidrIp: !FindInMap [ 2faCidrs, "sixth", "cidr" ]
-        
-      - Description: "HTTPS: vpn.bu.edu/2fa On Campus, Group 1"
-        IpProtocol: tcp
-        FromPort: 443
-        ToPort: 443
-        CidrIp: !FindInMap [ 2faCidrs, "first", "cidr" ]
-      - Description: "HTTPS: vpn.bu.edu/2fa On Campus, Group 2 "
-        IpProtocol: tcp
-        FromPort: 443
-        ToPort: 443
-        CidrIp: !FindInMap [ 2faCidrs, "second", "cidr" ]
-      - Description: "HTTPS: vpn.bu.edu/2fa Off Campus"
-        IpProtocol: tcp
-        FromPort: 443
-        ToPort: 443
-        CidrIp: !FindInMap [ 2faCidrs, "third", "cidr" ]
-      - Description: "HTTPS: vpn.bu.edu/2fa Off Campus"
-        IpProtocol: tcp
-        FromPort: 443
-        ToPort: 443
-        CidrIp: !FindInMap [ 2faCidrs, "fourth", "cidr" ]
-      - Description: "HTTPS: vpn.bu.edu/2fa Off Campus"
-        IpProtocol: tcp
-        FromPort: 443
-        ToPort: 443
-        CidrIp: !FindInMap [ 2faCidrs, "fifth", "cidr" ]
-      - Description: "HTTPS: vpn.bu.edu/2fa Off Campus"
-        IpProtocol: tcp
-        FromPort: 443
-        ToPort: 443
-        CidrIp: !FindInMap [ 2faCidrs, "sixth", "cidr" ]
+  # BU2FAWebIngress:
+  #   Type: AWS::EC2::SecurityGroup
+  #   Properties:
+  #     GroupName: !Sub ${GlobalTag}-${Landscape}-2fa-security-group    
+  #     GroupDescription: Limits access to requests originating from within campus subnets corresponding to vpn.bu.edu/2fa.
+  #     VpcId: !Ref VpcId
+  #     Tags:
+  #       - Key: Name
+  #         Value: !Sub ${GlobalTag}-${Landscape}-2fa-security-group
+  #       - Key: Landscape
+  #         Value: !Ref Landscape
+  #       - Key: Service
+  #         Value: !Ref Service
+  #       - Key: Function
+  #         Value: !Ref Function
+  #     SecurityGroupIngress:
+  #       - Description: "HTTP: vpn.bu.edu/2fa On Campus, Group 1"
+  #         IpProtocol: tcp
+  #         FromPort: 80
+  #         ToPort: 80
+  #         CidrIp: !FindInMap [ 2faCidrs, "first", "cidr" ]
+  #       - Description: "HTTP: vpn.bu.edu/2fa On Campus, Group 2 "
+  #         IpProtocol: tcp
+  #         FromPort: 80
+  #         ToPort: 80
+  #         CidrIp: !FindInMap [ 2faCidrs, "second", "cidr" ]
+  #       - Description: "HTTP: vpn.bu.edu/2fa Off Campus"
+  #         IpProtocol: tcp
+  #         FromPort: 80
+  #         ToPort: 80
+  #         CidrIp: !FindInMap [ 2faCidrs, "third", "cidr" ]
+  #       - Description: "HTTP: vpn.bu.edu/2fa Off Campus"
+  #         IpProtocol: tcp
+  #         FromPort: 80
+  #         ToPort: 80
+  #         CidrIp: !FindInMap [ 2faCidrs, "fourth", "cidr" ]
+  #       - Description: "HTTP: vpn.bu.edu/2fa Off Campus"
+  #         IpProtocol: tcp
+  #         FromPort: 80
+  #         ToPort: 80
+  #         CidrIp: !FindInMap [ 2faCidrs, "fifth", "cidr" ]
+  #       - Description: "HTTP: vpn.bu.edu/2fa Off Campus"
+  #         IpProtocol: tcp
+  #         FromPort: 80
+  #         ToPort: 80
+  #         CidrIp: !FindInMap [ 2faCidrs, "sixth", "cidr" ]
+          
+  #       - Description: "HTTPS: vpn.bu.edu/2fa On Campus, Group 1"
+  #         IpProtocol: tcp
+  #         FromPort: 443
+  #         ToPort: 443
+  #         CidrIp: !FindInMap [ 2faCidrs, "first", "cidr" ]
+  #       - Description: "HTTPS: vpn.bu.edu/2fa On Campus, Group 2 "
+  #         IpProtocol: tcp
+  #         FromPort: 443
+  #         ToPort: 443
+  #         CidrIp: !FindInMap [ 2faCidrs, "second", "cidr" ]
+  #       - Description: "HTTPS: vpn.bu.edu/2fa Off Campus"
+  #         IpProtocol: tcp
+  #         FromPort: 443
+  #         ToPort: 443
+  #         CidrIp: !FindInMap [ 2faCidrs, "third", "cidr" ]
+  #       - Description: "HTTPS: vpn.bu.edu/2fa Off Campus"
+  #         IpProtocol: tcp
+  #         FromPort: 443
+  #         ToPort: 443
+  #         CidrIp: !FindInMap [ 2faCidrs, "fourth", "cidr" ]
+  #       - Description: "HTTPS: vpn.bu.edu/2fa Off Campus"
+  #         IpProtocol: tcp
+  #         FromPort: 443
+  #         ToPort: 443
+  #         CidrIp: !FindInMap [ 2faCidrs, "fifth", "cidr" ]
+  #       - Description: "HTTPS: vpn.bu.edu/2fa Off Campus"
+  #         IpProtocol: tcp
+  #         FromPort: 443
+  #         ToPort: 443
+  #         CidrIp: !FindInMap [ 2faCidrs, "sixth", "cidr" ]
 
 Outputs:
 

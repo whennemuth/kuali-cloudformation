@@ -21,15 +21,6 @@ Parameters:
   Landscape:
     Description: Specify which landscape to build into the VPC
     Type: String
-    AllowedValues:
-    - sb
-    - ci
-    - qa
-    - stg
-    - prod
-    ConstraintDescription: >
-      This parameter is restricted to the following values: sb, ci, qa, stg, prod
-    Default: sb
     
   Service:
     Description: Service catalog name
@@ -86,7 +77,7 @@ Conditions:
   WafWebAclArnProvided: !Not [!Equals [!Ref WafWebAclArn, empty]]
   CreateDnsRecord: !Not [!Equals [!Ref HostedZoneName, empty]]
   AlbLogsBucketProvided: !Not [!Equals [!Ref AlbLogsBucketName, empty]]
-
+  IsProd: !Equals [!Ref Landscape, prod]
   
 Resources:
 
@@ -97,34 +88,34 @@ Resources:
       Name: 
         # Make this short enough so that the derived DNS name is under 64 characters"
         !Sub "${GlobalTag}-${Landscape}-ALB"
+      Scheme:
+        !If [ WafWebAclArnProvided, 'internet-facing', 'internal' ]
       Subnets: 
-      - !Ref Subnet1
-      - !Ref Subnet2
+        - !Ref Subnet1
+        - !Ref Subnet2
       SecurityGroups:
       - !Ref SecurityGroup
       LoadBalancerAttributes:
-      # - Key: idle_timeout.timeout_seconds
-      #   Value: 600 # Default is 60 seconds
-      # - Key: access_logs.s3.prefix
-      #   Value: alb
-      - Key: access_logs.s3.enabled
-        Value: !If [ AlbLogsBucketProvided, "true", "false" ]
-      - Key: access_logs.s3.bucket
-        Value: !If [ AlbLogsBucketProvided, !Ref AlbLogsBucketName, "not_applicable" ] 
-      # - !If 
-      #   - AlbLogsBucketProvided
-      #   - - Key: access_logs.s3.bucket
-      #       Value: !Ref AlbLogsBucketName
-      #   - !Ref AWS::NoValue
+        # - Key: idle_timeout.timeout_seconds
+        #   Value: 600 # Default is 60 seconds
+        # - Key: access_logs.s3.prefix
+        #   Value: alb
+        - Key: access_logs.s3.enabled
+          Value: !If [ AlbLogsBucketProvided, "true", "false" ]
+        - !If
+          - AlbLogsBucketProvided
+          - Key: access_logs.s3.bucket
+            Value: !Ref AlbLogsBucketName
+          - !Ref AWS::NoValue
       Tags:
-      - Key: Name
-        Value: !Sub "${GlobalTag}-${Landscape}-ALB"
-      - Key: Landscape
-        Value: !Ref Landscape
-      - Key: Service
-        Value: !Ref Service
-      - Key: Function
-        Value: !Ref Function
+        - Key: Name
+          Value: !Sub "${GlobalTag}-${Landscape}-ALB"
+        - Key: Landscape
+          Value: !Ref Landscape
+        - Key: Service
+          Value: !Ref Service
+        - Key: Function
+          Value: !Ref Function
 
   WafWebAclAssociation:
     Type: AWS::WAFv2::WebACLAssociation
@@ -222,7 +213,11 @@ Resources:
         - Alias for Loadbalancer ${dnsname}
         - { dnsname: !GetAtt ALB.DNSName }
       HostedZoneName: !Sub ${HostedZoneName}.
-      Name: !Ref HostedZoneName
+      Name: 
+        !If 
+          - IsProd 
+          - !Ref HostedZoneName
+          - !Sub ${Landscape}.${HostedZoneName}
       Type: A
       AliasTarget:
         HostedZoneId: !GetAtt ALB.CanonicalHostedZoneID

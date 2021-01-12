@@ -15,15 +15,6 @@ Parameters:
   Landscape:
     Description: Specify a landscape this deployment is for
     Type: String
-    AllowedValues:
-    - sb
-    - ci
-    - qa
-    - stg
-    - prod
-    ConstraintDescription: >
-      This parameter is restricted to the following values: sb, ci, qa, stg, prod
-    Default: sb
 
   VpcId:
     Type: AWS::EC2::VPC::Id
@@ -99,7 +90,8 @@ Resources:
         MemoryReservation: 800
         Environment:
         - Name: LANDSCAPE
-          Value: !Ref Landscape
+          Value:
+            !Ref Landscape
         PortMappings:
         - HostPort: 0
           ContainerPort: 3006

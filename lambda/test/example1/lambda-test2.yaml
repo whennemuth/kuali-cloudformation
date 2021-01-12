@@ -7,15 +7,6 @@ Parameters:
 
   Landscape:
     Type: String
-    AllowedValues:
-    - sb
-    - ci
-    - qa
-    - stg
-    - prod
-    ConstraintDescription: >
-      This parameter is restricted to the following values: sb, ci, qa, stg, prod
-    Default: sb
 
   GlobalPrefix:
     Type: String

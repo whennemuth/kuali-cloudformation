@@ -348,7 +348,7 @@ printCertLookupSteps() {
     1) If USING_ROUTE53=false, go to step 7
     2) Use cli to find out if a certificate with the following CN (common name) 
        exists in acm and get its arn.
-         CN: $CN
+         CN: *.$CN
     3) If not found, identify 3 files in current directory that can combine for 
        certificate import.
     4) If files found, prompt for import to acm to create new certificate entry.
@@ -369,6 +369,7 @@ printCertLookupSteps() {
 EOF
 }
 
+# Search the acm service for a certificate that matches the specified domain name.
 getAcmCertArn() {
   local domainName="$1"
   local arn=$(
@@ -378,8 +379,12 @@ getAcmCertArn() {
   echo "$arn"
 }
 
+# Search the acm service for a certificate that matches the supplied criteria and set the global CERTIFICATE_ARN variable if a match is found.
+# If no match is found, search the local file system relative to the current location for component files that can be idenfified as able to be
+# successfully combined for upload as an acm certificate. If found, upload and set CERTIFICATE_ARN with the resulting arn.
 setAcmCertArn() {
   local domainName="$1"
+  [ "$LANDSCAPE" != 'prod' ] && domainName="*.$domainName"
   local arn="$(getAcmCertArn $domainName)"
   [ -n "$arn" ] && CERTIFICATE_ARN="$arn" && return 0
 
@@ -464,7 +469,7 @@ EOF
 
 downloadAcmCertsFromS3() {
   local setArn="$1"
-  local $domainName="$2"
+  local domainName="$2"
   echo "Searching $LANDSCAPE folder in s3 bucket for cert & key files..."
   local files=$(
     aws s3 ls s3://$TEMPLATE_BUCKET_NAME/$LANDSCAPE/$domainName \
@@ -489,6 +494,7 @@ downloadAcmCertsFromS3() {
   fi
 }
 
+# Import the 3 component files (cerficate, key, and chain file) to acm as a new certificate.
 importCertToAcm() {
   case $(awsVersion) in
     1)
@@ -541,16 +547,19 @@ isAChainFile() {
   ([ $beginMarkers -eq 3 ] && [ $endMarkers -eq 3 ]) && true || false
 }
 
+# Starting point for determining the arn of a certificate to be used in ssl encryption for the web application.
+# The certificate search will occur first in the acm service, and if not found the iam server certificates service.
 setCertArn() {
   [ -n "$CERTIFICATE_ARN" ] && return 0
   # printCertLookupSteps
   if [ "${USING_ROUTE53,,}" == 'true' ] ; then
-    setAcmCertArn "$CN"
+    setAcmCertArn "$HOSTED_ZONE"
+    [ -z "$CERTIFICATE_ARN" ] && echo "Acm service has no entry for $HOSTED_ZONE."
   else
-    echo "Not using route53, which requires a self-signed certificate (which permissable with iam certificate, but not acm certificate)"
+    echo "Not using route53, which requires a self-signed certificate (which is permissable with iam certificate, but not acm certificate)"
   fi
   if [ -z "$CERTIFICATE_ARN" ] ; then
-    if [ "${PROMPT,,}" == 'false' ] || askYesNo "Use a self-signed certificate instead?" ; then
+    if [ "${PROMPT,,}" == 'false' ] || askYesNo "Use a self-signed, iam based server certificate instead?" ; then
       [ "${PROMPT,,}" != 'false' ] && printCertLookupSteps
       setSelfSignedCertArn
     fi
@@ -573,10 +582,14 @@ getSelfSignedArn() {
     --query 'ServerCertificateMetadataList[?ServerCertificateName==`'$certname'`].{Arn:Arn}' 2> /dev/null
 }
 
+# Set a value for global variable CERTIFICATE_ARN. The value will be the arn of an iam server certificate.
+# The certificate will either pre-exist in iam, or will be created and uploaded to iam.
 setSelfSignedCertArn() {
   [ -n "$CERTIFICATE_ARN" ] && return 0
 
-  if [ -n "$GLOBAL_TAG" ] ; then
+  if [ "${USING_ROUTE53,,}" == 'true' ] ; then
+    [ "$LANDSCAPE" == 'prod' ] && local certname="$HOSTED_ZONE" || local certname="wildcard.$HOSTED_ZONE"
+  elif [ -n "$GLOBAL_TAG" ] ; then
     local certname="${GLOBAL_TAG}-${LANDSCAPE}-cert"
   else
     local certname="kuali-cert-${LANDSCAPE}"
@@ -603,7 +616,7 @@ setSelfSignedCertArn() {
               ;;
             3) 
               exit 0 ;;
-            *) echo "Valid selctions are 1, 2, 3"
+            *) echo "Valid selections are 1, 2, 3"
           esac
       done;
     fi
@@ -616,15 +629,20 @@ setSelfSignedCertArn() {
 createSelfSignedCertificate() {
   local certname="$1"
 
+  local commonName="*.amazonaws.com"
+  if [ "${USING_ROUTE53,,}" == 'true' ] ; then
+    commonName="$HOSTED_ZONE"
+    [ "$LANDSCAPE" != 'prod' ] && commonName="*.$commonName"
+  fi
   # Create the key pair
   openssl req -newkey rsa:2048 \
     -x509 \
     -sha256 \
     -days 3650 \
     -nodes \
-    -out ./${GLOBAL_TAG}-self-signed.crt \
-    -keyout ./${GLOBAL_TAG}-self-signed.key \
-    -subj "/C=US/ST=MA/L=Boston/O=BU/OU=IST/CN=*.amazonaws.com"
+    -out ./${LANDSCAPE}-self-signed.crt \
+    -keyout ./${LANDSCAPE}-self-signed.key \
+    -subj "/C=US/ST=MA/L=Boston/O=BU/OU=IST/CN=$commonName"
 
   # openssl req -new -x509 -nodes -sha256 -days 365 -key my-private-key.pem -outform PEM -out my-certificate.pem
 
@@ -648,8 +666,8 @@ createSelfSignedCertificate() {
   CERTIFICATE_ARN=$(
     aws iam upload-server-certificate \
     --server-certificate-name ${certname} \
-    --certificate-body file://${GLOBAL_TAG}-self-signed.crt \
-    --private-key file://${GLOBAL_TAG}-self-signed.key \
+    --certificate-body file://${LANDSCAPE}-self-signed.crt \
+    --private-key file://${LANDSCAPE}-self-signed.key \
     --output text 2> /dev/null | grep -Po 'arn:aws:iam[^\s]*'
   )
 
@@ -657,9 +675,10 @@ createSelfSignedCertificate() {
   if ! bucketExists "$TEMPLATE_BUCKET_NAME" ; then
     aws s3 mb s3://$TEMPLATE_BUCKET_NAME
   fi
-  # Upload the arn and keyset to the s3 bucket
-  aws s3 cp ./${GLOBAL_TAG}-self-signed.crt s3://$TEMPLATE_BUCKET_NAME/$LANDSCAPE/
-  aws s3 cp ./${GLOBAL_TAG}-self-signed.key s3://$TEMPLATE_BUCKET_NAME/$LANDSCAPE/  
+
+  # Upload the cert and keyset to the s3 bucket
+  # aws s3 cp ./${LANDSCAPE}-self-signed.crt s3://$TEMPLATE_BUCKET_NAME/self-signed-certs/
+  # aws s3 cp ./${LANDSCAPE}-self-signed.key s3://$TEMPLATE_BUCKET_NAME/self-signed-certs/ 
 }
 
 
@@ -1113,17 +1132,20 @@ getLatestImage() {
 }
 
 waitForStackToDelete() {
+  outputHeading "Deleting existing stack..."
   local counter=1
   local status="unknown"
+  local stackname=$STACK_NAME
+  [ -n "$LANDSCAPE" ] && stackname="$stackname-$LANDSCAPE"
   while true ; do
     status="$(
       aws cloudformation describe-stacks \
-        --stack-name ${STACK_NAME}-${LANDSCAPE} \
+        --stack-name $stackname \
         --output text \
         --query 'Stacks[].{status:StackStatus}' 2> /dev/null
     )"
     [ -z "$status" ] && status="DELETED"
-    echo "${STACK_NAME}-${LANDSCAPE} stack status check $counter: $status"
+    echo "$stackname stack status check $counter: $status"
     ([ "$status" == 'DELETED' ] || [ "$status" == 'DELETE_FAILED' ]) && break
     ((counter++))
     sleep 5
@@ -1248,11 +1270,9 @@ checkLegacyAccount() {
       LEGACY_ACCOUNT='true'
       echo 'Current profile indicates legacy account.'
       defaults['TEMPLATE_BUCKET_PATH']=$(echo "${defaults['TEMPLATE_BUCKET_PATH']}" | sed -i 's/kuali-config/kuali-research-ec2-setup/')
-      if [ "$LANDSCAPE" != 'prod' ] && [ -n "${defaults['CN']}" ] ; then
-        defaults['CN']="kuali-research-$LANDSCAPE.bu.edu"
+      if [ "$LANDSCAPE" != 'prod' ] && [ -n "${defaults['HOSTED_ZONE']}" ] ; then
+        defaults['HOSTED_ZONE']="kuali-research-$LANDSCAPE.bu.edu"
       fi
-    elif [ "$LANDSCAPE" != 'prod' ] && [ -n "${defaults['CN']}" ] && [ "${USING_ROUTE53,,}" == 'true' ] ; then
-      defaults['CN']="kuali-research-css-$LANDSCAPE.bu.edu"
     fi
   fi
 }
@@ -1324,6 +1344,7 @@ zipPackageAndCopyToS3() {
   [ -z "$s3path" ] && echo "Target path in s3 was ommitted!" && cd - && return 1
 
   npm run pack
+  [ $? -gt 0 ] && "Error using npm!" && exit 1
 
   # BUG in node when accessed from gitbash or cygwin: "stdout is not a tty"
   # Workaround seems to be to call node.exe instead of just node.
@@ -1342,4 +1363,88 @@ zipPackageAndCopyToS3() {
 
   aws s3 cp $zipfile $s3path
   cd -
+}
+
+getEc2InstanceName() {
+  aws ec2 describe-instances \
+    --instance-id $instanceId \
+    --output text \
+    --query 'Reservations[].Instances[].Tags[?Key==`Name`]' \
+    | awk '{print $2}' 2> /dev/null
+}
+
+# Offer the user a picklist of id:name pairs for ec2 instances that match the tagging filters provided as parameters. Optionally,
+# The first parameter can be a single term that must be found in the name tag of the ec2 instance: 'nameFragment=term'.
+# No choice is offered if only one match is found and that match is automatically selected. The ec2 instance id is temporarily 
+# saved off to a file in the current directory.
+# Example use:
+#    filters=(
+#      'Key=Function,Values=kuali'
+#      'Key=Service,Values=research-administration'
+#    ) 
+#    pickEC2InstanceId 'nameFragment=mongo' ${filters[@]}
+pickEC2InstanceId() {
+  if [ "$(echo ${1:0:12})" == 'nameFragment' ] ; then
+    eval "local $1"
+    shift
+  fi
+  local tagfilters=$@
+  local instanceState="unknown"
+  local instanceStatus="unknown"
+  local systemStatus="unknown"
+  local ids=()
+
+  echo "Working..."
+  while read instanceId ; do
+    if [ -n "$instanceId" ] ; then  
+      details="$(
+        aws ec2 describe-instance-status \
+          --instance-ids $instanceId \
+          --output text \
+          --query 'InstanceStatuses[].{state:InstanceState.Name,sysStatus:SystemStatus.Status,instStatus:InstanceStatus.Status}' 2> /dev/null
+      )"
+      [ -z "$details" ] && continue;
+      instanceStatus=$(echo "$details" | awk '{print $1}')
+      instanceState=$(echo "$details" | awk '{print $2}')
+      systemStatus=$(echo "$details" | awk '{print $3}')
+      # echo "$instanceId: instanceState:$instanceState, instanceStatus:$instanceStatus, systemStatus:$systemStatus"
+      if ([ "$instanceState" == 'running' ] && [ "$instanceStatus" == 'ok' ] && [ "$systemStatus" == 'ok' ]) ; then
+        local instanceName=$(getEc2InstanceName $instanceId)
+        if [ -n "$(echo $instanceName | grep -i "$nameFragment")" ] ; then
+          ids=(${ids[@]} $instanceId:$instanceName)
+        fi
+      fi
+    fi
+  done <<< $(
+    aws resourcegroupstaggingapi get-resources \
+      --resource-type-filters ec2:instance \
+      --tag-filters $tagfilters \
+      --output text \
+      --query 'ResourceTagMappingList[].{ARN:ResourceARN}' | cut -d'/' -f2 | sed 's/\n//g' 2> /dev/null
+  )
+
+  if [ ${#ids[@]} -gt 0 ] ; then
+    local id=${ids[0]}
+    if [ ${#ids[@]} -gt 1 ] ; then
+      echo "Matched more than one ec2 instance. Pick one:"
+      select choice in ${ids[@]} 'Cancel'; do 
+        case $REPLY in
+          $((${#ids[@]}+1)))
+            echo "Cancelled."
+            id=''
+            break ;;
+          [0-${#ids[@]}])
+            id=${ids[$(($REPLY-1))]}
+            break
+            ;;
+          *)
+            echo "Valid selections are 1 $((${#ids[@]}+1))"
+        esac
+      done;
+    fi
+    if [ -n "$id" ] ; then
+      id=$(echo $id | cut -d':' -f 1)
+      echo "$id" > ec2-instance-id
+    fi
+  fi
 }

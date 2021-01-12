@@ -3,28 +3,28 @@
 declare -A defaults=(
   [STACK_NAME]='kuali-ec2-alb'
   [GLOBAL_TAG]='kuali-ec2-alb'
-  [LANDSCAPE]='sb'
   [TEMPLATE_BUCKET_PATH]='s3://kuali-conf/cloudformation/kuali_ec2_alb'
   [TEMPLATE_PATH]='.'
-  [CN]='kuali-research.bu.edu'
-  [ROUTE53]='true'
   [KC_IMAGE]='getLatestImage kuali-coeus'
   [CORE_IMAGE]='getLatestImage kuali-core'
   [PORTAL_IMAGE]='getLatestImage kuali-portal'
   [PDF_IMAGE]='getLatestImage kuali-research-pdf'
+  [NO_ROLLBACK]='true'
+  [PROFILE]='infnprd'
+  [PDF_BUCKET_NAME]='$GLOBAL_TAG-$LANDSCAPE-pdf'
+  [DEEP_VALIDATION]='true'
+  [HOSTED_ZONE]='kuali.research.bu.edu'
+  # ----- Most of the following are defaulted in the yaml file itself:
+  # [LANDSCAPE]='sb'
   # [KC_IMAGE]='770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-coeus-sandbox:2001.0040'
   # [CORE_IMAGE]='770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-core:2001.0040'
   # [PORTAL_IMAGE]='770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-portal:2001.0040'
   # [PDF_IMAGE]='770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-research-pdf:2002.0003'
-  [NO_ROLLBACK]='true'
-  [PROFILE]='infnprd'
-  [PDF_BUCKET_NAME]='$GLOBAL_TAG-$LANDSCAPE-pdf'
-  [USING_ROUTE53]='false'
-  [CREATE_MONGO]='false'
-  [ENABLE_ALB_LOGGING]='false'
-  [CREATE_WAF]='false'
-  [DEEP_VALIDATION]='true'
-  # ----- Most of the following are defaulted in the yaml file itself:
+  # [USING_ROUTE53]='false'
+  # [USING_SHIBBOLETH]='false'
+  # [CREATE_MONGO]='false'
+  # [ENABLE_ALB_LOGGING]='false'
+  # [CREATE_WAF]='false'
   # [KEYPAIR_NAME]='kuali-keypair-$LANDSCAPE'
   # [EC2_INSTANCE_TYPE]='m4.medium'
   # [VPC_ID]='???'
@@ -35,6 +35,7 @@ declare -A defaults=(
   # [CERTIFICATE_ARN]='???'
   # [TEMPLATE]='main.yaml'
   # [LOGICAL_RESOURCE_ID]='???'
+  # [NEWRELIC_LICENSE_KEY]='???'
   # [ENABLE_NEWRELIC_APM]='false'
   # [ENABLE_NEWRELIC_INFRASTRUCTURE]='false'
 )
@@ -58,9 +59,23 @@ run() {
     checkLegacyAccount
 
     setDefaults
+
+    validateParms
   fi
 
   runTask
+}
+
+validateParms() {
+  if [ "${USING_SHIBBOLETH,,}" == 'true' ] ; then
+    if [ "${USING_ROUTE53}" == 'false' ] ; then
+      echo "Cannot use shibboleth without route53!"
+      exit 1
+    elif [ -z "${USING_ROUTE53}" ] ; then
+      echo "Since shibboleth is indicated..."
+      echo "USING_ROUTE53='true'" && USING_ROUTE53='true'
+    fi
+  fi
 }
 
 # Create, update, or delete the cloudformation stack.
@@ -119,7 +134,7 @@ stackAction() {
         aws s3 cp ../lambda/toggle_waf_logging/toggle_waf_logging.yaml s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_lambda/
       fi
 
-      validateStack silent ../kuali_alb/alb.yaml > /dev/null
+      validateStack silent ../kuali_alb/alb.yaml
       [ $? -gt 0 ] && exit 1
       aws s3 cp ../kuali_alb/alb.yaml s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_alb/
 
@@ -134,6 +149,7 @@ stackAction() {
       aws s3 cp ../scripts/ec2/cloudwatch-metrics.sh s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/
 
       # Upload lambda code used by custom resources
+      outputHeading "Building, zipping, and uploading lambda code behind custom resources..."
       zipPackageAndCopyToS3 '../lambda/bucket_emptier' 's3://kuali-conf/cloudformation/kuali_lambda/bucket_emptier.zip'
       [ $? -gt 0 ] && echo "ERROR! Could not upload bucket_emptier.zip to s3." && exit 1
       if [ "${ENABLE_ALB_LOGGING,,}" != 'false' ] || [ "${CREATE_WAF,,}" == 'true' ] ; then        
@@ -169,20 +185,24 @@ EOF
     add_parameter $cmdfile 'Landscape' 'LANDSCAPE'
     add_parameter $cmdfile 'GlobalTag' 'GLOBAL_TAG'
     add_parameter $cmdfile 'EC2InstanceType' 'EC2_INSTANCE_TYPE'
+    add_parameter $cmdfile 'NewrelicLicsenseKey' 'NEWRELIC_LICENSE_KEY'
     add_parameter $cmdfile 'EnableNewRelicAPM' 'ENABLE_NEWRELIC_APM'
     add_parameter $cmdfile 'EnableNewRelicInfrastructure' 'ENABLE_NEWRELIC_INFRASTRUCTURE'
     add_parameter $cmdfile 'EC2KeypairName' 'KEYPAIR_NAME'
     add_parameter $cmdfile 'EnableWAF' 'CREATE_WAF'
     add_parameter $cmdfile 'EnableALBLogging' 'ENABLE_ALB_LOGGING'
+    add_parameter $cmdfile 'UsingShibboleth' 'USING_SHIBBOLETH'
 
     if [ "${CREATE_MONGO,,}" == 'true' ] ; then
       add_parameter $cmdfile 'MongoSubnetId' 'PRIVATE_SUBNET1'
     fi
 
     if [ "${USING_ROUTE53,,}" == 'true' ] ; then
-      HOSTED_ZONE_NAME="$(getHostedZoneNameByLandscape $LANDSCAPE)"
-      [ -z "$HOSTED_ZONE_NAME" ] && echo "ERROR! Cannot acquire hosted zone name. Cancelling..." && exit 1
-      add_parameter $cmdfile 'HostedZoneName' 'HOSTED_ZONE_NAME'
+      # HOSTED_ZONE_NAME="$(getHostedZoneNameByLandscape $LANDSCAPE)"
+      # [ -z "$HOSTED_ZONE_NAME" ] && echo "ERROR! Cannot acquire hosted zone name. Cancelling..." && exit 1
+      # add_parameter $cmdfile 'HostedZoneName' 'HOSTED_ZONE_NAME'
+      [ -z "$(getHostedZoneId $HOSTED_ZONE)" ] && echo "ERROR! Cannot detect hosted zone for $HOSTED_ZONE"
+      addParameter $cmdfile 'HostedZoneName' $HOSTED_ZONE
     fi
 
     if [ "${PDF_BUCKET_NAME,,}" != 'none' ] ; then  
@@ -229,14 +249,14 @@ runTask() {
     set-cert-arn)
       setCertArn ;;
     test)
-      cd ../s3/ci
-      AWS_PROFILE=infnprd
-      setAcmCertArn 'kuali-research.bu.edu'
-      # setAcmCertArn 'kuali-research-css-ci.bu.edu'
+      # cd ../s3/ci
+      # AWS_PROFILE=infnprd
+      # setAcmCertArn 'kuali.research.bu.edu'
       
-      # sh main.sh set-cert-arn \
-      #   profile=infnprd \
-      #   landscape=ci 
+      sh main.sh set-cert-arn \
+        profile=infnprd \
+        landscape=ci \
+        USING_ROUTE53=true
       ;;
     *)
       if [ -n "$task" ] ; then

@@ -123,6 +123,13 @@ shibbolethDataAvailable() {
   [ -n "$SHIB_HOST" ] && true || false
 }
 
+shibbolethDataApplicable() {
+  if shibbolethDataAvailable ; then
+    [ "$USING_ROUTE53" == 'true' ] && applicable='true'
+  fi
+  [ -n "$applicable" ] && true || false
+}
+
 
 runCommand() {
   echo "$cmd"
@@ -146,7 +153,7 @@ EOF
 
 updateInCommons() {
   
-  if ! shibbolethDataAvailable ; then
+  if ! shibbolethDataApplicable ; then
     echo "No shibboleth data available, cannot update incommons collection, cancelling... "
     return 0
   fi
@@ -188,12 +195,26 @@ createInstitutionsCollection() {
   getInstitutionRESTCall
 }
 
+getIdp() {
+  if shibbolethDataApplicable ; then
+    cat << EOF
+    {
+      "idp": "$SHIB_IDP_METADATA_URL",
+      "eppn": "buPrincipal",
+      "name": "bu"
+    }
+EOF
+  fi
+}
 
 updateInstitutions() {
   echo "Updating institutions document..."
   local provider="kuali"
-  if [ "$USING_ROUTE53" == 'true' ] ; then
+  local issuer="localhost"
+  local idp="$(getIdp)"
+  if [ -n "$idp" ] ; then
     provider="saml"
+    issuer="https://$DNS_NAME/shibboleth"
   fi
 	local cmd=$(cat << EOF
 	$(getMongoParameters) \
@@ -204,7 +225,7 @@ updateInstitutions() {
         {
           \$set: {
             "provider": "$provider",
-            "issuer": "https://$DNS_NAME/shibboleth",
+            "issuer": "$issuer",
             "signInExpiresIn" : 1209600000,
             "features.impersonation": true,
             "features.apps": {
@@ -212,11 +233,7 @@ updateInstitutions() {
               "research": true
             },
             "idps": [
-              {
-                "idp": "$SHIB_IDP_METADATA_URL",
-                "eppn": "buPrincipal",
-                "name": "bu"
-              }
+              $idp
             ],
             "validRedirectHosts": [
               "$DNS_NAME",
@@ -337,9 +354,11 @@ initialize() {
     DNS_NAME=$(echo "$DNS_NAME" | sed -E 's/\.$//') # Strip off trailing dot (if exists).
     # If we are using route53, ssl certificate for and an official dns name, which means we don't have to use dummy auth,
     # that is provided the institutions and incommons collections tables are properly updated.
-    [ -z "$USING_ROUTE53" ] && USING_ROUTE53='true'
   fi
-  SHIB_IDP_METADATA_URL=https://$SHIB_HOST/idp/shibboleth
+  [ -z "$USING_ROUTE53" ] && USING_ROUTE53='false'
+  if shibbolethDataApplicable ; then
+    SHIB_IDP_METADATA_URL=https://$SHIB_HOST/idp/shibboleth
+  fi
 }
 
 

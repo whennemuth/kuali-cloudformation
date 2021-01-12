@@ -6,6 +6,7 @@ declare -A defaults=(
   [TEMPLATE_BUCKET_PATH]='s3://kuali-conf/cloudformation/kuali_dns'
   [TEMPLATE_PATH]='.'
   [NO_ROLLBACK]='true'
+  # [DOMAIN_NAME]='kuali.research.bu.edu'
 )
 
 run() {
@@ -72,10 +73,8 @@ EOF
 stackAction() {
   local action=$1
 
-  [ -z "$LANDSCAPE" ] && printf "\nREQUIRED ENTRY!: "landscape". Cancelling..." && exit 1
-
   if [ "$action" == 'delete-stack' ] ; then
-    aws cloudformation $action --stack-name ${STACK_NAME}-${LANDSCAPE}
+    aws cloudformation $action --stack-name ${STACK_NAME}
   else
     # Upload the yaml file(s) to s3
     uploadStack
@@ -86,7 +85,7 @@ stackAction() {
 
     cat <<-EOF > $cmdfile
     aws cloudformation $action \\
-      --stack-name ${STACK_NAME}-${LANDSCAPE} \\
+      --stack-name ${STACK_NAME} \\
       $([ $task == 'update-stack' ] && echo '--no-use-previous-template') \\
       $([ "$NO_ROLLBACK" == 'true' ] && [ $task == 'create-stack' ] && echo '--on-failure DO_NOTHING') \\
       --template-url $BUCKET_URL/dns.yaml \\
@@ -95,7 +94,7 @@ stackAction() {
 EOF
 
     add_parameter $cmdfile 'GlobalTag' 'GLOBAL_TAG'
-    add_parameter $cmdfile 'Landscape' 'LANDSCAPE'
+    add_parameter $cmdfile 'DomainName' 'DOMAIN_NAME'
 
     echo "      ]'" >> $cmdfile
 
@@ -116,7 +115,7 @@ runTask() {
       PROMPT='false'
       task='delete-stack'
       stackAction "delete-stack" 2> /dev/null
-      if waitForStackToDelete ${STACK_NAME}-${LANDSCAPE} ; then
+      if waitForStackToDelete ${STACK_NAME} ; then
         task='create-stack'
         stackAction "create-stack"
       else

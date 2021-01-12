@@ -15,15 +15,6 @@ Parameters:
   Landscape:
     Description: Specify a landscape this deployment is for
     Type: String
-    AllowedValues:
-    - sb
-    - ci
-    - qa
-    - stg
-    - prod
-    ConstraintDescription: >
-      This parameter is restricted to the following values: sb, ci, qa, stg, prod
-    Default: sb
 
   VpcId:
     Type: AWS::EC2::VPC::Id
@@ -96,7 +87,9 @@ Resources:
               !Ref AWS::Region
             awslogs-stream-prefix:
               !Ref AWS::StackName
-            # awslogs-create-group: false
+            # awslogs-datetime-format:
+            #   '%Y-%m-%dT%H:%M:%S.%f'
+            # # awslogs-create-group: false
         MountPoints:
         - SourceVolume: Core-Config-Bind-Mount
           ContainerPath: /var/core-config

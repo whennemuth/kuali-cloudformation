@@ -3,15 +3,8 @@
 declare -A defaults=(
   [STACK_NAME]='kuali-ecs'
   [GLOBAL_TAG]='kuali-ecs'
-  [LANDSCAPE]='sb'
   [TEMPLATE_BUCKET_PATH]='s3://kuali-conf/cloudformation/kuali_ecs'
   [TEMPLATE_PATH]='.'
-  [CN]='kuali-research.bu.edu'
-  [ROUTE53]='true'
-  # [KC_IMAGE]='770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-coeus-sandbox:2001.0040'
-  # [CORE_IMAGE]='770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-core:2001.0040'
-  # [PORTAL_IMAGE]='770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-portal:2001.0040'
-  # [PDF_IMAGE]='770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-research-pdf:2002.0003'
   [KC_IMAGE]='getLatestImage kuali-coeus'
   [CORE_IMAGE]='getLatestImage kuali-core'
   [PORTAL_IMAGE]='getLatestImage kuali-portal'
@@ -19,12 +12,19 @@ declare -A defaults=(
   [NO_ROLLBACK]='true'
   [PROFILE]='infnprd'
   [PDF_BUCKET_NAME]='$GLOBAL_TAG-$LANDSCAPE-pdf'
-  [USING_ROUTE53]='false'
-  [CREATE_MONGO]='false'
-  [ENABLE_ALB_LOGGING]='false'
-  [CREATE_WAF]='false'
   [DEEP_VALIDATION]='true'
+  [HOSTED_ZONE]='kuali.research.bu.edu'
   # ----- Most of the following are defaulted in the yaml file itself:
+  # [LANDSCAPE]='sb'
+  # [KC_IMAGE]='770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-coeus-sandbox:2001.0040'
+  # [CORE_IMAGE]='770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-core:2001.0040'
+  # [PORTAL_IMAGE]='770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-portal:2001.0040'
+  # [PDF_IMAGE]='770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-research-pdf:2002.0003'
+  # [USING_ROUTE53]='false'
+  # [USING_SHIBBOLETH]='false'
+  # [CREATE_MONGO]='false'
+  # [ENABLE_ALB_LOGGING]='false'
+  # [CREATE_WAF]='false'
   # [KEYPAIR_NAME]='kuali-keypair-$LANDSCAPE'
   # [EC2_INSTANCE_TYPE]='m4.medium'
   # [VPC_ID]='???'
@@ -35,6 +35,7 @@ declare -A defaults=(
   # [CERTIFICATE_ARN]='???'
   # [TEMPLATE]='main.yaml'
   # [LOGICAL_RESOURCE_ID]='???'
+  # [NEWRELIC_LICENSE_KEY]='???'
   # [ENABLE_NEWRELIC_APM]='false'
   # [ENABLE_NEWRELIC_INFRASTRUCTURE]='false'
   # [MIN_CLUSTER_SIZE]='2'
@@ -52,6 +53,7 @@ run() {
   task="${1,,}"
   shift
 
+  outputHeading "Validating/Parsing parameters..."
   if [ "$task" != "test" ] && [ "$task" != 'validate' ]; then
 
     parseArgs $@
@@ -67,13 +69,12 @@ run() {
 }
 
 validateParms() {
-  local msg=''
   if [ -z "$MIN_CLUSTER_SIZE" ] && [ -z "$MAX_CLUSTER_SIZE" ] ; then
     # Invoke the parameter defaults of the main.yaml template for cluster size
     return 0
   elif [ -n "$MIN_CLUSTER_SIZE" ] && [ -n "$MAX_CLUSTER_SIZE" ] ; then
     if [ $MIN_CLUSTER_SIZE -gt $MAX_CLUSTER_SIZE ] ; then
-      msg='Minimum cluster size cannot be greater than maximum cluster size.'
+      echo 'Minimum cluster size cannot be greater than maximum cluster size.'
       exit 1
     fi  
   elif [ -z "$MIN_CLUSTER_SIZE" ] ; then
@@ -83,6 +84,15 @@ validateParms() {
   fi
   if [ $MIN_CLUSTER_SIZE -eq 0 ] ; then
     $((MIN_CLUSTER_SIZE++))
+  fi
+  if [ "${USING_SHIBBOLETH,,}" == 'true' ] ; then
+    if [ "${USING_ROUTE53}" == 'false' ] ; then
+      echo "Cannot use shibboleth without route53!"
+      exit 1
+    elif [ -z "${USING_ROUTE53}" ] ; then
+      echo "Since shibboleth is indicated..."
+      echo "USING_ROUTE53='true'" && USING_ROUTE53='true'
+    fi
   fi
 }
 
@@ -104,6 +114,7 @@ stackAction() {
     checkKeyPair
 
     # Validate and upload the yaml file(s) to s3
+    outputHeading "Validating and uploading main template(s)..."
     uploadStack silent
     [ $? -gt 0 ] && exit 1
 
@@ -191,6 +202,7 @@ EOF
     add_parameter $cmdfile 'Landscape' 'LANDSCAPE'
     add_parameter $cmdfile 'GlobalTag' 'GLOBAL_TAG'
     add_parameter $cmdfile 'EC2InstanceType' 'EC2_INSTANCE_TYPE'
+    add_parameter $cmdfile 'NewrelicLicsenseKey' 'NEWRELIC_LICENSE_KEY'
     add_parameter $cmdfile 'EnableNewRelicAPM' 'ENABLE_NEWRELIC_APM'
     add_parameter $cmdfile 'EnableNewRelicInfrastructure' 'ENABLE_NEWRELIC_INFRASTRUCTURE'
     add_parameter $cmdfile 'EC2KeypairName' 'KEYPAIR_NAME'
@@ -198,15 +210,18 @@ EOF
     add_parameter $cmdfile 'MaxClusterSize' 'MAX_CLUSTER_SIZE'
     add_parameter $cmdfile 'EnableWAF' 'CREATE_WAF'
     add_parameter $cmdfile 'EnableALBLogging' 'ENABLE_ALB_LOGGING'
+    add_parameter $cmdfile 'UsingShibboleth' 'USING_SHIBBOLETH'
 
     if [ "${CREATE_MONGO,,}" == 'true' ] ; then
       add_parameter $cmdfile 'MongoSubnetId' 'PRIVATE_SUBNET1'
     fi
 
     if [ "${USING_ROUTE53,,}" == 'true' ] ; then
-      HOSTED_ZONE_NAME="$(getHostedZoneNameByLandscape $LANDSCAPE)"
-      [ -z "$HOSTED_ZONE_NAME" ] && echo "ERROR! Cannot acquire hosted zone name. Cancelling..." && exit 1
-      add_parameter $cmdfile 'HostedZoneName' 'HOSTED_ZONE_NAME'
+      # HOSTED_ZONE_NAME="$(getHostedZoneNameByLandscape $LANDSCAPE)"
+      # [ -z "$HOSTED_ZONE_NAME" ] && echo "ERROR! Cannot acquire hosted zone name. Cancelling..." && exit 1
+      # add_parameter $cmdfile 'HostedZoneName' 'HOSTED_ZONE_NAME'
+      [ -z "$(getHostedZoneId $HOSTED_ZONE)" ] && echo "ERROR! Cannot detect hosted zone for $HOSTED_ZONE"
+      addParameter $cmdfile 'HostedZoneName' $HOSTED_ZONE
     fi
 
     if [ "${PDF_BUCKET_NAME,,}" != 'none' ] ; then  

@@ -88,11 +88,12 @@ A single ec2 instance is created with...
 
    ```
    cd scripts
-   sh tunnel.sh local_port=27017 remote_port=27017 landscape=ci profile=infnprd
+   sh tunnel.sh local_port=27017 remote_port=27017 landscape=ci
    ```
 
+   This script utilizes [AWS System Manager Port Forwarding](https://aws.amazon.com/blogs/aws/new-port-forwarding-using-aws-system-manager-sessions-manager/)
    *NOTE: You can set local_port to another port number (like 27018), in which case, just substitute that port number for 27017 everywhere you see it below.*
-   This will produce some debug output and probably a report of having found a number of ec2 instances running in the specified environment:
+   You will first see some debug output and probably a report of having found a number of ec2 instances running in the specified environment:
 
    ```
    LOCAL_PORT=27017
@@ -127,6 +128,7 @@ A single ec2 instance is created with...
    
    # Print out all the content of the institutions and incommons collections:
    mongo mongodb://localhost:27017/core-development --quiet --eval 'db.getCollection("institutions").find({}).pretty()' && \
+   printf "\n\n" && \
    mongo mongodb://localhost:27017/core-development --quiet --eval 'db.getCollection("incommons").find({}).pretty()'
    
    # Remove the institutions, incommons and users collections:
@@ -144,33 +146,30 @@ A single ec2 instance is created with...
          }
        })'
    ```
-
+   
    To end the tunnel session, go back to the console it was created in and type "ctrl+c"
-   On windows, this may not end the aws port forwarding process, in which case, the next attempt to connect on the same port will result in:
-
+   On windows, this may not end the AWS port forwarding process, in which case, the next attempt to connect on the same port will result in:
+   
    ```
    Cannot perform start session: listen tcp 127.0.0.1:27018: bind: Only one usage of each socket address (protocol/network address/port) is normally permitted.
    ```
-
+   
    To remedy this, you must kill that process.
-
+   
    ```
    # If using gitbash:
    export MSYS_NO_PATHCONV=1
    
    # List all processes listening on the mongo port
-   $ netstat -a -b -o | grep 27017
+   $ netstat -a -b -o | grep -A 1 27017
      TCP    127.0.0.1:27017        IST-APP-WL-0120:0      LISTENING       22404
-   
-   # Determine the name of the process for the process id found so as to be sure its the right one. 
-   $ tasklist | grep 22404
-   session-manager-plugin.ex    22404 Console                    1     14,120 K
-   
+    [mongod.exe]
+    
    # Kill the process
    $ taskkill /F /PID 22404
    SUCCESS: The process with PID 22404 has been terminated.
    
    ```
-
+   
    
 

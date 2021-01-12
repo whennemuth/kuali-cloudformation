@@ -3,7 +3,7 @@
 declare -A defaults=(
   [STACK_NAME]='kuali-ec2'
   [GLOBAL_TAG]='kuali-ec2'
-  [LANDSCAPE]='sb'
+  # [LANDSCAPE]='sb'
   [TEMPLATE_BUCKET_PATH]='s3://kuali-conf/cloudformation/kuali_ec2'
   [TEMPLATE_PATH]='.'
   [KC_IMAGE]='getLatestImage kuali-coeus'
@@ -23,7 +23,9 @@ declare -A defaults=(
   # The following are defaulted in the yaml file itself, but can be overridden:
   # -----------------------------------------------
   #   [TEMPLATE]='main.yaml'
-
+  # [NEWRELIC_LICENSE_KEY]='???'
+  # [ENABLE_NEWRELIC_APM]='false'
+  # [ENABLE_NEWRELIC_INFRASTRUCTURE]='false'
 )
 
 run() {
@@ -105,6 +107,7 @@ EOF
     add_parameter $cmdfile 'CoreImage' 'CORE_IMAGE'
     add_parameter $cmdfile 'PortalImage' 'PORTAL_IMAGE'
     add_parameter $cmdfile 'EC2InstanceType' 'EC2_INSTANCE_TYPE'
+    add_parameter $cmdfile 'NewrelicLicsenseKey' 'NEWRELIC_LICENSE_KEY'
     add_parameter $cmdfile 'EnableNewRelicAPM' 'ENABLE_NEWRELIC_APM'
     add_parameter $cmdfile 'EnableNewRelicInfrastructure' 'ENABLE_NEWRELIC_INFRASTRUCTURE'
     add_parameter $cmdfile 'EC2KeypairName' 'KEYPAIR_NAME'
@@ -155,7 +158,7 @@ runTask() {
     test)
       # getHostedZoneNameByLandscape 'ci' ;;
       # test ;;
-      setAcmCertArn 'kuali-research-css-ci.bu.edu'
+      setAcmCertArn 'ci.kuali.research.bu.edu'
       echo $CERTIFICATE_ARN ;;
     *)
       if [ -n "$task" ] ; then

@@ -23,15 +23,6 @@ Parameters:
   Landscape:
     Description: Specify which landscape to build into the VPC.
     Type: String
-    AllowedValues:
-    - sb
-    - ci
-    - qa
-    - stg
-    - prod
-    ConstraintDescription: >
-      This parameter is restricted to the following values: sb, ci, qa, stg, prod
-    Default: sb
     
   Service:
     Description: Service catalog name
@@ -105,6 +96,11 @@ Parameters:
     Type: String
     Description: The name of the s3 bucket the pdf service is to use.
     Default: empty
+  
+  NewrelicLicsenseKey:
+    Type: String
+    Description: Passed into the kc docker container to authenticate sending telemetry to new relic account.
+    Default: empty
 
   EnableNewRelicAPM:
     Type: String
@@ -130,6 +126,7 @@ Conditions:
   CreateMongoEc2Instance: !Not [!Equals [!Ref MongoSubnetId, empty]]
   UseKeypair: !Not [!Equals [!Ref EC2KeypairName, empty]]
   IsTest: !Not [!And [!Equals [!Ref Landscape, prod], !Equals [!Ref Landscape, stg]]]
+  NewrelicLicsenseKeyProvided: !Equals [!Ref NewrelicLicsenseKey, empty]
 
 Mappings:
   2faCidrs:
@@ -397,7 +394,7 @@ Resources:
           GetConfigsFromS3:
           - 01_get_configs_from_s3
           CreateEnvExportsFile:
-          - 02_create_env_exports_file
+          - 02_process_env_files
           ProcessKcConfigFile:
           - 03_process_kc-config_file
           RunDockerContainers:
@@ -483,6 +480,13 @@ Resources:
                 log_group_name = ${GlobalTag}-${Landscape}
                 log_stream_name = /var/log/docker
                 datetime_format = %Y-%m-%dT%H:%M:%S.%f
+                
+                [/var/log/cfn-init]
+                file = /var/log/cfn-init.log
+                log_group_name = ${GlobalTag}
+                log_stream_name = /var/log/cfn-init
+                datetime_format = %Y-%m-%d %H:%M:%S,
+                # multi_line_start_pattern = \d{4}\-\d{2}\-\d{2} \d{2}:\d{2}:\d{2},\d{3}
             /opt/kuali/scripts/process-configs.sh:
               source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/cloudformation/scripts/ec2/process-configs.sh
               content: !Sub |
@@ -617,6 +621,7 @@ Resources:
                     environment:
                       - NEW_RELIC_LICENSE_KEY=${!NEW_RELIC_LICENSE_KEY}
                       - NEW_RELIC_AGENT_ENABLED=${!NEW_RELIC_AGENT_ENABLED}
+                      - NEW_RELIC_INFRASTRUCTURE_ENABLED=${!NEW_RELIC_INFRASTRUCTURE_ENABLED}
                       - JAVA_ENV=${!NEW_RELIC_ENVIRONMENT}
                       - EC2_HOSTNAME=${!EC2_HOST}
                     logging:
@@ -770,13 +775,14 @@ Resources:
                 TEMPLATE_BUCKET_NAME: !Sub "${TemplateBucketName}"
                 AWS_DEFAULT_REGION: !Sub "${AWS::Region}"
               command: bash process-configs.sh
-        02_create_env_exports_file:
+        02_process_env_files:
           commands:
-            create_env_exports_file:
+            process_env_files:
               cwd: /opt/kuali/scripts
               env:
-                TASK: create_env_exports_file
+                TASK: process_env_files
                 DNS_NAME: local
+                USING_ROUTE53: 'false'
                 ENV_FILE_FROM_S3_CORE: /opt/kuali/s3/core/environment.variables.s3
                 ENV_FILE_FROM_S3_PORTAL: /opt/kuali/s3/portal/environment.variables.s3
                 ENV_FILE_FROM_S3_PDF: /opt/kuali/s3/pdf/environment.variables.s3
@@ -801,9 +807,10 @@ Resources:
               env:
                 LANDSCAPE: !Sub "${Landscape}"
                 JAVA_ENV: !Sub "${Landscape}"
-                NEW_RELIC_ENVIRONMENT: !Sub "${Landscape}"
-                NEW_RELIC_LICENSE_KEY: !Sub "{NewrelicLicsenseKey}"
-                NEW_RELIC_AGENT_ENABLED: !Sub "${EnableNewRelicAPM}"
+                NEW_RELIC_ENVIRONMENT: !Ref Landscape
+                NEW_RELIC_LICENSE_KEY: !If [ NewrelicLicsenseKeyProvided, !Ref NewrelicLicsenseKey, !Ref AWS::NoValue ]
+                NEW_RELIC_AGENT_ENABLED: !If [ NewrelicLicsenseKeyProvided, !Ref EnableNewRelicAPM, 'false' ] 
+                NEW_RELIC_INFRASTRUCTURE_ENABLED: !If [ NewrelicLicsenseKeyProvided, !Ref EnableNewRelicInfrastructure, 'false' ]
                 KC_IMAGE: !Sub "${KcImage}"
                 CORE_IMAGE: !Sub "${CoreImage}"
                 PORTAL_IMAGE: !Sub "${PortalImage}"

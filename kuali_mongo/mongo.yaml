@@ -23,15 +23,6 @@ Parameters:
   Landscape:
     Description: Specify which landscape to build into the VPC (currently just a label - kc-config.xml is hard-coded for now).
     Type: String
-    AllowedValues:
-    - sb
-    - ci
-    - qa
-    - stg
-    - prod
-    ConstraintDescription: >
-      This parameter is restricted to the following values: sb, ci, qa, stg, prod
-    Default: sb
     
   Service:
     Description: Service catalog name
@@ -199,6 +190,7 @@ Resources:
           service docker start
           usermod -a -G docker ec2-user
           chkconfig docker on
+          
           # Install docker-compose
           curl \
             -L https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m) \

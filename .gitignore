@@ -5,3 +5,4 @@ s3/*
 **/*keypair*
 **/tempkey*
 **/last-cmd.sh
+ec2-instance-id

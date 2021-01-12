@@ -16,19 +16,7 @@ Parameters:
       A common value that all resources in this template will have prefixed to
       their name and attached as a tag to establish a bundling through naming convention. If a nested stack,
       this will most likely be the name of the top-most stack.
-    Default: kuali-ec2-alb
-
-  Landscape:
-    Description: Specify which landscape to build into the VPC
-    Type: String
-    AllowedValues:
-    - sb
-    - ci
-    - qa
-    - stg
-    - prod
-    ConstraintDescription: >
-      This parameter is restricted to the following values: sb, ci, qa, stg, prod
+    Default: kuali-dns
     
   Service:
     Description: Service catalog name
@@ -39,6 +27,11 @@ Parameters:
     Description: The Function within the Service
     Type: String
     Default: kuali
+
+  DomainName:
+    Description: The domain name for the hosted zone
+    Type: String
+    Default: kuali.research.bu.edu
 
   CreateHostedZoneLogGroup:
     Description: Log activity for the hosted zone to cloudwatch?
@@ -60,7 +53,7 @@ Resources:
     Condition: CreateLogGroup
     DeletionPolicy: Delete
     Properties:
-      LogGroupName: !Sub /aws/route53/${GlobalTag}-${Landscape}-hosted-zone
+      LogGroupName: !Sub /aws/route53/${GlobalTag}-hosted-zone
       RetentionInDays: 30
 
   # This won't work. You must manually created a resouce-based policy first.
@@ -91,17 +84,15 @@ Resources:
   DNS: 
     Type: AWS::Route53::HostedZone
     Properties: 
-      Name: !Sub kuali-research-css-${Landscape}.bu.edu
+      Name: !Ref DomainName
       HostedZoneConfig: 
-        Comment: !Sub Hosted zone for kuali-research-css-${Landscape}.bu.edu
+        Comment: !Sub Hosted zone for ${DomainName}
       QueryLoggingConfig:
         CloudWatchLogsLogGroupArn: !GetAtt HostedZoneLogGroup.Arn
       HostedZoneTags: 
         - Key: Name
-          Value: !Sub ${GlobalTag}-${Landscape}-hosted-zone
+          Value: !Sub ${GlobalTag}-hosted-zone
         - Key: Service
           Value: !Ref Service
         - Key: Function
           Value: !Ref Function
-        - Key: Landscape
-          Value: !Ref Landscape

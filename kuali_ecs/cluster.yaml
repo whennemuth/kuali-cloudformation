@@ -27,15 +27,6 @@ Parameters:
   Landscape:
     Description: Specify which landscape to build into the VPC
     Type: String
-    AllowedValues:
-    - sb
-    - ci
-    - qa
-    - stg
-    - prod
-    ConstraintDescription: >
-      This parameter is restricted to the following values: sb, ci, qa, stg, prod
-    Default: sb
 
   VpcId:
     Type: AWS::EC2::VPC::Id
@@ -88,6 +79,11 @@ Parameters:
     Description: The keypair for ssh use against the ec2 instance
     Default: empty
   
+  NewrelicLicsenseKey:
+    Type: String
+    Description: Passed into the kc docker container to authenticate sending telemetry to new relic account.
+    Default: empty
+  
   EnableNewRelicAPM:
     Type: String
     Description: Is newrelic APM to be enabled for this landscape?
@@ -117,6 +113,15 @@ Parameters:
   UsingRoute53:
     Type: String
     Description: Indicates if the DNSName is resolved with Route53 and exists in our hosted zone as an A record.
+    Default: "false"
+    AllowedValues:
+    - "true"
+    - "false"
+    ConstraintDescription: Enter "true" or "false" only.
+
+  UsingShibboleth:
+    Type: String
+    Description: True if using the BU shibboleth IDP for authentication, else dummy authentication (cor-main becomes its own IDP & SP).
     Default: "false"
     AllowedValues:
     - "true"
@@ -162,6 +167,8 @@ Conditions:
   UseMongoEc2Instance: !Not [!Equals [!Ref MongoEc2Ip, empty]]
   UseKeypair: !Not [!Equals [!Ref EC2KeypairName, empty]]
   IsTest: !Not [!And [!Equals [!Ref Landscape, prod], !Equals [!Ref Landscape, stg]]]
+  UsingShibboleth: !Equals [!Ref UsingShibboleth, 'true']
+  NewrelicLicsenseKeyProvided: !Equals [!Ref NewrelicLicsenseKey, empty]
 
 
 Resources:
@@ -411,6 +418,8 @@ Resources:
     Type: AWS::AutoScaling::LaunchConfiguration
     DependsOn: EC2InstanceLogsGroup
     Properties:
+      LaunchConfigurationName:
+        !Sub ${GlobalTag}-${Landscape}
       ImageId:
         !Ref ECSAMI
       InstanceType:
@@ -502,7 +511,7 @@ Resources:
           - getFiles
           RunCommands:
           - ConfigSet: GetConfigsFromS3
-          - ConfigSet: CreateEnvExportsFile
+          - ConfigSet: ProcessEnvFiles
           - ConfigSet: ProcessKcConfigFile
           - ConfigSet: StartProcesses
           StartProcesses:
@@ -511,8 +520,8 @@ Resources:
           # - 06_start_cron_for_custom_cloudwatch_metrics
           GetConfigsFromS3:
           - 01_get_configs_from_s3
-          CreateEnvExportsFile:
-          - 02_create_env_exports_file
+          ProcessEnvFiles:
+          - 02_process_env_files
           ProcessKcConfigFile:
           - 03_process_kc-config_file
           AddInstanceToCluster:
@@ -573,7 +582,7 @@ Resources:
                 runAll(){ runconfig 'AllConfigs'; }
                 getFiles(){ runconfig 'GetFiles'; }
                 getConfigs() { runconfig 'GetConfigsFromS3'; }
-                createEnvFile() { runconfig 'CreateEnvExportsFile'; }
+                createEnvFile() { runconfig 'ProcessEnvFiles'; }
                 processKcConfig() { runconfig 'ProcessKcConfigFile'; }
                 startProcesses() { runconfig 'StartProcesses'; }
                 initMongo() { runconfig 'InitializeCoreMongodbContent'; }
@@ -643,15 +652,20 @@ Resources:
                 log_group_name = ${GlobalTag}-${Landscape}
                 log_stream_name = {instance_id}/var/log/ecs/audit.log
                 datetime_format = %Y-%m-%dT%H:%M:%SZ
+                
+                [/var/log/cfn-init]
+                file = /var/log/cfn-init.log
+                log_group_name = ${GlobalTag}-${Landscape}
+                log_stream_name = {instance_id}/var/log/cfn-init
+                datetime_format = %Y-%m-%d %H:%M:%S,
+                # multi_line_start_pattern = \d{4}\-\d{2}\-\d{2} \d{2}:\d{2}:\d{2},\d{3}
             /opt/kuali/scripts/process-configs.sh:
               source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/cloudformation/scripts/ec2/process-configs.sh
-              content: !Sub |
               mode: "000775"
               owner: root
               group: root
             /opt/kuali/scripts/initialize-mongo-database.sh:
               source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/cloudformation/scripts/ec2/initialize-mongo-database.sh
-              content: !Sub |
               mode: "000775"
               owner: root
               group: root
@@ -670,19 +684,40 @@ Resources:
                 TEMPLATE_BUCKET_NAME: !Sub "${TemplateBucketName}"
                 AWS_DEFAULT_REGION: !Sub "${AWS::Region}"
               command: bash process-configs.sh
-        02_create_env_exports_file:
+        02_process_env_files:
           commands:
-            create_env_exports_file:
+            process_env_files:
               cwd: /opt/kuali/scripts
               env:
-                TASK: create_env_exports_file
+                TASK: process_env_files
+                CREATE_EXPORT_FILE: 'true'
                 DNS_NAME: !Sub "${DNSName}"
+                USING_ROUTE53: !Ref UsingRoute53
                 ENV_FILE_FROM_S3_CORE: /opt/kuali/s3/core/environment.variables.s3
                 ENV_FILE_FROM_S3_PORTAL: /opt/kuali/s3/portal/environment.variables.s3
                 ENV_FILE_FROM_S3_PDF: /opt/kuali/s3/pdf/environment.variables.s3
                 MONGO_EC2_IP: !If [ UseMongoEc2Instance, !Ref MongoEc2Ip, '' ]
                 PDF_BUCKET_NAME: !Sub "${PdfS3BucketName}"
                 AWS_DEFAULT_REGION: !Sub "${AWS::Region}"
+                SHIB_HOST: 
+                  !If
+                    - UsingShibboleth
+                    - !If [ IsTest, 'shib-test.bu.edu', 'shib.bu.edu' ]
+                    - !Ref AWS::NoValue
+              command: bash process-configs.sh
+            create_kc_env_file:
+              cwd: /opt/kuali/scripts
+              env:
+                TASK: create_kc_env_file
+                CREATE_EXPORT_FILE: 'true'
+                TARGET_FILE: /opt/kuali/s3/kc/environment.variables
+                LANDSCAPE: !Ref Landscape
+                NEW_RELIC_ENVIRONMENT: !Ref Landscape
+                NEW_RELIC_LICENSE_KEY: !If [ NewrelicLicsenseKeyProvided, !Ref NewrelicLicsenseKey, !Ref AWS::NoValue ]
+                NEW_RELIC_AGENT_ENABLED: !If [ NewrelicLicsenseKeyProvided, !Ref EnableNewRelicAPM, 'false' ] 
+                NEW_RELIC_INFRASTRUCTURE_ENABLED: !If [ NewrelicLicsenseKeyProvided, !Ref EnableNewRelicInfrastructure, 'false' ]
+                JAVA_ENV: !Ref Landscape
+                DNS_NAME: !Ref DNSName
               command: bash process-configs.sh
         03_process_kc-config_file:
           commands:
@@ -726,8 +761,12 @@ Resources:
                 DEBUG: 'false'
                 COLLECTIONS: 'incommons institutions users'
                 LANDSCAPE: !Sub "${Landscape}"
-                SHIB_HOST: !If [ IsTest, 'shib-test.bu.edu', 'shib.bu.edu' ]
                 AWS_DEFAULT_REGION: !Sub "${AWS::Region}"
+                SHIB_HOST: 
+                  !If
+                    - UsingShibboleth
+                    - !If [ IsTest, 'shib-test.bu.edu', 'shib.bu.edu' ]
+                    - !Ref AWS::NoValue
                 MONGO_URI:
                   !If
                   - UseMongoEc2Instance
