@@ -984,6 +984,7 @@ getRdsSecret() {
     )
 }
 
+
 getRdsAdminUsername() {
   # getRdsSecret | cut -d'"' -f8
   getRdsSecret 'admin' | jq '.MasterUsername'
@@ -1002,6 +1003,9 @@ getRdsAppPassword() {
   getRdsSecret 'app' | jq '.password'
 }
 
+getRandomPassword() {
+  date +%s | sha256sum | base64 | head -c 32
+}
 
 
 getRdsHostname() {

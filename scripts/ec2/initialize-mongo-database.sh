@@ -214,7 +214,7 @@ updateInstitutions() {
   local idp="$(getIdp)"
   if [ -n "$idp" ] ; then
     provider="saml"
-    issuer="https://$DNS_NAME/shibboleth"
+    issuer="$ENTITY_ID"
   fi
 	local cmd=$(cat << EOF
 	$(getMongoParameters) \
@@ -359,6 +359,7 @@ initialize() {
   if shibbolethDataApplicable ; then
     SHIB_IDP_METADATA_URL=https://$SHIB_HOST/idp/shibboleth
   fi
+  [ -z "$ENTITY_ID" ] && ENTITY_ID="https://$DNS_NAME/shibboleth"
 }
 
 

@@ -19,22 +19,22 @@ aws secretsmanager get-secret-value \
   --query '{SecretString:SecretString}' | jq '.password'
 ```
 
-Adding another secret with the AWS CLI, would look like this:
+Adding another secret (with a random password) with the AWS CLI, would look like this:
 
 ```
-Landscape=sb
+landscape=sb
 aws --profile=infnprd secretsmanager create-secret \
-  --name "kuali/$Landscape/kuali-oracle-rds-app-password" \
-  --description "The application user (probably KCOEUS) and password for the kc rds $Landscape database" \
-  --secret-string '[
-    {"username": "KUALICO"},
-    {"password": "my_password"}
-  ]' \
+  --name "kuali/$landscape/kuali-oracle-rds-app-password" \
+  --description "The application user (probably KCOEUS) and password for the kc rds $landscape database" \
+  --secret-string '{
+    "username": "KUALICO",
+    "password": "'$(date +%s | sha256sum | base64 | head -c 32)'"
+  }' \
   --tags '[
-    {"Key": "Name", "Value": "kuali/'$Landscape'/kuali-oracle-rds-app-password"},
+    {"Key": "Name", "Value": "kuali/'$landscape'/kuali-oracle-rds-app-password"},
     {"Key": "Service", "Value": "research-administration"},
     {"Key": "Function", "Value": "kuali"},
-    {"Key": "Landscape", "Value": "'$Landscape'"}
+    {"Key": "Landscape", "Value": "'$landscape'"}
   ]'
 ```
 

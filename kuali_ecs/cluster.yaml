@@ -110,6 +110,11 @@ Parameters:
     Type: String
     Description: The DNS name for the ALB or a hosted zone that forwards to it. The app is publicly reachable at this address.
 
+  EntityId:
+    Type: String
+    Description: The id of the issuer of saml authentication requests to shibboleth. 
+      Corresponds to the  entityID attribute of the EntityDescriptor element in the samlMeta.xml file.
+
   UsingRoute53:
     Type: String
     Description: Indicates if the DNSName is resolved with Route53 and exists in our hosted zone as an A record.
@@ -756,11 +761,12 @@ Resources:
               cwd: /opt/kuali/scripts
               env:
                 TASK: update-core
-                DNS_NAME: !Sub "${DNSName}"
+                DNS_NAME: !Ref DNSName
+                ENTITY_ID: !Ref EntityId
                 USING_ROUTE53: !Ref UsingRoute53
                 DEBUG: 'false'
                 COLLECTIONS: 'incommons institutions users'
-                LANDSCAPE: !Sub "${Landscape}"
+                LANDSCAPE: !Ref Landscape
                 AWS_DEFAULT_REGION: !Sub "${AWS::Region}"
                 SHIB_HOST: 
                   !If

@@ -7,6 +7,7 @@ declare -A defaults=(
   [TEMPLATE_PATH]='.'
   [NO_ROLLBACK]='true'
   [PROFILE]='infnprd'
+  # [ADMIN_PASSWORD]='???'
   # [CAMPUS_SUBNET1]='???'
 )
 
@@ -28,10 +29,11 @@ run() {
     parseArgs $@
 
     setDefaults
-  fi
+ fi
 
   runTask
 }
+
 
 # Create, update, or delete the cloudformation stack.
 stackAction() {  
@@ -65,6 +67,20 @@ EOF
     add_parameter $cmdfile 'VpcId' 'VpcId'
     add_parameter $cmdfile 'JenkinsSubnet' 'CAMPUS_SUBNET1'
     add_parameter $cmdfile 'JavaVersion' 'JAVA_VERSION'
+    if [ -n "$ADMIN_PASSWORD" ] ; then
+      if secretExists 'kuali/jenkins/administrator' ; then
+        echo "Secret exists, modify password in secret-string..."
+        aws secretsmanager update-secret \
+          --secret-id 'kuali/jenkins/administrator' \
+          --secret-string '{
+            "username": "admin",
+            "password": "'$ADMIN_PASSWORD'"
+          }'
+      else
+        echo "Secret does not exist, new secret will be created."
+        add_parameter $cmdfile 'JenkinsAdminPassword' 'ADMIN_PASSWORD'
+      fi
+    fi
 
     echo "      ]'" >> $cmdfile
 

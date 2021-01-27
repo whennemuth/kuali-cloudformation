@@ -428,6 +428,14 @@ Resources:
               - !Ref HostedZoneName
               - !Sub ${Landscape}.${HostedZoneName}
             - !GetAtt ALB.Outputs.DNSName
+        EntityId:
+          !If 
+            - CreateDnsRecord
+            - !If
+              - IsProd
+              - !Sub https://${HostedZoneName}/shibboleth
+              - !Sub https://*.${HostedZoneName}/shibboleth
+            - !GetAtt ALB.Outputs.DNSName
         UsingRoute53: !If [ CreateDnsRecord, 'true', 'false' ]
         CampusSubnet:
           !Ref CampusSubnet2
