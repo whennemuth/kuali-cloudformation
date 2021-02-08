@@ -3,13 +3,13 @@
 declare -A defaults=(
   [STACK_NAME]='kuali-rds-oracle'
   [GLOBAL_TAG]='kuali-oracle'
-  [LANDSCAPE]='sb'
   [TEMPLATE_BUCKET_PATH]='s3://kuali-conf/cloudformation/kuali_rds'
   [TEMPLATE_PATH]='.'
   [NO_ROLLBACK]='true'
   [ENGINE]='oracle-se2'
   [MAJOR_VERSION]='19'
   # ----- Some of the following are defaulted in the yaml file itself:
+  # [LANDSCAPE]='???'
   # [PROFILE]='???'
   # [VPC_ID]='???'
   # [CAMPUS_SUBNET1]='???'
@@ -106,6 +106,7 @@ EOF
 
     add_parameter $cmdfile 'VpcId' 'VPC_ID'
     add_parameter $cmdfile 'CampusSubnetCIDR1' 'CAMPUS_SUBNET1_CIDR'
+    add_parameter $cmdfile 'CampusSubnetCIDR2' 'CAMPUS_SUBNET2_CIDR'
     add_parameter $cmdfile 'DBSubnet1' 'PRIVATE_SUBNET1'
     add_parameter $cmdfile 'DBSubnet2' 'PRIVATE_SUBNET2'
     add_parameter $cmdfile 'DBSubnetCIDR1' 'PRIVATE_SUBNET1_CIDR'
@@ -117,7 +118,6 @@ EOF
     add_parameter $cmdfile 'MultiAZ' 'MULTI_AZ'
     add_parameter $cmdfile 'Engine' 'ENGINE'
     add_parameter $cmdfile 'DBName' 'DB_NAME'
-    add_parameter $cmdfile 'MasterUsername' 'MASTER_USERNAME'
     add_parameter $cmdfile 'Port' 'PORT'
     add_parameter $cmdfile 'LicenseModel' 'LICENSE_MODEL'
     add_parameter $cmdfile 'AllocatedStorage' 'ALLOCATED_STORAGE'
@@ -127,19 +127,24 @@ EOF
     add_parameter $cmdfile 'Iops' 'IOPS'
     add_parameter $cmdfile 'JumpboxInstanceType' 'JUMPBOX_INSTANCE_TYPE'
 
-    add_parameter $cmdfile 'CampusSubnetCIDR2' 'CAMPUS_SUBNET2_CIDR'
-    if [ -z "$CAMPUS_SUBNET2_CIDR" ] ; then
-      add_parameter $cmdfile 'CampusSubnetCIDR2' 'CAMPUS_SUBNET1_CIDR'
+    if isABaselineLandscape "$BASELINE" ; then
+      add_parameter $cmdfile 'Baseline' 'BASELINE'
+    else
+      echo "The provided baseline parameter is not one of the excepted values: sb, ci, qa, stg, prod"
+      exit 1
     fi
-
+      
     if [ -z "$ENGINE_VERSION" ] ; then
       ENGINE_VERSION="$(getOracleEngineVersion $ENGINE $MAJOR_VERSION)"
       if [ -z "$ENGINE_VERSION" ] && [ "$action" == "create-stack" ] ; then
-        echo "ERROR! Cannot determine engine version"
+        echo "ERROR! Cannot determine rds engine version"
         exit 1
       fi
     fi
     add_parameter $cmdfile 'EngineVersion' 'ENGINE_VERSION'
+
+    # Based on landscape and other parameters, perform rds cloning if indicated.
+    checkLandscapesAndRDS
 
     # The rds instance might be intended to be based on a snapshot.
     if [ -n "$DB_SNAPSHOT_ARN" ] ; then
@@ -169,6 +174,9 @@ EOF
       fi
     fi
 
+    echo "      ]' \\" >> $cmdfile
+    echo "      --tags '[" >> $cmdfile
+    addStandardTags
     echo "      ]'" >> $cmdfile
 
     runStackActionCommand

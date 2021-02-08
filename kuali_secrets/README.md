@@ -28,7 +28,7 @@ aws --profile=infnprd secretsmanager create-secret \
   --description "The application user (probably KCOEUS) and password for the kc rds $landscape database" \
   --secret-string '{
     "username": "KUALICO",
-    "password": "'$(date +%s | sha256sum | base64 | head -c 32)'"
+    "password": "'$(date +%s | sha256sum | base64 | head -c 16)'"
   }' \
   --tags '[
     {"Key": "Name", "Value": "kuali/'$landscape'/kuali-oracle-rds-app-password"},

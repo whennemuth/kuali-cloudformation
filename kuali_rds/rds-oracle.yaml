@@ -13,8 +13,16 @@ Parameters:
     Default: kuali-oracle
 
   Landscape:
-    Description: Specify which landscape to build into the VPC
+    Description: Specify a name for your landscape
     Type: String
+    AllowedPattern: "[a-zA-Z\\d]{1,12}"
+    ConstraintDescription: Up to 12 letters and/or numbers
+
+  Baseline:
+    Description: Specify one of a set of standard landscapes. Indicates secrets manager secrets to use for database access.
+    Type: String
+    AllowedPattern: "[a-zA-Z\\d]{1,12}"
+    ConstraintDescription: Up to 12 letters and/or numbers
     
   Service:
     Description: Service catalog name
@@ -53,7 +61,7 @@ Parameters:
 
   JumpboxInstanceType:
     Type: String
-    Description: What type of EC2 instance should be used for hosting?
+    Description: What type of EC2 instance should be used for hosting the jumpbox?
     AllowedValues:
     - t2.small
     - t2.medium
@@ -237,15 +245,22 @@ Parameters:
     MinLength: 9 
     Type: String
 
+  LogGroupRetention:
+    Type: Number
+    Description: How old in days can the rds log groups content get before it is deleted?
+    AllowedValues: [0, 1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 3653]
+    ConstraintDescription: Allowed values - 1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, and 3653
+    Default: 0
+
 
 Conditions:
   SingleDBAvailabilityZone: !Equals [!Ref MultiAZ, 'false']
   CreateFromSnapshot: !Not [!Equals [!Ref DBSnapshotARN, none]]
-  ProtectFromDeletion: !Equals [!Ref Landscape, prod]
-  PerformanceInsights: !Equals [!Ref Landscape, prod]
+  IsProd: !Equals [!Ref Landscape, prod]
   IopsSpecified: !Not [!Equals [!Ref Iops, 0]]
   CreateJumpboxInstance: !Not [!Equals [!Ref JumpboxInstanceType, none]]
   MonoCampusSubnet: !Equals [!Ref CampusSubnetCIDR1, !Ref CampusSubnetCIDR2]
+  LogGroupRetentionSpecified: !Not [!Equals [!Ref LogGroupRetention, 0]]
 
 Resources:
 
@@ -313,29 +328,45 @@ Resources:
     Type: AWS::Logs::LogGroup
     DeletionPolicy: Delete
     Properties: 
-      LogGroupName: !Sub ${GlobalTag}-${Landscape}/trace
-      RetentionInDays: !Ref LogGroupRetention
+      LogGroupName: !Sub /aws/rds/instance/${GlobalTag}-${Landscape}/trace
+      RetentionInDays: 
+        !If 
+        - LogGroupRetentionSpecified
+        - !Ref LogGroupRetention
+        - !If [ IsProd, 365, 30 ]
   AuditLogGroup:
     Type: AWS::Logs::LogGroup
     DependsOn: TraceLogGroup
     DeletionPolicy: Delete
     Properties: 
-      LogGroupName: !Sub ${GlobalTag}-${Landscape}/audit
-      RetentionInDays: !Ref LogGroupRetention
+      LogGroupName: !Sub /aws/rds/instance/${GlobalTag}-${Landscape}/audit
+      RetentionInDays: 
+        !If 
+        - LogGroupRetentionSpecified
+        - !Ref LogGroupRetention
+        - !If [ IsProd, 365, 30 ]
   AlertLogGroup:
     Type: AWS::Logs::LogGroup
     DependsOn: AuditLogGroup
     DeletionPolicy: Delete
     Properties: 
-      LogGroupName: !Sub ${GlobalTag}-${Landscape}/alert
-      RetentionInDays: !Ref LogGroupRetention
+      LogGroupName: !Sub /aws/rds/instance/${GlobalTag}-${Landscape}/alert
+      RetentionInDays: 
+        !If 
+        - LogGroupRetentionSpecified
+        - !Ref LogGroupRetention
+        - !If [ IsProd, 365, 30 ]
   ListenerLogGroup:
     Type: AWS::Logs::LogGroup
     DependsOn: AlertLogGroup
     DeletionPolicy: Delete
     Properties: 
-      LogGroupName: !Sub ${GlobalTag}-${Landscape}/listener
-      RetentionInDays: !Ref LogGroupRetention
+      LogGroupName: !Sub /aws/rds/instance/${GlobalTag}-${Landscape}/listener
+      RetentionInDays: 
+        !If 
+        - LogGroupRetentionSpecified
+        - !Ref LogGroupRetention
+        - !If [ IsProd, 365, 30 ]
 
   DBInstance:
     Type: AWS::RDS::DBInstance
@@ -352,6 +383,7 @@ Resources:
         - !Ref AWS::NoValue
       BackupRetentionPeriod: !Ref BackupRetentionPeriod
       CharacterSetName: !Ref CharacterSetName
+      CopyTagsToSnapshot: true
       DBInstanceClass: !Ref DBInstanceClass
       DBInstanceIdentifier: !Sub ${GlobalTag}-${Landscape}
       DBName: !Ref DBName
@@ -363,9 +395,14 @@ Resources:
       DBSubnetGroupName: !Ref DBSubnetGroup
       DeletionProtection:
         !If
-        - ProtectFromDeletion
+        - IsProd
         - true
         - !Ref AWS::NoValue
+      DeleteAutomatedBackups:
+        !If
+        - IsProd
+        - false
+        - true
       EnableCloudwatchLogsExports:
         - trace
         - audit
@@ -373,7 +410,7 @@ Resources:
         - listener
       EnablePerformanceInsights:
         !If 
-        - PerformanceInsights
+        - IsProd
         - true
         - !Ref AWS::NoValue
       Engine: !Ref Engine
@@ -385,15 +422,16 @@ Resources:
         - !Ref AWS::NoValue # Storage type defaults to gp2
       LicenseModel: !Ref LicenseModel
       # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/dynamic-references.html
-      MasterUsername: !Sub '{{resolve:secretsmanager:kuali/${Landscape}/kuali-oracle-rds-admin-password:SecretString:MasterUsername}}'
-      MasterUserPassword: !Sub '{{resolve:secretsmanager:kuali/${Landscape}/kuali-oracle-rds-admin-password:SecretString:MasterUserPassword}}'
+      MasterUsername: !Sub '{{resolve:secretsmanager:kuali/${Baseline}/kuali-oracle-rds-admin-password:SecretString:MasterUsername}}'
+      MasterUserPassword: !Sub '{{resolve:secretsmanager:kuali/${Baseline}/kuali-oracle-rds-admin-password:SecretString:MasterUserPassword}}'
       MultiAZ: !Ref MultiAZ # If true, it should create a second standby rds instance in the second subnet of the subnet group.
       PerformanceInsightsRetentionPeriod: 
         !If 
-        - PerformanceInsights
+        - IsProd
         - 30
         - !Ref AWS::NoValue
       Port: !Ref Port
+      # https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_WorkingWithAutomatedBackups.html#USER_WorkingWithAutomatedBackups.BackupWindow
       PreferredBackupWindow: 22:00-23:00
       PreferredMaintenanceWindow: sat:20:00-sat:21:00
       PubliclyAccessible: 'false'

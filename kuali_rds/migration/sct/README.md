@@ -55,8 +55,7 @@ The [AWS Schema Conversion tool](https://docs.aws.amazon.com/SchemaConversionToo
    
    ```
    # Example:
-   git clone https://github.com/bu-ist/kuali-infrastructure.git
-   cd kuali-infrastructure/kuali_rds/jumpbox
+   cd jumpbox
    sh tunnel.sh profile=[your.profile] landscape=sb
    ```
 
@@ -105,8 +104,10 @@ The [AWS Schema Conversion tool](https://docs.aws.amazon.com/SchemaConversionToo
 
    Assuming the landscape is "ci", create the directory for the SQL you are going to generate.
 
+   ```
    cd kuali-infrastructure/kuali_rds/migration/sct/sql
    mkdir ci
+   ```
 
 
    Save as SQL in this order and to these file names:

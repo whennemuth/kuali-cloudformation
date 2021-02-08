@@ -16,6 +16,7 @@ declare -A defaults=(
   [HOSTED_ZONE]='kuali.research.bu.edu'
   # ----- Most of the following are defaulted in the yaml file itself:
   # [LANDSCAPE]='sb'
+  # [BASELINE]='sb'
   # [KC_IMAGE]='770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-coeus-sandbox:2001.0040'
   # [CORE_IMAGE]='770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-core:2001.0040'
   # [PORTAL_IMAGE]='770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-portal:2001.0040'
@@ -68,7 +69,8 @@ run() {
   runTask
 }
 
-validateParms() {
+validateCluster() {
+  [ "$task" == 'delete-stack' ] && return 0
   if [ -z "$MIN_CLUSTER_SIZE" ] && [ -z "$MAX_CLUSTER_SIZE" ] ; then
     # Invoke the parameter defaults of the main.yaml template for cluster size
     return 0
@@ -85,15 +87,13 @@ validateParms() {
   if [ $MIN_CLUSTER_SIZE -eq 0 ] ; then
     $((MIN_CLUSTER_SIZE++))
   fi
-  if [ "${USING_SHIBBOLETH,,}" == 'true' ] ; then
-    if [ "${USING_ROUTE53}" == 'false' ] ; then
-      echo "Cannot use shibboleth without route53!"
-      exit 1
-    elif [ -z "${USING_ROUTE53}" ] ; then
-      echo "Since shibboleth is indicated..."
-      echo "USING_ROUTE53='true'" && USING_ROUTE53='true'
-    fi
-  fi
+}
+
+validateParms() {
+
+  validateCluster
+
+  validateShibboleth
 }
 
 # Create, update, or delete the cloudformation stack.
@@ -101,13 +101,20 @@ stackAction() {
   local action=$1   
 
   if [ "$action" == 'delete-stack' ] ; then
-    aws --profile=$PROFILE cloudformation $action --stack-name ${STACK_NAME}-${LANDSCAPE}
+    aws cloudformation $action --stack-name ${STACK_NAME}-${LANDSCAPE}
+    if ! waitForStackToDelete ; then
+      echo "Problem deleting stack!"
+      exit 1
+    fi
   else
+
     # checkSubnets will also assign a value to VPC_ID
+    outputHeading "Looking up VPC/Subnet information..."
     if ! checkSubnets ; then
       exit 1
     fi
     
+    outputHeading "Checking certificates..."
     # Get the arn of any ssl cert (acm or self-signed in iam)
     setCertArn
 
@@ -160,11 +167,6 @@ stackAction() {
       [ $? -gt 0 ] && exit 1
       aws s3 cp ../lambda/bucket_emptier/bucket_emptier.yaml s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_lambda/
 
-      # Upload scripts that will be run as part of AWS::CloudFormation::Init
-      outputHeading "Uploading bash scripts involved in AWS::CloudFormation::Init..."
-      aws s3 cp ../scripts/ec2/process-configs.sh s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/
-      aws s3 cp ../scripts/ec2/cloudwatch-metrics.sh s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/
-
       # Upload lambda code used by custom resources
       outputHeading "Building, zipping, and uploading lambda code behind custom resources..."
       zipPackageAndCopyToS3 '../lambda/bucket_emptier' 's3://kuali-conf/cloudformation/kuali_lambda/bucket_emptier.zip'
@@ -177,6 +179,11 @@ stackAction() {
         [ $? -gt 0 ] && echo "ERROR! Could not upload toggle_waf_logging.zip to s3." && exit 1
       fi
     fi
+
+    # Upload scripts that will be run as part of AWS::CloudFormation::Init
+    outputHeading "Uploading bash scripts involved in AWS::CloudFormation::Init..."
+    aws s3 cp ../scripts/ec2/process-configs.sh s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/
+    aws s3 cp ../scripts/ec2/cloudwatch-metrics.sh s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/
 
     cat <<-EOF > $cmdfile
     aws --profile=$PROFILE \\
@@ -200,6 +207,7 @@ EOF
     add_parameter $cmdfile 'CoreImage' 'CORE_IMAGE'
     add_parameter $cmdfile 'PortalImage' 'PORTAL_IMAGE'
     add_parameter $cmdfile 'Landscape' 'LANDSCAPE'
+    add_parameter $cmdfile 'Baseline' 'BASELINE'
     add_parameter $cmdfile 'GlobalTag' 'GLOBAL_TAG'
     add_parameter $cmdfile 'EC2InstanceType' 'EC2_INSTANCE_TYPE'
     add_parameter $cmdfile 'NewrelicLicsenseKey' 'NEWRELIC_LICENSE_KEY'
@@ -227,7 +235,22 @@ EOF
     if [ "${PDF_BUCKET_NAME,,}" != 'none' ] ; then  
       add_parameter $cmdfile 'PdfS3BucketName' 'PDF_BUCKET_NAME'
     fi
+    
+    # Based on landscape and other parameters, perform rds cloning if indicated.
+    outputHeading "Checking RDS parameters..."
+    checkLandscapesAndRDS
+    if [ -n "$RDS_SNAPSHOT_ARN" ]; then
+      validateStack silent ../kuali_rds/rds-oracle.yaml
+      [ $? -gt 0 ] && exit 1
+      aws s3 cp ../kuali_rds/rds-oracle.yaml s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_rds/
+      addRdsSnapshotParameters $cmdfile $LANDSCAPE "$RDS_SNAPSHOT_ARN" "$RDS_ARN_TO_CLONE"
+    else
+      echo "No RDS snapshotting indicated. Will use existing RDS database directly."
+    fi
 
+    echo "      ]' \\" >> $cmdfile
+    echo "      --tags '[" >> $cmdfile
+    addStandardTags
     echo "      ]'" >> $cmdfile
 
     runStackActionCommand
@@ -250,12 +273,8 @@ runTask() {
       PROMPT='false'
       task='delete-stack'
       stackAction "delete-stack" 2> /dev/null
-      if waitForStackToDelete ${STACK_NAME}-${LANDSCAPE} ; then
-        task='create-stack'
-        stackAction "create-stack"
-      else
-        echo "ERROR! Stack deletion failed. Cancelling..."
-      fi
+      task='create-stack'
+      stackAction "create-stack"
       ;;
     update-stack)
       stackAction "update-stack" ;;
@@ -267,6 +286,12 @@ runTask() {
       stackAction "delete-stack" ;;
     set-cert-arn)
       setCertArn ;;
+    snapshot)
+      echo "" > $cmdfile
+      if [ -n "$RDS_SNAPSHOT_ARN" ]; then
+        addRdsSnapshotParameters $cmdfile $LANDSCAPE "$RDS_SNAPSHOT_ARN" "$RDS_ARN_TO_CLONE"
+      fi
+      ;;
     test)
       PROFILE=infnprd && checkSubnets ;;
     *)

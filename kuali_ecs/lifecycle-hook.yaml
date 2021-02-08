@@ -14,8 +14,10 @@ Parameters:
     Default: kuali-ecs
 
   Landscape:
-    Description: Specify a landscape this deployment is for
+    Description: Specify a name for your landscape
     Type: String
+    AllowedPattern: "[a-zA-Z\\d]{1,12}"
+    ConstraintDescription: Up to 12 letters and/or numbers
 
   Cluster:
     Type: String

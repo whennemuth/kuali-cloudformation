@@ -21,8 +21,10 @@ Parameters:
     Default: kuali-conf
 
   Landscape:
-    Description: Specify which landscape to build into the VPC (currently just a label - kc-config.xml is hard-coded for now).
+    Description: Specify a name for your landscape (currently just a label - kc-config.xml is hard-coded for now).
     Type: String
+    AllowedPattern: "[a-zA-Z\\d]{1,12}"
+    ConstraintDescription: Up to 12 letters and/or numbers
     
   Service:
     Description: Service catalog name

@@ -14,8 +14,10 @@ Parameters:
     Default: kuali-db-jumpbox
 
   Landscape:
-    Description: Specify which landscape to build into the VPC
+    Description: Specify a name for your landscape
     Type: String
+    AllowedPattern: "[a-zA-Z\\d]{1,12}"
+    ConstraintDescription: Up to 12 letters and/or numbers
 
   # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/retrieve-ecs-optimized_AMI.html
   ECSAMI:
@@ -39,6 +41,11 @@ Parameters:
   VpcId:
     Type: AWS::EC2::VPC::Id
     Description: The id of the vpc to deploy to.
+  
+  TemplateBucketName:
+    Type: String
+    Description: The S3 bucket kuali research cloudformation templates, config files, keys, etc. are stored
+    Default: kuali-conf
 
   DBSubnet1:
     Type: AWS::EC2::Subnet::Id

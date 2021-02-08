@@ -21,9 +21,17 @@ Parameters:
     Default: kuali-conf
 
   Landscape:
-    Description: Specify which landscape to build into the VPC.
+    Description: Specify a name for your landscape
     Type: String
-    
+    AllowedPattern: "[a-zA-Z\\d]{1,12}"
+    ConstraintDescription: Up to 12 letters and/or numbers
+  
+  Baseline:
+    Description: Specify one of a set of standard landscapes. Indicates secrets manager secrets to use for database access.
+    Type: String
+    AllowedPattern: "[a-zA-Z\\d]{1,12}"
+    ConstraintDescription: Up to 12 letters and/or numbers
+
   Service:
     Description: Service catalog name
     Type: String
@@ -120,13 +128,84 @@ Parameters:
     - "false"
     ConstraintDescription: Enter "true" or "false" only.
 
+  # RDS Parameters:
+  RdsSnapshotARN:
+    Description: The arn of an existing rds db snapshot. A new RDS instance will be restored from the snapshot for use by this stack.
+    Type: String
+    Default: empty
+
+  RdsEngineVersion:
+    Type: String
+    Description: If cloning, The version number of the database engine to use.
+
+  RdsDbSubnet1:
+    Type: AWS::EC2::Subnet::Id
+    Description: The first private subnet for one of the rds instances.
+    Default: empty
+
+  RdsDbSubnet2:
+    Type: AWS::EC2::Subnet::Id
+    Description: The second private subnet for one of the rds instances.
+    Default: empty
+  
+  RdsSubnetCIDR1:
+    AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
+    ConstraintDescription: It must be a valid IP CIDR range of the form x.x.x.x/x. 
+    Description: |
+      The IP address range of the subnet containing the oracle RDS instances. 
+      Accessible from the campus subnet over the default "local" route.
+    MaxLength: 18
+    MinLength: 9 
+    Type: String
+    Default: 0.0.0.0/0
+
+  RdsSubnetCIDR2:
+    AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
+    ConstraintDescription: It must be a valid IP CIDR range of the form x.x.x.x/x. 
+    Description: |
+      The IP address range of the subnet containing the oracle RDS instances. 
+      Accessible from the campus subnet over the default "local" route.
+    MaxLength: 18
+    MinLength: 9 
+    Type: String
+    Default: 0.0.0.0/0
+  
+  RdsJumpboxSubnetCIDR1:
+    AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
+    ConstraintDescription: It must be a valid IP CIDR range of the form x.x.x.x/x. 
+    Description: |
+      The IP address range of the subnet containing the oracle RDS instances. 
+      Accessible from the campus subnet over the default "local" route.
+    MaxLength: 18
+    MinLength: 9 
+    Type: String
+    Default: 0.0.0.0/0
+
+  RdsJumpboxSubnetCIDR2:
+    AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
+    ConstraintDescription: It must be a valid IP CIDR range of the form x.x.x.x/x. 
+    Description: |
+      The IP address range of the subnet containing the oracle RDS instances. 
+      Accessible from the campus subnet over the default "local" route.
+    MaxLength: 18
+    MinLength: 9 
+    Type: String
+    Default: 0.0.0.0/0
+
+  RdsAvailabilityZone:
+    Type: String
+    Description: The availability zone of the rds instance
+    Default: empty
+
 
 Conditions:
   CreatePdfS3bBucket: !Not [!Equals [!Ref PdfS3BucketName, empty]]
   CreateMongoEc2Instance: !Not [!Equals [!Ref MongoSubnetId, empty]]
   UseKeypair: !Not [!Equals [!Ref EC2KeypairName, empty]]
   IsTest: !Not [!And [!Equals [!Ref Landscape, prod], !Equals [!Ref Landscape, stg]]]
+  IsProd: !Equals [!Ref Landscape, prod]
   NewrelicLicsenseKeyProvided: !Equals [!Ref NewrelicLicsenseKey, empty]
+  CreateRdsClone: !Not [!Equals [!Ref RdsSnapshotARN, empty]]
 
 Mappings:
   2faCidrs:
@@ -145,6 +224,30 @@ Mappings:
 
       
 Resources:
+
+  RdsInstance:
+    Type: AWS::CloudFormation::Stack
+    Condition: CreateRdsClone
+    Properties:
+      TemplateURL:
+        !Sub https://s3.amazonaws.com/${TemplateBucketName}/cloudformation/kuali_rds/rds-oracle.yaml
+      Parameters:
+        GlobalTag: !Ref GlobalTag
+        Landscape: !Ref Landscape
+        Baseline: !Ref Baseline
+        Service: !Ref Service
+        Function: !Ref Function
+        VpcId: !Ref VpcId
+        DBInstanceClass: !If [ IsProd, db.m5.xlarge, !Ref AWS::NoValue ]
+        DBSnapshotARN: !Ref RdsSnapshotARN
+        EngineVersion: !Ref RdsEngineVersion
+        DBSubnet1: !Ref RdsDbSubnet1
+        DBSubnet2: !Ref RdsDbSubnet2
+        DBSubnetCIDR1: !Ref RdsSubnetCIDR1
+        DBSubnetCIDR2: !Ref RdsSubnetCIDR2
+        CampusSubnetCIDR1: !Ref RdsJumpboxSubnetCIDR1
+        CampusSubnetCIDR2: !Ref RdsJumpboxSubnetCIDR2
+        AvailabilityZone: !Ref RdsAvailabilityZone
 
   EC2Role:
     Type: AWS::IAM::Role
@@ -257,7 +360,7 @@ Resources:
     DeletionPolicy: Delete
     Properties:
       LogGroupName: !Sub ${GlobalTag}-${Landscape}
-      RetentionInDays: 30
+      RetentionInDays: !If [ IsProd, 365, 30 ]
 
   MongoDbInstance:
     Type: AWS::CloudFormation::Stack
@@ -772,6 +875,7 @@ Resources:
               env:
                 TASK: get_configs_from_s3             
                 LANDSCAPE: !Sub "${Landscape}"
+                BASELINE: !Ref Baseline
                 TEMPLATE_BUCKET_NAME: !Sub "${TemplateBucketName}"
                 AWS_DEFAULT_REGION: !Sub "${AWS::Region}"
               command: bash process-configs.sh
@@ -798,6 +902,7 @@ Resources:
                 TASK: process_kc-config_file
                 DNS_NAME: local
                 LANDSCAPE: !Sub "${Landscape}"
+                BASELINE: !Ref Baseline
                 AWS_DEFAULT_REGION: !Sub "${AWS::Region}"
               command: bash process-configs.sh
         04_docker_run_containers:

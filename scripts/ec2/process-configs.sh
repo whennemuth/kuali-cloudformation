@@ -2,7 +2,7 @@
 
 # Acquire the kc-config.xml file, name=value pair files for docker container environment variables, etc from s3
 downloadConfigsFromS3() {
-  echo "Downloading all configurations for containers from the s3 bucket, landscape ${LANDSCAPE}"
+  echo "Downloading all configurations for containers from the s3 bucket, baseline landscape ${BASELINE}"
   
   [ ! -d /opt/kuali/s3 ] && mkdir -p /opt/kuali/s3
   cd /opt/kuali/s3
@@ -12,7 +12,7 @@ downloadConfigsFromS3() {
     --include "portal/*" \
     --include "pdf/*" \
     --include "kc/kc-config.xml" \
-    s3://${TEMPLATE_BUCKET_NAME}/${LANDSCAPE}/ .
+    s3://${TEMPLATE_BUCKET_NAME}/${BASELINE}/ .
   aws s3 cp s3://${TEMPLATE_BUCKET_NAME}/rice.cer /opt/kuali/s3/kc/
   aws s3 cp s3://${TEMPLATE_BUCKET_NAME}/rice.keystore /opt/kuali/s3/kc/
 }
@@ -36,6 +36,8 @@ processEnvironmentVariableFiles() {
     # Replace the standard kuali-research-[env].bu.edu references with the dns address of this instances load balancer.
     # sed -i -r "s/kuali-research.*.bu.edu/$common_name/g" "$envfile"
     sed -i -r 's/[a-z]+\.kuali-research.bu.edu/'$common_name'/g' "$envfile"
+
+    if [ ]
 
     # Make changes to environment variable values:
     # 1) Simplify the mongo connection data if localhost
@@ -179,8 +181,8 @@ createExportFile() {
       [ -z "$expline" ] && continue
       prop=$(echo "$line" | cut -f1 -d '=')
       # Override some of the existing environment variables
-      [ "${prop^^}" == "SHIB_HOST" ] && expline="export SHIB_HOST="
-      [ "${prop^^}" == "ROOT_DIR" ]  && expline="export ROOT_DIR=/var/core-temp"
+      # [ "${prop^^}" == "SHIB_HOST" ] && expline="export SHIB_HOST="
+      # [ "${prop^^}" == "ROOT_DIR" ]  && expline="export ROOT_DIR=/var/core-temp"
       echo "Setting env var $prop" 
       echo "$expline" >> export.sh
     done < $envfile
@@ -269,7 +271,7 @@ getRdsHostname() {
   local rdsArn=$(
     aws resourcegroupstaggingapi get-resources \
       --resource-type-filters rds \
-      --tag-filters 'Key=Name,Values=kuali-oracle-'$LANDSCAPE \
+      --tag-filters 'Key=Name,Values=kuali-oracle-'$BASELINE \
       --output text \
       --query 'ResourceTagMappingList[].{ARN:ResourceARN}' 2> /dev/null
   )
@@ -289,7 +291,7 @@ getRdsSecret() {
   local type="$1"
   RDS_SECRET=$(
     aws secretsmanager get-secret-value \
-      --secret-id kuali/$LANDSCAPE/kuali-oracle-rds-${type}-password \
+      --secret-id kuali/$BASELINE/kuali-oracle-rds-${type}-password \
       --output text \
       --query '{SecretString:SecretString}' 2> /dev/null
     )

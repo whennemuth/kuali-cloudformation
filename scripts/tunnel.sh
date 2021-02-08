@@ -65,8 +65,8 @@ tunnelEC2() {
 
 setFilters() {
   filters=(
-    'Key=Function,Values=kuali'
-    'Key=Service,Values=research-administration'
+    'Key=Function,Values='${kualiTags['Function']}
+    'Key=Service,Values='${kualiTags['Service']}
   )
   [ -n "$landscape" ] && filters=(${filters[@]} "Key=Landscape,Values=$landscape")
 

@@ -7,8 +7,11 @@ Description: Elasticsearch Domain setup for a specified Kuali environment using 
 Parameters:
   Landscape:
     Description: >
-      Specify which landscape to build and elasticsearch cluster for.
+      Specify a name for your landscape to build and elasticsearch cluster for.
       The DomainName for the cluster will be based on this.
+    Type: String
+    AllowedPattern: "[a-zA-Z\\d]{1,12}"
+    ConstraintDescription: Up to 12 letters and/or numbers
   DomainName:
     # When you create a domain with VPC access, the endpoint looks similar to a public endpoint:
     # https://vpc-domain-name-identifier.region.es.amazonaws.com

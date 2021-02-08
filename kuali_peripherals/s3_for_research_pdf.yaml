@@ -8,10 +8,10 @@ Description: >
 
 Parameters:
   Landscape:
-    Description: >
-      Specify which landscape to build and elasticsearch cluster for.
-      The DomainName for the cluster will be based on this.
+    Description: Specify a name for your landscape. The DomainName for the cluster will be based on this.
     Type: String
+    AllowedPattern: "[a-zA-Z\\d]{1,12}"
+    ConstraintDescription: Up to 12 letters and/or numbers
 
 Conditions:
   isALL: !Equals [!Ref Landscape, ALL]

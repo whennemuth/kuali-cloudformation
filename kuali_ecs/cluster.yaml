@@ -25,8 +25,16 @@ Parameters:
     Default: empty
 
   Landscape:
-    Description: Specify which landscape to build into the VPC
+    Description: Specify a name for your landscape
     Type: String
+    AllowedPattern: "[a-zA-Z\\d]{1,12}"
+    ConstraintDescription: Up to 12 letters and/or numbers
+  
+  Baseline:
+    Description: Specify one of a set of standard landscapes. The application will be backed by a database for that baseline landscape or a snapshot of it.
+    Type: String
+    AllowedValues: [ sb, ci, qa, stg, prod ]
+    ConstraintDescription: Baseline landscapes are limited to the specified set.
 
   VpcId:
     Type: AWS::EC2::VPC::Id
@@ -171,6 +179,7 @@ Conditions:
   CreateRole: !Equals [ !Ref InstanceRole, "create" ]
   UseMongoEc2Instance: !Not [!Equals [!Ref MongoEc2Ip, empty]]
   UseKeypair: !Not [!Equals [!Ref EC2KeypairName, empty]]
+  IsProd: !Equals [!Ref Landscape, prod]
   IsTest: !Not [!And [!Equals [!Ref Landscape, prod], !Equals [!Ref Landscape, stg]]]
   UsingShibboleth: !Equals [!Ref UsingShibboleth, 'true']
   NewrelicLicsenseKeyProvided: !Equals [!Ref NewrelicLicsenseKey, empty]
@@ -417,7 +426,7 @@ Resources:
     DeletionPolicy: Delete
     Properties:
       LogGroupName: !Sub ${GlobalTag}-${Landscape}
-      RetentionInDays: 30
+      RetentionInDays: !If [ IsProd, 365, 30 ]
 
   ECSLaunchConfiguration:
     Type: AWS::AutoScaling::LaunchConfiguration
@@ -685,9 +694,10 @@ Resources:
               cwd: /opt/kuali/scripts
               env:
                 TASK: get_configs_from_s3             
-                LANDSCAPE: !Sub "${Landscape}"
-                TEMPLATE_BUCKET_NAME: !Sub "${TemplateBucketName}"
-                AWS_DEFAULT_REGION: !Sub "${AWS::Region}"
+                LANDSCAPE: !Ref Landscape
+                BASELINE: !Ref Baseline
+                TEMPLATE_BUCKET_NAME: !Ref TemplateBucketName
+                AWS_DEFAULT_REGION: !Ref AWS::Region
               command: bash process-configs.sh
         02_process_env_files:
           commands:
@@ -703,7 +713,7 @@ Resources:
                 ENV_FILE_FROM_S3_PDF: /opt/kuali/s3/pdf/environment.variables.s3
                 MONGO_EC2_IP: !If [ UseMongoEc2Instance, !Ref MongoEc2Ip, '' ]
                 PDF_BUCKET_NAME: !Sub "${PdfS3BucketName}"
-                AWS_DEFAULT_REGION: !Sub "${AWS::Region}"
+                AWS_DEFAULT_REGION: !Ref AWS::Region
                 SHIB_HOST: 
                   !If
                     - UsingShibboleth
@@ -717,6 +727,7 @@ Resources:
                 CREATE_EXPORT_FILE: 'true'
                 TARGET_FILE: /opt/kuali/s3/kc/environment.variables
                 LANDSCAPE: !Ref Landscape
+                BASELINE: !Ref Baseline
                 NEW_RELIC_ENVIRONMENT: !Ref Landscape
                 NEW_RELIC_LICENSE_KEY: !If [ NewrelicLicsenseKeyProvided, !Ref NewrelicLicsenseKey, !Ref AWS::NoValue ]
                 NEW_RELIC_AGENT_ENABLED: !If [ NewrelicLicsenseKeyProvided, !Ref EnableNewRelicAPM, 'false' ] 
@@ -730,9 +741,10 @@ Resources:
               cwd: /opt/kuali/scripts
               env:
                 TASK: process_kc-config_file
-                DNS_NAME: !Sub "${DNSName}"
-                LANDSCAPE: !Sub "${Landscape}"
-                AWS_DEFAULT_REGION: !Sub "${AWS::Region}"
+                DNS_NAME: !Ref DNSName
+                LANDSCAPE: !Ref Landscape
+                BASELINE: !Ref Baseline
+                AWS_DEFAULT_REGION: !Ref AWS::Region
               command: bash process-configs.sh
         04_add_instance_to_cluster:
           commands:
@@ -767,7 +779,7 @@ Resources:
                 DEBUG: 'false'
                 COLLECTIONS: 'incommons institutions users'
                 LANDSCAPE: !Ref Landscape
-                AWS_DEFAULT_REGION: !Sub "${AWS::Region}"
+                AWS_DEFAULT_REGION: !Ref AWS::Region
                 SHIB_HOST: 
                   !If
                     - UsingShibboleth
@@ -791,7 +803,7 @@ Resources:
               command: crontab -u root /opt/kuali/scripts/crontab
               env:
                 LANDSCAPE: !Sub "${Landscape}"
-                AWS_DEFAULT_REGION: !Sub "${AWS::Region}"
+                AWS_DEFAULT_REGION: !Ref AWS::Region
 
 Outputs:
 

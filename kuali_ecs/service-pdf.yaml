@@ -13,8 +13,10 @@ Parameters:
     Default: kuali-ecs
 
   Landscape:
-    Description: Specify a landscape this deployment is for
+    Description: Specify a name for your landscape
     Type: String
+    AllowedPattern: "[a-zA-Z\\d]{1,12}"
+    ConstraintDescription: Up to 12 letters and/or numbers
 
   VpcId:
     Type: AWS::EC2::VPC::Id
@@ -66,6 +68,7 @@ Parameters:
 Conditions:
   createPdfS3Bucket: !Not [!Equals [!Ref PdfS3BucketName, empty]]
   EmptyBucket: !And [!Not [!Equals [!Ref BucketEmptierLambdaArn, empty]], Condition: createPdfS3Bucket]
+  IsProd: !Equals [!Ref Landscape, prod]
 
     
 Resources:
@@ -123,7 +126,7 @@ Resources:
     Properties:
       LogGroupName:
         !Sub ${GlobalTag}-${Landscape}-pdf
-      RetentionInDays: 90
+      RetentionInDays: !If [ IsProd, 365, 30 ]
 
   Service:
     Type: AWS::ECS::Service
@@ -149,7 +152,7 @@ Resources:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
       Name:
-        !Sub ${GlobalTag}-${Landscape}-TG-pdf
+        !Sub ${GlobalTag}-${Landscape}-pdf
       VpcId: !Ref VpcId
       Port: 3006
       Protocol: HTTP
@@ -174,7 +177,7 @@ Resources:
       Tags:
       - Key: Name
         Value: 
-          !Sub ${GlobalTag}-${Landscape}-TG-pdf
+          !Sub ${GlobalTag}-${Landscape}-pdf-targetgroup
 
   ListenerRule:
     Type: AWS::ElasticLoadBalancingV2::ListenerRule

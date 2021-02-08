@@ -14,8 +14,10 @@ Parameters:
     Default: kuali-ecs
 
   Landscape:
-    Description: Specify a landscape this deployment is for
+    Description: Specify a name for your landscape
     Type: String
+    AllowedPattern: "[a-zA-Z\\d]{1,12}"
+    ConstraintDescription: Up to 12 letters and/or numbers
 
   VpcId:
     Type: AWS::EC2::VPC::Id
@@ -59,6 +61,10 @@ Parameters:
     - "false"
     ConstraintDescription: Enter "true" or "false" only.
     Default: "false"
+
+
+Conditions:
+  IsProd: !Equals [!Ref Landscape, prod]
 
 
 Resources:
@@ -139,7 +145,7 @@ Resources:
     Properties:
       LogGroupName:
         !Sub ${GlobalTag}-${Landscape}-kc
-      RetentionInDays: 90
+      RetentionInDays: !If [ IsProd, 365, 30 ]
 
   Service:
     Type: AWS::ECS::Service
@@ -166,7 +172,7 @@ Resources:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
       Name:
-        !Sub ${GlobalTag}-${Landscape}-TG-kc
+        !Sub ${GlobalTag}-${Landscape}-kc
       VpcId: !Ref VpcId
       Port: 8080
       Protocol: HTTP
@@ -192,7 +198,7 @@ Resources:
       Tags:
       - Key: Name
         Value: 
-          !Sub ${GlobalTag}-${Landscape}-TG-kc
+          !Sub ${GlobalTag}-${Landscape}-kc-targetgroup
 
   ListenerRuleKcDefault:
     Type: AWS::ElasticLoadBalancingV2::ListenerRule

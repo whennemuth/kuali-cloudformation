@@ -74,25 +74,35 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
    # Example 1) Use defaults:
    sh main.sh create-stack
    
-   # Example 2) Comprehensive parameters, avoiding all defaults.
+   # Example 2) Create a public facing stack (public ALB) with a web application firewall, full logging, and a new empty mongo database.
+   # The environment is custom requiring a database cloned from that of a standard (baseline) environment (sb, ci, qa, stg, or prod).
+   sh main.sh create-stack \
+       landscape=myenvironment \
+       baseline=qa \
+       using_route53=true \
+       create_mongo=true \
+       create_waf=true \
+       enable_alb_logging=true
+   
+   # Example 3) Comprehensive parameters, avoiding all defaults.
        landscape=ci \
        stack_name=my-kuali-with-autoscaling \
        no_rollback=true \
        global_tag=my-kuali-ecs \
-       ec2_instance_type=m5.large \
+    ec2_instance_type=m5.large \
        availability_zone1=us-west-1a \
        availability_zone2=us-west-1b \
-       template_bucket_path=s3://my_bucket/some/directory \
+    template_bucket_path=s3://my_bucket/some/directory \
        certificate_arn=arn:aws:iam::770203350335:server-certificate/kuali-ecs-cert \
        kc_image=770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-coeus-sandbox:2001.0040 \
        core_image=770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-core:2001.0040 \
        portal_image=770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-portal:2001.0040 \
        pdf_image=770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-research-pdf:2002.0003
    ```
-
+   
    Once you initiate stack creation, you can go to the aws management console and watch the stack creation events as they come in:
    [AWS Management Console - Cloudformation](https://console.aws.amazon.com/cloudformation/home?region=us-east-1)
-
+   
 4. **Monitor stack progress:**
    Go to the stack in the [AWS Console](https://console.aws.amazon.com/cloudformation/home?region=us-east-1). Click on the new stack in the list and go to the "Events" tab.
    Watch for failures (these will show up in red).

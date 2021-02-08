@@ -2,6 +2,13 @@
 
 cmdfile=last-cmd.sh
 
+BASELINE_LANDSCAPES=('sb' 'ci' 'qa' 'stg' 'prod')
+
+declare -A kualiTags=(
+  [Service]='research-administration'
+  [Function]='kuali'
+)
+
 outputHeading() {
   local border='*******************************************************************************'
   echo ""
@@ -16,6 +23,14 @@ windows() {
 
 isNumeric() {
   [ -n "$(grep -P '^\d+$' <<< "$1")" ] && true || false
+}
+
+err(){
+  std_err "Error: $*"
+}
+
+std_err() {
+  echo "$*" >>/dev/stderr
 }
 
 isCurrentDir() {
@@ -49,6 +64,10 @@ parseArgs() {
 setDefaults() {
   # Set explicit defaults first
   [ -z "$LANDSCAPE" ] && LANDSCAPE="${defaults['LANDSCAPE']}" || LANDSCAPE="${LANDSCAPE,,}"
+  if isABaselineLandscape && [ -z "$BASELINE" ] ; then
+    BASELINE=$LANDSCAPE
+    echo "BASELINE=$BASELINE"
+  fi
   [ -z "$GLOBAL_TAG" ] && GLOBAL_TAG="${defaults['GLOBAL_TAG']}"
   for k in ${!defaults[@]} ; do
     [ -n "$(eval 'echo $'$k)" ] && continue; # Value is not empty, so no need to apply default
@@ -184,7 +203,7 @@ EOF
   sh $cmdfile
 }
 
-# Add on key=value entry to the construction of an aws cli function call to 
+# Add on key=value parameter entry to the construction of an aws cli function call to 
 # perform a create/update stack action.
 addParameter() {
   local cmdfile="$1"
@@ -199,12 +218,36 @@ addParameter() {
 EOF
 }
 
-# Add on key=value entry to the construction of an aws cli function call to 
+# Add on key=value parameter entry to the construction of an aws cli function call to 
 # perform a create/update stack action.
 add_parameter() {
   eval 'local value=$'$3
   [ -z "$value" ] && return 0
   addParameter "$1" "$2" "$value"
+}
+
+# Add on key=value tag entry to the construction of an aws cli function call to 
+# perform a create/update stack action.
+addTag() {
+  local cmdfile="$1"
+  local key="$2"
+  local value="$3"
+  [ -n "$(cat $cmdfile | grep '\"Key\" :')" ] && local comma=","
+  cat <<-EOF >> $cmdfile
+        ${comma}{
+          "Key" : "$key",
+          "Value" : "$value"
+        }
+EOF
+}
+
+addStandardTags() {
+  addTag $cmdfile 'Service' ${kualiTags['Service']}
+  addTag $cmdfile 'Function' ${kualiTags['Function']}
+  addTag $cmdfile 'Landscape' "$LANDSCAPE"
+  if [ -n "$BASELINE" ] ; then
+    addTag $cmdfile 'Baseline' "$BASELINE"
+  fi
 }
 
 # Issue an ssm command to an ec2 instance to re-run its init functionality from it's metadata.
@@ -437,8 +480,8 @@ setAcmCertArn() {
         --certificate-arn $CERTIFICATE_ARN \
         --tags \
             Key=Name,Value=$domainName \
-            Key=Function,Value=research-administration \
-            Key=Service,Value=kuali \
+            Key=Function,Value=${kualiTags['Service']} \
+            Key=Service,Value=${kualiTags['Function']} \
             Key=Landscape,Value=$LANDSCAPE
 
     elif [ "$checkS3" == 'true' ] ; then
@@ -470,9 +513,9 @@ EOF
 downloadAcmCertsFromS3() {
   local setArn="$1"
   local domainName="$2"
-  echo "Searching $LANDSCAPE folder in s3 bucket for cert & key files..."
+  echo "Searching $BASELINE folder in s3 bucket for cert & key files..."
   local files=$(
-    aws s3 ls s3://$TEMPLATE_BUCKET_NAME/$LANDSCAPE/$domainName \
+    aws s3 ls s3://$TEMPLATE_BUCKET_NAME/$BASELINE/$domainName \
       --profile=infnprd \
       --recursive \
       | awk '{print $4}' \
@@ -875,17 +918,17 @@ checkSubnetsInLegacyAccount() {
   getSubnets \
     'CAMPUS_SUBNET' \
     'Name=tag:Network,Values=application' \
-    'Name=tag:Environment,Values='$LANDSCAPE
+    'Name=tag:Environment,Values='$BASELINE
 
   getSubnets \
     'PRIVATE_SUBNET' \
     'Name=tag:Network,Values=database' \
-    'Name=tag:Environment,Values='$LANDSCAPE
+    'Name=tag:Environment,Values='$BASELINE
 
   getSubnets \
     'PRIVATE_SUBNET' \
     'Name=tag:Network,Values=database' \
-    'Name=tag:Environment2,Values='$LANDSCAPE
+    'Name=tag:Environment2,Values='$BASELINE
 
   source ./$cmdfile
 
@@ -964,13 +1007,25 @@ bucketExists() {
 secretExists() {
   local name="$1"
   local secret="$(
-  aws \
-    --profile $PROFILE \
-    secretsmanager list-secrets \
+  aws secretsmanager list-secrets \
     --output text \
     --query 'SecretList[?Name==`'$name'`].{Name:Name}' 2> /dev/null
   )"
   [ -n "$secret" ] && true || false
+}
+
+secretExistsForBaseline() {
+  local baseline="${1:-$BASELINE}"
+  local result="$(
+    aws resourcegroupstaggingapi get-resources \
+      --resource-type-filters secretsmanager:secret \
+      --output text \
+      --tag-filters \
+        'Key=Landscape,Values='$baseline \
+        'Key=Function,Values='${kualiTags['Function']} \
+        'Key=Service,Values='${kualiTags['Service']} 2> /dev/null
+    )"
+    [ -n "$result" ] && true || false
 }
 
 getRdsSecret() {
@@ -978,44 +1033,46 @@ getRdsSecret() {
   local type="$1"
   RDS_SECRET=$(
     aws secretsmanager get-secret-value \
-      --secret-id kuali/$LANDSCAPE/kuali-oracle-rds-${type}-password \
+      --secret-id kuali/$BASELINE/kuali-oracle-rds-${type}-password \
       --output text \
       --query '{SecretString:SecretString}' 2> /dev/null
     )
+  echo "$RDS_SECRET"
 }
-
 
 getRdsAdminUsername() {
   # getRdsSecret | cut -d'"' -f8
-  getRdsSecret 'admin' | jq '.MasterUsername'
+  getRdsSecret 'admin' | jq '.MasterUsername' | sed 's/"//g'
 }
 
 getRdsAdminPassword() {
   # getRdsSecret | cut -d'"' -f4
-  getRdsSecret 'admin' | jq '.MasterUserPassword'
+  getRdsSecret 'admin' | jq '.MasterUserPassword' | sed 's/"//g'
 }
 
 getRdsAppUsername() {
-  getRdsSecret 'app' | jq '.username'
+  getRdsSecret 'app' | jq '.username' | sed 's/"//g'
 }
 
 getRdsAppPassword() {
-  getRdsSecret 'app' | jq '.password'
+  getRdsSecret 'app' | jq '.password' | sed 's/"//g'
 }
 
 getRandomPassword() {
   date +%s | sha256sum | base64 | head -c 32
 }
 
+getRdsArn() {
+  local landscape=${1:-$LANDSCAPE}
+  aws resourcegroupstaggingapi get-resources \
+    --resource-type-filters rds:db \
+    --tag-filters 'Key=App,Values=Kuali' 'Key=Environment,Values='$landscape \
+    --output text \
+    --query 'ResourceTagMappingList[].{ARN:ResourceARN}' 2> /dev/null
+}
 
 getRdsHostname() {
-  local rdsArn=$(
-    aws resourcegroupstaggingapi get-resources \
-      --resource-type-filters rds:db \
-      --tag-filters 'Key=App,Values=Kuali' 'Key=Environment,Values='$LANDSCAPE \
-      --output text \
-      --query 'ResourceTagMappingList[].{ARN:ResourceARN}' 2> /dev/null
-  )
+  local rdsArn=$(getRdsArn)
   if [ -n "$rdsArn" ] ; then
     aws rds describe-db-instances \
       --db-instance-id $rdsArn \
@@ -1024,9 +1081,213 @@ getRdsHostname() {
   fi
 }
 
+getArnOfRdsToSnapshot() {
+  if [ "$LANDSCAPE" != "$BASELINE" ] ; then
+    if [ -z "$(getRdsArn)" ] ; then
+      getRdsArn $BASELINE
+    fi
+  fi
+}
+
+createRdsSnapshot() {
+  local instanceARN="$1"
+  local snapshotId="$2"
+  local landscape="$3"
+  local instanceId=$(nameFromARN $instanceARN)
+
+  local data=$(aws rds create-db-snapshot \
+    --db-instance-identifier $instanceId \
+    --db-snapshot-identifier $snapshotId \
+    --tags \
+        Key=Function,Value=${kualiTags['Function']} \
+        Key=Service,Value=${kualiTags['Service']} \
+        Key=Landscape,Value=$LANDSCAPE 2> /dev/null
+  )
+
+  echo "$data" | grep 'DBSnapshotArn' | cut -d'"' -f4 2> /dev/null
+}
+
+waitForRdsSnapshotCompletion() {
+  local snapshotArn="$1"
+  local snapshotName=$(nameFromARN "$snapshotArn")
+  outputHeading "Waiting for $snapshotName snapshot completion..."
+  local counter=1
+  local status="unknown"
+  while true ; do
+    local data=$(aws rds describe-db-snapshots \
+      --db-snapshot-identifier $snapshotArn \
+      --output text \
+      --query 'DBSnapshots[].{status:Status, progress:PercentProgress}'
+    )
+    local progress=$(echo "$data" | awk '{print $1}')
+    local status=$(echo "$data" | awk '{print $2}')
+    echo "$snapshotName status check $counter: $status, ${progress}% done"
+    ([ "${status,,}" == 'available' ] && [ "$progress" == '100' ]) && break
+    ((counter++))
+    if [ $counter -ge 720 ] ; then
+      echo 'RDS snapshot not yet available after an hour, cancelling'
+      break;
+    fi
+    sleep 5
+  done
+  ([ "${status,,}" == 'available' ] && [ "$progress" == '100' ]) && true || false
+}
+
+addRdsSnapshotParameters() {
+  local cmdfile="$1"
+  local landscape="$2"
+  local rdsSnapshotARN="$3"
+  local rdsArnToSnapshot="$4"
+  local engineVersion="$(getOracleEngineVersion 'oracle-se2' '19')"
+
+  if [ -z "$engineVersion" ] ; then
+    echo "ERROR! Cannot determine rds engine version"
+    exit 1
+  fi
+  addParameter $cmdfile 'RdsEngineVersion' $engineVersion
+  add_parameter $cmdfile 'RdsDbSubnet1' 'PRIVATE_SUBNET1'
+  add_parameter $cmdfile 'RdsDbSubnet2' 'PRIVATE_SUBNET2'
+  add_parameter $cmdfile 'RdsSubnetCIDR1' 'PRIVATE_SUBNET1_CIDR'
+  add_parameter $cmdfile 'RdsSubnetCIDR2' 'PRIVATE_SUBNET1_CIDR'
+  add_parameter $cmdfile 'RdsJumpboxSubnetCIDR1' 'CAMPUS_SUBNET1_CIDR'
+  add_parameter $cmdfile 'RdsJumpboxSubnetCIDR2' 'CAMPUS_SUBNET2_CIDR'
+  add_parameter $cmdfile 'RdsAvailabilityZone' 'PRIVATE_SUBNET1_AZ'
+
+  if [ "${rdsSnapshotARN,,}" == 'new' ] ; then
+    rdsSnapshotARN="$(createRdsSnapshot $rdsArnToSnapshot $(date -u +'kuali-oracle-'$landscape'-cfn-%Y-%m-%d-%H-%M') $landscape)"
+    if [ -z "$rdsSnapshotARN" ] ; then
+      err "Problem snapshotting $rdsInstanceId"
+      exit 1
+    fi
+    if ! waitForRdsSnapshotCompletion $rdsSnapshotARN ; then
+      echo "RDS snapshot creation unsuccessful, cancelling..."
+      exit 1
+    fi
+    [ $? -gt 0 ] && err "Problem with snapshot attempt!" && exit 1
+  fi
+  addParameter $cmdfile 'RdsSnapshotARN' $rdsSnapshotARN 
+}
+
+isDryrun() {
+  if [ "${1,,}" == 'dryrun' ] || [ "${1,,}" == 'true' ] ; then
+    local dryrun="$1"
+  fi
+  [ -n "$dryrun" ] && true || false
+}
+
+nameFromARN() {
+  local arn="$1"
+  case $(echo "$arn" | grep -o ':' | wc -l) in
+    7)
+      # arn contains 
+      echo $arn | grep -oP '[^:]+:[^:]+$' ;;
+    *) 
+      echo $arn | grep -oP '[^:]+$' ;;
+  esac
+}
+
+isAnAutomatedSnapshot() {
+  local snapshotId="$1"
+  [ "${snapshotId:0:4}" == 'rds:' ] && true || false
+}
+
+deleteRdsSnapshot() {
+  local snapshotId="$1"
+  if isAnAutomatedSnapshot "$snapshotId" ; then
+    echo "$snapshotId is an automated backup, to delete you must change the retention period of the source " \
+    "rds instance to a number that the age of the snapshot exceeds."
+    return 0
+  fi
+  aws rds delete-db-snapshot --db-snapshot-identifier $snapshotId
+}
+
+# Remove either:
+#   A single snapshot by db-snapshot-identifier older than a specified number of days
+#   or...
+#   All snapshots created against an rds instance identified by db-instance-identifier older than a specified number of days
+pruneOldRdsSnapshots() {
+  for keyAndVal in $@ ; do
+    eval "local $keyAndVal"
+  done
+  if [ -z "$(echo "$days" | grep -P '^\d+$')" ] ; then
+    err "Snapshot age in days must be an integer! Provided value: $days"
+    return 1
+  fi
+
+  [ -n "$dbInstanceId" ] && local dbInstanceIdArg="--db-instance-identifier $dbInstanceId"
+  [ -n "$snapshotArn" ] && local snapshotArnArg="--db-snapshot-identifier $(nameFromARN $snapshotArn)"
+
+  while read snapshot ; do
+    local id=$(echo "$snapshot" | awk '{print $1}')
+    local created=$(echo "$snapshot" | awk '{print $2}')
+    local daysOld=$(echo $(( ($(date -u +%s) - $(date -d $created +%s) )/(60*60*24) )))
+    if [ -z "$id" ] || [ -z "$created" ] || [ -z "$daysOld" ] ; then
+      echo "Problem parsing snapshot age data!"
+      continue
+    elif [ $daysOld -ge $days ] ; then
+      local msg="$id is $daysOld days old"
+      isDryrun && msg="DRYRUN: $msg"
+      if isAnAutomatedSnapshot "$id" ; then
+        echo "$msg, but is an automated backup, skipping..."
+      else
+        echo "$msg, deleting..."
+        deleteRdsSnapshot $id
+      fi
+    fi
+  done <<< $(aws rds describe-db-snapshots \
+      $dbInstanceIdArg $snapshotArnArg --output text \
+      --query 'DBSnapshots[].{id:DBSnapshotIdentifier,time:SnapshotCreateTime}' 2> /dev/null
+  )
+}
+
+pruneKualiRdsSnapshots() {
+  for keyAndVal in $@ ; do
+    eval "local $keyAndVal"
+  done
+  [ -z "$excludeLandscape" ] && excludeLandscape='no-landscape'
+  while read snapshot ; do
+    arn=$(echo $snapshot | jq -r '.ResourceARN')
+    landscape=$(echo $snapshot | jq -r '.Tags[] | select(.Key == "Landscape").Value')
+    echo "deleting $landscape snapshot: $arn"
+    pruneOldRdsSnapshots snapshotArn=$arn $@
+  done <<< $(aws resourcegroupstaggingapi get-resources \
+    --resource-type-filters rds:snapshot \
+    --tag-filters \
+      'Key=Function,Values=kuali' \
+      'Key=Service,Values=research-administration' \
+      | jq -r --compact-output '.ResourceTagMappingList[] | select(contains({Tags: [{Key: "Landscape", Value: "'$excludeLandscape'"} ]}) | not)'
+  )
+}
+
+pruneKualiRdsSnapshotsExceptProd() {
+  # pruneKualiRdsSnapshots excludeLandscape=prod dryrun=true days=30
+  pruneKualiRdsSnapshots excludeLandscape=prod $@
+}
+
+pruneSnapshotsExistingKualiRdsInstance() {
+  # pruneOldRdsSnapshots landscape=ci dryrun=true days=30
+  for keyAndVal in $@ ; do
+    eval "local $keyAndVal"
+  done
+
+  local arn=$(aws resourcegroupstaggingapi get-resources \
+    --resource-type-filters rds:db \
+    --tag-filters \
+      'Key=Function,Values=kuali' \
+      'Key=Service,Values=research-administration' \
+      'Key=Landscape,Values='$landscape \
+    --output text \
+    --query 'ResourceTagMappingList[].{ARN:ResourceARN}' | head -1 2> /dev/null
+  )
+
+  local dbInstanceId=$(nameFromARN "$arn")
+  [ -z "$dbInstanceId" ] && echo "No rds instance found tagged with landscape: $landscape" && return 0
+  pruneOldRdsSnapshots dbInstanceId=$dbInstanceId $@
+}
+
 getKcConfigDb() {
   if [ ! -f 'kc-config.xml.temp' ] ; then
-    aws s3 cp s3://$TEMPLATE_BUCKET_NAME/$LANDSCAPE/kuali/main/config/kc-config.xml 'kc-config.xml.temp' > /dev/null
+    aws s3 cp s3://$TEMPLATE_BUCKET_NAME/$BASELINE/kuali/main/config/kc-config.xml 'kc-config.xml.temp' > /dev/null
     [ ! -f 'kc-config.xml.temp' ] && return 1
   fi
 
@@ -1049,7 +1310,7 @@ getKcConfigLine() {
     if [ -f 'kc-config.xml.temp' ] ; then
       cat 'kc-config.xml.temp'
     else
-      aws s3 cp s3://$TEMPLATE_BUCKET_NAME/$LANDSCAPE/kuali/main/config/kc-config.xml - 2> /dev/null
+      aws s3 cp s3://$TEMPLATE_BUCKET_NAME/$BASELINE/kuali/main/config/kc-config.xml - 2> /dev/null
     fi
   } | grep $1
 }
@@ -1254,8 +1515,8 @@ getHostedZoneIdByLandscape() {
     --resource-type-filters route53:hostedzone \
     --tag-filters \
       "Key=Landscape,Values=$LANDSCAPE" \
-      'Key=Service,Values=research-administration' \
-      'Key=Function,Values=kuali' \
+      'Key=Service,Values='${kualiTags['Service']} \
+      'Key=Function,Values='${kualiTags['Function']} \
     --output text \
     --query 'ResourceTagMappingList[*].{arn:ResourceARN}' 2> /dev/null | cut -d'/' -f2
 }
@@ -1274,8 +1535,8 @@ checkLegacyAccount() {
       LEGACY_ACCOUNT='true'
       echo 'Current profile indicates legacy account.'
       defaults['TEMPLATE_BUCKET_PATH']=$(echo "${defaults['TEMPLATE_BUCKET_PATH']}" | sed -i 's/kuali-config/kuali-research-ec2-setup/')
-      if [ "$LANDSCAPE" != 'prod' ] && [ -n "${defaults['HOSTED_ZONE']}" ] ; then
-        defaults['HOSTED_ZONE']="kuali-research-$LANDSCAPE.bu.edu"
+      if [ "$BASELINE" != 'prod' ] && [ -n "${defaults['HOSTED_ZONE']}" ] ; then
+        defaults['HOSTED_ZONE']="kuali-research-$BASELINE.bu.edu"
       fi
     fi
   fi
@@ -1383,8 +1644,8 @@ getEc2InstanceName() {
 # saved off to a file in the current directory.
 # Example use:
 #    filters=(
-#      'Key=Function,Values=kuali'
-#      'Key=Service,Values=research-administration'
+#      'Key=Function,Values='${kualiTags['Function']}
+#      'Key=Service,Values=${kualiTags['Service']}
 #    ) 
 #    pickEC2InstanceId 'nameFragment=mongo' ${filters[@]}
 pickEC2InstanceId() {
@@ -1449,6 +1710,83 @@ pickEC2InstanceId() {
     if [ -n "$id" ] ; then
       id=$(echo $id | cut -d':' -f 1)
       echo "$id" > ec2-instance-id
+    fi
+  fi
+}
+
+isABaselineLandscape() {
+  local landscape="${1:-$LANDSCAPE}"
+  local match=''
+  for l in ${BASELINE_LANDSCAPES[@]} ; do
+    if [ "${landscape,,}" == $l ] ; then
+      match=$l
+      break
+    fi
+  done
+  [ -n "$match" ] && true || false
+}
+
+getStackByTag() {
+  local tagname="$1"
+  local tagvalue="$2"
+  aws resourcegroupstaggingapi get-resources \
+  --resource-type-filters cloudformation:stack \
+  --output text \
+  --tag-filters \
+    'Key=Service,Values='${kualiTags['Service']} \
+    'Key=Function,Values='${kualiTags['Function']} \
+    "Key=$tagname,Values=$tagvalue"
+}
+
+stackExistsForLandscape() {
+  local landscape="${1:-$LANDSCAPE}"
+  local stack="$(getStackByTag 'Landscape' $landscape)"
+  [ -n "$stack" ] && true || false
+}
+
+stackExistForBaselineLandscape() {
+  local baseline="${1:-$BASELINE}"
+  local stack="$(getStackByTag 'Baseline' $baseline)"
+  [ -n "$stack" ] && true || false
+}
+
+validateShibboleth() {
+  [ "$task" == 'delete-stack' ] && return 0
+  if [ "${USING_SHIBBOLETH,,}" == 'true' ] ; then
+    if [ "${USING_ROUTE53}" == 'false' ] ; then
+      echo "Cannot use shibboleth without route53!"
+      exit 1
+    elif [ -z "${USING_ROUTE53}" ] ; then
+      echo "Since shibboleth is indicated..."
+      echo "USING_ROUTE53='true'" && USING_ROUTE53='true'
+    fi
+  fi
+}
+
+checkLandscapesAndRDS() {
+  [ "$task" == 'delete-stack' ] && return 0
+  [ -z "$LANDSCAPE" ] && echo "Missing landscape parameter!" && exit 1
+  if stackExistsForLandscape ; then
+    echo "A cloudformation stack for the $LANDSCAPE landscape already exists!"
+    exit 1
+  fi
+  [ -z "$BASELINE" ] && echo "Missing baseline parameter!" && exit 1
+  if ! isABaselineLandscape "$BASELINE" ; then
+    echo "The provided baseline parameter is not one of the excepted values: sb, ci, qa, stg, prod"
+    exit 1
+  fi
+  if ! secretExistsForBaseline ; then
+    echo "Secrets Manager kuali secret with a landscape tag equal to the specified baseline ($BASELINE) must exist!"
+    exit 1
+  fi
+  if [ -n "$RDS_LANDSCAPE_TO_CLONE" ] ; then
+    RDS_SNAPSHOT_ARN='new'
+    RDS_ARN_TO_CLONE="$(getRdsArn $RDS_LANDSCAPE_TO_CLONE)"
+    if [ -z "$RDS_ARN_TO_CLONE" ] ; then
+      echo "Cannot clone non-existent database! No RDS instance exists for kuali tagged with a $RDS_LANDSCAPE_TO_CLONE landscape."
+      exit 1
+    else
+      echo "RDS_ARN_TO_CLONE=$RDS_ARN_TO_CLONE"
     fi
   fi
 }

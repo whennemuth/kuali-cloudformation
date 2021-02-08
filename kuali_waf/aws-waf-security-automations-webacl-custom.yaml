@@ -43,6 +43,8 @@ Parameters:
   Landscape:
     Description: Specify which landscape to build into the VPC
     Type: String
+    AllowedPattern: "[a-zA-Z\\d]{1,12}"
+    ConstraintDescription: Up to 12 letters and/or numbers
 
   LogGroupRetention:
     Type: Number

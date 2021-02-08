@@ -3,7 +3,6 @@
 declare -A defaults=(
   [STACK_NAME]='kuali-ec2'
   [GLOBAL_TAG]='kuali-ec2'
-  # [LANDSCAPE]='sb'
   [TEMPLATE_BUCKET_PATH]='s3://kuali-conf/cloudformation/kuali_ec2'
   [TEMPLATE_PATH]='.'
   [KC_IMAGE]='getLatestImage kuali-coeus'
@@ -17,6 +16,8 @@ declare -A defaults=(
   # -----------------------------------------------
   # No defaults - user must provide explicit value:
   # -----------------------------------------------
+  # [LANDSCAPE]='sb'
+  # [BASELINE]='sb'
   # [CAMPUS_SUBNET1]='???'
   # [KEYPAIR_NAME]='kuali-ec2-$LANDSCAPE-keypair'
   # -----------------------------------------------
@@ -59,16 +60,21 @@ stackAction() {
     if [ -n "$PDF_BUCKET_NAME" ] ; then
       if bucketExists "$PDF_BUCKET_NAME" ; then
         # Cloudformation can only delete a bucket if it is empty (and has no versioning), so empty it out here.
-        aws --profile=$PROFILE s3 rm s3://$PDF_BUCKET_NAME --recursive
-        # aws --profile=$PROFILE s3 rb --force $PDF_BUCKET_NAME
+        aws s3 rm s3://$PDF_BUCKET_NAME --recursive
+        # aws s3 rb --force $PDF_BUCKET_NAME
       fi
     fi
     
     [ $? -gt 0 ] && echo "Cancelling..." && return 1
 
-    aws --profile=$PROFILE cloudformation $action --stack-name ${STACK_NAME}-${LANDSCAPE}
+    aws cloudformation $action --stack-name ${STACK_NAME}-${LANDSCAPE}
+    if ! waitForStackToDelete ; then
+      echo "Problem deleting stack!"
+      exit 1
+    fi
   else
     # checkSubnets will also assign a value to VPC_ID
+    outputHeading "Looking up VPC/Subnet information..."
     if ! checkSubnets ; then
       exit 1
     fi
@@ -76,7 +82,9 @@ stackAction() {
     # Upload the yaml files to s3
     uploadStack silent
     [ $? -gt 0 ] && exit 1
+
     # Upload scripts that will be run as part of AWS::CloudFormation::Init
+    outputHeading "Uploading bash scripts involved in AWS::CloudFormation::Init..."
     aws s3 cp ../scripts/ec2/process-configs.sh s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/
     aws s3 cp ../scripts/ec2/stop-instance.sh s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/
     aws s3 cp ../scripts/ec2/cloudwatch-metrics.sh s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/
@@ -100,6 +108,7 @@ EOF
 
     add_parameter $cmdfile 'GlobalTag' 'GLOBAL_TAG'
     add_parameter $cmdfile 'Landscape' 'LANDSCAPE'
+    add_parameter $cmdfile 'Baseline' 'BASELINE'
     add_parameter $cmdfile 'VpcId' 'VpcId'
     add_parameter $cmdfile 'CampusSubnet' 'CAMPUS_SUBNET1'
     add_parameter $cmdfile 'PdfImage' 'PDF_IMAGE'
@@ -120,6 +129,21 @@ EOF
       add_parameter $cmdfile 'PdfS3BucketName' 'PDF_BUCKET_NAME'
     fi
 
+    # Based on landscape and other parameters, perform rds cloning if indicated.
+    outputHeading "Checking RDS parameters..."
+    checkLandscapesAndRDS
+    if [ -n "$RDS_SNAPSHOT_ARN" ]; then
+      validateStack silent ../kuali_rds/rds-oracle.yaml
+      [ $? -gt 0 ] && exit 1
+      aws s3 cp ../kuali_rds/rds-oracle.yaml s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_rds/
+      addRdsSnapshotParameters $cmdfile $LANDSCAPE "$RDS_SNAPSHOT_ARN" "$RDS_ARN_TO_CLONE"
+    else
+      echo "No RDS snapshotting indicated. Will use existing RDS database directly."
+    fi
+
+    echo "      ]' \\" >> $cmdfile
+    echo "      --tags '[" >> $cmdfile
+    addStandardTags
     echo "      ]'" >> $cmdfile
 
     runStackActionCommand
@@ -140,12 +164,8 @@ runTask() {
       PROMPT='false'
       task='delete-stack'
       stackAction "delete-stack" 2> /dev/null
-      if waitForStackToDelete ${STACK_NAME}-${LANDSCAPE} ; then
-        task='create-stack'
-        stackAction "create-stack"
-      else
-        echo "ERROR! Stack deletion failed. Cancelling..."
-      fi
+      task='create-stack'
+      stackAction "create-stack"
       ;;
     update-stack)
       stackAction "update-stack" ;;

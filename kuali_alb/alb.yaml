@@ -19,8 +19,10 @@ Parameters:
     Default: kuali-ecs
     
   Landscape:
-    Description: Specify which landscape to build into the VPC
+    Description: Specify a name for your landscape
     Type: String
+    AllowedPattern: "[a-zA-Z\\d]{1,12}"
+    ConstraintDescription: Up to 12 letters and/or numbers
     
   Service:
     Description: Service catalog name

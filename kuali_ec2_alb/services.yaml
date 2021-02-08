@@ -15,8 +15,10 @@ Parameters:
     Default: kuali-ec2-alb
 
   Landscape:
-    Description: Specify which landscape to build into the VPC
+    Description: Specify a name for your landscape
     Type: String
+    AllowedPattern: "[a-zA-Z\\d]{1,12}"
+    ConstraintDescription: Up to 12 letters and/or numbers
 
   VpcId:
     Type: AWS::EC2::VPC::Id
