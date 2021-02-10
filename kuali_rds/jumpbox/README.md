@@ -39,6 +39,7 @@ aws ssm start-session --target [instance-id of jump server]
 
 We'd like this same kind of access to RDS instances.
 But, you cannot use a start-session command directly against the RDS instance itself due to the `--target` parameter requiring an ec2 instance id, which an RDS instance does not have. Hence the jump box.
+This is because the target of an ssm tunneling session requires it have installed client software that allows it to participate in the session. An RDS instance does not have an operating system per se, and is not something you can load client software on to - hence the jumpbox proxying.
 
 The solution makes modified use of the `ssm start-session` command.
 You execute this same command to get to the jumbox, but you use the session to tunnel SSH through to the RDS instance. 

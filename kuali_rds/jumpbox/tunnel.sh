@@ -137,6 +137,7 @@ tunnelToRDS() {
 
       ssh -i tempkey \\
         -Nf -M \\
+        -b 0.0.0.0 \\
         -S temp-ssh.sock \\
         -L $LOCAL_PORT:$RDS_ENDPOINT:$REMOTE_PORT \\
         -o "UserKnownHostsFile=/dev/null" \\
