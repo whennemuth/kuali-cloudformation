@@ -19,7 +19,11 @@ build() {
     if usingKeyFile ; then
       echo "RSA key detected in secrets directory. Will connect to github using ssh."
       startSecretsServer
-      docker build -t kuali-infrastructure --add-host=secrets:$SECRETS_SERVER_IP .
+      docker build \
+        -t kuali-infrastructure 
+        --build-arg DATETIME=$(date +'%s') 
+        --add-host=secrets:$SECRETS_SERVER_IP \
+        .
     else
       echo "The file in the secrets directory appears to be a personal access token."
       printf "Please enter your github username: "
@@ -29,7 +33,12 @@ build() {
         exit 1
       fi
       startSecretsServer
-      docker build -t kuali-infrastructure --build-arg GIT_USERNAME=$username --add-host=secrets:$SECRETS_SERVER_IP .
+      docker build \
+        -t kuali-infrastructure \
+        --build-arg DATETIME=$(date +'%s') \
+        --build-arg GIT_USERNAME=$username \
+        --add-host=secrets:$SECRETS_SERVER_IP \
+        .
     fi
     # docker stop secrets_server
   fi
@@ -105,5 +114,9 @@ case "$task" in
   test) 
     echo 'hello' $@ 
     env
+    ;;
+  tunnel)
+    cd kuali_rds/jumpbox
+    sh tunnel.sh $@
     ;;
 esac

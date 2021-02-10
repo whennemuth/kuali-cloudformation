@@ -1,7 +1,8 @@
 FROM amazonlinux AS BASELINE
 
-ARG GIT_HTTP=https://github.com/bu-ist/kuali-infrastructure.git
-ARG GIT_SSH=git@github.com:bu-ist/kuali-infrastructure.git
+ARG GIT_REPO_NAME=kuali-infrastructure
+ARG GIT_HTTP=https://github.com/bu-ist/${GIT_REPO_NAME}.git
+ARG GIT_SSH=git@github.com:bu-ist/${GIT_REPO_NAME}.git
 ARG GIT_USERNAME
 ARG SECRETS_SERVICE=secrets
 
@@ -12,7 +13,9 @@ RUN \
   yum install -y git zip unzip tar jq && \
   curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" && \
   unzip awscliv2.zip && \
-  ./aws/install
+  ./aws/install && \
+  curl "https://s3.amazonaws.com/session-manager-downloads/plugin/latest/linux_64bit/session-manager-plugin.rpm" -o "session-manager-plugin.rpm" && \
+  yum install -y session-manager-plugin.rpm
 
 # Install node and npm
 RUN \
@@ -32,6 +35,10 @@ RUN \
   fi && \
   echo "npm version: $(sh -c 'npm --version')" && \
   echo "node version: $(sh -c 'node --version')"
+
+# Define an ARG that, if provided a value on the command line through --build-arg, 
+# will cause a cache miss for the following RUN instruction and force to be re-executed.
+ARG DATETIME
 
 # Download the git repository. Keys are curled in from a container running in parallel at the time of this build.
 RUN \
@@ -53,4 +60,8 @@ RUN \
     rm token; \
   fi
 
-  CMD [ "sh" "-c" "cd /kuali-infrastructure && sh docker.sh test" ]
+  WORKDIR /${GIT_REPO_NAME}
+
+  # CMD [ "sh", "-c", "cd /${GIT_REPO_NAME} && sh docker.sh test" ]
+
+  ENTRYPOINT [ "sh",  "docker.sh" ]
