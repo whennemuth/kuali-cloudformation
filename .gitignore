@@ -6,3 +6,4 @@ s3/*
 **/tempkey*
 **/last-cmd.sh
 ec2-instance-id
+secrets/*

@@ -305,7 +305,6 @@ Resources:
       TemplateURL:
         !Sub https://s3.amazonaws.com/${TemplateBucketName}/cloudformation/kuali_rds/rds-oracle.yaml
       Parameters:
-        GlobalTag: !Ref GlobalTag
         Landscape: !Ref Landscape
         Baseline: !Ref Baseline
         Service: !Ref Service

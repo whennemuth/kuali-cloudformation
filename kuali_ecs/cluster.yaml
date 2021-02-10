@@ -225,7 +225,7 @@ Resources:
             - secretsmanager:DescribeSecret
             - secretsmanager:ListSecretVersionIds
             Resource:
-            - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:kuali/${Landscape}/*
+            - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:kuali/${Baseline}/*
       - PolicyName:
           !Sub "${GlobalTag}-${Landscape}-read-rds-metadata"
         PolicyDocument:
@@ -473,8 +473,8 @@ Resources:
           
           # Install required packages for scripts that will monitor and upload custom metrics to cloudwatch.
           curl https://aws-cloudwatch.s3.amazonaws.com/downloads/CloudWatchMonitoringScripts-1.2.2.zip \
-            -o /var/lib/ && CloudWatchMonitoringScripts-1.2.2.zip
-          unzip -d /var/lib/ CloudWatchMonitoringScripts-1.2.2.zip
+            -o /var/lib/CloudWatchMonitoringScripts-1.2.2.zip
+          unzip -d /var/lib/CloudWatchMonitoringScripts-1.2.2.zip
           rm -f /var/lib/CloudWatchMonitoringScripts-1.2.2.zip
           
           # Implement all the metadata in AWS::CloudFormation::Init

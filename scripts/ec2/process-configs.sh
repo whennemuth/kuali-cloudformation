@@ -37,8 +37,6 @@ processEnvironmentVariableFiles() {
     # sed -i -r "s/kuali-research.*.bu.edu/$common_name/g" "$envfile"
     sed -i -r 's/[a-z]+\.kuali-research.bu.edu/'$common_name'/g' "$envfile"
 
-    if [ ]
-
     # Make changes to environment variable values:
     # 1) Simplify the mongo connection data if localhost
     # 2) Eliminate shibboleth-related entries if localhost or not using known dns with hosted zone
@@ -273,7 +271,7 @@ getRdsHostname() {
       --resource-type-filters rds \
       --tag-filters 'Key=Name,Values=kuali-oracle-'$BASELINE \
       --output text \
-      --query 'ResourceTagMappingList[].{ARN:ResourceARN}' 2> /dev/null
+      --query 'ResourceTagMappingList[].{ARN:ResourceARN}' | grep -vi 'snapshot' 2> /dev/null
   )
   if [ -n "$rdsArn" ] && [ "${rdsArn,,}" != 'none' ] ; then
     RDS_HOSTNAME=$(
