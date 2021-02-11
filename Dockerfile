@@ -47,9 +47,11 @@ RUN \
     chmod 600 rsa && \
     eval `ssh-agent -s` && \
     ssh-add rsa && \
+    mkdir ~/.ssh && \
     ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts && \
     echo "Github ssh key obtained, pulling from ${GIT_SSH}" && \
-    git clone $GIT_SSH && \
+    export GIT_SSH_COMMAND=/usr/bin/ssh && \
+    git clone ${GIT_SSH} && \
     eval `ssh-agent -k` && \
     rm rsa; \
   else \

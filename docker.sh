@@ -20,8 +20,8 @@ build() {
       echo "RSA key detected in secrets directory. Will connect to github using ssh."
       startSecretsServer
       docker build \
-        -t kuali-infrastructure 
-        --build-arg DATETIME=$(date +'%s') 
+        -t kuali-infrastructure \
+        --build-arg DATETIME=$(date +'%s') \
         --add-host=secrets:$SECRETS_SERVER_IP \
         .
     else
@@ -117,6 +117,7 @@ case "$task" in
     ;;
   tunnel)
     cd kuali_rds/jumpbox
-    sh tunnel.sh $@
+    sh tunnel.sh $@ debug=true > /dev/null
+    cat last-cmd.sh
     ;;
 esac
