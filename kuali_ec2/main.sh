@@ -10,12 +10,12 @@ declare -A defaults=(
   [PORTAL_IMAGE]='getLatestImage kuali-portal'
   [PDF_IMAGE]='getLatestImage kuali-research-pdf'
   [NO_ROLLBACK]='true'
-  [PROFILE]='infnprd'
   [PDF_BUCKET_NAME]='$GLOBAL_TAG-$LANDSCAPE-pdf'
   [CREATE_MONGO]='false'
   # -----------------------------------------------
   # No defaults - user must provide explicit value:
   # -----------------------------------------------
+  # [PROFILE]='???'
   # [LANDSCAPE]='sb'
   # [BASELINE]='sb'
   # [CAMPUS_SUBNET1]='???'
@@ -96,7 +96,7 @@ stackAction() {
     checkKeyPair
 
     cat <<-EOF > $cmdfile
-    aws --profile=$PROFILE \\
+    aws \\
       cloudformation $action \\
       --stack-name ${STACK_NAME}-${LANDSCAPE} \\
       $([ $task != 'create-stack' ] && echo '--no-use-previous-template') \\

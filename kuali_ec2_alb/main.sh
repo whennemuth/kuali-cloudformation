@@ -10,11 +10,11 @@ declare -A defaults=(
   [PORTAL_IMAGE]='getLatestImage kuali-portal'
   [PDF_IMAGE]='getLatestImage kuali-research-pdf'
   [NO_ROLLBACK]='true'
-  [PROFILE]='infnprd'
   [PDF_BUCKET_NAME]='$GLOBAL_TAG-$LANDSCAPE-pdf'
   [DEEP_VALIDATION]='true'
   [HOSTED_ZONE]='kuali.research.bu.edu'
   # ----- Most of the following are defaulted in the yaml file itself:
+  # [PROFILE]='???'
   # [LANDSCAPE]='sb'
   # [BASELINE]='sb'
   # [KC_IMAGE]='770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-coeus-sandbox:2001.0040'
@@ -158,7 +158,7 @@ stackAction() {
     aws s3 cp ../scripts/ec2/cloudwatch-metrics.sh s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/
 
     cat <<-EOF > $cmdfile
-    aws --profile=$PROFILE \\
+    aws \\
       cloudformation $action \\
       --stack-name ${STACK_NAME}-${LANDSCAPE} \\
       $([ $task != 'create-stack' ] && echo '--no-use-previous-template') \\
@@ -258,11 +258,9 @@ runTask() {
       setCertArn ;;
     test)
       # cd ../s3/ci
-      # AWS_PROFILE=infnprd
       # setAcmCertArn 'kuali.research.bu.edu'
       
       sh main.sh set-cert-arn \
-        profile=infnprd \
         landscape=ci \
         USING_ROUTE53=true
       ;;

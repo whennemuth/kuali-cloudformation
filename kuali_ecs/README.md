@@ -156,7 +156,7 @@ Scenarios (Just jotting down ideas - clean up verbiage and fill out with details
 
   ```
   # Example:
-  aws --profile=infnprd ecs update-service --cluster kuali-ecs-sb-cluster --service kuali-ecs-KualiPdfService-1333U12INUWGP-Service-A7O0A14TXCA6 --force-new-deployment
+  aws ecs update-service --cluster kuali-ecs-sb-cluster --service kuali-ecs-KualiPdfService-1333U12INUWGP-Service-A7O0A14TXCA6 --force-new-deployment
   ```
 
 - Explain why `/etc/cfn/hooks.d/cfn-auto-reloader.conf` and `/opt/aws/bin/cfn-init` works in other stacks for restarting all tasks, but not in ecs cluster.

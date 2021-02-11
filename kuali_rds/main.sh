@@ -211,8 +211,6 @@ runTask() {
       # Must include PROFILE and LANDSCAPE
       getRdsAdminPassword ;;
     test)
-      # export AWS_PROFILE=infnprd
-      # PROFILE=infnprd
       LANDSCAPE=sb
       checkSubnetsInLegacyAccount ;;
       # waitForStackToDelete ;;

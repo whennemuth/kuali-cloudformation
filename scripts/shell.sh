@@ -21,7 +21,7 @@ visitEC2() {
     echo "$cmd" && eval "$cmd"
   else
     echo "Could not find running ec2 instance(s) that match!"
-    [ "$PROFILE" == 'default' ] && "Did you forget to pass in an aws profile argument?"
+    [ -z "$AWS_PROFILE" ] && ([ "$PROFILE" == 'default' ] || [ -z "$PROFILE" ]) && "Did you forget to pass in an aws profile argument?"
   fi
 }
 

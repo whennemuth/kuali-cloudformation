@@ -110,7 +110,7 @@ Parameters:
     - oracle-se
 
   # Pick the latest version for a family as follows:
-  #   aws --profile=$PROFILE rds describe-db-engine-versions \
+  #   aws rds describe-db-engine-versions \
   #     --engine oracle-ee \
   #     --output text \
   #     --query 'DBEngineVersions[?DBParameterGroupFamily==`oracle-ee-19`].{EngineVersion:EngineVersion}' | tail -n -1

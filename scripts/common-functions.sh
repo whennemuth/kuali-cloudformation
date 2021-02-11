@@ -53,11 +53,11 @@ parseArgs() {
   if [ -n "$PROFILE" ] ; then
     export AWS_PROFILE=$PROFILE 
     [ "$SILENT" != 'true' ] && echo "export AWS_PROFILE=$PROFILE"
-  elif [ -z "$DEFAULT_PROFILE" ] ; then
-    if [ "$task" != 'validate' ] ; then
-      echo "Not accepting a blank profile. If you want the default then use \"profile='default'\" or default_profile=\"true\""
-      exit 1
-    fi
+  # elif [ -z "$DEFAULT_PROFILE" ] ; then
+  #   if [ "$task" != 'validate' ] ; then
+  #     echo "Not accepting a blank profile. If you want the default then use \"profile='default'\" or default_profile=\"true\""
+  #     exit 1
+  #   fi
   fi
 }
 
@@ -516,7 +516,6 @@ downloadAcmCertsFromS3() {
   echo "Searching $BASELINE folder in s3 bucket for cert & key files..."
   local files=$(
     aws s3 ls s3://$TEMPLATE_BUCKET_NAME/$BASELINE/$domainName \
-      --profile=infnprd \
       --recursive \
       | awk '{print $4}' \
       | grep -E '^([^/]+/){1}[^/]+\.((cer)|(crt)|(key))' 2> /dev/null
@@ -775,7 +774,6 @@ getTransitGatewayId() {
 getVpcId() {
   local subnetId="$1"
   aws \
-    --profile $PROFILE \
     ec2 describe-subnets \
     --subnet-ids $subnetId \
     --output text \
@@ -1547,14 +1545,14 @@ emptyBuckets() {
   local success='true'
   for bucket in $@ ; do
     if bucketExists "$bucket" ; then
-      echo "aws --profile=$PROFILE s3 rm s3://$bucket --recursive..."
-      aws --profile=$PROFILE s3 rm s3://$bucket --recursive
+      echo "aws s3 rm s3://$bucket --recursive..."
+      aws s3 rm s3://$bucket --recursive
       local errcode=$?
       if [ $errcode -gt 0 ] ; then
         echo "ERROR! Emptying bucket $bucket, error code: $errcode"
         success='false'
       fi
-      # aws --profile=$PROFILE s3 rb --force $bucket
+      # aws s3 rb --force $bucket
     else
       echo "Cannot empty bucket $bucket. Bucket does not exist."
     fi

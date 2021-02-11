@@ -23,7 +23,7 @@ Adding another secret (with a random password) with the AWS CLI, would look like
 
 ```
 landscape=sb
-aws --profile=infnprd secretsmanager create-secret \
+aws secretsmanager create-secret \
   --name "kuali/$landscape/kuali-oracle-rds-app-password" \
   --description "The application user (probably KCOEUS) and password for the kc rds $landscape database" \
   --secret-string '{

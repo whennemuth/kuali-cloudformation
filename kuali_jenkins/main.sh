@@ -6,7 +6,7 @@ declare -A defaults=(
   [TEMPLATE_BUCKET_PATH]='s3://kuali-conf/cloudformation/kuali_jenkins'
   [TEMPLATE_PATH]='.'
   [NO_ROLLBACK]='true'
-  [PROFILE]='infnprd'
+  # [PROFILE]='???'
   # [ADMIN_PASSWORD]='???'
   # [CAMPUS_SUBNET1]='???'
 )
@@ -40,7 +40,7 @@ stackAction() {
   local action=$1
 
   if [ "$action" == 'delete-stack' ] ; then
-    aws --profile=$PROFILE cloudformation $action --stack-name ${STACK_NAME}
+    aws cloudformation $action --stack-name ${STACK_NAME}
   else
     # checkSubnets will also assign a value to VPC_ID
     if ! checkSubnets ; then
@@ -52,7 +52,7 @@ stackAction() {
     [ $? -gt 0 ] && exit 1
 
     cat <<-EOF > $cmdfile
-    aws --profile=$PROFILE \\
+    aws \\
       cloudformation $action \\
       --stack-name ${STACK_NAME} \\
       $([ $task != 'create-stack' ] && echo '--no-use-previous-template') \\

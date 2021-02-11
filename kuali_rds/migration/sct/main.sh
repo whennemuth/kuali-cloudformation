@@ -1,9 +1,9 @@
 #!/bin/bash
 
 declare -A defaults=(
-  [PROFILE]='infnprd'
   [LANDSCAPE]='sb'
   [RDS_REGION]='us-east-1'
+  # [PROFILE]='???'
   # [BASTION_AVAILABILITY_ZONE]='???'
   # [RDS_ENDPOINT]='???'
   # [BASTION_INSTANCE_ID]='???'

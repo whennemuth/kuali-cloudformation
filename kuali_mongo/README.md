@@ -51,7 +51,7 @@ A single ec2 instance is created with...
    or a direct cloudformation call:
    
    ```
-   aws --profile=infnprd \
+   aws \
        cloudformation update-stack \
        --stack-name kuali-mongo-ci \
        --no-use-previous-template \
@@ -99,8 +99,6 @@ A single ec2 instance is created with...
    LOCAL_PORT=27017
    REMOTE_PORT=27017
    LANDSCAPE=ci
-   PROFILE=infnprd
-   export AWS_PROFILE=infnprd
    Looking up InstanceId for kuali ec2 instance tagged with ci landscape...
    1) arn:aws:ec2:us-east-1:770203350335:instance/i-082f0f9b305922e8f  3) arn:aws:ec2:us-east-1:770203350335:instance/i-02cc2b48cd1ea549f
    2) arn:aws:ec2:us-east-1:770203350335:instance/i-0d13397402cd55cd0
@@ -111,7 +109,6 @@ A single ec2 instance is created with...
 
    ```
    #? 3
-   AWS_PROFILE = infnprd
    Tunneling to i-02cc2b48cd1ea549f...
    
    Starting session with SessionId: wrh-07fd7946d5d486c20

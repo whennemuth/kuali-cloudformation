@@ -46,7 +46,7 @@ These instructions are for testing lambda code written in nodejs locally.
          "env": {
            "MODE": "unmocked",
            "AWS_SDK_LOAD_CONFIG": "1",
-           "AWS_PROFILE": "infnprd",
+           "AWS_PROFILE": "[profile, unless default]",
            "LANDSCAPE": "ci"
          },
          "cwd": "${workspaceFolder}/lambda/pre-alb-delete",
