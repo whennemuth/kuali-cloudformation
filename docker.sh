@@ -109,12 +109,10 @@ task="$1"
 shift 
 
 case "$task" in
-  build) build ;;
-  secrets) startSecretsServer ;;
-  test) 
-    echo 'hello' $@ 
-    env
-    ;;
+  build) 
+    build ;;
+  secrets) 
+    startSecretsServer ;;
   tunnel)
     cd kuali_rds/jumpbox
     sh tunnel.sh $@ debug=true > /dev/null

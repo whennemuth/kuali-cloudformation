@@ -66,7 +66,11 @@ The helper script follows the approach from these references:
 # Example:
 git clone https://github.com/bu-ist/kuali-infrastructure.git
 cd kuali-infrastructure/kuali_rds/jumpbox
-sh tunnel.sh profile=[your.profile] landscape=sb
+sh tunnel.sh profile=[your.profile] landscape=ci
+
+# Or, if you are running into bash version incompatibilities, you can run the dockerized image for this repo...
+
+source <(docker run --rm -v $HOME/.aws:/root/.aws bostonuniversity/kuali-infrastructure tunnel landscape=ci) ssm
    ```
 
    The helper script executes something like this:
@@ -88,5 +92,5 @@ ssh -i tempkey \
   -o "ServerAliveInterval 10" \
   -o "StrictHostKeyChecking=no" \
   -o ProxyCommand="aws ssm start-session --target i-0f7eaa9c36919fa26 --document AWS-StartSSHSession --parameters portNumber=%p --region=us-east-1" \
-        ec2-user@i-0f7eaa9c36919fa26
+  ec2-user@i-0f7eaa9c36919fa26
    ```
