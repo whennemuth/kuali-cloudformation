@@ -7,10 +7,11 @@ Technically, if you clone this repository you should be able to run the commands
 - On any linux system with /bin/bash
 - On Windows with git bash
 
-However, there may be problems on OSX:
+However, there may be problems on OSX, which probably uses bash version 3:
 
 - `declare -A` (associative arrays) are a bash 4+ feature and the mac may have 3.X of bash installed, depending on the OSX version
 - The bash scripts call out to other utilities, like grep, which on OSX may not support Perl-style regex expressions
+- Parameter expansion for lower or uppercasing will not work for bash 3.X
 - etc...
 
 #### Solution

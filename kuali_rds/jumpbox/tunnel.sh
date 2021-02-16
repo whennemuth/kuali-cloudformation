@@ -126,7 +126,9 @@ tunnelToRDS() {
     --instance-os-user ec2-user \\
     --ssh-public-key file://./tempkey.pub
     
-  method="\${1,,}"
+  # method="\${1,,}"
+  # For mac which probably uses bash v3, lowercasing must be done this way:
+  method="$(echo "$1" |  tr '[:upper:]' '[:lower:]')"
 
   case "\$method" in
     ssm)
@@ -137,7 +139,6 @@ tunnelToRDS() {
 
       ssh -i tempkey \\
         -Nf -M \\
-        -b 0.0.0.0 \\
         -S temp-ssh.sock \\
         -L $LOCAL_PORT:$RDS_ENDPOINT:$REMOTE_PORT \\
         -o "UserKnownHostsFile=/dev/null" \\
