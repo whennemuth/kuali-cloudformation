@@ -128,7 +128,7 @@ tunnelToRDS() {
     
   # method="\${1,,}"
   # For mac which probably uses bash v3, lowercasing must be done this way:
-  method="$(echo "$1" |  tr '[:upper:]' '[:lower:]')"
+  method="\$(echo "\$1" |  tr '[:upper:]' '[:lower:]')"
 
   case "\$method" in
     ssm)

@@ -141,7 +141,7 @@ Resources:
           Statement:
           - Effect: Allow
             Resource:
-            - arn:aws:s3:::kuali-*/*
+            - arn:aws:s3:::kuali-*
             # - arn:aws:s3:::kuali-conf*
             # - arn:aws:s3:::kuali-docker-run-stdout*
             Action: "*"
@@ -151,6 +151,7 @@ Resources:
           Statement:
           - Effect: Allow
             Action:
+            - secretsmanager:ListSecrets
             - secretsmanager:GetResourcePolicy
             - secretsmanager:GetSecretValue
             - secretsmanager:DescribeSecret
@@ -165,6 +166,10 @@ Resources:
             Action: "*"
             Resource: 
             - arn:aws:cloudformation:*:*:stack/kuali-*
+          - Effect: Allow
+            Action: List*
+            Resource:
+            - arn:aws:cloudformation:*:*:stack/*
       - PolicyName:
           !Sub ${GlobalTag}-logging
         PolicyDocument:

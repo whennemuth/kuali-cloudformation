@@ -115,7 +115,12 @@ case "$task" in
     startSecretsServer ;;
   tunnel)
     cd kuali_rds/jumpbox
-    sh tunnel.sh $@ debug=true > /dev/null
-    cat last-cmd.sh
+    sh tunnel.sh $@ debug=true > /tmp/tunnel.log
+    if [ -f last-cmd.sh ] ; then
+      cat last-cmd.sh
+    else
+      cat /tmp/tunnel.log
+    fi
     ;;
+  
 esac

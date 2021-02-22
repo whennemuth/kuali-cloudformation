@@ -221,6 +221,8 @@ EOF
     echo "      ]' \\" >> $cmdfile
     echo "      --tags '[" >> $cmdfile
     addStandardTags
+    addTag $cmdfile 'Category' 'application'
+    addTag $cmdfile 'Subcategory' 'ec2-alb'
     echo "      ]'" >> $cmdfile
 
     runStackActionCommand

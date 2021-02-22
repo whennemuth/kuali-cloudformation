@@ -177,6 +177,8 @@ EOF
     echo "      ]' \\" >> $cmdfile
     echo "      --tags '[" >> $cmdfile
     addStandardTags
+    addTag $cmdfile 'Category' 'database'
+    addTag $cmdfile 'Subcategory' 'oracle'
     echo "      ]'" >> $cmdfile
 
     runStackActionCommand

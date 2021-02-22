@@ -269,7 +269,7 @@ getRdsHostname() {
   local rdsArn=$(
     aws resourcegroupstaggingapi get-resources \
       --resource-type-filters rds \
-      --tag-filters 'Key=Name,Values=kuali-oracle-'$BASELINE \
+      --tag-filters 'Key=Name,Values=kuali-oracle-'$LANDSCAPE \
       --output text \
       --query 'ResourceTagMappingList[].{ARN:ResourceARN}' | grep -vi 'snapshot' 2> /dev/null
   )

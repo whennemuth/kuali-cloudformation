@@ -1,5 +1,12 @@
 ## Dockerize this repository
 
+#### Requirements
+
+- Bash
+- Docker
+- [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html)
+- [Session Manager plugin for the AWS CLI](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html)
+
 #### Problem
 
 Technically, if you clone this repository you should be able to run the commands without issues:
