@@ -165,11 +165,12 @@ Resources:
           - Effect: Allow
             Action: "*"
             Resource: 
-            - arn:aws:cloudformation:*:*:stack/kuali-*
+            - arn:aws:cloudformation:*:*:stack/kuali*/*
           - Effect: Allow
-            Action: List*
-            Resource:
-            - arn:aws:cloudformation:*:*:stack/*
+            Action: 
+              - "cloudformation:List*"
+              - "cloudformation:Describe*"
+            Resource: "*"
       - PolicyName:
           !Sub ${GlobalTag}-logging
         PolicyDocument:
@@ -288,6 +289,7 @@ Resources:
             - ConfigSet: LoadPlugins
             - ConfigSet: ConfigureJenkins
             - ConfigSet: PullJobsFromGit
+            - ConfigSet: AddGroovyHelperFiles
           GetHelperScripts:
             - 01_get_helper_scripts
           YumInstall:
@@ -302,6 +304,8 @@ Resources:
             - 06_configure_jenkins
           PullJobsFromGit:
             - 07_pull_jobs_from_git
+          AddGroovyHelperFiles:
+            - 08_add_groovy_helper_files
           
 
         01_get_helper_scripts:
@@ -359,6 +363,73 @@ Resources:
                 log_group_name = ${GlobalTag}
                 log_stream_name = /var/log/jenkins/jenkins.log
                 datetime_format = %Y-%m-%d %H:%M:%S
+            /etc/init.d/jenkins-docker.sh:
+              content: |
+                #!/bin/bash
+
+                JENKINS_IMAGE='wrh1/kuali-jenkins-http-server'
+
+                killContainers() {
+                  echo "Removing containers..."
+                  for c in $(docker ps -a --format='{{.ID}}|{{.Image}}') ; do
+                    local id=$(echo "$c" | cut -d'|' -f1)
+                    local image=$(echo "$c" | cut -d'|' -f2)
+                    if [ $image == $JENKINS_IMAGE ] ; then
+                      echo "Removing container: $id ..."
+                      docker rm -f $id
+                    fi
+                  done
+                }
+
+                killImage() {
+                  echo "Removing image $JENKINS_IMAGE ..."
+                  docker rmi $JENKINS_IMAGE
+                  echo "Removing dangling images..."
+                  for i in $(docker images -a -q --filter dangling=true) ; do
+                    docker rmi $i
+                  done
+                }
+
+                runContainer() {
+                  local port=$1
+                  local jobClass=$2
+                  local host=$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4 2> /dev/null)
+                  docker run \
+                    -d \
+                    --restart unless-stopped \
+                    --name $jobClass \
+                    -p $port:8001 \
+                    $JENKINS_IMAGE \
+                    job-class=$jobClass \
+                    ajax-host=$host
+                }
+
+                runContainers() {
+                  echo "Running containers..."
+                  runContainer '8001' 'org.bu.jenkins.job.kuali.StackCreateDelete'
+                }
+
+                task="$1"
+                shift
+
+                case "$task" in
+                  start)
+                    runContainers
+                    ;;
+                  refresh)
+                    killContainers
+                    killImage
+                    runContainers
+                    ;;
+                  *)
+                    runContainers
+                    ;;
+                esac
+
+              mode: "000775"
+              owner: root
+              group: root
+
             /var/lib/jenkins/_cfn-config/README.txt:
               content: |
                 All files in this directory comprise pieces of configuration that are used during the cloud-formation init period 
@@ -519,6 +590,7 @@ Resources:
                     #   -Dcom.sun.akuma.Daemon=daemonized \
                     #   -Djava.awt.headless=true \
                     #   -DJENKINS_HOME=/var/lib/jenkins \
+                    #   -Dhudson.model.DirectoryBrowserSupport.CSP= \
                     #   -jar /usr/lib/jenkins/jenkins.war \
                     #   --logfile=/var/log/jenkins/jenkins.log \
                     #   --webroot=/var/cache/jenkins/war \
@@ -794,6 +866,11 @@ Resources:
                 sudo usermod -a -G docker jenkins
                 sudo usermod --shell /bin/bash jenkins
                 sudo chkconfig --add jenkins
+
+                # Turn off Jenkins Content Security Policy to allow for javascript in jobs (for better active choices reactive parameter behavior)
+                if [ -f /etc/sysconfig/jenkins ] ; then
+                  sed -i 's/JENKINS_JAVA_OPTIONS="/JENKINS_JAVA_OPTIONS="-Dhudson.model.DirectoryBrowserSupport.CSP= /' /etc/sysconfig/jenkins
+                fi
 
                 printf "\n\n"
               mode: "000775"
@@ -1231,6 +1308,50 @@ Resources:
             Install:
               cwd: /var/lib/jenkins
               command: bash /var/lib/jenkins/_cfn-scripts/07_pull_jobs_from_git.sh
+
+        08_add_groovy_helper_files:
+          files:
+            /var/lib/jenkins/.groovy/lib/JobFields.gvy:
+              content: !Sub |
+                import java.lang.reflect.Method;
+                import org.codehaus.groovy.runtime.ReflectionMethodInvoker ;
+
+                def getHtml(className, methodName, parmName, parmMap) {
+                  try {
+                    URL[] urls = [new File("/var/lib/jenkins/.groovy/lib/kuali-jenkins-ui.jar").toURI().toURL()] as URL[];
+                    URLClassLoader loader = new URLClassLoader(urls, this.class.classLoader);
+
+                    Class parmObjClass = Class.forName("org.bu.jenkins.job.AbstractJob\$ParameterConfiguration", true, loader);
+                    Object parms = [parmName, parmMap] as Object[];
+                    Object[] parmObj = ReflectionMethodInvoker.invoke(parmObjClass, "forActiveChoicesFragmentInstance", parms);
+
+                    Class classToLoad = Class.forName(className, true, loader);
+                    Object instance = classToLoad.newInstance();
+                    return (String) ReflectionMethodInvoker.invoke(instance, methodName, parmObj);
+                  }
+                  catch(Exception e) {
+                    StringWriter sw = new StringWriter();
+                    PrintWriter pw = new PrintWriter(sw);
+                    if(e.getMessage() != null) {
+                      pw.write(e.getMessage());
+                    }
+                    pw.write("\n");
+                    e.printStackTrace(pw);
+                    return "<pre>" + sw.toString() + "</pre>";
+                  }
+                }
+
+                def getHtml(className, methodName, parmName) {
+                  return getHtml(className, methodName, parmName, new HashMap());
+                }
+              mode: "000775"
+              owner: jenkins
+              group: jenkins
+            /var/lib/jenkins/.groovy/lib/*.jar:
+              source: !Sub https://${TemplateBucketName}.s3.amazonaws.com/cloudformation/kuali_jenkins/*.jar
+              mode: "000600"
+              owner: jenkins
+              group: jenkins
 
 Outputs:
 

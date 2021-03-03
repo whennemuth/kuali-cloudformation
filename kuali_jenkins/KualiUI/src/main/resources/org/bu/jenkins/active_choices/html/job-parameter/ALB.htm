@@ -1,0 +1,22 @@
+<!DOCTYPE html SYSTEM "http://www.thymeleaf.org/dtd/xhtml1-strict-thymeleaf-4.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:th="http://www.thymeleaf.org">
+
+  <body>
+    <div  th:if="${!deactivate}" th:fragment="alb" class="kuali-field-wrapper">
+      <div class="fieldLabel">ALB:</div>
+      <div class="field">
+        <input 
+        	type="checkbox" 
+        	value="enabled" 
+        	onclick="sendData();"
+        	th:name="${ParameterName} ?: 'value'" 
+        	th:disabled="${deactivate_alb}"
+        	th:checked="${ParameterValue=='enabled'}" >
+        <label th:attr="style=${deactivate_alb} ? 'color:#AAAAAA' : _">
+        	Enable Application load balancer logging?
+		</label>
+      </div>      
+  	</div>
+  </body>
+</html>

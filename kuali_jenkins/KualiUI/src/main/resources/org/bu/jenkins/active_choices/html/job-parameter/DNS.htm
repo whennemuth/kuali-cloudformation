@@ -1,0 +1,35 @@
+<!DOCTYPE html SYSTEM "http://www.thymeleaf.org/dtd/xhtml1-strict-thymeleaf-4.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:th="http://www.thymeleaf.org">
+
+  <body>
+    <div  th:if="${!deactivate}" th:fragment="dns" class="kuali-field-wrapper">
+      <div class="fieldLabel">DNS:</div>
+      <div class="field">
+        <input 
+        	type="radio" 
+        	value="none" 
+        	onchange="sendData();"
+        	th:name="${ParameterName} ?: 'value'" 
+        	th:disabled="${deactivate_none}"
+        	th:checked="${ParameterValue=='none'}" >
+        <label th:attr="style=${deactivate_none} ? 'color:#AAAAAA' : _">
+        	None <i>(Using internal IP address of EC2 instance or ALB)</i>
+		</label>
+		<br>
+        <div>
+	        <input
+	        	type="radio" 
+	        	value="route53" 
+	        	onchange="sendData();"
+	        	th:name="${ParameterName} ?: 'value'" 
+	        	th:disabled="${deactivate_route53}"
+	        	th:checked="${ParameterValue=='route53'}" >
+	        <label th:attr="style=${deactivate_route53} ? 'color:#AAAAAA' : _">
+	        	BU address <i>(Using route53, ie: "mylandscape.kuali.research.bu.edu")</i>
+			</label>
+	     </div>
+      </div>      
+  	</div>
+  </body>
+</html>

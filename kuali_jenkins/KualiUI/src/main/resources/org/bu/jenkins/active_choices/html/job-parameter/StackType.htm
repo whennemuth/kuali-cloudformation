@@ -1,0 +1,37 @@
+<!DOCTYPE html SYSTEM "http://www.thymeleaf.org/dtd/xhtml1-strict-thymeleaf-4.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:th="http://www.thymeleaf.org">
+
+  <body>
+    <div th:if="${!deactivate}" th:fragment="stack-type" class="kuali-field-wrapper">
+      <div class="fieldLabel">What type of stack?:</div>
+      <div class="field">
+        <input 
+        	type="radio" 
+        	value="ec2" 
+        	onchange="sendData();" 
+        	th:name="${ParameterName} ?: 'value'" 
+         	th:disabled="${ecs_only}"
+       		th:checked="${ParameterValue=='ec2'}">
+        <label for="create">Single ec2 instance</label>
+        <br>
+        <input 
+        	type="radio" 
+        	value="ec2-alb" 
+        	onchange="sendData();" 
+        	th:name="${ParameterName} ?: 'value'" 
+        	th:disabled="${ecs_only}"
+        	th:checked="${ParameterValue=='ec2-alb'}">
+        <label for="delete">Two load balanced ec2 instances</label>
+        <br>
+        <input 
+        	type="radio" 
+        	value="ecs"  
+        	onchange="sendData();" 
+        	th:name="${ParameterName} ?: 'value'" 
+        	th:checked="${ParameterValue=='ecs'}">
+        <label for="delete">Elastic container services (ECS) cluster</label>
+      </div>
+  	</div>
+  </body>
+</html>

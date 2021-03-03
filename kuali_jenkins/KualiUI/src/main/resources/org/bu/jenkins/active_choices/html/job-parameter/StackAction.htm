@@ -1,0 +1,29 @@
+<!DOCTYPE html SYSTEM "http://www.thymeleaf.org/dtd/xhtml1-strict-thymeleaf-4.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:th="http://www.thymeleaf.org">
+
+  <body>
+    <div th:fragment="stack-action" class="kuali-field-wrapper">
+      <div class="fieldLabel">Select an action:</div>
+      <div class="field">
+        <input 
+        	type="radio"
+        	value="create" 
+	        onchange="sendData();"
+        	th:name="${ParameterName} ?: 'value'" 
+        	th:checked="${ParameterValue=='create'}" >
+        <label>Create stack</label><br>
+        <div>
+	        <input
+	        	type="radio" 
+	        	value="delete" 
+	        	onchange="sendData();"
+	        	th:name="${ParameterName} ?: 'value'" 
+	        	th:disabled="${!stackSelected}" 
+	        	th:checked="${ParameterValue=='delete'}" >
+	        <label th:attr="style=${!stackSelected} ? 'color:#AAAAAA' : _">Delete stack</label>
+	     </div>
+      </div>      
+  	</div>
+  </body>
+</html>

@@ -1,0 +1,115 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>org.bu.jenkins</groupId>
+  <artifactId>KualiUI</artifactId>
+  <version>0.0.1</version>
+  <name>KualiUI</name>
+  <description>Provides helper functionality for dynamic user interface behavior in jenkins jobs that use the active choice plugin with groovy scripting.</description>
+  
+  <build>
+    <finalName>kuali-jenkins-ui</finalName>
+  	<plugins>
+  		<plugin>
+  			<groupId>org.apache.maven.plugins</groupId>
+  			<artifactId>maven-compiler-plugin</artifactId>
+  			<version>3.8.0</version>
+	        <configuration>
+	          <source>1.8</source>
+              <target>1.8</target>
+	          <encoding>UTF-8</encoding>
+	          <forceJavacCompilerUse>true</forceJavacCompilerUse>
+	        </configuration>
+  		</plugin>
+  		<plugin>
+  			<!--
+  			NOTE: We are "shading" the build artifact, the jar file. Shading, among other things, is a way
+  			of creating an "Uber jar" or "Fat jar", which is a jar file wraps not only its own classes/resources,
+  			but also all of its dependency jars. This way we can distribute the jar up to lambda as a single
+  			artifact and not have to figure out how to make lambda supply all the dependency support. 
+  			-->
+  			<groupId>org.apache.maven.plugins</groupId>
+  			<artifactId>maven-shade-plugin</artifactId>
+  			<version>3.2.4</version>
+	        <executions>
+	          <execution>
+	            <phase>package</phase>
+	            <goals>
+	              <goal>shade</goal>
+	            </goals>
+	          </execution>
+	        </executions>
+  		</plugin>
+  	</plugins>
+  </build>
+  
+    
+  <dependencyManagement>
+  	<dependencies>
+		<!-- 
+		NOTE: 
+			We are importing a bom (Bill of Materials) file from amazon of a specific version, which
+			is analagous to a "static include" where the imported pom file is injected here. Any dependencies that 
+			are declared outside the dependency management block that have a match in the imported pom file
+			are replaced with the match at the common version. This is a way to import multiple com.amazonaws
+			dependendencies while ensuring that they all have cross-compatibility with respect to version.
+		NOTE:
+			Those dependencies below that do have an explicit version of their own declared are NOT managed
+			dependencies. That is, they are not included in the pom imported by the bom.
+		 -->
+		<!-- https://mvnrepository.com/artifact/com.amazonaws/aws-java-sdk -->
+		<dependency>
+          <groupId>software.amazon.awssdk</groupId>
+          <artifactId>bom</artifactId>
+          <version>2.16.1</version>
+          <type>pom</type>
+          <scope>import</scope>
+        </dependency>
+  	</dependencies>
+  </dependencyManagement>
+
+  <dependencies>
+
+	  <!-- Non-managed dependencies -->
+	  <dependency>
+	  	<groupId>junit</groupId>
+	  	<artifactId>junit</artifactId>
+	  	<version>4.13.2</version>
+	  	<scope>test</scope>
+	  </dependency>
+	<dependency>
+	    <groupId>org.mockito</groupId>
+	    <artifactId>mockito-core</artifactId>
+	    <version>3.7.7</version>
+	    <scope>test</scope>
+	</dependency>
+	<dependency>
+	    <groupId>org.thymeleaf</groupId>
+	    <artifactId>thymeleaf</artifactId>
+	    <version>3.0.12.RELEASE</version>
+	</dependency>
+	  
+	  
+	  <!-- Managed dependencies from the bom -->
+	  <dependency>
+	     <groupId>software.amazon.awssdk</groupId>
+	     <artifactId>s3</artifactId>
+	  </dependency>
+	  <dependency>
+	     <groupId>software.amazon.awssdk</groupId>
+	     <artifactId>cloudformation</artifactId>
+	  </dependency>
+	  <dependency>
+	     <groupId>software.amazon.awssdk</groupId>
+	     <artifactId>rds</artifactId>
+	  </dependency>
+	  <dependency>
+	     <groupId>software.amazon.awssdk</groupId>
+	     <artifactId>resourcegroupstaggingapi</artifactId>
+	  </dependency>
+		<dependency>
+		    <groupId>software.amazon.awssdk</groupId>
+		    <artifactId>apache-client</artifactId>
+		</dependency>
+	  
+  </dependencies>
+</project>

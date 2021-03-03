@@ -1,0 +1,21 @@
+<!DOCTYPE html SYSTEM "http://www.thymeleaf.org/dtd/xhtml1-strict-thymeleaf-4.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:th="http://www.thymeleaf.org">
+
+  <body>
+    <div th:if="${!deactivate}" th:fragment="baseline" class="kuali-field-wrapper">
+      <div class="fieldLabel">Baseline Landscape:</div>
+      <div class="field">
+        <select style="width:200px" th:name="${ParameterName} ?: 'value'" id="baseline" onchange="sendData();" >
+        	<optgroup>
+	          <option 
+	          	th:each="landscape : ${landscapes}" 
+	          	th:text="${landscape.getId()}"
+	          	th:value="${landscape.getId()}" 
+	          	th:selected="${ParameterValue==landscape.getId()}"></option>        	
+        	</optgroup>
+        </select>
+      </div>      
+  	</div>
+  </body>
+</html>

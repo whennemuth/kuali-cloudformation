@@ -1,0 +1,35 @@
+<!DOCTYPE html SYSTEM "http://www.thymeleaf.org/dtd/xhtml1-strict-thymeleaf-4.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:th="http://www.thymeleaf.org">
+
+  <body>
+    <div  th:if="${!deactivate}" th:fragment="authentication" class="kuali-field-wrapper">
+      <div class="fieldLabel">Authentication:</div>
+      <div class="field">
+        <input 
+        	type="radio" 
+        	value="cor-main" 
+        	onchange="sendData();"
+        	th:name="${ParameterName} ?: 'value'" 
+	        th:disabled="${deactivate_cor_main}"
+        	th:checked="${ParameterValue=='cor-main'}" >
+        <label th:attr="style=${deactivate_cor_main} ? 'color:#AAAAAA' : _">
+        	MongoDB username and password <i>(cor-main application)</i>
+		</label>
+		<br>
+        <div>
+	        <input
+	        	type="radio" 
+	        	value="shibboleth" 
+	        	onchange="sendData();"
+	        	th:name="${ParameterName} ?: 'value'" 
+	        	th:disabled="${deactivate_shibboleth}"
+	        	th:checked="${ParameterValue=='shibboleth'}" >
+	        <label th:attr="style=${deactivate_shibboleth} ? 'color:#AAAAAA' : _">
+	        	BU username and password <i>(shibboleth)</i>
+			</label>
+	     </div>
+      </div>      
+  	</div>
+  </body>
+</html>

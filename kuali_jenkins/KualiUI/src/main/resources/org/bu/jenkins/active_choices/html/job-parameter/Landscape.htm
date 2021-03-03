@@ -1,0 +1,31 @@
+<!DOCTYPE html SYSTEM "http://www.thymeleaf.org/dtd/xhtml1-strict-thymeleaf-4.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:th="http://www.thymeleaf.org">
+
+  <body>
+    <div th:if="${!deactivate}" th:fragment="landscape" class="kuali-field-wrapper">
+      <div class="fieldLabel">Landscape:</div>
+      <div class="field">
+        <input type="text" id="landscape" maxlength="12" 
+        	onblur="sendData();"
+        	th:name="${ParameterName} ?: 'value'" 
+        	th:value="${ParameterValue} ?: _" />
+        <div id="landscape-warning" class="warning"></div>
+      </div>
+      <!-- Javascript is deactivated by jenkins in a job, but this user input validation will be useful when a way is figured out to stop that. -->
+      <script>
+		 var input = document.getElementById('landscape');
+		 var error = document.getElementById('landscape-warning');
+		 input.addEventListener('keypress', function(e) {
+		     if( ! /[a-zA-Z\d]/.test(e.key)) {
+		       e.preventDefault();
+		       error.innerHTML = 'Allowed characters: [a-z,A-Z,0-9]';
+		     }
+		     else {
+		       error.innerHTML = '';
+		     }
+		 });
+      </script>      
+  	</div>
+  </body>
+</html>

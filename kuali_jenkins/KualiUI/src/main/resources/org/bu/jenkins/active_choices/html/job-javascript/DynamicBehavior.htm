@@ -1,0 +1,113 @@
+<!DOCTYPE html SYSTEM "http://www.thymeleaf.org/dtd/xhtml1-strict-thymeleaf-4.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:th="http://www.thymeleaf.org">
+
+	<script th:inline="javascript" th:fragment="dynamic-behavior">	
+	
+		const jobName = [[${jobName}]];
+		const mode = [[${mode}]];
+		const ajaxHost = [[${ajaxHost}]];
+		
+		var newlines = (quantity) => {
+			for(var i=1; i<=quantity; i++) {
+				var br = document.createElement("br");
+				document.body.appendChild(br);					
+			}
+		}
+		
+		function getFormData() {
+			var formdata = new FormData();
+			
+		    var radios = document.querySelectorAll('#kuali-wrapper input[type=radio]');
+		    radios.forEach(radio => {
+		    	if(radio.checked) {
+		    		formdata.set(radio.name, radio.value)
+		    	}		    	
+		    });
+		    
+		    var picklists = document.querySelectorAll('#kuali-wrapper select');
+		    picklists.forEach(picklist => formdata.set(picklist.name, picklist.value));
+		    
+		    var textboxes = document.querySelectorAll('#kuali-wrapper input[type=text]');
+		    textboxes.forEach(textbox => {
+		    	if(textbox.id == [[${jobName}]]) return;
+		    	formdata.set(textbox.name, textbox.value)
+		    });
+		    
+		    var checkboxes = document.querySelectorAll('#kuali-wrapper input[type=checkbox]');
+		    checkboxes.forEach(checkbox => formdata.set(checkbox.name, checkbox.value));
+		    
+		    
+		    return formdata;
+		}
+		
+		function getQuerystring(formdata) {
+			var data = [...formdata.entries()];
+			var querystring = data
+		      .map(x => `${encodeURIComponent(x[0])}=${encodeURIComponent(x[1])}`)
+		      .join('&');
+			console.log(querystring);
+			return querystring;
+		}
+		
+		function getUnoChoiceCascadeElement() {
+			var x = document.getElementById(jobName);
+			while(x) {
+			    x = x.parentElement;
+			    if(x.id) {
+			        if(/^formattedHtml_choice-parameter/.test(x.id)) {
+			        	var cascader = UnoChoice.cascadeParameters.find(y => y.paramElement.id == x.id);
+			        	if(cascader) {
+			        		return cascader;
+			        	}
+			        }
+			    }
+			}
+			return {
+				update: () => console.log('Arg!!! Could not find UnoChoice cascade object!')
+			}
+		}
+		
+		function sendData() {
+			try {
+				var FD = getFormData();				
+				var querystring = getQuerystring(FD);
+				
+				if(UnoChoice) {	
+					/** Jenkins is the host and UnoChoice indicates the presense of the active choices plugin */
+					var cascader = getUnoChoiceCascadeElement();
+					document.getElementById(cascader.paramName + '_PARAMETERS').value = querystring;
+					cascader.update();
+				}
+				else {
+					/** Must be testing (localhost is host, not jenkins) */
+					var thisField = document.getElementById(jobName);
+					thisField.value = querystring;
+					var xhttp = new XMLHttpRequest();
+					if(querystring) querystring=`?${querystring}`;
+					
+					xhttp.addEventListener("load", function(event) {
+				    	document.getElementById("kuali-wrapper").innerHTML = event.target.responseText;
+				    	//addEvents();
+				    });
+					
+					xhttp.addEventListener("error", function(event) {
+						alert('Oops! Something went wrong.' );
+					});
+					
+					// xhttp.open("GET", `http://${ajaxHost}:8001/active-choices${querystring}`, true);
+					xhttp.open("GET", "http://127.0.0.1:8001/active-choices" + querystring, true);
+					xhttp.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
+					xhttp.send(FD);					
+				}
+			}
+			catch(e) {
+				alert(e.message);
+			}
+		}
+		
+		// addEvents();		
+		
+	</script>
+
+</html>

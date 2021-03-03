@@ -1,0 +1,26 @@
+<!DOCTYPE html SYSTEM "http://www.thymeleaf.org/dtd/xhtml1-strict-thymeleaf-4.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:th="http://www.thymeleaf.org">
+
+  <body>
+    <div  th:if="${!deactivate}" th:fragment="mongo" class="kuali-field-wrapper">
+      <div class="fieldLabel">Cor-main Database:</div>
+      <div class="field">
+        <input 
+        	type="checkbox" 
+        	value="enabled"
+        	onclick="sendData();" 
+        	th:name="${ParameterName} ?: 'value'" 
+        	th:disabled="${deactivate_mongo}"
+        	th:checked="${ParameterValue=='enabled'}" >
+        <label th:attr="style=${deactivate_mongo} ? 'color:#AAAAAA' : _">
+        	Create a new Mongo DB?
+		</label>
+        <br>
+        <label th:attr="style=${deactivate_mongo} ? 'color:#AAAAAA' : _">
+        	<i>(Otherwise the configuration in S3 under the selected baseline landscape determines the database)</i>
+		</label>
+      </div>      
+  	</div>
+  </body>
+</html>

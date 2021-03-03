@@ -1,0 +1,96 @@
+<!DOCTYPE html SYSTEM "http://www.thymeleaf.org/dtd/xhtml1-strict-thymeleaf-4.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:th="http://www.thymeleaf.org">
+
+  <body>
+  	<div th:fragment="stack-list-table" class="kuali-field-wrapper">
+  		<style>
+	        div.kuali-field-wrapper {
+	          font-family: arial; 
+	          padding-top: 10px;
+	          clear: both;
+	        }
+	        .kuali-field-wrapper div.fieldLabel {
+	          float: left;
+	          width: 200px;
+	          text-align: right;
+	          padding: 5px;
+	        }
+	        .kuali-field-wrapper div.field {
+	          padding: 5px;
+	          float: left;
+	        }
+	        .kuali-field-wrapper div.warning {
+	          color: red;
+	          float: right;
+	          padding-left: 10px;
+	        }
+	        .kuali-field-wrapper table {
+	          border-collapse: collapse;
+	          border-style: solid;
+	          border-width: 1px;
+	        }
+	        .kuali-field-wrapper th {
+	          border-style: solid;
+	          border-width: 1px;
+	          font-size: 14px;
+	          padding: 5px;
+	          color: rgb(11, 106, 162);
+	        }
+	        .kuali-field-wrapper th.top {
+	          background-color:rgb(11, 106, 162);
+	          border-color: rgb(11, 106, 162);
+	          font-size: 16px;
+	          color: white;
+	          font-weight: bold;
+	        }
+	        .kuali-field-wrapper td {
+	          border-style: solid;
+	          border-width: 1px;
+	          font-size: 12px;
+	          font-weight: bold;
+	          padding: 10px;
+	        }
+	        .kuali-field-wrapper select {
+	        	padding: 4px;
+	        	font-size: 14px;
+	        	width: 200px;
+	        }
+	        .kuali-field-wrapper optgroup {
+	        	font-size: 14px;
+	        }
+	        .kuali-field-wrapper input[type=text] {
+	        	font-size: 16px;
+	        	padding: 4px;
+	        	width: 200px;
+	        }
+	        
+  		</style>
+  	    <table>
+	    <tr><th colspan=5 class=top>Currrent cloudformation stacks for Kuali</th></tr>
+	    <tr>
+		    <th>Name</th>
+		    <th>Created</th>
+		    <th>Updated</th>
+		    <th>Status</th>
+		    <th>&nbsp;</th>
+	    </tr>
+	    <tr th:each="stack : ${stacks}">
+	        <td th:text="${stack.stackName}"></td>
+	        <td th:text="${stack.creationTime}"></td>
+	        <td th:text="${stack.lastUpdatedTime}"></td>
+	        <td th:text="${stack.stackStatus}"></td>
+	        <td>
+	        	<input 
+	        		type="radio" 
+	        		onchange="sendData();"
+	        		th:value="${stack.stackName}"  
+	        		th:name="${ParameterName} ?: 'value'" 
+	        		th:checked="${ParameterValue==stack.stackName}">
+	        </td>
+	    </tr>
+		</table>  	
+  	</div>
+  </body>
+  
+</html>
