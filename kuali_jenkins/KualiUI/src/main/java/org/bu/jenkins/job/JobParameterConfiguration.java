@@ -26,9 +26,11 @@ public class JobParameterConfiguration {
 		return parameterMap;
 	}
 	public JobParameterConfiguration setParameterMap(Map<String, String> parameterMap) {
-		if(parameterMap != null) {
-			this.parameterMap.putAll(parameterMap);
-		}
+		this.parameterMap.putAll(parameterMap);
+		return this;
+	}
+	public JobParameterConfiguration setParameterMapValue(String parameterName, String parameterValue) {
+		parameterMap.put(parameterName, parameterValue);
 		return this;
 	}
 	public boolean isFragment() {

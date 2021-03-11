@@ -189,7 +189,7 @@ Resources:
         Value: Jumpbox
       - Key: App
         Value: Kuali
-      - Key: Environment
+      - Key: Landscape
         Value: !Ref Landscape
       - Key: self-stoppable
         Value: 'true'

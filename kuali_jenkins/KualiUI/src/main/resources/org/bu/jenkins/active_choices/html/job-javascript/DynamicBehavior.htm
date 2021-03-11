@@ -35,8 +35,7 @@
 		    });
 		    
 		    var checkboxes = document.querySelectorAll('#kuali-wrapper input[type=checkbox]');
-		    checkboxes.forEach(checkbox => formdata.set(checkbox.name, checkbox.value));
-		    
+		    checkboxes.forEach(checkbox => formdata.set(checkbox.name, checkbox.checked));		    
 		    
 		    return formdata;
 		}
@@ -73,41 +72,37 @@
 				var FD = getFormData();				
 				var querystring = getQuerystring(FD);
 				
-				if(UnoChoice) {	
+				if("undefined" !== typeof UnoChoice) {
 					/** Jenkins is the host and UnoChoice indicates the presense of the active choices plugin */
+					document.getElementById('all-fields').disabled = true;
 					var cascader = getUnoChoiceCascadeElement();
 					document.getElementById(cascader.paramName + '_PARAMETERS').value = querystring;
 					cascader.update();
 				}
 				else {
 					/** Must be testing (localhost is host, not jenkins) */
-					var thisField = document.getElementById(jobName);
-					thisField.value = querystring;
 					var xhttp = new XMLHttpRequest();
 					if(querystring) querystring=`?${querystring}`;
 					
 					xhttp.addEventListener("load", function(event) {
 				    	document.getElementById("kuali-wrapper").innerHTML = event.target.responseText;
-				    	//addEvents();
 				    });
 					
 					xhttp.addEventListener("error", function(event) {
 						alert('Oops! Something went wrong.' );
 					});
 					
-					// xhttp.open("GET", `http://${ajaxHost}:8001/active-choices${querystring}`, true);
 					xhttp.open("GET", "http://127.0.0.1:8001/active-choices" + querystring, true);
 					xhttp.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
-					xhttp.send(FD);					
+					xhttp.send(FD);
+					
+					document.getElementById('all-fields').disabled = true;
 				}
 			}
 			catch(e) {
 				alert(e.message);
 			}
 		}
-		
-		// addEvents();		
-		
 	</script>
 
 </html>

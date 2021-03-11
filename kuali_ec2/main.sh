@@ -17,7 +17,6 @@ declare -A defaults=(
   # -----------------------------------------------
   # [PROFILE]='???'
   # [LANDSCAPE]='sb'
-  # [BASELINE]='sb'
   # [CAMPUS_SUBNET1]='???'
   # [KEYPAIR_NAME]='kuali-ec2-$LANDSCAPE-keypair'
   # -----------------------------------------------
@@ -56,6 +55,7 @@ run() {
 stackAction() {  
   local action=$1
 
+  [ -z "$FULL_STACK_NAME" ] && FULL_STACK_NAME=${STACK_NAME}-${LANDSCAPE}
   if [ "$action" == 'delete-stack' ] ; then
     if [ -n "$PDF_BUCKET_NAME" ] ; then
       if bucketExists "$PDF_BUCKET_NAME" ; then
@@ -67,7 +67,7 @@ stackAction() {
     
     [ $? -gt 0 ] && echo "Cancelling..." && return 1
 
-    aws cloudformation $action --stack-name ${STACK_NAME}-${LANDSCAPE}
+    aws cloudformation $action --stack-name $FULL_STACK_NAME
     if ! waitForStackToDelete ; then
       echo "Problem deleting stack!"
       exit 1
@@ -98,7 +98,7 @@ stackAction() {
     cat <<-EOF > $cmdfile
     aws \\
       cloudformation $action \\
-      --stack-name ${STACK_NAME}-${LANDSCAPE} \\
+      --stack-name ${FULL_STACK_NAME} \\
       $([ $task != 'create-stack' ] && echo '--no-use-previous-template') \\
       $([ "$NO_ROLLBACK" == 'true' ] && [ $task == 'create-stack' ] && echo '--on-failure DO_NOTHING') \\
       --template-url $BUCKET_URL/ec2.yaml \\
@@ -108,7 +108,6 @@ EOF
 
     add_parameter $cmdfile 'GlobalTag' 'GLOBAL_TAG'
     add_parameter $cmdfile 'Landscape' 'LANDSCAPE'
-    add_parameter $cmdfile 'Baseline' 'BASELINE'
     add_parameter $cmdfile 'VpcId' 'VpcId'
     add_parameter $cmdfile 'CampusSubnet' 'CAMPUS_SUBNET1'
     add_parameter $cmdfile 'PdfImage' 'PDF_IMAGE'
@@ -129,9 +128,13 @@ EOF
       add_parameter $cmdfile 'PdfS3BucketName' 'PDF_BUCKET_NAME'
     fi
 
-    # Based on landscape and other parameters, perform rds cloning if indicated.
-    outputHeading "Checking RDS parameters..."
-    checkLandscapesAndRDS
+    
+    checkLandscapeParameters
+    
+    checkRDSParameters    # Based on landscape and other parameters, perform rds cloning if indicated.
+    
+    add_parameter $cmdfile 'Baseline' 'BASELINE'
+
     if [ -n "$RDS_SNAPSHOT_ARN" ]; then
       validateStack silent ../kuali_rds/rds-oracle.yaml
       [ $? -gt 0 ] && exit 1

@@ -23,7 +23,7 @@ tunnelToRDS() {
         aws resourcegroupstaggingapi get-resources \
           --resource-type-filters rds:db \
           --tag-filters \
-              "Key=Environment,Values=$LANDSCAPE" \
+              "Key=Landscape,Values=$LANDSCAPE" \
               'Key=App,Values=Kuali' \
           --output text \
           --query 'ResourceTagMappingList[0].{ARN:ResourceARN}' 2> /dev/null
@@ -55,7 +55,7 @@ tunnelToRDS() {
           --filters \
               'Name=tag:App,Values=Kuali' \
               'Name=tag:Type,Values=Jumpbox' \
-              "Name=tag:Environment,Values=$LANDSCAPE" \
+              "Name=tag:Landscape,Values=$LANDSCAPE" \
           --output text \
           --query 'Reservations[].Instances[].{ID:InstanceId,state:State.Name}' | tail -1 2> /dev/null
       )"
@@ -135,23 +135,33 @@ tunnelToRDS() {
       # Requires no open ports on the jumpbox and no campus subnet access via transit gateway.
       # NOTE: You can substitute $JUMPBOX_INSTANCE_ID for '%h' in the ProxyCommand below.
 
-      echo "Establishing SSH Tunnel: jumpbox host using ssm start-session to access rds endpoint"
+      echo "Establishing SSH Tunnel: jumpbox host using ssm start-session to access rds endpoint on port $LOCAL_PORT"
+
+      # ssh -i tempkey \\
+      #   -Nf -M \\
+      #   -S temp-ssh.sock \\
+      #   -L $LOCAL_PORT:$RDS_ENDPOINT:$REMOTE_PORT \\
+      #   -o "UserKnownHostsFile=/dev/null" \\
+      #   -o "ServerAliveInterval 10" \\
+      #   -o "StrictHostKeyChecking=no" \\
+      #   -o ProxyCommand="aws ssm start-session --target $JUMPBOX_INSTANCE_ID --document AWS-StartSSHSession --parameters portNumber=%p --region=$region" \\
+      #   ec2-user@$JUMPBOX_INSTANCE_ID
 
       ssh -i tempkey \\
-        -Nf -M \\
-        -S temp-ssh.sock \\
+        -Nf \\
         -L $LOCAL_PORT:$RDS_ENDPOINT:$REMOTE_PORT \\
         -o "UserKnownHostsFile=/dev/null" \\
         -o "ServerAliveInterval 10" \\
         -o "StrictHostKeyChecking=no" \\
-        -o ProxyCommand="aws ssm start-session --target $JUMPBOX_INSTANCE_ID --document AWS-StartSSHSession --parameters portNumber=%p --region=$region" \\
+        -o "ControlMaster=no" \\
+        -o ProxyCommand="aws ssm start-session --debug --target %h --document AWS-StartSSHSession --parameters 'portNumber=%p' --region=us-east-1" > ./start-session.output 2>&1 \\
         ec2-user@$JUMPBOX_INSTANCE_ID
       ;;
     ssh)
       # This this also works, but requires that the jumpbox host be in a subnet attached to a transit gateway
       # that links the campus VPN(s) so that access can be established on port 22 open on the jumpbox host.
 
-      echo "Establishing SSH Tunnel: jumpbox host has local port 5432 forwarded to rds endpoint on oracle port"
+      echo "Establishing SSH Tunnel: jumpbox host has local port $LOCAL_PORT forwarded to rds endpoint on oracle port"
 
       ssh -i tempkey \\
         -Nf -L $LOCAL_PORT:$RDS_ENDPOINT:$REMOTE_PORT \\
@@ -161,10 +171,47 @@ tunnelToRDS() {
       ;;
   esac
 
-  if [ "$USER_TERMINATED" == 'true' ] ; then
-    read -rsn1 -p "Press any key to close session: "; echo
-    ssh -O exit -S temp-ssh.sock *
+  isNumeric() {
+    [ -n "\$(echo "\$1" | grep -E '^[0-9]+$')" ] && true || false
+  }
+
+  killSSHProcess() {
+    if [ -f temp-ssh.sock ] ; then
+      # A custom control socket was created and can be referenced in terminating the ssh process.
+      ssh -O exit -S temp-ssh.sock *
+    elif [ -f last-ssh-pid ] ; then
+      # The ssh tunnel was started as a background process, so its PID was logged at the time.
+      pid=$(cat last-ssh-pid 2> /dev/null)
+      if isNumeric "\$pid" ; then
+        kill \$pid
+      fi
+      rm last-ssh-pid
+    else
+      # Scrape the PID of any process output by ps -al for one tied to ssh that also has no TTY.
+      # Ostensibly that will be the process started above, so kill it if it comes back as the only match.
+      pids=\$(ps -a | grep -e '/ssh$' | awk '{ if (\$5 == "?") print \$1}' 2> /dev/null)
+      count=\$(echo "\$pids" | wc -l)
+      if [ \$count -eq 1 ] ; then
+        if isNumeric "\$pids" ; then
+          kill \$pids
+          echo " "
+          echo "Terminated ssh process, PID: \$pids"
+        else
+          echo "Error getting PID of ssh process to terminate!"
+        fi
+      elif [ \$count -gt 1 ] ; then
+        echo "More than one ssh candidate process to terminate. You will have to terminate manually (use ps -al)"
+      elif [ \$count -eq 0 ] ; then
+        echo "Could not find the ssh process to terminate. You will have to terminate manually (use ps -al)"
+      fi
+    fi
+
     rm temp*
+  }
+
+  if [ "$USER_TERMINATED" == 'true' ] ; then
+    read -rsn1 -p "Press any key to close session: ";
+    killSSHProcess
   fi
 EOF
 

@@ -445,10 +445,10 @@ Resources:
         Value: !Sub ${GlobalTag}-${Landscape}
       - Key: App
         Value: Kuali
-      - Key: Environment
-        Value: !Ref Landscape
       - Key: Landscape
         Value: !Ref Landscape
+      - Key: Baseline
+        Value: !Ref Baseline
       - Key: Version
         Value: 1
       - Key: Service

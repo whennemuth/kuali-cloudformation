@@ -254,7 +254,7 @@ addStandardTags() {
 metaRefresh() {
   getInstanceId() (
     aws cloudformation describe-stack-resources \
-      --stack-name $STACK_NAME \
+      --stack-name $FULL_STACK_NAME \
       --logical-resource-id $LOGICAL_RESOURCE_ID \
       --output text \
       --query 'StackResources[0].{pri:PhysicalResourceId}'
@@ -263,7 +263,7 @@ metaRefresh() {
   local instanceId="$(getInstanceId)"
   
   if [ -z "$instanceId" ] ; then
-    echo "ERROR! Cannot determine instanceId in stack \"$STACK_NAME\""
+    echo "ERROR! Cannot determine instanceId in stack \"$FULL_STACK_NAME\""
     exit 1
   else
     echo "instanceId = $instanceId"
@@ -280,7 +280,7 @@ metaRefresh() {
 		--document-name "AWS-RunShellScript" \\
 		--comment "Implementing cloud formation metadata changes on ec2 instance $LOGICAL_RESOURCE_ID ($instanceId)" \\
 		--parameters \\
-		'{"commands":["/opt/aws/bin/cfn-init -v --configsets '"$configset"' --region \"us-east-1\" --stack \"$STACK_NAME\" --resource $LOGICAL_RESOURCE_ID"]}'
+		'{"commands":["/opt/aws/bin/cfn-init -v --configsets '"$configset"' --region \"us-east-1\" --stack \"$FULL_STACK_NAME\" --resource $LOGICAL_RESOURCE_ID"]}'
 	EOF
 
   if [ "$DEBUG" ] ; then
@@ -1064,7 +1064,7 @@ getRdsArn() {
   local landscape=${1:-$LANDSCAPE}
   aws resourcegroupstaggingapi get-resources \
     --resource-type-filters rds:db \
-    --tag-filters 'Key=App,Values=Kuali' 'Key=Environment,Values='$landscape \
+    --tag-filters 'Key=App,Values=Kuali' 'Key=Landscape,Values='$landscape \
     --output text \
     --query 'ResourceTagMappingList[].{ARN:ResourceARN}' 2> /dev/null
 }
@@ -1085,6 +1085,93 @@ getArnOfRdsToSnapshot() {
       getRdsArn $BASELINE
     fi
   fi
+}
+
+getRdsBaseline() {
+  local rdsArn="$1"
+  if [ -n "$rdsArn" ] ; then
+    aws rds list-tags-for-resource \
+      --resource-name $rdsArn \
+      --output text \
+      --query 'TagList[?Key==`Baseline`].{Value:Value}' 2> /dev/null
+  fi
+}
+
+getRdsSnapshotBaseline() {
+  local snapshotArn="$1"
+  if [ -n "$snapshotArn" ] ; then
+    local rdsRN=$(
+      aws rds describe-db-snapshots \
+        --db-snapshot-identifier $snapshotArn \
+        --output text \
+        --query 'DBSnapshots[].{DBInstanceIdentifier:DBInstanceIdentifier}' 2> /dev/null
+    )
+    local rdsArn=$(
+      aws rds describe-db-instances \
+        --db-instance-identifier $rdsRN \
+        --output text \
+        --query 'DBInstances[].{DBInstanceArn:DBInstanceArn}' 2> /dev/null
+    )
+    getRdsBaseline $rdsArn
+  fi
+}
+
+checkRDSParameters() {
+  [ "$task" == 'delete-stack' ] && return 0
+  outputHeading "Checking RDS parameters..."
+
+  validateBaseline() {
+    local msg="$1"
+    if [ -z "$BASELINE" ] ; then
+      if [ -n "msg" ] ; then
+        echo "ERROR! Could not establish a BASELINE using $msg"
+        exit 1
+      elif isABaselineLandscape "$LANDSCAPE" ; then
+        BASELINE=$LANDSCAPE
+      else
+        echo "ERROR! No baseline landscape specified."
+        exit 1
+      fi    
+    elif isABaselineLandscape "$BASELINE" ; then
+      if ! secretExistsForBaseline ; then
+        echo "Secrets Manager kuali secret with a landscape tag equal to the specified baseline ($BASELINE) must exist!"
+        exit 1
+      fi
+    else      
+      echo "ERROR! Invalid baseline landscape \"$BASELINE\""
+      exit 1 
+    fi
+  }
+
+  validateRdsArn() {
+    if [ -z "$RDS_ARN_TO_CLONE" ] ; then
+      echo "Cannot clone non-existent database! No RDS instance exists for kuali tagged with a $RDS_LANDSCAPE_TO_CLONE landscape."
+      exit 1
+    fi  
+  }
+
+  if [ -n "$RDS_SNAPSHOT_ARN" ] ; then
+    BASELINE="$(getRdsSnapshotBaseline $RDS_SNAPSHOT_ARN)"
+    validateBaseline "rds snapshot ARN"
+  elif [ -n "$RDS_ARN_TO_CLONE" ] ; then
+    BASELINE="$(getRdsBaseline $RDS_ARN_TO_CLONE)"
+    validateBaseline "rds ARN"
+    RDS_SNAPSHOT_ARN='new'
+  elif [ -n "$RDS_LANDSCAPE_TO_CLONE" ] ; then
+    RDS_ARN_TO_CLONE="$(getRdsArn $RDS_LANDSCAPE_TO_CLONE)"
+    validateRdsArn      
+    BASELINE="$(getRdsBaseline $RDS_ARN_TO_CLONE)"
+    validateBaseline "rds ARN"
+    RDS_SNAPSHOT_ARN='new'
+  elif [ -n "BASELINE" ] ; then
+    if ! isABaselineLandscape ; then
+      local original="$BASELINE"
+      BASELINE="$(getStackBaselineByLandscape $BASELINE)"
+      validateBaseline " descendent landscape \"$original\""
+    fi
+  fi
+
+  validateBaseline
 }
 
 createRdsSnapshot() {
@@ -1398,8 +1485,11 @@ waitForStackToDelete() {
   outputHeading "Deleting existing stack..."
   local counter=1
   local status="unknown"
-  local stackname=$STACK_NAME
-  [ -n "$LANDSCAPE" ] && stackname="$stackname-$LANDSCAPE"
+  local stackname="$FULL_STACK_NAME"
+  if [ -z "$stackname" ] ; then
+    stackname=$STACK_NAME
+    [ -n "$LANDSCAPE" ] && stackname="$stackname-$LANDSCAPE"
+  fi
   while true ; do
     status="$(
       aws cloudformation describe-stacks \
@@ -1748,6 +1838,11 @@ stackExistForBaselineLandscape() {
   [ -n "$stack" ] && true || false
 }
 
+getStackBaselineByLandscape() {
+  local landscape="$1"
+  getStackByTag Landscape $landscape | grep 'Baseline' | head -1 | awk '{print $3}'
+}
+
 validateShibboleth() {
   [ "$task" == 'delete-stack' ] && return 0
   if [ "${USING_SHIBBOLETH,,}" == 'true' ] ; then
@@ -1761,30 +1856,13 @@ validateShibboleth() {
   fi
 }
 
-checkLandscapesAndRDS() {
+checkLandscapeParameters() {
   [ "$task" == 'delete-stack' ] && return 0
+  outputHeading "Checking Landscape parameters..."
   [ -z "$LANDSCAPE" ] && echo "Missing landscape parameter!" && exit 1
   if stackExistsForLandscape ; then
     echo "A cloudformation stack for the $LANDSCAPE landscape already exists!"
     exit 1
   fi
-  [ -z "$BASELINE" ] && echo "Missing baseline parameter!" && exit 1
-  if ! isABaselineLandscape "$BASELINE" ; then
-    echo "The provided baseline parameter is not one of the excepted values: sb, ci, qa, stg, prod"
-    exit 1
-  fi
-  if ! secretExistsForBaseline ; then
-    echo "Secrets Manager kuali secret with a landscape tag equal to the specified baseline ($BASELINE) must exist!"
-    exit 1
-  fi
-  if [ -n "$RDS_LANDSCAPE_TO_CLONE" ] ; then
-    RDS_SNAPSHOT_ARN='new'
-    RDS_ARN_TO_CLONE="$(getRdsArn $RDS_LANDSCAPE_TO_CLONE)"
-    if [ -z "$RDS_ARN_TO_CLONE" ] ; then
-      echo "Cannot clone non-existent database! No RDS instance exists for kuali tagged with a $RDS_LANDSCAPE_TO_CLONE landscape."
-      exit 1
-    else
-      echo "RDS_ARN_TO_CLONE=$RDS_ARN_TO_CLONE"
-    fi
-  fi
+  echo "Ok"
 }

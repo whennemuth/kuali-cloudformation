@@ -72,7 +72,6 @@ Skip to step 3 if the docker image is already available in a docker registry som
    sh main.sh create-stack \
        deep_validation=false \
        landscape=MyLandscape \
-       baseline=qa \
        rds_landscape_to_clone=ci \
        using_route53=true \
        create_mongo=true \
@@ -90,7 +89,6 @@ Skip to step 3 if the docker image is already available in a docker registry som
        sh main.sh create-stack \
          deep_validation=false \
          landscape=MyLandscape \
-         baseline=qa \
          rds_landscape_to_clone=ci \
          using_route53=true \
          create_mongo=true \

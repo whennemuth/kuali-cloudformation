@@ -15,12 +15,12 @@ import java.util.Map.Entry;
 public class JobParameter {
 
 	private String name;
-	private Map<String, String> otherParameters;
+	private Map<String, String> allParameters;
 	
 	public JobParameter(Object name, Map<String, String> otherParameters) {
 		super();
 		this.name = name.toString();
-		this.otherParameters = otherParameters;
+		this.allParameters = otherParameters;
 	}
 	
 	private String getNameString(Object nameObj) {
@@ -28,13 +28,24 @@ public class JobParameter {
 		return nameObj.toString();
 	}
 	
+	public String getValue() {
+		return getOtherParmValue(name);
+	}
+	
+	public boolean isChecked() {
+		return "true".equalsIgnoreCase(getValue());
+	}
+	
 	public boolean otherParmSetWith(Object nameObj, String value) {
 		String name = getNameString(nameObj);
 		if(anyBlank(name, value)) {
 			return false;
 		}
-		for (Entry<String, String> set : otherParameters.entrySet()) {
+		for (Entry<String, String> set : allParameters.entrySet()) {
 			if(set.getKey().equalsIgnoreCase(name)) {
+				if(set.getValue() == null || set.getValue().isBlank()) {
+					return false;
+				}
 				return value.equalsIgnoreCase(set.getValue().trim());
 			}
 		}
@@ -55,7 +66,7 @@ public class JobParameter {
 		if(isBlank(name)) {
 			return false;
 		}
-		for (Entry<String, String> set : otherParameters.entrySet()) {
+		for (Entry<String, String> set : allParameters.entrySet()) {
 			if(set.getKey().equalsIgnoreCase(name)) {
 				return isBlank(set.getValue());
 			}
@@ -68,7 +79,7 @@ public class JobParameter {
 		if(anyBlank(name, value)) {
 			return false;
 		}
-		for (Entry<String, String> set : otherParameters.entrySet()) {
+		for (Entry<String, String> set : allParameters.entrySet()) {
 			if(set.getKey().equalsIgnoreCase(name)) {
 				return ! value.equalsIgnoreCase(set.getValue().trim());
 			}
@@ -81,7 +92,7 @@ public class JobParameter {
 		if(isBlank(name)) {
 			return null;
 		}
-		for (Entry<String, String> set : otherParameters.entrySet()) {
+		for (Entry<String, String> set : allParameters.entrySet()) {
 			if(set.getKey().equalsIgnoreCase(name)) {
 				return set.getValue();
 			}
@@ -111,10 +122,10 @@ public class JobParameter {
 	}
 
 	public Map<String, String> getParameterMap() {
-		return otherParameters;
+		return allParameters;
 	}
 
 	public void setParameterMap(Map<String, String> otherParameters) {
-		this.otherParameters = otherParameters;
+		this.allParameters = otherParameters;
 	}
 }

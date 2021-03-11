@@ -33,6 +33,8 @@ public abstract class AbstractJob {
 	
 	public abstract JobParameterMetadata[] getJobParameterMetadata();
 	
+	public abstract void checkJobParameterConfig(JobParameterConfiguration config);
+	
 	public String getAjaxHost() {
 		return ajaxHost;
 	}
@@ -61,18 +63,21 @@ public abstract class AbstractJob {
 		StringBuilder html = new StringBuilder();
 		try {
 			html.append("<form method='GET' name='kuali-parameters' id='kuali-parameters'>")
-				.append("<div id='kuali-wrapper'>");
+				.append("<div id='kuali-wrapper'>")
+				.append("<fieldset id='all-fields'>")
+				.append("<input type='hidden' id='" + getJobName() + "'>");
 			// Add the html of each parameter to the output one by one.
 			for (JobParameterMetadata fieldMeta : getJobParameterMetadata()) {
 				String parmName = fieldMeta.toString();
-//				if( ! developmentMode && "value".equalsIgnoreCase(parmName)) {
-//					continue;
-//				}
 				JobParameterConfiguration config = JobParameterConfiguration.forTestFragmentInstance(parmName);
 				config.setParameterMap(parameters);
+				checkJobParameterConfig(config);
 				html.append(getRenderedParameter(config));
 			}
-			html.append("</div>").append("</form>");
+			html
+				.append("</fieldset>")
+				.append("</div>")
+				.append("</form>");
 
 			if(developmentMode) {
 				/**

@@ -16,7 +16,6 @@ declare -A defaults=(
   # ----- Most of the following are defaulted in the yaml file itself:
   # [PROFILE]='???'
   # [LANDSCAPE]='sb'
-  # [BASELINE]='sb'
   # [KC_IMAGE]='770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-coeus-sandbox:2001.0040'
   # [CORE_IMAGE]='770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-core:2001.0040'
   # [PORTAL_IMAGE]='770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-portal:2001.0040'
@@ -71,8 +70,9 @@ run() {
 stackAction() {
   local action=$1
 
+  [ -z "$FULL_STACK_NAME" ] && FULL_STACK_NAME=${STACK_NAME}-${LANDSCAPE}
   if [ "$action" == 'delete-stack' ] ; then
-    aws cloudformation $action --stack-name ${STACK_NAME}-${LANDSCAPE}
+    aws cloudformation $action --stack-name $FULL_STACK_NAME
     if ! waitForStackToDelete ; then
       echo "Problem deleting stack!"
       exit 1
@@ -160,7 +160,7 @@ stackAction() {
     cat <<-EOF > $cmdfile
     aws \\
       cloudformation $action \\
-      --stack-name ${STACK_NAME}-${LANDSCAPE} \\
+      --stack-name ${FULL_STACK_NAME} \\
       $([ $task != 'create-stack' ] && echo '--no-use-previous-template') \\
       $([ "$NO_ROLLBACK" == 'true' ] && [ $task == 'create-stack' ] && echo '--on-failure DO_NOTHING') \\
       --template-url $BUCKET_URL/main.yaml \\
@@ -179,7 +179,6 @@ EOF
     add_parameter $cmdfile 'CoreImage' 'CORE_IMAGE'
     add_parameter $cmdfile 'PortalImage' 'PORTAL_IMAGE'
     add_parameter $cmdfile 'Landscape' 'LANDSCAPE'
-    add_parameter $cmdfile 'Baseline' 'BASELINE'
     add_parameter $cmdfile 'GlobalTag' 'GLOBAL_TAG'
     add_parameter $cmdfile 'EC2InstanceType' 'EC2_INSTANCE_TYPE'
     add_parameter $cmdfile 'NewrelicLicsenseKey' 'NEWRELIC_LICENSE_KEY'
@@ -206,9 +205,12 @@ EOF
       add_parameter $cmdfile 'PdfS3BucketName' 'PDF_BUCKET_NAME'
     fi
 
-    # Based on landscape and other parameters, perform rds cloning if indicated.
-    outputHeading "Checking RDS parameters..."
-    checkLandscapesAndRDS
+    checkLandscapeParameters
+
+    checkRDSParameters    # Based on landscape and other parameters, perform rds cloning if indicated.
+    
+    add_parameter $cmdfile 'Baseline' 'BASELINE'
+
     if [ -n "$RDS_SNAPSHOT_ARN" ]; then
       validateStack silent ../kuali_rds/rds-oracle.yaml
       [ $? -gt 0 ] && exit 1

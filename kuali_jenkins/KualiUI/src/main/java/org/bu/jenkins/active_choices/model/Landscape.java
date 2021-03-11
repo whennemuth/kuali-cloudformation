@@ -13,20 +13,22 @@ import java.util.TreeSet;
  */
 public enum Landscape {
 
-	SANDBOX(1, "sb", "Sandbox environment"),
-	CI(2, "ci", "Continuous integration environment"),
-	QA(3, "qa", "Quality assurance environment"),
-	STAGING(4, "stg", "Staging environment"),
-	PRODUCTION(5, "prod", "Production environment");
+	SANDBOX(1, "sb", "Sandbox environment", new String[] {"sandbox"}),
+	CI(2, "ci", "Continuous integration environment", new String[] {}),
+	QA(3, "qa", "Quality assurance environment", new String[] {}),
+	STAGING(4, "stg", "Staging environment", new String[] {"staging", "stage"}),
+	PRODUCTION(5, "prod", "Production environment", new String[] {"production"});
 	
 	private String id;
 	private String description;
 	private int order;
+	private String[] aliases;
 
-	private Landscape(int order, String id, String description) {
+	private Landscape(int order, String id, String description, String[] aliases) {
 		this.order = order;
 		this.id = id;
 		this.description = description;
+		this.aliases = aliases;
 	}
 	
 	public static Set<Landscape> getIds() {
@@ -38,6 +40,32 @@ public enum Landscape {
 		
 		return ids;
 	}
+	
+	/**
+	 * If provided landscape name matches (excluding case) the id of a Landscape enum value or one of its aliases, then return the landscape id.
+	 * Otherwise return the provided landscape unchanged.
+	 * This will correct certain anticipated guesses at some of the standard landscape names, and enforce lowercasing.
+	 * @param possibleAlias
+	 * @return
+	 */
+	public static String fromAlias(String possibleAlias) {
+		if(possibleAlias == null || possibleAlias.isBlank()) {
+			return possibleAlias;
+		}
+		for(Landscape landscape : Landscape.values()) {
+			if(landscape.name().equalsIgnoreCase(possibleAlias)) {
+				return landscape.getId();
+			}
+			else {
+				for(String alias : landscape.getAliases()) {
+					if(alias.equalsIgnoreCase(possibleAlias)) {
+						return landscape.getId();
+					}
+				}
+			}
+		}
+		return possibleAlias;
+	}
 
 	public String getId() {
 		return id;
@@ -48,5 +76,7 @@ public enum Landscape {
 	public String getDescription() {
 		return description;
 	}
-
+	public String[] getAliases() {
+		return aliases;
+	}
 }

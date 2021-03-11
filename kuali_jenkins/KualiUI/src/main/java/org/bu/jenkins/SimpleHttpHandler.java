@@ -4,15 +4,15 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
-import java.io.UnsupportedEncodingException;
 import java.net.InetSocketAddress;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 
-import com.sun.net.httpserver.*;
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpHandler;
+import com.sun.net.httpserver.HttpServer;
 
 /**
  * A simple http server that impersonates the dynamic active choices plugin behavior in a jenkins job.

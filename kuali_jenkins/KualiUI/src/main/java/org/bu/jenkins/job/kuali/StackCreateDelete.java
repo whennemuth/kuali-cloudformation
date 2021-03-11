@@ -11,6 +11,7 @@ import org.bu.jenkins.AWSCredentials;
 import org.bu.jenkins.NamedArgs;
 import org.bu.jenkins.SimpleHttpHandler;
 import org.bu.jenkins.active_choices.html.AbstractParameterView;
+import org.bu.jenkins.active_choices.model.Landscape;
 import org.bu.jenkins.active_choices.model.LandscapeList;
 import org.bu.jenkins.active_choices.model.RdsSnapshot;
 import org.bu.jenkins.active_choices.model.StackList;
@@ -49,8 +50,7 @@ public class StackCreateDelete extends AbstractJob {
 		ALB("ALB", "alb"),
 		RDS_CLONE_LANDSCAPE("RDS", "rds"),
 		RDS_SNAPSHOT("RDS", "rds-snapshot"),
-		MONGO("Mongo", "mongo"),
-		value("Value", "value");
+		MONGO("Mongo", "mongo");
 		
 		private String viewName;
 		private String templateSelector;
@@ -93,6 +93,12 @@ public class StackCreateDelete extends AbstractJob {
 			return stackTraceToHTML(e);
 		}
 	}
+
+	@Override
+	public void checkJobParameterConfig(JobParameterConfiguration config) {
+		String possibleAlias = config.getParameterMap().get(ParameterName.LANDSCAPE.name());
+		config.setParameterMapValue(ParameterName.LANDSCAPE.name(), Landscape.fromAlias(possibleAlias));
+	}
 	
 	/**
 	 * This is where we "decide", based on the value of other parameters, what a parameter should offer for choices
@@ -120,9 +126,6 @@ public class StackCreateDelete extends AbstractJob {
 					parameterView.setContextVariable("stackSelected", true);
 				}
 				break;
-			case value:
-				parameterView.setContextVariable("jobName", getJobName());
-				break;
 			default:
 				if( ! jobParameter.otherParmSetWith(ParameterName.STACK_ACTION, "create")) {
 					parameterView.setContextVariable("deactivate", true);
@@ -138,7 +141,8 @@ public class StackCreateDelete extends AbstractJob {
 							}
 							break;
 						case BASELINE:
-							parameterView.setContextVariable("landscapes", new LandscapeList(credentials).getBaselineLandscapes());
+							// This view is to be rendered as a sub view of the RDS view, so deactivate it here.
+							parameterView.setContextVariable("deactivate", true);
 							break;
 						case AUTHENTICATION:
 							if(jobParameter.otherParmSetWith(ParameterName.LANDSCAPE, "prod")) {
@@ -176,6 +180,9 @@ public class StackCreateDelete extends AbstractJob {
 								parameterView.setContextVariable("deactivate_waf", true);
 								parameterView.setContextVariable("ParameterValue", "disabled");
 							}
+							else {
+								parameterView.setContextVariable("ParameterValue", jobParameter.isChecked() ? "enabled" : "disabled");
+							}
 							break;
 						case ALB:
 							if(jobParameter.otherParmSetWith(ParameterName.LANDSCAPE, "prod")) {
@@ -189,6 +196,9 @@ public class StackCreateDelete extends AbstractJob {
 							else if(jobParameter.otherParmSetWith(ParameterName.WAF, "enabled")) {
 								parameterView.setContextVariable("deactivate_alb", true);
 								parameterView.setContextVariable("ParameterValue", "enabled");
+							}
+							else {
+								parameterView.setContextVariable("ParameterValue", jobParameter.isChecked() ? "enabled" : "disabled");
 							}
 							break;
 						case RDS_CLONE_LANDSCAPE:							
@@ -208,12 +218,18 @@ public class StackCreateDelete extends AbstractJob {
 							}
 							break;
 						case RDS_SNAPSHOT:
-							if(jobParameter.otherParmSetWith(ParameterName.LANDSCAPE, "prod")) {
-								parameterView.setContextVariable("deactivate_snapshot", true);
-							}
-							else if(jobParameter.otherParmBlank(ParameterName.RDS_CLONE_LANDSCAPE) || 
+							if(jobParameter.otherParmSetWith(ParameterName.LANDSCAPE, "prod") ||
+									jobParameter.otherParmBlank(ParameterName.RDS_CLONE_LANDSCAPE) || 
 									jobParameter.otherParmSetWith(ParameterName.RDS_CLONE_LANDSCAPE, "none")) {
 								parameterView.setContextVariable("deactivate_snapshot", true);
+								parameterView.setContextVariable("landscapes", new LandscapeList(credentials).getBaselineLandscapes());
+								if(jobParameter.otherParmSetWithAny(ParameterName.LANDSCAPE, "sb", "ci", "qa", "stg", "prod")) {
+									parameterView.setContextVariable("disable_baseline", true);
+									parameterView.setContextVariable("BaselineValue", config.getParameterMap().get(ParameterName.LANDSCAPE.name()));
+								}
+								else {
+									parameterView.setContextVariable("BaselineValue", config.getParameterMap().get(ParameterName.BASELINE.name()));
+								}
 							}
 							else {
 								String urlEncodedRdsArn = jobParameter.getOtherParmValue(ParameterName.RDS_CLONE_LANDSCAPE);
@@ -228,6 +244,7 @@ public class StackCreateDelete extends AbstractJob {
 									String urlDecodedSnapshotArn = URLDecoder.decode(urlEncodedSnapshotArn, Charset.defaultCharset());
 									parameterView.setContextVariable("ParameterValue", urlDecodedSnapshotArn);
 								}
+								parameterView.setContextVariable("deactivate_baseline", true);
 							}
 							break;
 						case MONGO:
@@ -235,6 +252,9 @@ public class StackCreateDelete extends AbstractJob {
 								parameterView.setContextVariable("deactivate_mongo", true);
 								parameterView.setContextVariable("ParameterValue", "disabled");
 							}							
+							else {
+								parameterView.setContextVariable("ParameterValue", jobParameter.isChecked() ? "enabled" : "disabled");
+							}
 							break;
 					}					
 				}

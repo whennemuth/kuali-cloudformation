@@ -3,10 +3,14 @@
       xmlns:th="http://www.thymeleaf.org">
 
   <body>
-    <div th:if="${!deactivate}" th:fragment="baseline" class="kuali-field-wrapper">
-      <div class="fieldLabel">Baseline Landscape:</div>
-      <div class="field">
-        <select style="width:200px" th:name="${ParameterName} ?: 'value'" id="baseline" onchange="sendData();" >
+    <div th:if="${!deactivate}" th:fragment="baseline (ParameterName, ParameterValue)" class="kuali-field-wrapper">
+	    <div th:attr="style=${disable_baseline} ? 'color:#AAAAAA' : _">Baseline Landscape:</div>
+        <select 
+        	th:name="${ParameterName} ?: 'value'" 
+        	th:disabled="${disable_baseline}"
+        	id="baseline" 
+        	onchange="sendData();" 
+        	style="margin-top: 5px; margin-bottom: 5px;" >
         	<optgroup>
 	          <option 
 	          	th:each="landscape : ${landscapes}" 
@@ -15,7 +19,6 @@
 	          	th:selected="${ParameterValue==landscape.getId()}"></option>        	
         	</optgroup>
         </select>
-      </div>      
   	</div>
   </body>
 </html>

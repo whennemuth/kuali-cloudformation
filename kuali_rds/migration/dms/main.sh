@@ -54,8 +54,9 @@ run() {
 stackAction() {
   local action=$1
 
+  [ -z "$FULL_STACK_NAME" ] && FULL_STACK_NAME=${STACK_NAME}-${LANDSCAPE}
   if [ "$action" == 'delete-stack' ] ; then
-    aws cloudformation $action --stack-name ${STACK_NAME}-${LANDSCAPE}
+    aws cloudformation $action --stack-name $FULL_STACK_NAME
   else
     # checkSubnets will also assign a value to VPC_ID
     if [ "$LEGACY_ACCOUNT" ] ; then
@@ -72,7 +73,7 @@ stackAction() {
 
     cat <<-EOF > $cmdfile
     aws cloudformation $action \\
-      --stack-name ${STACK_NAME}-${LANDSCAPE} \\
+      --stack-name ${FULL_STACK_NAME} \\
       $([ $task != 'create-stack' ] && echo '--no-use-previous-template') \\
       $([ "$NO_ROLLBACK" == 'true' ] && [ $task == 'create-stack' ] && echo '--on-failure DO_NOTHING') \\
       --template-url $BUCKET_URL/dms.yaml \\

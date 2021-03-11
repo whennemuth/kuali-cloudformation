@@ -76,9 +76,15 @@ run() {
 stackAction() {
   local action=$1
 
+  [ -z "$FULL_STACK_NAME" ] && FULL_STACK_NAME=${STACK_NAME}-${LANDSCAPE}
   if [ "$action" == 'delete-stack' ] ; then
-    aws cloudformation $action --stack-name ${STACK_NAME}-${LANDSCAPE}
+    aws cloudformation $action --stack-name $FULL_STACK_NAME
   else
+
+    checkLandscapeParameters
+
+    checkRDSParameters    # Based on landscape and other parameters, perform rds cloning if indicated.
+
     # checkSubnets will also assign a value to VPC_ID
     if [ "$LEGACY_ACCOUNT" ] ; then
       if ! checkSubnetsInLegacyAccount ; then
@@ -96,7 +102,7 @@ stackAction() {
 
     cat <<-EOF > $cmdfile
     aws cloudformation $action \\
-      --stack-name ${STACK_NAME}-${LANDSCAPE} \\
+      --stack-name ${FULL_STACK_NAME} \\
       $([ $task == 'update-stack' ] && echo '--no-use-previous-template') \\
       $([ "$NO_ROLLBACK" == 'true' ] && [ $task == 'create-stack' ] && echo '--on-failure DO_NOTHING') \\
       --template-url $BUCKET_URL/rds-oracle.yaml \\
@@ -113,6 +119,7 @@ EOF
     add_parameter $cmdfile 'DBSubnetCIDR2' 'PRIVATE_SUBNET2_CIDR'
     add_parameter $cmdfile 'TemplateBucketName' 'TEMPLATE_BUCKET_NAME'
     add_parameter $cmdfile 'Landscape' 'LANDSCAPE'
+    add_parameter $cmdfile 'Baseline' 'BASELINE'
     add_parameter $cmdfile 'GlobalTag' 'GLOBAL_TAG'
     add_parameter $cmdfile 'DBInstanceClass' 'DB_INSTANCE_CLASS'
     add_parameter $cmdfile 'MultiAZ' 'MULTI_AZ'
@@ -126,13 +133,6 @@ EOF
     add_parameter $cmdfile 'CharacterSetName' 'CHARACTERSET_NAME'
     add_parameter $cmdfile 'Iops' 'IOPS'
     add_parameter $cmdfile 'JumpboxInstanceType' 'JUMPBOX_INSTANCE_TYPE'
-
-    if isABaselineLandscape "$BASELINE" ; then
-      add_parameter $cmdfile 'Baseline' 'BASELINE'
-    else
-      echo "The provided baseline parameter is not one of the excepted values: sb, ci, qa, stg, prod"
-      exit 1
-    fi
       
     if [ -z "$ENGINE_VERSION" ] ; then
       ENGINE_VERSION="$(getOracleEngineVersion $ENGINE $MAJOR_VERSION)"
@@ -142,9 +142,6 @@ EOF
       fi
     fi
     add_parameter $cmdfile 'EngineVersion' 'ENGINE_VERSION'
-
-    # Based on landscape and other parameters, perform rds cloning if indicated.
-    checkLandscapesAndRDS
 
     # The rds instance might be intended to be based on a snapshot.
     if [ -n "$DB_SNAPSHOT_ARN" ] ; then
