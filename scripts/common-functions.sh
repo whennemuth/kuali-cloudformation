@@ -75,6 +75,7 @@ setDefaults() {
     if grep -q '\$' <<<"$val" ; then
       eval "val=$val"
     elif [ ${val:0:14} == 'getLatestImage' ] ; then
+      [ "$task" == 'delete-stack' ] && continue;
       val="$($val)"
     fi
     local evalstr="[ -z \"\$$k\" ] && $k=\"$val\""
@@ -123,7 +124,7 @@ validateStack() {
       echo $f >> $root/validate.invalid
     fi
     echo " "
-  done <<< $([ -n "$singlefile" ] && echo $singlefile || find . -type f -iname "*.yaml")
+  done <<< "$([ -n "$singlefile" ] && echo $singlefile || find . -type f -iname "*.yaml")"
   cd $root
   if [ -z "$silent" ] ; then
     cat $root/validate.valid
@@ -843,12 +844,12 @@ getSubnets() {
         echo "${globalVar}2_CIDR="$cidr"" >> $cmdfile
       fi
     fi
-  done <<< $(
+  done <<< "$(
     aws ec2 describe-subnets \
       --filters $filter1 $filter2 \
       --output text \
       --query 'sort_by(Subnets, &AvailabilityZone)[*].{VpcId:VpcId,SubnetId:SubnetId,AZ:AvailabilityZone,CidrBlock:CidrBlock}'
-  )
+  )"
 }
 
 # Ensure that there are 6 subnets are specified (2 campus subnets, 2 private subnets and 2 public subnets).
@@ -1319,10 +1320,10 @@ pruneOldRdsSnapshots() {
         deleteRdsSnapshot $id
       fi
     fi
-  done <<< $(aws rds describe-db-snapshots \
+  done <<< "$(aws rds describe-db-snapshots \
       $dbInstanceIdArg $snapshotArnArg --output text \
       --query 'DBSnapshots[].{id:DBSnapshotIdentifier,time:SnapshotCreateTime}' 2> /dev/null
-  )
+  )"
 }
 
 pruneKualiRdsSnapshots() {
@@ -1335,13 +1336,13 @@ pruneKualiRdsSnapshots() {
     landscape=$(echo $snapshot | jq -r '.Tags[] | select(.Key == "Landscape").Value')
     echo "deleting $landscape snapshot: $arn"
     pruneOldRdsSnapshots snapshotArn=$arn $@
-  done <<< $(aws resourcegroupstaggingapi get-resources \
+  done <<< "$(aws resourcegroupstaggingapi get-resources \
     --resource-type-filters rds:snapshot \
     --tag-filters \
       'Key=Function,Values=kuali' \
       'Key=Service,Values=research-administration' \
       | jq -r --compact-output '.ResourceTagMappingList[] | select(contains({Tags: [{Key: "Landscape", Value: "'$excludeLandscape'"} ]}) | not)'
-  )
+  )"
 }
 
 pruneKualiRdsSnapshotsExceptProd() {
@@ -1768,13 +1769,13 @@ pickEC2InstanceId() {
         fi
       fi
     fi
-  done <<< $(
+  done <<< "$(
     aws resourcegroupstaggingapi get-resources \
       --resource-type-filters ec2:instance \
       --tag-filters $tagfilters \
       --output text \
       --query 'ResourceTagMappingList[].{ARN:ResourceARN}' | cut -d'/' -f2 | sed 's/\n//g' 2> /dev/null
-  )
+  )"
 
   if [ ${#ids[@]} -gt 0 ] ; then
     local id=${ids[0]}

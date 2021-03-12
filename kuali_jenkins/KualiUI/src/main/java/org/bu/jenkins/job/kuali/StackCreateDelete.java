@@ -2,9 +2,7 @@ package org.bu.jenkins.job.kuali;
 
 import java.net.URLDecoder;
 import java.nio.charset.Charset;
-import java.util.Arrays;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
 
 import org.bu.jenkins.AWSCredentials;
@@ -16,9 +14,9 @@ import org.bu.jenkins.active_choices.model.LandscapeList;
 import org.bu.jenkins.active_choices.model.RdsSnapshot;
 import org.bu.jenkins.active_choices.model.StackList;
 import org.bu.jenkins.job.AbstractJob;
-import org.bu.jenkins.job.JobParameterMetadata;
-import org.bu.jenkins.job.JobParameterConfiguration;
 import org.bu.jenkins.job.JobParameter;
+import org.bu.jenkins.job.JobParameterConfiguration;
+import org.bu.jenkins.job.JobParameterMetadata;
 
 /**
  * This class is associated with the jenkins job used to create and delete application stacks for Kuali.

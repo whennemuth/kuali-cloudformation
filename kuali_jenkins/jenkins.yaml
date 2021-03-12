@@ -171,6 +171,13 @@ Resources:
               - "cloudformation:List*"
               - "cloudformation:Describe*"
             Resource: "*"
+          # This one allows deletion of any resource created by cloudformation for a kuali stack
+          - Effect: Allow
+            Action: "*"
+            Resource: "*"
+            Condition:
+              StringLikeIfExists:
+                - "aws:ResourceTag/aws:cloudformation:stack-name": kuali*
       - PolicyName:
           !Sub ${GlobalTag}-logging
         PolicyDocument:
@@ -196,6 +203,16 @@ Resources:
               - ecr:Detect*
             Resource:
               - arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/*
+      - PolicyName:
+          !Sub ${GlobalTag}-vpc-access
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Action: 
+              - ec2:Describe*
+              - ec2:Get*              
+            Resource: "*"
+
 
   JenkinsAdministrator:
     Type: AWS::SecretsManager::Secret
