@@ -33,6 +33,20 @@ Parameters:
     Description: The S3 bucket kuali research cloudformation templates, config files, keys, etc. are stored
     Default: kuali-conf
 
+  RetainLogs:
+    Type: String
+    Description: Indicate if the logs produced by the lambda function should survive stack deletion.
+    Default: "false"
+    AllowedValues:
+    - "true"
+    - "false"
+    ConstraintDescription: Enter "true" or "false" only.
+
+
+Conditions:
+  retainLogs: !Equals [!Ref RetainLogs, 'true']
+  deleteLogs: !Equals [!Ref RetainLogs, 'false']
+
 
 Resources:
 
@@ -86,10 +100,17 @@ Resources:
       # ManagedPolicyArns:
       # - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
 
+  LambdaLogsGroupTemp:
+    Type: AWS::Logs::LogGroup
+    Condition: deleteLogs
+    DeletionPolicy: Delete
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${GlobalTag}-${Landscape}-alb-logging-toggler
+      RetentionInDays: 30
   LambdaLogsGroup:
     Type: AWS::Logs::LogGroup
-    # DeletionPolicy: Retain
-    DeletionPolicy: Delete
+    Condition: retainLogs
+    DeletionPolicy: Retain
     Properties:
       LogGroupName: !Sub /aws/lambda/${GlobalTag}-${Landscape}-alb-logging-toggler
       RetentionInDays: 30

@@ -1219,18 +1219,14 @@ waitForRdsSnapshotCompletion() {
   ([ "${status,,}" == 'available' ] && [ "$progress" == '100' ]) && true || false
 }
 
+# Most of the RDS related parameters have been determined at this point.
+# Add them all to the final cloudformation stack creation/update cli function call being built.
 addRdsSnapshotParameters() {
   local cmdfile="$1"
   local landscape="$2"
   local rdsSnapshotARN="$3"
   local rdsArnToSnapshot="$4"
-  local engineVersion="$(getOracleEngineVersion 'oracle-se2' '19')"
 
-  if [ -z "$engineVersion" ] ; then
-    echo "ERROR! Cannot determine rds engine version"
-    exit 1
-  fi
-  addParameter $cmdfile 'RdsEngineVersion' $engineVersion
   add_parameter $cmdfile 'RdsDbSubnet1' 'PRIVATE_SUBNET1'
   add_parameter $cmdfile 'RdsDbSubnet2' 'PRIVATE_SUBNET2'
   add_parameter $cmdfile 'RdsSubnetCIDR1' 'PRIVATE_SUBNET1_CIDR'
@@ -1251,7 +1247,16 @@ addRdsSnapshotParameters() {
     fi
     [ $? -gt 0 ] && err "Problem with snapshot attempt!" && exit 1
   fi
-  addParameter $cmdfile 'RdsSnapshotARN' $rdsSnapshotARN 
+
+  addParameter $cmdfile 'RdsSnapshotARN' $rdsSnapshotARN
+
+  local engineVersion="$(getOracleEngineVersion $rdsSnapshotARN)"
+  if [ -z "$engineVersion" ] ; then
+    echo "ERROR! Cannot determine rds engine version"
+    exit 1
+  fi
+  addParameter $cmdfile 'RdsEngineVersion' $engineVersion
+
 }
 
 isDryrun() {
@@ -1457,6 +1462,15 @@ getKcConfigDbPort() {
 }
 
 getOracleEngineVersion() {
+  local snapshotArn=${1:-$RDS_SNAPSHOT_ARN}
+  if [ -n "$snapshotArn" ] ; then
+    aws rds describe-db-snapshots \
+    --output text \
+    --query 'DBSnapshots[?DBSnapshotArn==`'$snapshotArn'`].{EngineVersion:EngineVersion}' 2> /dev/null
+  fi
+}
+
+getLatestOracleEngineVersion() {
   local engine="$1"
   local majorVersion="$2"
   

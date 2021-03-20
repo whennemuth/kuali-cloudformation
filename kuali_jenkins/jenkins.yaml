@@ -127,14 +127,73 @@ Resources:
       ManagedPolicyArns:
       - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
       Policies:
+
       - PolicyName:
-          !Sub ${GlobalTag}-read-ec2-tags
+          !Sub ${GlobalTag}-cloudformation
         PolicyDocument:
           Statement:
           - Effect: Allow
+            Action: "cloudformation:*"
+            Resource: arn:aws:cloudformation:*:*:stack/kuali*/*
+          - Effect: Deny
+            Action: 
+              - cloudformation:Cancel*
+              - cloudformation:Delete*
+              - cloudformation:Deregister*
+              - cloudformation:Set*
+              - cloudformation:Stop*
+              - cloudformation:Update*
+            NotResource: arn:aws:cloudformation:*:*:stack/kuali*/*
+          - Effect: Allow
+            Action: "*"
             Resource: "*"
-            Action:
-            - ec2:DescribeTags
+            # Allows any action, for research-administration or anything that is not explicitly tagged as part of another service.
+            # This condition will only reach the desired effect on a resource if the same resource is also evaluated by a separate 
+            # policy statement that is "flipped" (effect=deny, StringNotEqualsIfExists: "aws:ResourceTag/Service": [ !Ref Service ]).
+            Condition:
+              StringEqualsIfExists:
+                "aws:ResourceTag/Service":
+                  - !Ref Service
+          - Effect: Deny
+            Action: [
+              ec2:Delete*, ec2:Deregister*, ec2:Detach*, ec2:Disable*, ec2:Disassociate*, ec2:Modify*, ec2:Move*, ec2:Purchase*, ec2:Reboot*, ec2:Replace*, ec2:Reset*, ec2:Revoke*, ec2:Start*, ec2:Stop*, ec2:Terminate*, ec2:Unassign*, ec2:Update*, 
+              ecs:Delete*, ecs:Deploy*, ecs:Put*, ecs:Register*, ecs:Run*, ecs:Start*, ecs:Stop*, ecs:Submit*, ecs:Tag*, ecs:Untag*, ecs:Update*, 
+              iam:Add*, iam:Attach*, iam:Change*, iam:Deactivate*, iam:Delete*, iam:Put*, iam:Remove*, iam:Resync*, iam:Set*, iam:Tag*, iam:Untag*, iam:Update*, 
+              rds:Add*, rds:Authorize*, rds:Cancel*, rds:Copy*, rds:Delete*, rds:Modify*, rds:Promote*, rds:Purchase*, rds:Register*, rds:Remove*, rds:Revoke*, rds:Start*, rds:Stop*, 
+              elbv2:Add*, elbv2:Delete*, elbv2:Modify*, elbv2:Register*, elbv2:Remove*, elbv2:Set*, 
+              ssm:Add*, ssm:Cancel*, ssm:Delete*, ssm:Deregister*, ssm:Put*, ssm:Start*, ssm:Stop*, ssm:Update*, 
+              logs:Cancel*, logs:Delete*, logs:Disassociate*, logs:Filter*, logs:Put*, logs:Start*, logs:Stop*, logs:Tag*, logs:Untag*,
+              wafv2:Associate*, wafv2:Delete*, wafv2:Disassociate*,
+              route53:Associate*, route53:Change*, route53:Delete*, route53:Disassociate*, route53:Update*,
+              athena:Delete*, athena:Start*, athena:Stop*, athena:Tag*, athena:Untag*, athena:Update*,
+              glue:Cancel*, glue:Delete*, glue:Put*, glue:Reset*, glue:Start*, glue:Stop*, glue:Tag*, glue:Untag*, glue:Update*, 
+              application-autoscaling:Delete*, application-autoscaling:Deregister*, application-autoscaling:Put*, application-autoscaling:Register*, 
+              autoscaling:Attach*, autoscaling:Cancel*, autoscaling:Delete*, autoscaling:Detach*, autoscaling:Disable*, autoscaling:Enter*, autoscaling:Exit*, autoscaling:Put*, autoscaling:Resume*, autoscaling:Set*, autoscaling:Start*, autoscaling:Suspend*, autoscaling:Terminate*, autoscaling:Update*, 
+              autoscaling-plans:Delete*, autoscaling-plans:Update*, 
+              lambda:Add*, lambda:Delete*, lambda:Invoke*, lambda:Publish*, lambda:Put*, lambda:Remove*, lambda:Tag*, lambda:Untag*, lambda:Update*, 
+              cloudwatch:Delete*, cloudwatch:Disable*, cloudwatch:Enable*, cloudwatch:Put*, cloudwatch:Set*, cloudwatch:Tag*, cloudwatch:Untag*, 
+              apigateway:Delete*, apigateway:flush*, apigateway:Put*, apigateway:Tag*, apigateway:Untag*, apigateway:Update*, 
+              apigatewayv2:Delete*, apigateway2:Put*, apigateway2:Tag*, apigateway2:Untag*, apigateway2:Update*, apigatewayv2:Import*, apigatewayv2:Reimport*, 
+              kinesis:Decrease*, kinesis:Delete*, kinesis:Deregister*, kinesis:Disable*, kinesis:Increase*, kinesis:Merge*, kinesis:Put*, kinesis:Register*, kinesis:Remove*, kinesis:Split*, kinesis:Start*, kinesis:Stop*, kinesis:Update*, 
+              firehose:Delete*, firehose:Put*, firehose:Start*, firehose:Stop*, firehose:Tag*, firehose:Untag*, firehose:Update*
+            ]
+            Resource: "*"
+            # The possibility of affecting other services during stack creation is unlikely, nonetheless tagging conventions in the account are 
+            # used here to control access to certain actions. Disallowed are non-read only actions if the service tag explicitly indicates a service 
+            # other than research-administration. This list comprises every action request that stack creation/deletion makes and helps prevent 
+            # inadvertent spillover to other services, while still allowing for comprehensive read-only actions. This condition can only reach
+            # the desired effect if also used with a separate policy statement that comprehensively allows actions.
+            # 1) If a Service tag exists on the resource and it is "research-administration", the condition fails and the action is NOT denied.
+            # 2) If a Service tag exists on the resource and it is NOT "research-administration", the condition succeeds and the action IS denied.
+            # 3) If no service tag exists, the null check part of the condition takes over and prevents a default success due to an otherwise
+            #    non-evaluation, and results in the action NOT being denied.
+            # SEE: https://docs.aws.amazon.com/IAM/latest/UserGuide/access_tags.html
+            Condition:
+              Null:
+                aws:ResourceTag/Service: false
+              StringNotEqualsIfExists: 
+                aws:ResourceTag/Service: !Ref Service
+
       - PolicyName:
           !Sub ${GlobalTag}-s3-access
         PolicyDocument:
@@ -142,42 +201,37 @@ Resources:
           - Effect: Allow
             Resource:
             - arn:aws:s3:::kuali-*
-            # - arn:aws:s3:::kuali-conf*
-            # - arn:aws:s3:::kuali-docker-run-stdout*
             Action: "*"
+          - Effect: Deny
+            NotResource:
+            - arn:aws:s3:::kuali-*
+            Action: [ s3:Move*, s3:Remove*, s3:Delete*, s3:GetObject ]
+
+
+      # Unlike the tag-based policies, this one prevents non-readonly actions against resources that are BOTH tagged
+      # with a Service value that is not "research-administration", AND has no Service tag.
       - PolicyName:
           !Sub ${GlobalTag}-read-secrets
         PolicyDocument:
           Statement:
           - Effect: Allow
-            Action:
-            - secretsmanager:ListSecrets
-            - secretsmanager:GetResourcePolicy
-            - secretsmanager:GetSecretValue
-            - secretsmanager:DescribeSecret
-            - secretsmanager:ListSecretVersionIds
+            Action: secretsmanager:*
             Resource:
-            - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:kuali/*/*
-      - PolicyName:
-          !Sub ${GlobalTag}-cloudformation
-        PolicyDocument:
-          Statement:
-          - Effect: Allow
-            Action: "*"
-            Resource: 
-            - arn:aws:cloudformation:*:*:stack/kuali*/*
-          - Effect: Allow
+              - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:kuali/*/*
+          - Effect: Deny
             Action: 
-              - "cloudformation:List*"
-              - "cloudformation:Describe*"
-            Resource: "*"
-          # This one allows deletion of any resource created by cloudformation for a kuali stack
-          - Effect: Allow
-            Action: "*"
-            Resource: "*"
-            Condition:
-              StringLikeIfExists:
-                - "aws:ResourceTag/aws:cloudformation:stack-name": kuali*
+              - secretsmanager:Cancel*
+              - secretsmanager:Delete*
+              - secretsmanager:DescribeSecret
+              - secretsmanager:Get*
+              - secretsmanager:Put*
+              - secretsmanager:RestoreSecret
+              - secretsmanager:RotateSecret
+              - secretsmanager:TagResource
+              - secretsmanager:UntagResource
+              - secretsmanager:Update*
+            NotResource: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:kuali/*/*
+
       - PolicyName:
           !Sub ${GlobalTag}-logging
         PolicyDocument:
@@ -187,6 +241,7 @@ Resources:
             Resource:
               - arn:aws:logs:*:*:log-group:*kuali*
               - arn:aws:logs:*:*:log-group:*kuali*:log-stream:*
+
       - PolicyName:
           !Sub ${GlobalTag}-repository-access
         PolicyDocument:
@@ -195,22 +250,24 @@ Resources:
             Action: ecr:*
             Resource:
               - arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/kuali*
-          - Effect: Allow
+          - Effect: Deny
             Action:
-              - ecr:Describe*
-              - ecr:Get*
-              - ecr:List*
-              - ecr:Detect*
-            Resource:
-              - arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/*
+              - ecr:Delete*
+              - ecr:Put*
+              - ecr:Upload*
+              - ecr:Set*
+              - ecr:Start*
+              - ecr:TagResource
+              - ecr:UntagResource
+            NotResource: arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/kuali*
+
       - PolicyName:
-          !Sub ${GlobalTag}-vpc-access
+          !Sub ${GlobalTag}-error-handling
         PolicyDocument:
           Statement:
           - Effect: Allow
             Action: 
-              - ec2:Describe*
-              - ec2:Get*              
+              - sts:DecodeAuthorizationMessage              
             Resource: "*"
 
 

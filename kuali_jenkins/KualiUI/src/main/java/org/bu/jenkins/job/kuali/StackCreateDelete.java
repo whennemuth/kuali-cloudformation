@@ -48,7 +48,10 @@ public class StackCreateDelete extends AbstractJob {
 		ALB("ALB", "alb"),
 		RDS_CLONE_LANDSCAPE("RDS", "rds"),
 		RDS_SNAPSHOT("RDS", "rds-snapshot"),
-		MONGO("Mongo", "mongo");
+		MONGO("Mongo", "mongo"),
+		ADVANCED("Advanced", "advanced"),
+		ADVANCED_KEEP_LAMBDA_LOGS("AdvancedKeepLambdaLogs", "advancedKeepLambdaLogs"),
+		ADVANCED_MANUAL_ENTRIES("AdvancedManualEntries", "advancedManualEntries");
 		
 		private String viewName;
 		private String templateSelector;
@@ -138,8 +141,10 @@ public class StackCreateDelete extends AbstractJob {
 								parameterView.setContextVariable("ecs_only", true);
 							}
 							break;
-						case BASELINE:
-							// This view is to be rendered as a sub view of the RDS view, so deactivate it here.
+						case BASELINE: 
+						case ADVANCED_KEEP_LAMBDA_LOGS: 
+						case ADVANCED_MANUAL_ENTRIES:
+							// These views are to be rendered as a sub view of other views view, so deactivate it here.
 							parameterView.setContextVariable("deactivate", true);
 							break;
 						case AUTHENTICATION:
@@ -221,6 +226,7 @@ public class StackCreateDelete extends AbstractJob {
 									jobParameter.otherParmSetWith(ParameterName.RDS_CLONE_LANDSCAPE, "none")) {
 								parameterView.setContextVariable("deactivate_snapshot", true);
 								parameterView.setContextVariable("landscapes", new LandscapeList(credentials).getBaselineLandscapes());
+								parameterView.setContextVariable("BaselineEnum", ParameterName.BASELINE);
 								if(jobParameter.otherParmSetWithAny(ParameterName.LANDSCAPE, "sb", "ci", "qa", "stg", "prod")) {
 									parameterView.setContextVariable("disable_baseline", true);
 									parameterView.setContextVariable("BaselineValue", config.getParameterMap().get(ParameterName.LANDSCAPE.name()));
@@ -252,6 +258,17 @@ public class StackCreateDelete extends AbstractJob {
 							}							
 							else {
 								parameterView.setContextVariable("ParameterValue", jobParameter.isChecked() ? "enabled" : "disabled");
+							}
+							break;
+						case ADVANCED:
+							parameterView.setContextVariable("ParameterValue", jobParameter.isChecked() ? "enabled" : "disabled");
+							parameterView.setContextVariable("ksbrlEnum", ParameterName.ADVANCED_KEEP_LAMBDA_LOGS);
+							parameterView.setContextVariable("ksbrlValue", jobParameter.isChecked(ParameterName.ADVANCED_KEEP_LAMBDA_LOGS) ? "enabled" : "disabled");
+							parameterView.setContextVariable("manualEnum", ParameterName.ADVANCED_MANUAL_ENTRIES);
+							String urlEncodedValue = config.getParameterMap().get(ParameterName.ADVANCED_MANUAL_ENTRIES.name());
+							if(urlEncodedValue != null) {
+								String urlDecodedValue = URLDecoder.decode(urlEncodedValue, Charset.defaultCharset());
+								parameterView.setContextVariable("manualValue", urlDecodedValue);
 							}
 							break;
 					}					

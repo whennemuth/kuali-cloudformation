@@ -69,6 +69,15 @@ Parameters:
     Description: The name of the s3 bucket the ALB will log activity to. This parmarameter will be used if WafWebAclArn has a value.
     Default: empty
 
+  RetainLambdaCleanupLogs:
+    Type: String
+    Description: Indicate if the logs produced by cleanup lambda functions should survive stack deletion.
+    Default: "false"
+    AllowedValues:
+    - "true"
+    - "false"
+    ConstraintDescription: Enter "true" or "false" only.
+
   HostedZoneName:
     Type: String
     Description: If included, a DNS record will be created and registered with the specified HostedZone
@@ -241,6 +250,7 @@ Resources:
   #       TemplateBucketName: !Ref TemplateBucketName
   #       Service: !Ref Service
   #       Function: !Ref Function
+  #       RetainLogs: !Ref RetainLambdaCleanupLogs
 
   # ToggleAlbLogging:
   #   Type: Custom::Functions

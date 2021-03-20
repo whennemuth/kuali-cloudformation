@@ -1,0 +1,82 @@
+<!DOCTYPE html SYSTEM "http://www.thymeleaf.org/dtd/xhtml1-strict-thymeleaf-4.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:th="http://www.thymeleaf.org">
+
+  <body>
+  	<div th:fragment="stack-stylesheet" class="kuali-field-wrapper">
+  		<style>
+	        div.kuali-field-wrapper {
+	          font-family: arial; 
+	          padding-top: 10px;
+	          clear: both;
+	        }
+	        div.kuali-nested-field-wrapper {
+	          font-family: arial; 
+	          clear: both;
+	        }
+	        .kuali-field-wrapper div.fieldLabel {
+	          float: left;
+	          width: 200px;
+	          text-align: right;
+	          padding: 5px;
+	        }
+	        .kuali-field-wrapper div.field {
+	          padding: 5px;
+	          float: left;
+	        }
+	        .kuali-field-wrapper div.warning {
+	          color: red;
+	          float: right;
+	          padding-left: 10px;
+	        }
+	        .kuali-field-wrapper table {
+	          border-collapse: collapse;
+	          border-style: solid;
+	          border-width: 1px;
+	        }
+	        .kuali-field-wrapper th {
+	          border-style: solid;
+	          border-width: 1px;
+	          font-size: 14px;
+	          padding: 5px;
+	          color: rgb(11, 106, 162);
+	        }
+	        .kuali-field-wrapper th.top {
+	          background-color:rgb(11, 106, 162);
+	          border-color: rgb(11, 106, 162);
+	          font-size: 16px;
+	          color: white;
+	          font-weight: bold;
+	        }
+	        .kuali-field-wrapper td {
+	          border-style: solid;
+	          border-width: 1px;
+	          font-size: 12px;
+	          font-weight: bold;
+	          padding: 10px;
+	        }
+	        .kuali-field-wrapper select {
+	        	padding: 4px;
+	        	font-size: 14px;
+	        	width: 250px;
+	        }
+	        .kuali-field-wrapper optgroup {
+	        	font-size: 14px;
+	        }
+	        .kuali-field-wrapper input[type=text] {
+	        	font-size: 16px;
+	        	padding: 4px;
+	        	width: 250px;
+	        }
+	        .kuali-field-wrapper input[type=radio] {
+	        	margin-bottom: 10px;
+	        }
+	        #kuali-wrapper fieldset {
+	        	border: 0 none;
+	        }
+	        
+  		</style>
+  	</div>
+  </body>
+  
+</html>

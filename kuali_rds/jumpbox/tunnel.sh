@@ -137,25 +137,25 @@ tunnelToRDS() {
 
       echo "Establishing SSH Tunnel: jumpbox host using ssm start-session to access rds endpoint on port $LOCAL_PORT"
 
-      # ssh -i tempkey \\
-      #   -Nf -M \\
-      #   -S temp-ssh.sock \\
-      #   -L $LOCAL_PORT:$RDS_ENDPOINT:$REMOTE_PORT \\
-      #   -o "UserKnownHostsFile=/dev/null" \\
-      #   -o "ServerAliveInterval 10" \\
-      #   -o "StrictHostKeyChecking=no" \\
-      #   -o ProxyCommand="aws ssm start-session --target $JUMPBOX_INSTANCE_ID --document AWS-StartSSHSession --parameters portNumber=%p --region=$region" \\
-      #   ec2-user@$JUMPBOX_INSTANCE_ID
-
       ssh -i tempkey \\
-        -Nf \\
+        -Nf -M \\
+        -S temp-ssh.sock \\
         -L $LOCAL_PORT:$RDS_ENDPOINT:$REMOTE_PORT \\
         -o "UserKnownHostsFile=/dev/null" \\
         -o "ServerAliveInterval 10" \\
         -o "StrictHostKeyChecking=no" \\
-        -o "ControlMaster=no" \\
-        -o ProxyCommand="aws ssm start-session --debug --target %h --document AWS-StartSSHSession --parameters 'portNumber=%p' --region=us-east-1" > ./start-session.output 2>&1 \\
+        -o ProxyCommand="aws ssm start-session --target $JUMPBOX_INSTANCE_ID --document AWS-StartSSHSession --parameters portNumber=%p --region=$region" \\
         ec2-user@$JUMPBOX_INSTANCE_ID
+
+      # ssh -i tempkey \\
+      #   -Nf \\
+      #   -L $LOCAL_PORT:$RDS_ENDPOINT:$REMOTE_PORT \\
+      #   -o "UserKnownHostsFile=/dev/null" \\
+      #   -o "ServerAliveInterval 10" \\
+      #   -o "StrictHostKeyChecking=no" \\
+      #   -o "ControlMaster=no" \\
+      #   -o ProxyCommand="aws ssm start-session --debug --target %h --document AWS-StartSSHSession --parameters 'portNumber=%p' --region=us-east-1" > ./start-session.output 2>&1 \\
+      #   ec2-user@$JUMPBOX_INSTANCE_ID
       ;;
     ssh)
       # This this also works, but requires that the jumpbox host be in a subnet attached to a transit gateway
@@ -176,8 +176,10 @@ tunnelToRDS() {
   }
 
   killSSHProcess() {
-    if [ -f temp-ssh.sock ] ; then
+    if [ -n "\$(ls -1 | grep 'temp-ssh.sock')" ] ; then
       # A custom control socket was created and can be referenced in terminating the ssh process.
+      echo ""
+      echo "Sending exit request for ssh control socket..."
       ssh -O exit -S temp-ssh.sock *
     elif [ -f last-ssh-pid ] ; then
       # The ssh tunnel was started as a background process, so its PID was logged at the time.
@@ -206,7 +208,7 @@ tunnelToRDS() {
       fi
     fi
 
-    rm temp*
+    rm tempkey*
   }
 
   if [ "$USER_TERMINATED" == 'true' ] ; then

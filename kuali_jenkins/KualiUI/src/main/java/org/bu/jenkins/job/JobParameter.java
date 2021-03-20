@@ -36,6 +36,10 @@ public class JobParameter {
 		return "true".equalsIgnoreCase(getValue());
 	}
 	
+	public boolean isChecked(Object nameObj) {
+		return otherParmSetWith(nameObj, "true");
+	}
+	
 	public boolean otherParmSetWith(Object nameObj, String value) {
 		String name = getNameString(nameObj);
 		if(anyBlank(name, value)) {

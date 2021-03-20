@@ -35,7 +35,10 @@
 		    });
 		    
 		    var checkboxes = document.querySelectorAll('#kuali-wrapper input[type=checkbox]');
-		    checkboxes.forEach(checkbox => formdata.set(checkbox.name, checkbox.checked));		    
+		    checkboxes.forEach(checkbox => formdata.set(checkbox.name, checkbox.checked));
+		    
+		    var textareas = document.querySelectorAll('#kuali-wrapper textarea');
+		    textareas.forEach(textarea => formdata.set(textarea.name, textarea.value));
 		    
 		    return formdata;
 		}

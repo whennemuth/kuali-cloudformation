@@ -31,7 +31,8 @@ push() {
   local repo=${2:-'wrh1'}
 
   if [ -n "$PASSWORD" ] ; then
-    docker login -u $user -p $PASSWORD
+    # docker login -u $user -p $PASSWORD
+    echo "$PASSWORD" | docker login -u $user --password-stdin
   else
     printf "Enter your docker login password: "
     read pswd

@@ -1,0 +1,105 @@
+2021-03-05 13:48:39,099 - MainThread - awscli.clidriver - DEBUG - CLI version: aws-cli/2.0.28 Python/3.7.7 Windows/10 botocore/2.0.0dev32
+2021-03-05 13:48:39,099 - MainThread - awscli.clidriver - DEBUG - Arguments entered to CLI: ['ssm', 'start-session', '--debug', '--target', 'i-0fd62640bbeb89a3b', '--document', 'AWS-StartSSHSession', '--parameters', 'portNumber=22', '--region=us-east-1']
+2021-03-05 13:48:39,100 - MainThread - botocore.hooks - DEBUG - Event session-initialized: calling handler <function add_timestamp_parser at 0x000001DC1CDEB8B8>
+2021-03-05 13:48:39,100 - MainThread - botocore.hooks - DEBUG - Event session-initialized: calling handler <function register_uri_param_handler at 0x000001DC1C5F59D8>
+2021-03-05 13:48:39,126 - MainThread - botocore.hooks - DEBUG - Event session-initialized: calling handler <function add_binary_formatter at 0x000001DC1D6953A8>
+2021-03-05 13:48:39,126 - MainThread - botocore.hooks - DEBUG - Event session-initialized: calling handler <function inject_assume_role_provider_cache at 0x000001DC1C658D38>
+2021-03-05 13:48:39,129 - MainThread - botocore.hooks - DEBUG - Event session-initialized: calling handler <function attach_history_handler at 0x000001DC1CD05558>
+2021-03-05 13:48:39,129 - MainThread - botocore.hooks - DEBUG - Event session-initialized: calling handler <function inject_json_file_cache at 0x000001DC1CCA9F78>
+2021-03-05 13:48:39,192 - MainThread - botocore.loaders - DEBUG - Loading JSON file: C:\Program Files\Amazon\AWSCLIV2\botocore\data\ssm\2014-11-06\service-2.json
+2021-03-05 13:48:39,220 - MainThread - botocore.hooks - DEBUG - Event building-command-table.ssm: calling handler <function add_custom_start_session at 0x000001DC1D6691F8>
+2021-03-05 13:48:39,221 - MainThread - botocore.hooks - DEBUG - Event building-command-table.ssm: calling handler <function add_waiters at 0x000001DC1D6573A8>
+2021-03-05 13:48:39,268 - MainThread - awscli.clidriver - DEBUG - OrderedDict([('target', <awscli.arguments.CLIArgument object at 0x000001DC1DA1EE08>), ('document-name', <awscli.arguments.CLIArgument object at 0x000001DC1DA1EF48>), ('parameters', <awscli.arguments.CLIArgument object at 0x000001DC1DA1EF08>)])
+2021-03-05 13:48:39,269 - MainThread - botocore.hooks - DEBUG - Event building-argument-table.ssm.start-session: calling handler <function add_streaming_output_arg at 0x000001DC1CE4AA68>
+2021-03-05 13:48:39,269 - MainThread - botocore.hooks - DEBUG - Event building-argument-table.ssm.start-session: calling handler <function add_cli_input_json at 0x000001DC1C65DF78>
+2021-03-05 13:48:39,269 - MainThread - botocore.hooks - DEBUG - Event building-argument-table.ssm.start-session: calling handler <function add_cli_input_yaml at 0x000001DC1C65D798>
+2021-03-05 13:48:39,269 - MainThread - botocore.hooks - DEBUG - Event building-argument-table.ssm.start-session: calling handler <function unify_paging_params at 0x000001DC1CCC5678>
+2021-03-05 13:48:39,326 - MainThread - botocore.loaders - DEBUG - Loading JSON file: C:\Program Files\Amazon\AWSCLIV2\botocore\data\ssm\2014-11-06\paginators-1.json
+2021-03-05 13:48:39,327 - MainThread - botocore.hooks - DEBUG - Event building-argument-table.ssm.start-session: calling handler <function add_generate_skeleton at 0x000001DC1CDADEE8>
+2021-03-05 13:48:39,327 - MainThread - botocore.hooks - DEBUG - Event building-argument-table.ssm.start-session: calling handler <function add_auto_prompt at 0x000001DC1D692558>
+2021-03-05 13:48:39,327 - MainThread - botocore.hooks - DEBUG - Event before-building-argument-table-parser.ssm.start-session: calling handler <bound method OverrideRequiredArgsArgument.override_required_args of <awscli.customizations.cliinput.CliInputJSONArgument object at 0x000001DC1DA1EFC8>>
+2021-03-05 13:48:39,327 - MainThread - botocore.hooks - DEBUG - Event before-building-argument-table-parser.ssm.start-session: calling handler <bound method OverrideRequiredArgsArgument.override_required_args of <awscli.customizations.cliinput.CliInputYAMLArgument object at 0x000001DC1DA1B508>>
+2021-03-05 13:48:39,327 - MainThread - botocore.hooks - DEBUG - Event before-building-argument-table-parser.ssm.start-session: calling handler <bound method GenerateCliSkeletonArgument.override_required_args of <awscli.customizations.generatecliskeleton.GenerateCliSkeletonArgument object at 0x000001DC1DA1D1C8>>
+2021-03-05 13:48:39,327 - MainThread - botocore.hooks - DEBUG - Event before-building-argument-table-parser.ssm.start-session: calling handler <bound method AutoPromptArgument.override_required_args of <awscli.customizations.autoprompt.AutoPromptArgument object at 0x000001DC1DA2FA88>>
+2021-03-05 13:48:39,328 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.ssm.start-session.target: calling handler <awscli.paramfile.URIArgumentHandler object at 0x000001DC1D71BAC8>
+2021-03-05 13:48:39,329 - MainThread - botocore.hooks - DEBUG - Event process-cli-arg.ssm.start-session: calling handler <awscli.argprocess.ParamShorthandParser object at 0x000001DC1C62D248>
+2021-03-05 13:48:39,329 - MainThread - awscli.arguments - DEBUG - Unpacked value of 'i-0fd62640bbeb89a3b' for parameter "target": 'i-0fd62640bbeb89a3b'
+2021-03-05 13:48:39,329 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.ssm.start-session.document-name: calling handler <awscli.paramfile.URIArgumentHandler object at 0x000001DC1D71BAC8>
+2021-03-05 13:48:39,329 - MainThread - botocore.hooks - DEBUG - Event process-cli-arg.ssm.start-session: calling handler <awscli.argprocess.ParamShorthandParser object at 0x000001DC1C62D248>
+2021-03-05 13:48:39,329 - MainThread - awscli.arguments - DEBUG - Unpacked value of 'AWS-StartSSHSession' for parameter "document_name": 'AWS-StartSSHSession'
+2021-03-05 13:48:39,329 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.ssm.start-session.parameters: calling handler <awscli.paramfile.URIArgumentHandler object at 0x000001DC1D71BAC8>
+2021-03-05 13:48:39,329 - MainThread - botocore.hooks - DEBUG - Event process-cli-arg.ssm.start-session: calling handler <awscli.argprocess.ParamShorthandParser object at 0x000001DC1C62D248>
+2021-03-05 13:48:39,329 - MainThread - awscli.argprocess - DEBUG - Parsing param --parameters as shorthand
+2021-03-05 13:48:39,329 - MainThread - awscli.arguments - DEBUG - Unpacked value of 'portNumber=22' for parameter "parameters": {'portNumber': ['22']}
+2021-03-05 13:48:39,330 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.ssm.start-session.cli-input-json: calling handler <awscli.paramfile.URIArgumentHandler object at 0x000001DC1D71BAC8>
+2021-03-05 13:48:39,330 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.ssm.start-session.cli-input-yaml: calling handler <awscli.paramfile.URIArgumentHandler object at 0x000001DC1D71BAC8>
+2021-03-05 13:48:39,330 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.ssm.start-session.generate-cli-skeleton: calling handler <awscli.paramfile.URIArgumentHandler object at 0x000001DC1D71BAC8>
+2021-03-05 13:48:39,330 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.ssm.start-session.cli-auto-prompt: calling handler <awscli.paramfile.URIArgumentHandler object at 0x000001DC1D71BAC8>
+2021-03-05 13:48:39,330 - MainThread - botocore.hooks - DEBUG - Event calling-command.ssm.start-session: calling handler <bound method CliInputArgument.add_to_call_parameters of <awscli.customizations.cliinput.CliInputJSONArgument object at 0x000001DC1DA1EFC8>>
+2021-03-05 13:48:39,330 - MainThread - botocore.hooks - DEBUG - Event calling-command.ssm.start-session: calling handler <bound method CliInputArgument.add_to_call_parameters of <awscli.customizations.cliinput.CliInputYAMLArgument object at 0x000001DC1DA1B508>>
+2021-03-05 13:48:39,330 - MainThread - botocore.hooks - DEBUG - Event calling-command.ssm.start-session: calling handler <bound method GenerateCliSkeletonArgument.generate_skeleton of <awscli.customizations.generatecliskeleton.GenerateCliSkeletonArgument object at 0x000001DC1DA1D1C8>>
+2021-03-05 13:48:39,330 - MainThread - botocore.hooks - DEBUG - Event calling-command.ssm.start-session: calling handler <bound method AutoPromptArgument.auto_prompt_arguments of <awscli.customizations.autoprompt.AutoPromptArgument object at 0x000001DC1DA2FA88>>
+2021-03-05 13:48:39,330 - MainThread - botocore.credentials - DEBUG - Looking for credentials via: env
+2021-03-05 13:48:39,330 - MainThread - botocore.credentials - DEBUG - Looking for credentials via: assume-role
+2021-03-05 13:48:39,330 - MainThread - botocore.credentials - DEBUG - Looking for credentials via: assume-role-with-web-identity
+2021-03-05 13:48:39,330 - MainThread - botocore.credentials - DEBUG - Looking for credentials via: sso
+2021-03-05 13:48:39,331 - MainThread - botocore.credentials - DEBUG - Looking for credentials via: shared-credentials-file
+2021-03-05 13:48:39,331 - MainThread - botocore.credentials - DEBUG - Looking for credentials via: custom-process
+2021-03-05 13:48:39,331 - MainThread - botocore.credentials - DEBUG - Looking for credentials via: config-file
+2021-03-05 13:48:39,332 - MainThread - botocore.credentials - INFO - Credentials found in config file: ~/.aws/config
+2021-03-05 13:48:39,333 - MainThread - botocore.loaders - DEBUG - Loading JSON file: C:\Program Files\Amazon\AWSCLIV2\botocore\data\endpoints.json
+2021-03-05 13:48:39,338 - MainThread - botocore.hooks - DEBUG - Event choose-service-name: calling handler <function handle_service_name_alias at 0x000001DC1C27AB88>
+2021-03-05 13:48:39,341 - MainThread - botocore.hooks - DEBUG - Event creating-client-class.ssm: calling handler <function add_generate_presigned_url at 0x000001DC1C22F048>
+2021-03-05 13:48:39,344 - MainThread - botocore.endpoint - DEBUG - Setting ssm timeout as (60, 60)
+2021-03-05 13:48:39,345 - MainThread - botocore.hooks - DEBUG - Event provide-client-params.ssm.StartSession: calling handler <function base64_decode_input_blobs at 0x000001DC1D695438>
+2021-03-05 13:48:39,345 - MainThread - botocore.hooks - DEBUG - Event before-parameter-build.ssm.StartSession: calling handler <function generate_idempotent_uuid at 0x000001DC1C280828>
+2021-03-05 13:48:39,345 - MainThread - botocore.hooks - DEBUG - Event before-call.ssm.StartSession: calling handler <function inject_api_version_header_if_needed at 0x000001DC1C2850D8>
+2021-03-05 13:48:39,345 - MainThread - botocore.endpoint - DEBUG - Making request for OperationModel(name=StartSession) with params: {'url_path': '/', 'query_string': '', 'method': 'POST', 'headers': {'X-Amz-Target': 'AmazonSSM.StartSession', 'Content-Type': 'application/x-amz-json-1.1', 'User-Agent': 'aws-cli/2.0.28 Python/3.7.7 Windows/10 botocore/2.0.0dev32'}, 'body': b'{"Target": "i-0fd62640bbeb89a3b", "DocumentName": "AWS-StartSSHSession", "Parameters": {"portNumber": ["22"]}}', 'url': 'https://ssm.us-east-1.amazonaws.com/', 'context': {'client_region': 'us-east-1', 'client_config': <botocore.config.Config object at 0x000001DC1DCB5188>, 'has_streaming_input': False, 'auth_type': None}}
+2021-03-05 13:48:39,346 - MainThread - botocore.hooks - DEBUG - Event request-created.ssm.StartSession: calling handler <bound method RequestSigner.handler of <botocore.signers.RequestSigner object at 0x000001DC1DC65F48>>
+2021-03-05 13:48:39,346 - MainThread - botocore.hooks - DEBUG - Event choose-signer.ssm.StartSession: calling handler <function set_operation_specific_signer at 0x000001DC1C2768B8>
+2021-03-05 13:48:39,346 - MainThread - botocore.auth - DEBUG - Calculating signature using v4 auth.
+2021-03-05 13:48:39,346 - MainThread - botocore.auth - DEBUG - CanonicalRequest:
+POST
+/
+
+content-type:application/x-amz-json-1.1
+host:ssm.us-east-1.amazonaws.com
+x-amz-date:20210305T184839Z
+x-amz-target:AmazonSSM.StartSession
+
+content-type;host;x-amz-date;x-amz-target
+f6a44941446bcd9e5d566ca1c7caece622a4507bfc4d3bac885d2354405e2681
+2021-03-05 13:48:39,346 - MainThread - botocore.auth - DEBUG - StringToSign:
+AWS4-HMAC-SHA256
+20210305T184839Z
+20210305/us-east-1/ssm/aws4_request
+060164ae5addbddeae6fd30126f86c39c94d076afcf91cc5b9abbb6e5632a459
+2021-03-05 13:48:39,346 - MainThread - botocore.auth - DEBUG - Signature:
+85cba658d5ad5f9b12316b5a57a5f27916098cdaa362fbdb688daccdae1164c1
+2021-03-05 13:48:39,346 - MainThread - botocore.endpoint - DEBUG - Sending http request: <AWSPreparedRequest stream_output=False, method=POST, url=https://ssm.us-east-1.amazonaws.com/, headers={'X-Amz-Target': b'AmazonSSM.StartSession', 'Content-Type': b'application/x-amz-json-1.1', 'User-Agent': b'aws-cli/2.0.28 Python/3.7.7 Windows/10 botocore/2.0.0dev32', 'X-Amz-Date': b'20210305T184839Z', 'Authorization': b'AWS4-HMAC-SHA256 Credential=AKIA3GU5SOU77PB3SNNT/20210305/us-east-1/ssm/aws4_request, SignedHeaders=content-type;host;x-amz-date;x-amz-target, Signature=85cba658d5ad5f9b12316b5a57a5f27916098cdaa362fbdb688daccdae1164c1', 'Content-Length': '110'}>
+2021-03-05 13:48:39,347 - MainThread - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): ssm.us-east-1.amazonaws.com:443
+2021-03-05 13:48:39,741 - MainThread - urllib3.connectionpool - DEBUG - https://ssm.us-east-1.amazonaws.com:443 "POST / HTTP/1.1" 200 594
+2021-03-05 13:48:39,741 - MainThread - botocore.parsers - DEBUG - Response headers: {'Server': 'Server', 'Date': 'Fri, 05 Mar 2021 18:48:39 GMT', 'Content-Type': 'application/x-amz-json-1.1', 'Content-Length': '594', 'Connection': 'keep-alive', 'x-amzn-RequestId': 'dea6afba-7e54-46f0-bb96-5a89139de61c'}
+2021-03-05 13:48:39,741 - MainThread - botocore.parsers - DEBUG - Response body:
+b'{"SessionId":"wrh-0519abda370dfeec7","StreamUrl":"wss://ssmmessages.us-east-1.amazonaws.com/v1/data-channel/wrh-0519abda370dfeec7?role=publish_subscribe","TokenValue":"AAEAAcExIwQ2HpFUMJXZNohkPR57LcPulxDEsUcoPyi6Sh1kAAAAAGBCfQdRb/YSBBT3H7yPwVqwQlGe2IkZumdQjcDqXs0oV/zRfLa+mAuLlLNNid7o0z/FzkEz6N4CFhmxO/GiDnbw68qTg5M+yO3CrYg4Idzop6iQT2aZhKx4OOdlFNNiwszEUeEOhUqdwd/5I5HdIJ6nlzQ87+lBcWxUYVnPmG9mNNB0KpwRn5Gw3QUP4GYQWyQviCOUF5YKEW2H75zwRPnkqTunJfTzQy55imguML1q1cjNvL0sKc8fyiA4jzBq/5FUiHZkwRrXqYkd8XmPbSogjxiZedBvDYE7mkOKgHb9qx3PS9XH2o8Va1DuR/af4LWy3JCEstN6eGS0+tTlIwhIKyXVtgchODQ91YE2axAJZnMRDw=="}'
+2021-03-05 13:48:39,742 - MainThread - botocore.hooks - DEBUG - Event needs-retry.ssm.StartSession: calling handler <bound method RetryHandler.needs_retry of <botocore.retries.standard.RetryHandler object at 0x000001DC1DCB5FC8>>
+2021-03-05 13:48:39,742 - MainThread - botocore.retries.standard - DEBUG - Not retrying request.
+2021-03-05 13:48:39,742 - MainThread - botocore.hooks - DEBUG - Event after-call.ssm.StartSession: calling handler <bound method RetryQuotaChecker.release_retry_quota of <botocore.retries.standard.RetryQuotaChecker object at 0x000001DC1DCB5988>>
+Warning: Permanently added 'i-0fd62640bbeb89a3b' (ECDSA) to the list of known hosts.
+Last login: Fri Mar  5 18:46:35 2021 from localhost
+
+   __|  __|  __|
+   _|  (   \__ \   Amazon Linux 2 (ECS Optimized)
+ ____|\___|____/
+
+For documentation, visit http://aws.amazon.com/documentation/ecs
+42 package(s) needed for security, out of 74 available
+Run "sudo yum update" to apply all updates.
+[ec2-user@ip-10-58-33-84 ~]$ 
+[ec2-user@ip-10-58-33-84 ~]$ 
+[ec2-user@ip-10-58-33-84 ~]$ 
+[ec2-user@ip-10-58-33-84 ~]$ 
+[ec2-user@ip-10-58-33-84 ~]$ 
+[ec2-user@ip-10-58-33-84 ~]$ exit
+logout
+Connection to i-0fd62640bbeb89a3b closed.

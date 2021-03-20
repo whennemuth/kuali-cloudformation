@@ -44,6 +44,19 @@ Metadata:
           - EnableALBLogging
           - EnableNewRelicAPM
           - EnableNewRelicInfrastructure
+          - RetainLambdaCleanupLogs
+      - Label:
+          default: "RDS"
+        Parameters:
+          - RdsSnapshotARN
+          - RdsEngineVersion
+          - RdsDbSubnet1
+          - RdsDbSubnet2
+          - RdsSubnetCIDR1
+          - RdsSubnetCIDR2
+          - RdsJumpboxSubnetCIDR1
+          - RdsJumpboxSubnetCIDR2
+          - RdsAvailabilityZone          
 
 Parameters:
 
@@ -198,6 +211,15 @@ Parameters:
     - "true"
     - "false"
 
+  RetainLambdaCleanupLogs:
+    Type: String
+    Description: Indicate if the logs produced by cleanup lambda functions should survive stack deletion.
+    Default: "false"
+    AllowedValues:
+    - "true"
+    - "false"
+    ConstraintDescription: Enter "true" or "false" only.
+
   MongoSubnetId:
     Type: String
     Description: Id of the private application subnet where a new mongo database ec2 instance is optionally created.
@@ -345,6 +367,7 @@ Resources:
         TemplateBucketName: !Ref TemplateBucketName
         Service: !Ref Service
         Function: !Ref Function
+        RetainLogs: !Ref RetainLambdaCleanupLogs
 
   ALBWAFLogs:
     Type: AWS::CloudFormation::Stack
@@ -396,6 +419,8 @@ Resources:
           !Ref TemplateBucketName
         BucketEmptierLambdaArn:
           !GetAtt BucketEmptierLambda.Outputs.LambdaArn
+        RetainLambdaCleanupLogs: 
+          !Ref RetainLambdaCleanupLogs
 
   ALB:
     Type: AWS::CloudFormation::Stack
@@ -444,6 +469,8 @@ Resources:
             - CreateAlbLogsBuckets
             - !GetAtt ALBWAFLogs.Outputs.ALBLogBucketName
             - !Ref AWS::NoValue
+        RetainLambdaCleanupLogs: 
+          !Ref RetainLambdaCleanupLogs
 
   MongoDbInstance:
     Type: AWS::CloudFormation::Stack

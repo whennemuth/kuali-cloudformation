@@ -54,7 +54,7 @@
 	  	<div th:if="${deactivate} ? false : ${!deactivate_baseline}" th:fragment="rds-snapshot" class="kuali-field-wrapper" style="padding-top:0px;">
 	  		<div class="fieldLabel">&nbsp;</div>
 			<div class="field" style='padding-left:30px;'>
-			  <div th:insert="Baseline :: baseline ('BASELINE', ${BaselineValue})"></div>       	
+			  <div th:insert="Baseline :: baseline (${BaselineEnum.name()}, ${BaselineValue})"></div>       	
 			</div>
 	  	</div>
   	</div>

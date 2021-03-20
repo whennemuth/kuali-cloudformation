@@ -51,6 +51,15 @@ Parameters:
       during a stack delete (s3 buckets cannot be deleted unless they are empty).
     Default: none
 
+  RetainLambdaCleanupLogs:
+    Type: String
+    Description: Indicate if the logs produced by cleanup lambda functions should survive stack deletion.
+    Default: "false"
+    AllowedValues:
+    - "true"
+    - "false"
+    ConstraintDescription: Enter "true" or "false" only.
+
 Conditions:
   EmptyBuckets: !Not [!Equals [!Ref BucketEmptierLambdaArn, empty]]
 
@@ -231,6 +240,7 @@ Resources:
         TemplateBucketName: !Ref TemplateBucketName
         Service: !Ref Service
         Function: !Ref Function
+        RetainLogs: !Ref RetainLambdaCleanupLogs
 
   # The lambda backing this custom resource will detect if a stack deletion is in progress and only then the will operate.
   # The lambdas function is to empty the s3 bucket of waf logs so that cloudformation will succeed in deleting it.

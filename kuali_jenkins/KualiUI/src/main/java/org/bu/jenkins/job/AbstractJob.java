@@ -62,7 +62,8 @@ public abstract class AbstractJob {
 	public String getRenderedJob(Map<String, String> parameters, boolean developmentMode) {
 		StringBuilder html = new StringBuilder();
 		try {
-			html.append("<form method='GET' name='kuali-parameters' id='kuali-parameters'>")
+			html.append(getCssView())
+				.append("<form method='GET' name='kuali-parameters' id='kuali-parameters'>")
 				.append("<div id='kuali-wrapper'>")
 				.append("<fieldset id='all-fields'>")
 				.append("<input type='hidden' id='" + getJobName() + "'>");
@@ -112,8 +113,19 @@ public abstract class AbstractJob {
 		return javascriptView.render();		
 	}
 	
+	protected String getCssView() {
+		AbstractParameterView javascriptView = new AbstractParameterView() {
+			@Override public String getResolverPrefix() {
+				return "org/bu/jenkins/active_choices/html/job-css/";
+			} }
+			.setViewName("Stylesheet")
+			.setTemplateSelector("stack-stylesheet");
+		return javascriptView.render();		
+		
+	}
+	
 	/**
-	 * Get a parameterView with the "boilerplate" field set.
+	 * Get a parameterView with the "boilerplate" fields set.
 	 * @param config
 	 * @return
 	 */

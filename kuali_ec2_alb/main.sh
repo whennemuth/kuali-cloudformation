@@ -187,6 +187,7 @@ EOF
     add_parameter $cmdfile 'EC2KeypairName' 'KEYPAIR_NAME'
     add_parameter $cmdfile 'EnableWAF' 'CREATE_WAF'
     add_parameter $cmdfile 'EnableALBLogging' 'ENABLE_ALB_LOGGING'
+    add_parameter $cmdfile 'RetainLambdaCleanupLogs' 'RETAIN_LAMBDA_CLEANUP_LOGS'
     add_parameter $cmdfile 'UsingShibboleth' 'USING_SHIBBOLETH'
 
     if [ "${CREATE_MONGO,,}" == 'true' ] ; then
