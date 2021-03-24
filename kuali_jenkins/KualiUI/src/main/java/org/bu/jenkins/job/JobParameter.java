@@ -40,6 +40,10 @@ public class JobParameter {
 		return otherParmSetWith(nameObj, "true");
 	}
 	
+	public boolean isBlank() {
+		return _isBlank(getValue());
+	}
+	
 	public boolean otherParmSetWith(Object nameObj, String value) {
 		String name = getNameString(nameObj);
 		if(anyBlank(name, value)) {
@@ -56,6 +60,10 @@ public class JobParameter {
 		return false;
 	}
 	
+	public boolean otherParmNotSetWith(Object nameObj, String value) {
+		return ! otherParmSetWith(nameObj, value);
+	}
+	
 	public boolean otherParmSetWithAny(Object nameObj, String...values) {
 		for(String value : values) {
 			if(otherParmSetWith(nameObj, value)) {
@@ -67,12 +75,12 @@ public class JobParameter {
 	
 	public boolean otherParmBlank(Object nameObj) {
 		String name = getNameString(nameObj);
-		if(isBlank(name)) {
+		if(_isBlank(name)) {
 			return false;
 		}
 		for (Entry<String, String> set : allParameters.entrySet()) {
 			if(set.getKey().equalsIgnoreCase(name)) {
-				return isBlank(set.getValue());
+				return _isBlank(set.getValue());
 			}
 		}
 		return true;
@@ -93,7 +101,7 @@ public class JobParameter {
 	
 	public String getOtherParmValue(Object nameObj) {
 		String name = getNameString(nameObj);
-		if(isBlank(name)) {
+		if(_isBlank(name)) {
 			return null;
 		}
 		for (Entry<String, String> set : allParameters.entrySet()) {
@@ -104,7 +112,7 @@ public class JobParameter {
 		return null;		
 	}
 	
-	private boolean isBlank(Object obj) {
+	private boolean _isBlank(Object obj) {
 		if(obj == null) return true;
 		if(String.valueOf(obj).isBlank()) return true;
 		return false;
@@ -112,7 +120,7 @@ public class JobParameter {
 	
 	private boolean anyBlank(Object...objs) {
 		for (Object obj : objs) {
-			if(isBlank(obj)) return true;
+			if(_isBlank(obj)) return true;
 		}
 		return false;
 	}

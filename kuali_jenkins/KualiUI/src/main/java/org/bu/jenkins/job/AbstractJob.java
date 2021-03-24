@@ -3,6 +3,8 @@ package org.bu.jenkins.job;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.lang.reflect.Constructor;
+import java.net.URLDecoder;
+import java.nio.charset.Charset;
 import java.util.Map;
 
 import org.bu.jenkins.AWSCredentials;
@@ -141,7 +143,8 @@ public abstract class AbstractJob {
 		.setAsFullWebPage( ! config.isFragment());
 			
 		if(config.getParameterMap().containsKey(parameter.toString())) {
-			parameterView.setContextVariable("ParameterValue", config.getParameterMap().get(parameter.toString()));
+			String value = config.getParameterMap().get(parameter.toString());
+			parameterView.setContextVariable("ParameterValue", value);
 		}
 		if( ! config.isActiveChoices()) {
 			parameterView.setContextVariable("ParameterName", parameter.toString());

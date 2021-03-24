@@ -1,4 +1,4 @@
-package org.bu.jenkins.active_choices.model;
+package org.bu.jenkins.active_choices.dao;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -9,6 +9,8 @@ import java.util.Set;
 
 import org.bu.jenkins.AWSCredentials;
 import org.bu.jenkins.NamedArgs;
+import org.bu.jenkins.active_choices.model.Landscape;
+import org.bu.jenkins.active_choices.model.StackList;
 
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.awscore.exception.AwsServiceException;
@@ -29,13 +31,13 @@ import software.amazon.awssdk.services.resourcegroupstaggingapi.model.TagFilter;
  * @author wrh
  *
  */
-public class LandscapeList extends AbstractModel {
+public class LandscapeDAO extends AbstractDAO {
 
-	public LandscapeList(AWSCredentials credentials) {
+	public LandscapeDAO(AWSCredentials credentials) {
 		super(credentials);
 	}
 	
-	public LandscapeList(AwsCredentialsProvider provider) {
+	public LandscapeDAO(AwsCredentialsProvider provider) {
 		super(provider);
 	}
 
@@ -58,11 +60,19 @@ public class LandscapeList extends AbstractModel {
 		return landscapes;
 	}
 
+	public Map<String, String> getDeployedKualiRdsInstancesByLandscape() {
+		return getDeployedKualiRdsInstances("landscape");
+	}
+	
+	public Map<String, String> getDeployedKualiRdsInstancesByBaseline() {
+		return getDeployedKualiRdsInstances("baseline");
+	}
+	
 	/**
-	 * Get a map, keyed by landscape, of every RDS instance that has been deployed for a kuali application stack.
+	 * Get a map, keyed by baseline or landscape, of every RDS instance that has been deployed for a kuali application stack.
 	 * @return
 	 */
-	public Map<String, String> getDeployedKualiRdsInstancesByLandscape() {
+	protected Map<String, String> getDeployedKualiRdsInstances(String LorB) {
 		Map<String, String> instances = new HashMap<String, String>();
 		
 		try {
@@ -84,7 +94,7 @@ public class LandscapeList extends AbstractModel {
 				outerloop:
 				for(ResourceTagMapping mapping : response.resourceTagMappingList()) {
 					for(software.amazon.awssdk.services.resourcegroupstaggingapi.model.Tag tag : mapping.tags()) {
-						if("landscape".equalsIgnoreCase(tag.key())) {
+						if(LorB.equalsIgnoreCase(tag.key())) {
 							instances.put(mapping.resourceARN(), tag.value());
 							continue outerloop;
 						}
@@ -105,9 +115,9 @@ public class LandscapeList extends AbstractModel {
 	
 	public static void main(String[] args) {	
 		NamedArgs namedArgs = new NamedArgs(args);
-		LandscapeList landscapes = new LandscapeList(new AWSCredentials(namedArgs));
+		LandscapeDAO landscapes = new LandscapeDAO(new AWSCredentials(namedArgs));
 		if("rds".equalsIgnoreCase(namedArgs.get("task"))) {
-			for(Entry<String, String> landscape : landscapes.getDeployedKualiRdsInstancesByLandscape().entrySet()) {
+			for(Entry<String, String> landscape : landscapes.getDeployedKualiRdsInstances(namedArgs.get("key")).entrySet()) {
 				System.out.println(landscape.getKey() + ": " + landscape.getValue());
 			}
 		}

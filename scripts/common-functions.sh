@@ -1187,6 +1187,7 @@ createRdsSnapshot() {
     --tags \
         Key=Function,Value=${kualiTags['Function']} \
         Key=Service,Value=${kualiTags['Service']} \
+        key=Baseline,Value=$BASELINE \
         Key=Landscape,Value=$LANDSCAPE 2> /dev/null
   )
 

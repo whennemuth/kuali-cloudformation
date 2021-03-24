@@ -1,5 +1,7 @@
 package org.bu.jenkins.job;
 
+import java.net.URLDecoder;
+import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -26,10 +28,19 @@ public class JobParameterConfiguration {
 		return parameterMap;
 	}
 	public JobParameterConfiguration setParameterMap(Map<String, String> parameterMap) {
-		this.parameterMap.putAll(parameterMap);
+		for(String key : parameterMap.keySet()) {
+			String value = parameterMap.get(key);
+			if(value != null) {
+				value = URLDecoder.decode(String.valueOf(value), Charset.defaultCharset());
+			}
+			setParameterMapValue(key, value);
+		}
 		return this;
 	}
 	public JobParameterConfiguration setParameterMapValue(String parameterName, String parameterValue) {
+		if(parameterValue != null) {
+			parameterValue = URLDecoder.decode(String.valueOf(parameterValue), Charset.defaultCharset());
+		}
 		parameterMap.put(parameterName, parameterValue);
 		return this;
 	}

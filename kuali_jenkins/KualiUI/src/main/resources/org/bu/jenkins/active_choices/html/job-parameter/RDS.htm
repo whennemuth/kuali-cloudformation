@@ -3,60 +3,102 @@
       xmlns:th="http://www.thymeleaf.org">
 
   <body>
-  	<div th:if="${!deactivate}" th:fragment="rds" class="kuali-field-wrapper">
-  		<div class="fieldLabel">RDS:</div>
-		<div class="field">
+  
+  	<div th:if="${deactivate} ? false : ${include}" th:fragment="rds-warning" class="kuali-field-wrapper">
+	  	<div class="fieldLabelWarning">&nbsp</div>
+  		<div class="fieldWarning" style='padding-left:30px;'>WARNING: [[${rdsWarning}]]</div>
+  	</div>
+  
+  	<div th:if="${!deactivate}" th:fragment="rds-source" class="kuali-field-wrapper">
+ 		<div class="fieldLabel">RDS:</div>
+  		<div class="field">
+	        <input 
+	        	type="radio" 
+	        	value="instance" 
+	        	onchange="sendData();" 
+	        	th:name="${ParameterName} ?: 'value'" 
+	       		th:checked="${ParameterValue=='instance'}">
+	        <label>EXISTING: <i>Use an existing RDS instance</i></label>
+	        <br>
+	        <input 
+	        	type="radio" 
+	        	value="snapshot" 
+	        	onchange="sendData();" 
+	        	th:name="${ParameterName} ?: 'value'" 
+	         	th:disabled="${instance_only}"
+	       		th:checked="${ParameterValue=='snapshot'}">
+	        <label th:attr="style=${instance_only} ? 'color:#AAAAAA' : _">SNAPSHOT: <i>Create from and RDS snapshot</i></label>  		
+  		</div>
+  	</div>
+
+  	<div th:if="${deactivate} ? false : ${include}" th:fragment="rds-instances-by-landscape" class="kuali-field-wrapper">
+  		<div class="fieldLabel">&nbsp;</div>
+		<div class="field" style='padding-left:30px;'>
+		  <div style='padding-bottom:5px;'>Select an existing RDS instance:</div>
 		  <select th:name="${ParameterName} ?: 'value'" id="rds-landscape" th:disabled="${deactivate_landscape}" onchange="sendData();">
-		  	<optgroup label="No snapshots">
-		  	 <option value="none" th:selected="${ParameterValue=='none'}">Use existing RDS Instance</option>
-		  	</optgroup>
-		  	<optgroup label="Create new DB from snapshot:">
+		  	<optgroup label="Select an existing RDS instance:">
 		     <option 
-		     	th:each="landscape : ${landscapes.entrySet()}" 
-		     	th:text="${landscape.getValue()}"
-		     	th:value="${landscape.getKey()}" 
-		     	th:selected="${ParameterValue==landscape.getKey()}">
+		     	th:each="rdsInstance : ${rdsInstances}" 
+		     	th:text="${rdsInstance.getLandscape()}"
+		     	th:value="${rdsInstance.getArn()}" 
+		     	th:selected="${ParameterValue==rdsInstance.getArn()}">
 		     </option>
 		  	</optgroup>
 		  </select>
+		  <!-- 
 		  <label th:if="${ParameterValue} ? ${ParameterValue=='none'} : true" th:attr="style=${deactivate_landscape} ? 'color:#AAAAAA' : _">
 		  	Use An existing RDS instance
 		  </label>
+		  -->
 		</div>      
   	</div>
-	<div th:if="${deactivate} ? false : ${!deactivate_snapshot}" th:fragment="rds-snapshot" class="kuali-field-wrapper" style="padding-top:0px;">
+  	
+  	<div th:if="${deactivate} ? false : ${include}" th:fragment="rds-instances-by-baseline" class="kuali-field-wrapper" style="padding-top:0px;">
 	  	<div class="fieldLabel">&nbsp;</div>
-			<div class="field" style='padding-left:30px;'>
-			  <div style='padding-bottom:5px;'>From snapshot:</div>
-			  <select th:name="${ParameterName} ?: 'value'" id="rds-snapshot" onchange="sendData();" >
-			  	<optgroup label="Create new snapshot">
-			  	 <option value="none" th:selected="${ParameterValue=='new'}">New snapshot</option>
-			  	</optgroup>
-			  	<optgroup label="Manual snapshots:">
-			     <option 
-			     	th:each="snapshot : ${manualSnapshots}" 
-			     	th:text="${snapshot.getCreationTime()}"
-			     	th:value="${snapshot.getArn()}" 
-			     	th:selected="${ParameterValue==snapshot.getArn()}">
-			     </option>
-			  	</optgroup>
-			  	<optgroup label="Automated snapshots:">
-			     <option 
-			     	th:each="snapshot : ${automatedSnapshots}" 
-			     	th:text="${snapshot.getCreationTime()}"
-			     	th:value="${snapshot.getArn()}" 
-			     	th:selected="${ParameterValue==snapshot.getArn()}">
-			     </option>
-			  	</optgroup>
-			  </select>
-			</div>
-	  	</div> 
-	  	<div th:if="${deactivate} ? false : ${!deactivate_baseline}" th:fragment="rds-snapshot" class="kuali-field-wrapper" style="padding-top:0px;">
-	  		<div class="fieldLabel">&nbsp;</div>
-			<div class="field" style='padding-left:30px;'>
-			  <div th:insert="Baseline :: baseline (${BaselineEnum.name()}, ${BaselineValue})"></div>       	
-			</div>
-	  	</div>
+		<div class="field" style='padding-left:30px;'>
+		  <div style='padding-bottom:5px;'>RDS instance by baseline:</div>
+		  <select th:name="${ParameterName} ?: 'value'" id="rds-instance" onchange="sendData();" >
+		  	<optgroup 
+		  		th:each="baselineList : ${rdsArnsByBaseline.entrySet()}" 
+		  		th:label="${'Baseline: ' + baselineList.getKey()}">
+		  		<option
+		  			th:each="rdsInstance : ${baselineList.getValue()}" 
+		  			th:text="${rdsInstance.getLandscape()}" 
+		  			th:value="${rdsInstance.getArn()}"
+		  			th:selected="${ParameterValue==rdsInstance.getArn()}">		  		
+		  		</option>
+		  	</optgroup>
+		  </select>
+		</div> 	
   	</div>
+  	
+	<div th:if="${deactivate} ? false : ${include}" th:fragment="rds-snapshot" class="kuali-field-wrapper" style="padding-top:0px;">
+	  	<div class="fieldLabel">&nbsp;</div>
+		<div class="field" style='padding-left:30px;'>
+		  <div style='padding-bottom:5px;'>From snapshot:</div>
+		  <select th:name="${ParameterName} ?: 'value'" id="rds-snapshot" onchange="sendData();" >
+		  	<optgroup label="Create new snapshot">
+		  	 <option value="none" th:selected="${ParameterValue=='new'}">New snapshot</option>
+		  	</optgroup>
+		  	<optgroup label="Manual snapshots:">
+		     <option 
+		     	th:each="snapshot : ${rdsInstance.getManuallyCreatedSnapshots()}" 
+		     	th:text="${snapshot.getCreationTime()}"
+		     	th:value="${snapshot.getArn()}" 
+		     	th:selected="${ParameterValue==snapshot.getArn()}">
+		     </option>
+		  	</optgroup>
+		  	<optgroup label="Automated snapshots:">
+		     <option 
+		     	th:each="snapshot : ${rdsInstance.getAutomaticallyCreatedSnapshots()}" 
+		     	th:text="${snapshot.getCreationTime()}"
+		     	th:value="${snapshot.getArn()}" 
+		     	th:selected="${ParameterValue==snapshot.getArn()}">
+		     </option>
+		  	</optgroup>
+		  </select>
+		</div>
+  	</div>
+  	
   </body>
 </html>

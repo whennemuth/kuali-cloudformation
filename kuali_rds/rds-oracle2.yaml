@@ -1,0 +1,631 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: |
+  RDS instance for kuali oracle database. Includes KCOEUS, KULUSERMAINT, SAPBWKCRM, SAPETLKCRM, SNAPLOGIC, and KCRMPROC schemas
+
+Parameters:
+
+  GlobalTag:
+    Type: String
+    Description: >
+      A common value that all resources in this template will have prefixed to
+      their name and attached as a tag to establish a bundling through naming convention.
+    Default: kuali-oracle
+
+  Landscape:
+    Description: Specify a name for your landscape
+    Type: String
+    AllowedPattern: "[a-zA-Z\\d]{1,12}"
+    ConstraintDescription: Up to 12 letters and/or numbers
+
+  Baseline:
+    Description: Specify one of a set of standard landscapes. Indicates secrets manager secrets to use for database access.
+    Type: String
+    AllowedPattern: "[a-zA-Z\\d]{1,12}"
+    ConstraintDescription: Up to 12 letters and/or numbers
+    
+  Service:
+    Description: Service catalog name
+    Type: String
+    Default: research-administration
+
+  Function:
+    Description: The Function within the Service
+    Type: String
+    Default: kuali
+
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: The id of the vpc to deploy to.
+  
+  TemplateBucketName:
+    Type: String
+    Description: The S3 bucket kuali research cloudformation templates, config files, keys, etc. are stored
+    Default: kuali-conf
+
+  DBInstanceClass:
+    Description: |
+      The compute and memory capacity of the DB instance. 
+      Not all DB instance classes are available in all AWS Regions, or for all database engines.
+    Default: db.m5.large 
+    Type: String
+    AllowedValues:
+    - db.m5.large
+    - db.m5.xlarge
+    - db.m5.2xlarge
+    - db.m5.4xlarge
+    - db.r5.large
+    - db.r5.xlarge
+    - db.r5.2xlarge
+    - db.r5.4xlarge
+
+  DBSnapshotARN:
+    Type: String
+    Description: By specifying this property, you can create a DB instance from the specified DB snapshot identified by its ARN
+    Default: none
+
+  MultiAZ:
+    Type: String
+    Description: |
+      Specifies whether the database instance is a multiple Availability Zone deployment. 
+      Set to false to reduce costs by having only one rds instance (deployed to the AZ of the first DB subnet). 
+      Otherwise, database storage is replicated across all the Availability Zones spanned by the database subnet group.
+    AllowedValues:
+    - 'true'
+    - 'false'
+    Default: 'false'
+
+  AvailabilityZone:
+    # Type: AWS::EC2::AvailabilityZone::Name
+    Type: String
+    Description: >
+      This parameter is provided if multi-az is false. While it is not required in a single-az deployment, it provides a way
+      to ensure which of the two subnets in the database subnet group the rds instance gets deployed two. Unfortunately, a
+      database subnet group must have two or more subnets, spanning at least two availability zones must be specified, even 
+      for deployments where multi-az is false (AWS says it's for in case you change you mind and want to convert to multi-az).
+    Default: 'N/A, MultiAZ'
+
+  Engine:
+    Type: String
+    Description: The name of the database engine that you want to use for this DB instance
+    Default: oracle-se2
+    AllowedValues:
+    - oracle-ee
+    - oracle-se2
+    - oracle-se1
+    - oracle-se
+
+  # Pick the latest version for a family as follows:
+  #   aws rds describe-db-engine-versions \
+  #     --engine oracle-ee \
+  #     --output text \
+  #     --query 'DBEngineVersions[?DBParameterGroupFamily==`oracle-ee-19`].{EngineVersion:EngineVersion}' | tail -n -1
+  # Familys:
+  #   [engine]-19, [engine]-18, [engine]-12.2, [engine]-12.1, [engine]-11.2
+  EngineVersion:
+    Type: String
+    Description: The version number of the database engine to use.
+    # Default: 19.0.0.0.ru-2020-04.rur-2020-04.r1
+
+  DBName:
+    Type: String
+    AllowedPattern: "[a-zA-Z][a-zA-Z0-9]*"
+    ConstraintDescription: Must begin with a letter and contain a minimum of 4 alphanumeric characters.
+    Default: Kuali
+    Description: |
+      The Oracle System ID (SID) of the created DB instance. 
+      If you specify null, the default value ORCL is used. 
+      You can't specify the string NULL, or any other reserved word, for DBName
+    MaxLength: 64
+    MinLength: 4
+
+  Port:
+    Description: TCP/IP Port for the Database Instance
+    Type: Number
+    Default: 1521
+    ConstraintDescription: Must be in the range [1115-65535]
+    MinValue: 1115
+    MaxValue: 65535
+  
+  LicenseModel:
+    Type: String
+    Default: license-included
+    AllowedValues:
+    - license-included
+    - bring-your-own-license
+    - general-public-license
+
+  # https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/CHAP_Storage.html
+  AllocatedStorage:
+    Type: Number
+    Description: The amount of storage (in gigabytes) to be initially allocated for the database instance
+    ConstraintDescription: Must be in the range [1-1000]
+    MinValue: 1
+    MaxValue: 1000
+    Default: 500
+
+  AutoMinorVersionUpgrade:
+    Description: |
+      A value that indicates whether minor engine upgrades are applied automatically to the DB instance during the maintenance window. 
+      If true, minor engine upgrades are applied automatically.
+    Type: String
+    AllowedValues:
+    - 'true'
+    - 'false'
+    Default: 'true'
+
+  BackupRetentionPeriod:
+    Type: Number
+    Description: |
+      The number of days for which automated backups are retained. 
+      Setting this parameter to a positive number enables backups. 
+      Setting this parameter to 0 disables automated backups.
+    ConstraintDescription: Must be in the range [1-30]
+    MinValue: 1
+    MaxValue: 30
+    Default: 10
+  
+  CharacterSetName:
+    Type: String
+    Description: For supported engines, indicates that the DB instance should be associated with the specified character set.
+    Default: WE8MSWIN1252
+
+  Iops:
+    Type: Number
+    Description: |
+      The number of I/O operations per second (IOPS) that the database provisions. 
+      Omit this parameter and storage type will be gps where iops are burstable, 
+      cheaper, but potentially less peformant if the database has read/write intensive use)
+    ConstraintDescription: Must be in range [1000-10000]
+    MinValue: 0
+    MaxValue: 10000
+    Default: 0    
+
+  DBSubnet1:
+    Type: AWS::EC2::Subnet::Id
+    Description: Id of the first private subnet of the RDS subnet group
+
+  DBSubnet2:
+    Type: AWS::EC2::Subnet::Id
+    Description: Id of the second private subnet of the RDS subnet group
+
+  DBSubnetCIDR1:
+    AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
+    ConstraintDescription: It must be a valid IP CIDR range of the form x.x.x.x/x. 
+    Description: |
+      The IP address range of the subnet containing the oracle RDS instances. 
+      Accessible from the campus subnet over the default "local" route.
+    MaxLength: 18
+    MinLength: 9 
+    Type: String
+
+  DBSubnetCIDR2:
+    AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
+    ConstraintDescription: It must be a valid IP CIDR range of the form x.x.x.x/x. 
+    Description: |
+      The IP address range of the subnet containing the oracle RDS instances. 
+      Accessible from the campus subnet over the default "local" route.
+    MaxLength: 18
+    MinLength: 9 
+    Type: String
+
+  LogGroupRetention:
+    Type: Number
+    Description: How old in days can the rds log groups content get before it is deleted?
+    AllowedValues: [0, 1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 3653]
+    ConstraintDescription: Allowed values - 1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, and 3653
+    Default: 0
+
+
+Mappings:
+
+  2faCidrs:
+    first:
+      cidr: "168.122.81.0/24"
+    second:
+      cidr: "168.122.82.0/23"
+    third:
+      cidr: "168.122.76.0/24"
+    fourth:
+      cidr: "168.122.68.0/24"
+    fifth:
+      cidr: "168.122.69.0/24"
+    sixth:
+      cidr: "10.1.0.0/21"
+
+  InformaticaCidrs:
+    sb: 
+      host: ist-etl-sb01.bu.edu
+      cidr: 10.231.31.12/32
+    ci:
+      host: ist-etl-devl01.bu.edu
+      cidr: 10.231.31.13/32
+    qa:
+      host: ist-etl-qa01.bu.edu
+      cidr: 10.231.31.14/32
+    stg:
+      host: ist-etl-qa01.bu.edu
+      cidr: 10.231.31.14/32
+    prod:
+      host: ist-etl-prod01.bu.edu
+      cidr: 10.231.31.15/32
+
+  SAPBWCidrs:
+    sb: {
+      sid1: n/a, host1: n/a, cidr1: n/a,
+      sid2: n/a, host2: n/a, cidr2: n/a,
+      sid3: n/a, host3: n/a, cidr3: n/a,
+      sid4: n/a, host4: n/a, cidr4: n/a,
+      sid5: n/a, host5: n/a, cidr5: n/a,
+      sid6: n/a, host6: n/a, cidr6: n/a,
+      sid7: n/a, host7: n/a, cidr7: n/a,
+      sid8: n/a, host8: n/a, cidr8: n/a 
+    }
+
+    ci: {
+      sid1: n/a, host1: n/a, cidr1: n/a,
+      sid2: n/a, host2: n/a, cidr2: n/a,
+      sid3: n/a, host3: n/a, cidr3: n/a,
+      sid4: n/a, host4: n/a, cidr4: n/a,
+      sid5: n/a, host5: n/a, cidr5: n/a,
+      sid6: n/a, host6: n/a, cidr6: n/a,
+      sid7: n/a, host7: n/a, cidr7: n/a,
+      sid8: n/a, host8: n/a, cidr8: n/a 
+    }
+
+    qa: {
+      sid1: SBW, host1: sbwci/holbuws502, cidr1: 10.230.9.140/32,
+      sid2: DBW, host2: dbwci/bosbuwd502, cidr2: 10.230.5.120/32,
+      sid3: QBW, host3: qbwci/holbuwq502, cidr3: 10.230.9.160/32,
+      sid4: QBW, host4: qbwci/holbuwq503, cidr4: 10.230.9.161/32,
+      sid5: QBW, host5: qbwci/holbuwq504, cidr5: 10.230.9.162/32,
+      sid6: XBW, host6: xbwci/holbuwx502, cidr6: 10.230.9.130/32,
+      sid7: YBW, host7: ybwci/holbuwy502, cidr7: 10.230.9.118/32,
+      sid8: ZBW, host8: zbwci/holbuwz502, cidr8: 10.230.9.175/32
+    }
+
+    stg: {
+      sid1: SBW, host1: sbwci/holbuws502, cidr1: 10.230.9.140/32,
+      sid2: DBW, host2: dbwci/bosbuwd502, cidr2: 10.230.5.120/32,
+      sid3: QBW, host3: qbwci/holbuwq502, cidr3: 10.230.9.160/32,
+      sid4: QBW, host4: qbwci/holbuwq503, cidr4: 10.230.9.161/32,
+      sid5: QBW, host5: qbwci/holbuwq504, cidr5: 10.230.9.162/32,
+      sid6: XBW, host6: xbwci/holbuwx502, cidr6: 10.230.9.130/32,
+      sid7: YBW, host7: ybwci/holbuwy502, cidr7: 10.230.9.118/32,
+      sid8: ZBW, host8: zbwci/holbuwz502, cidr8: 10.230.9.175/32
+    }
+
+    prod: {
+      sid1: PBW, host1: pbwci/bosbuwp502, cidr1: 10.230.4.20/32,
+      sid2: PBW, host2: pbwa1/bosbuwp503, cidr2: 10.230.4.21/32,
+      sid3: PBW, host3: pwa2/bosbuwp504,  cidr3: 10.230.4.22/32
+    }
+
+
+Conditions:
+  SingleDBAvailabilityZone: !Equals [!Ref MultiAZ, 'false']
+  CreateFromSnapshot: !Not [!Equals [!Ref DBSnapshotARN, none]]
+  IsProd: !Equals [!Ref Landscape, prod]
+  IsProdBaseline: !Equals [!Ref Baseline, prod]
+  IopsSpecified: !Not [!Equals [!Ref Iops, 0]]
+  LogGroupRetentionSpecified: !Not [!Equals [!Ref LogGroupRetention, 0]]
+  IncludeSAPBW: !Or [ !Equals [!Ref Baseline, 'stg'], !Equals [!Ref Baseline, 'prod']]
+  ExcludeSAPBW: !Not [ Condition: IncludeSAPBW ]
+
+
+Resources:
+
+  # MasterUserPassword:
+  #   Type: AWS::SecretsManager::Secret
+  #   Properties: 
+  #     Name: !Sub kuali/${Landscape}/kuali-oracle-rds-admin-password
+  #     Description: !Sub The oracle master user password for the kuali research rds ${Landscape} database
+  #     GenerateSecretString: 
+  #       ExcludeCharacters: '"@/\|'
+  #       # ExcludePunctuation: false ! " # $ % & ' ( ) * + , - . / : ; < = > ? @ [ \ ] ^ _ ` { | } ~
+  #       PasswordLength: 15
+  #       SecretStringTemplate: '{"MasterUsername": "admin"}'
+  #       GenerateStringKey: "MasterUserPassword"
+  #     # KmsKeyId: String
+  #     # SecretString: String
+  #     Tags: 
+  #     - Key: Name
+  #       Value: !Sub kuali/${Landscape}/kuali-oracle-rds-admin-password
+
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Subnet available for the Oracle Instance
+      SubnetIds:
+        - !Ref DBSubnet1
+        - !Ref DBSubnet2
+
+  DBVpcSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VpcId
+      GroupDescription: Security group for migration instances.
+      SecurityGroupIngress:
+
+        # APPLICATION: Allow ingress from the subnets where the application servers reside
+        - CidrIp: !Ref DBSubnetCIDR1
+          Description: Allows inbound access from the first application subnet.
+          FromPort: !Ref Port
+          IpProtocol: tcp
+          ToPort: !Ref Port
+        - CidrIp: !Ref DBSubnetCIDR2
+          Description: Allows inbound access from the second application subnet.
+          FromPort: !Ref Port
+          IpProtocol: tcp
+          ToPort: !Ref Port
+
+        # CAMPUS MFA: Allow ingress from any campus subnet associated with mfa access
+        - Description: "Oracle: vpn.bu.edu/2fa On Campus, Group 1"
+          IpProtocol: tcp
+          FromPort: !Ref Port
+          ToPort: !Ref Port
+          CidrIp: !FindInMap [ 2faCidrs, "first", "cidr" ]
+        - Description: "Oracle: vpn.bu.edu/2fa On Campus, Group 2 "
+          IpProtocol: tcp
+          FromPort: !Ref Port
+          ToPort: !Ref Port
+          CidrIp: !FindInMap [ 2faCidrs, "second", "cidr" ]
+        - Description: "Oracle: vpn.bu.edu/2fa Off Campus"
+          IpProtocol: tcp
+          FromPort: !Ref Port
+          ToPort: !Ref Port
+          CidrIp: !FindInMap [ 2faCidrs, "third", "cidr" ]
+        - Description: "Oracle: vpn.bu.edu/2fa Off Campus"
+          IpProtocol: tcp
+          FromPort: !Ref Port
+          ToPort: !Ref Port
+          CidrIp: !FindInMap [ 2faCidrs, "fourth", "cidr" ]
+        - Description: "Oracle: vpn.bu.edu/2fa Off Campus"
+          IpProtocol: tcp
+          FromPort: !Ref Port
+          ToPort: !Ref Port
+          CidrIp: !FindInMap [ 2faCidrs, "fifth", "cidr" ]
+        - Description: "Oracle: vpn.bu.edu/2fa Off Campus"
+          IpProtocol: tcp
+          FromPort: !Ref Port
+          ToPort: !Ref Port
+          CidrIp: !FindInMap [ 2faCidrs, "sixth", "cidr" ]
+
+        # INFORMATICA: Allow ingress from the informatica server(s) associated with the baseline landscape
+        - CidrIp: !FindInMap [ InformaticaCidrs, !Ref Baseline, "cidr" ]
+          Description: "Oracle: Informatica ingress to $Landscape oracle rds instance(s)"
+          IpProtocol: tcp
+          FromPort: !Ref Port
+          ToPort: !Ref Port
+
+        # SAPBW: Allow ingress from the SAP BW server(s) associated with the prod or staging baseline landscapes only
+        - !If 
+          - ExcludeSAPBW
+          - !Ref AWS::NoValue
+          -
+            - Description: !Sub 
+              - "Oracle: SAPBW ${sid} ${host} ingress to $Landscape oracle rds instance(s)"
+              - sid: !FindInMap [ SAPBWCidrs, !Ref Baseline, "sid1" ]
+                host: !FindInMap [ SAPBWCidrs, !Ref Baseline, "host1" ]
+              IpProtocol: tcp
+              FromPort: !Ref Port
+              ToPort: !Ref Port
+              CidrIp: !FindInMap [ SAPBWCidrs, !Ref Baseline, "cidr1" ]
+            - Description: !Sub 
+                - "Oracle: SAPBW ${sid} ${host} ingress to $Landscape oracle rds instance(s)"
+                - sid: !FindInMap [ SAPBWCidrs, !Ref Baseline, "sid2" ]
+                  host: !FindInMap [ SAPBWCidrs, !Ref Baseline, "host2" ]
+              IpProtocol: tcp
+              FromPort: !Ref Port
+              ToPort: !Ref Port
+              CidrIp: !FindInMap [ SAPBWCidrs, !Ref Baseline, "cidr2" ]
+            - Description: !Sub 
+                - "Oracle: SAPBW ${sid} ${host} ingress to $Landscape oracle rds instance(s)"
+                - sid: !FindInMap [ SAPBWCidrs, !Ref Baseline, "sid3" ]
+                  host: !FindInMap [ SAPBWCidrs, !Ref Baseline, "host3" ]
+              IpProtocol: tcp
+              FromPort: !Ref Port
+              ToPort: !Ref Port
+              CidrIp: !FindInMap [ SAPBWCidrs, !Ref Baseline, "cidr3" ]
+            - !If
+                - IsProdBaseline
+                - !Ref AWS::NoValue
+                -
+                  - Description: !Sub 
+                      - "Oracle: SAPBW ${sid} ${host} ingress to $Landscape oracle rds instance(s)"
+                      - sid: !FindInMap [ SAPBWCidrs, !Ref Baseline, "sid4" ]
+                        host: !FindInMap [ SAPBWCidrs, !Ref Baseline, "host4" ]
+                    IpProtocol: tcp
+                    FromPort: !Ref Port
+                    ToPort: !Ref Port
+                    CidrIp: !FindInMap [ SAPBWCidrs, !Ref Baseline, "cidr4" ]
+                  - Description: !Sub 
+                      - "Oracle: SAPBW ${sid} ${host} ingress to $Landscape oracle rds instance(s)"
+                      - sid: !FindInMap [ SAPBWCidrs, !Ref Baseline, "sid5" ]
+                        host: !FindInMap [ SAPBWCidrs, !Ref Baseline, "host5" ]
+                    IpProtocol: tcp
+                    FromPort: !Ref Port
+                    ToPort: !Ref Port
+                    CidrIp: !FindInMap [ SAPBWCidrs, !Ref Baseline, "cidr5" ]
+                  - Description: !Sub 
+                      - "Oracle: SAPBW ${sid} ${host} ingress to $Landscape oracle rds instance(s)"
+                      - sid: !FindInMap [ SAPBWCidrs, !Ref Baseline, "sid6" ]
+                        host: !FindInMap [ SAPBWCidrs, !Ref Baseline, "host6" ]
+                    IpProtocol: tcp
+                    FromPort: !Ref Port
+                    ToPort: !Ref Port
+                    CidrIp: !FindInMap [ SAPBWCidrs, !Ref Baseline, "cidr6" ]
+                  - Description: !Sub 
+                      - "Oracle: SAPBW ${sid} ${host} ingress to $Landscape oracle rds instance(s)"
+                      - sid: !FindInMap [ SAPBWCidrs, !Ref Baseline, "sid7" ]
+                        host: !FindInMap [ SAPBWCidrs, !Ref Baseline, "host7" ]
+                    IpProtocol: tcp
+                    FromPort: !Ref Port
+                    ToPort: !Ref Port
+                    CidrIp: !FindInMap [ SAPBWCidrs, !Ref Baseline, "cidr7" ]
+                  - Description: !Sub 
+                      - "Oracle: SAPBW ${sid} ${host} ingress to $Landscape oracle rds instance(s)"
+                      - sid: !FindInMap [ SAPBWCidrs, !Ref Baseline, "sid8" ]
+                        host: !FindInMap [ SAPBWCidrs, !Ref Baseline, "host8" ]
+                    IpProtocol: tcp
+                    FromPort: !Ref Port
+                    ToPort: !Ref Port
+                    CidrIp: !FindInMap [ SAPBWCidrs, !Ref Baseline, "cidr8" ]
+
+
+  # Anticipate the name of, and create the log groups that the rds instances "EnableCloudwatchLogsExports"
+  # setting is configured to automatically create so that cloudformation has control of the retention settings
+  # and deletion policy. Included are "DependsOn" settings that ensure that these log groups get created BEFORE
+  # the rds instance so that there is no race condition during stack creation. This should be enough to ensure
+  # that these log groups are removed when the stack is deleted and are not orphaned.
+  TraceLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    Properties: 
+      LogGroupName: !Sub /aws/rds/instance/${GlobalTag}-${Landscape}/trace
+      RetentionInDays: 
+        !If 
+        - LogGroupRetentionSpecified
+        - !Ref LogGroupRetention
+        - !If [ IsProd, 365, 30 ]
+  AuditLogGroup:
+    Type: AWS::Logs::LogGroup
+    DependsOn: TraceLogGroup
+    DeletionPolicy: Delete
+    Properties: 
+      LogGroupName: !Sub /aws/rds/instance/${GlobalTag}-${Landscape}/audit
+      RetentionInDays: 
+        !If 
+        - LogGroupRetentionSpecified
+        - !Ref LogGroupRetention
+        - !If [ IsProd, 365, 30 ]
+  AlertLogGroup:
+    Type: AWS::Logs::LogGroup
+    DependsOn: AuditLogGroup
+    DeletionPolicy: Delete
+    Properties: 
+      LogGroupName: !Sub /aws/rds/instance/${GlobalTag}-${Landscape}/alert
+      RetentionInDays: 
+        !If 
+        - LogGroupRetentionSpecified
+        - !Ref LogGroupRetention
+        - !If [ IsProd, 365, 30 ]
+  ListenerLogGroup:
+    Type: AWS::Logs::LogGroup
+    DependsOn: AlertLogGroup
+    DeletionPolicy: Delete
+    Properties: 
+      LogGroupName: !Sub /aws/rds/instance/${GlobalTag}-${Landscape}/listener
+      RetentionInDays: 
+        !If 
+        - LogGroupRetentionSpecified
+        - !Ref LogGroupRetention
+        - !If [ IsProd, 365, 30 ]
+
+  DBInstance:
+    Type: AWS::RDS::DBInstance
+    # DependsOn: MasterUserPassword
+    DependsOn: ListenerLogGroup
+    Properties:
+      AllocatedStorage: !Ref AllocatedStorage 
+      AllowMajorVersionUpgrade: true
+      AutoMinorVersionUpgrade: !Ref AutoMinorVersionUpgrade
+      AvailabilityZone: 
+        !If 
+        - SingleDBAvailabilityZone
+        - !Ref AvailabilityZone
+        - !Ref AWS::NoValue
+      BackupRetentionPeriod: !Ref BackupRetentionPeriod
+      CharacterSetName: !Ref CharacterSetName
+      CopyTagsToSnapshot: true
+      DBInstanceClass: !Ref DBInstanceClass
+      DBInstanceIdentifier: !Sub ${GlobalTag}-${Landscape}
+      DBName: !Ref DBName
+      DBSnapshotIdentifier: 
+        !If
+        - CreateFromSnapshot
+        - !Ref DBSnapshotARN
+        - !Ref AWS::NoValue
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      DeletionProtection:
+        !If
+        - IsProd
+        - true
+        - !Ref AWS::NoValue
+      DeleteAutomatedBackups:
+        !If
+        - IsProd
+        - false
+        - true
+      EnableCloudwatchLogsExports:
+        - trace
+        - audit
+        - alert
+        - listener
+      EnablePerformanceInsights:
+        !If 
+        - IsProd
+        - true
+        - !Ref AWS::NoValue
+      Engine: !Ref Engine
+      EngineVersion: !Ref EngineVersion
+      Iops:
+        !If
+        - IopsSpecified
+        - !Ref Iops
+        - !Ref AWS::NoValue # Storage type defaults to gp2
+      LicenseModel: !Ref LicenseModel
+      # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/dynamic-references.html
+      MasterUsername: !Sub '{{resolve:secretsmanager:kuali/${Baseline}/kuali-oracle-rds-admin-password:SecretString:MasterUsername}}'
+      MasterUserPassword: !Sub '{{resolve:secretsmanager:kuali/${Baseline}/kuali-oracle-rds-admin-password:SecretString:MasterUserPassword}}'
+      MultiAZ: !Ref MultiAZ # If true, it should create a second standby rds instance in the second subnet of the subnet group.
+      PerformanceInsightsRetentionPeriod: 
+        !If 
+        - IsProd
+        - 30
+        - !Ref AWS::NoValue
+      Port: !Ref Port
+      # https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_WorkingWithAutomatedBackups.html#USER_WorkingWithAutomatedBackups.BackupWindow
+      PreferredBackupWindow: 22:00-23:00
+      PreferredMaintenanceWindow: sat:20:00-sat:21:00
+      PubliclyAccessible: 'false'
+      StorageType:
+        !If
+        - IopsSpecified
+        - !Ref AWS::NoValue # Storage type defaults to io1
+        - gp2
+      Tags:
+      - Key: Name
+        Value: !Sub ${GlobalTag}-${Landscape}
+      - Key: App
+        Value: Kuali
+      - Key: Landscape
+        Value: !Ref Landscape
+      - Key: Baseline
+        Value: !Ref Baseline
+      - Key: Version
+        Value: 1
+      - Key: Service
+        Value: !Ref Service
+      - Key: Function
+        Value: !Ref Function
+      VPCSecurityGroups:
+      - !Ref DBVpcSecurityGroup
+
+
+Outputs:
+
+  OracleJDBCConnectionString:
+    Description: JDBC connection string for Oracle database
+    Value: !Join 
+      - ""
+      - - jdbc:oracle:thin:@
+        - !GetAtt 
+          - DBInstance
+          - Endpoint.Address
+        - ":"
+        - !GetAtt 
+          - DBInstance
+          - Endpoint.Port
+        - ":"
+        - !Ref DBName

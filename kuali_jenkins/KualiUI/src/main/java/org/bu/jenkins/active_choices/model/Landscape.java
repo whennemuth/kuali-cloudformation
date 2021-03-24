@@ -48,23 +48,37 @@ public enum Landscape {
 	 * @param possibleAlias
 	 * @return
 	 */
-	public static String fromAlias(String possibleAlias) {
+	public static String idFromAlias(String possibleAlias) {
 		if(possibleAlias == null || possibleAlias.isBlank()) {
 			return possibleAlias;
 		}
+		Landscape landscape = fromAlias(possibleAlias);
+		if(landscape == null) {
+			return possibleAlias;
+		}
+		return landscape.getId();
+	}
+	
+	public static Landscape fromAlias(String possibleAlias) {
+		if(possibleAlias == null || possibleAlias.isBlank()) {
+			return null;
+		}
 		for(Landscape landscape : Landscape.values()) {
 			if(landscape.name().equalsIgnoreCase(possibleAlias)) {
-				return landscape.getId();
+				return landscape;
+			}
+			if(landscape.getId().equalsIgnoreCase(possibleAlias)) {
+				return landscape;
 			}
 			else {
 				for(String alias : landscape.getAliases()) {
 					if(alias.equalsIgnoreCase(possibleAlias)) {
-						return landscape.getId();
+						return landscape;
 					}
 				}
 			}
 		}
-		return possibleAlias;
+		return null;		
 	}
 
 	public String getId() {

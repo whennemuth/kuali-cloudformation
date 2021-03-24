@@ -1,0 +1,98 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: > 
+  Create a custom trail to capture data events that occur when a kuali stack is being deleted. Among other information this includes events from
+  lambda functions are invoked during stack deletion to clean up s3 buckets. If these fail, the stack deletion fails, but lambda 
+  This stack produced by this template is expected to be standalone and not be subject to deletion itself as it would if it were
+  nested in the stack whose deletion it is collecting event data for. Combine with athena to help figure out why a stack deletion may fail
+  to trigger s3 bucket emptying and 
+
+Resources:
+  CloudTrail:
+    Type: "AWS::CloudTrail::Trail"
+    Properties:
+      TrailName: "ManagementEventsTrail"
+      IsLogging: true
+      EnableLogFileValidation: true
+      EventSelectors:
+        - IncludeManagementEvents: true
+          ReadWriteType: "All"
+      IsMultiRegionTrail: true
+      IncludeGlobalServiceEvents: true
+      S3BucketName:
+        Ref: "S3BucketForCloudTrailCloudTrail"
+      CloudWatchLogsLogGroupArn:
+        Fn::GetAtt:
+          - "CloudWatchLogGroupCloudTrail"
+          - "Arn"
+      CloudWatchLogsRoleArn:
+        Fn::GetAtt:
+          - "IamRoleForCwLogsCloudTrail"
+          - "Arn"
+    DependsOn: "S3BucketPolicy"
+  S3BucketForCloudTrailCloudTrail:
+    Type: "AWS::S3::Bucket"
+    Properties: {}
+  S3BucketPolicy:
+    Type: "AWS::S3::BucketPolicy"
+    Properties:
+      Bucket:
+        Ref: "S3BucketForCloudTrailCloudTrail"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "AWSCloudTrailBucketPermissionsCheck"
+            Effect: "Allow"
+            Principal:
+              Service:
+                - "cloudtrail.amazonaws.com"
+            Action: "s3:GetBucketAcl"
+            Resource:
+              Fn::GetAtt:
+                - "S3BucketForCloudTrailCloudTrail"
+                - "Arn"
+          - Sid: " AWSConfigBucketDelivery"
+            Effect: "Allow"
+            Principal:
+              Service:
+                - "cloudtrail.amazonaws.com"
+            Action: "s3:PutObject"
+            Resource:
+              Fn::Join:
+                - ""
+                -
+                  - Fn::GetAtt:
+                      - "S3BucketForCloudTrailCloudTrail"
+                      - "Arn"
+                  - "/AWSLogs/*"
+            Condition:
+              StringEquals:
+                s3:x-amz-acl: "bucket-owner-full-control"
+  CloudWatchLogGroupCloudTrail:
+    Type: "AWS::Logs::LogGroup"
+    Properties:
+      LogGroupName: "CloudTrailLogs"
+  IamRoleForCwLogsCloudTrail:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: ""
+            Effect: "Allow"
+            Principal:
+              Service: "cloudtrail.amazonaws.com"
+            Action: "sts:AssumeRole"
+      Policies:
+        - PolicyName: "allow-access-to-cw-logs"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource: "*"
+Parameters: {}
+Metadata: {}
+Conditions: {}
