@@ -27,7 +27,7 @@ public abstract class AbstractJob {
 	
 	private Logger logger = LogManager.getLogger(AbstractJob.class.getName());
 
-	protected AWSCredentials credentials = new AWSCredentials();
+	protected AWSCredentials credentials = AWSCredentials.getInstance();
 	protected String ajaxHost;
 
 	public AbstractJob() {
@@ -190,7 +190,7 @@ public abstract class AbstractJob {
 		if(namedArgs.has("job-class")) {
 			Class<?> jobclass = Class.forName(namedArgs.get("job-class"));
 			Constructor<?> constructor = jobclass.getConstructor(AWSCredentials.class);
-			AbstractJob job = (AbstractJob) constructor.newInstance(new AWSCredentials(namedArgs));
+			AbstractJob job = (AbstractJob) constructor.newInstance(AWSCredentials.getInstance(namedArgs));
 			job.setAjaxHost(namedArgs.get("ajax-host", "127.0.0.1"));
 			new SimpleHttpHandler() {
 				@Override public String getHtml(Map<String, String> parameters) {

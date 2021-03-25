@@ -239,7 +239,7 @@ public class RdsDAO extends AbstractDAO {
 	}
 	
 	public static Object test(String task, NamedArgs namedArgs) {
-		RdsDAO rdsDAO = new RdsDAO(new AWSCredentials(namedArgs));
+		RdsDAO rdsDAO = new RdsDAO(AWSCredentials.getInstance(namedArgs));
 		switch(task) {
 			case "landscape": 
 				printHeader(task);

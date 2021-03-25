@@ -167,7 +167,7 @@ public class StackDAO extends AbstractDAO {
 	
 	public static void main(String[] args) {
 		NamedArgs namedArgs = new NamedArgs(new LoggingStarterImpl(new CaseInsensitiveEnvironment()), args);
-		StackDAO dao = new StackDAO(new AWSCredentials(namedArgs));		
+		StackDAO dao = new StackDAO(AWSCredentials.getInstance(namedArgs));		
 		for (Stack stack : dao.getKualiStacks(false)) {
 			System.out.println(stack.stackName());
 		}

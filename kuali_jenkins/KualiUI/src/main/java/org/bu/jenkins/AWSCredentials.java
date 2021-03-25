@@ -5,7 +5,6 @@ import java.util.LinkedList;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.EntryMessage;
-import org.bu.jenkins.active_choices.dao.StackDAO;
 
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
@@ -27,17 +26,47 @@ public class AWSCredentials {
 	
 	private Logger logger = LogManager.getLogger(AWSCredentials.class.getName());
 	
+	private static AWSCredentials instance;
+	
+	/**
+	 * Make this a singleton class (Only need to get the instance once, otherwise costly repetition of provider chain resolution).
+	 * @param profile
+	 * @return
+	 */
+	public static AWSCredentials getInstance(Object obj) {
+		if(instance == null) {
+			synchronized(AWSCredentials.class) {
+				if(instance == null) {
+					if(obj instanceof String)
+						instance = new AWSCredentials((String) obj);
+					else if(obj instanceof NamedArgs)
+						instance = new AWSCredentials((NamedArgs) obj);
+					else
+						instance = new AWSCredentials();
+				}
+			}
+		}
+		return instance;
+	}
+	
+	public static AWSCredentials getInstance() {
+		return getInstance(null);
+	}
+	
 	private NamedArgs args;
 	private RuntimeException exception;
+	private AwsCredentialsProvider provider;
 	
-	public AWSCredentials() { }
+	private AWSCredentials() { 
+		super();
+	}
 
-	public AWSCredentials(String profile) {
+	private AWSCredentials(String profile) {
 		NamedArgs namedArgs = new NamedArgs(new LoggingStarterImpl(new CaseInsensitiveEnvironment()));
 		this.args = namedArgs.set("profile", profile);
 	}
 	
-	public AWSCredentials(NamedArgs args) {		
+	private AWSCredentials(NamedArgs args) {		
 		this.args = args;
 	}
 	
@@ -78,25 +107,27 @@ public class AWSCredentials {
 	 */
 	public AwsCredentialsProvider getProvider() {
 		EntryMessage m = logger.traceEntry("getProvider()");
-		AwsCredentialsProvider provider = null;
-		LinkedList<AwsCredentialsProvider> chain = new LinkedList<AwsCredentialsProvider>();
-		chain.add(EnvironmentVariableCredentialsProvider.create());
-		chain.add(SystemPropertyCredentialsProvider.create());
-		if(args == null || args.get("profile") == null) {
-			chain.addFirst(InstanceProfileCredentialsProvider.create());
-			chain.addLast(ProfileCredentialsProvider.create());
-		}
-		else {
-			chain.addFirst(ProfileCredentialsProvider.create(args.get("profile")));
-			chain.addLast(InstanceProfileCredentialsProvider.create());
-		}
-		
-		provider = AwsCredentialsProviderChain.builder().credentialsProviders(chain).build();
-		
-		if(unresolvable(provider)) {
-			logger.warn("No valid credentials could be found along provider chain!");
-			logger.traceExit(m, "null");
-			return null;
+		if(provider == null) {
+			logger.trace("AwsCredentialsProvider not built, building...");
+			LinkedList<AwsCredentialsProvider> chain = new LinkedList<AwsCredentialsProvider>();
+			chain.add(EnvironmentVariableCredentialsProvider.create());
+			chain.add(SystemPropertyCredentialsProvider.create());
+			if(args == null || args.get("profile") == null) {
+				chain.addFirst(InstanceProfileCredentialsProvider.create());
+				chain.addLast(ProfileCredentialsProvider.create());
+			}
+			else {
+				chain.addFirst(ProfileCredentialsProvider.create(args.get("profile")));
+				chain.addLast(InstanceProfileCredentialsProvider.create());
+			}
+			
+			provider = AwsCredentialsProviderChain.builder().credentialsProviders(chain).build();
+			
+			if(unresolvable(provider)) {
+				logger.warn("No valid credentials could be found along provider chain!");
+				logger.traceExit(m, "null");
+				return null;
+			}
 		}
 		
 		logger.traceExit(m, "[Object]");

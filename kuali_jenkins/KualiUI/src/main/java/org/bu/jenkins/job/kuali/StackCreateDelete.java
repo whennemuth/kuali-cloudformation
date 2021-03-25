@@ -40,7 +40,7 @@ public class StackCreateDelete extends AbstractJob {
 	}
 	
 	public StackCreateDelete() {
-		this.credentials = new AWSCredentials();
+		this.credentials = AWSCredentials.getInstance();
 	}
 	
 	public static enum ParameterName implements JobParameterMetadata {
@@ -417,7 +417,7 @@ public class StackCreateDelete extends AbstractJob {
 
 	public static void main(String[] args) {
 		NamedArgs namedArgs = new NamedArgs(new LoggingStarterImpl(new CaseInsensitiveEnvironment()), args);
-		AbstractJob job = new StackCreateDelete(new AWSCredentials(namedArgs));
+		AbstractJob job = new StackCreateDelete(AWSCredentials.getInstance(namedArgs));
 		
 		if(namedArgs.has("parameter-name")) {
 			if(ParameterName.valueOf(namedArgs.get("parameter-name")) == null) {
