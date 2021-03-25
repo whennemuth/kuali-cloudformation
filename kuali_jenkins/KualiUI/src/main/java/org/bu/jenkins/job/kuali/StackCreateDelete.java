@@ -3,20 +3,22 @@ package org.bu.jenkins.job.kuali;
 import java.net.URLDecoder;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.EntryMessage;
 import org.bu.jenkins.AWSCredentials;
+import org.bu.jenkins.CaseInsensitiveEnvironment;
+import org.bu.jenkins.LoggingStarterImpl;
 import org.bu.jenkins.NamedArgs;
 import org.bu.jenkins.SimpleHttpHandler;
-import org.bu.jenkins.active_choices.dao.LandscapeDAO;
 import org.bu.jenkins.active_choices.dao.RdsDAO;
+import org.bu.jenkins.active_choices.dao.StackDAO;
 import org.bu.jenkins.active_choices.html.AbstractParameterView;
 import org.bu.jenkins.active_choices.model.Landscape;
 import org.bu.jenkins.active_choices.model.RdsInstance;
-import org.bu.jenkins.active_choices.model.StackList;
 import org.bu.jenkins.job.AbstractJob;
 import org.bu.jenkins.job.JobParameter;
 import org.bu.jenkins.job.JobParameterConfiguration;
@@ -30,7 +32,8 @@ import org.bu.jenkins.job.JobParameterMetadata;
  *
  */
 public class StackCreateDelete extends AbstractJob {
-	
+		
+	private Logger logger = LogManager.getLogger(StackCreateDelete.class.getName());
 	
 	public StackCreateDelete(AWSCredentials credentials) {		
 		this.credentials = credentials;
@@ -41,6 +44,7 @@ public class StackCreateDelete extends AbstractJob {
 	}
 	
 	public static enum ParameterName implements JobParameterMetadata {
+		
 		STACK("StackListTable", "stack-list-table"),
 		STACK_ACTION("StackAction", "stack-action"),
 		STACK_TYPE("StackType", "stack-type"),
@@ -88,24 +92,30 @@ public class StackCreateDelete extends AbstractJob {
 	}
 
 	@Override
-	public String getRenderedParameter(JobParameterConfiguration config) {		
+	public String getRenderedParameter(JobParameterConfiguration config) {				
+		EntryMessage m = logger.traceEntry("getRenderedParameter(config.getParameterName()={})", config.getParameterName());
+		
 		try {
 			AbstractParameterView parameterView = getSparseParameterView(config, "org/bu/jenkins/active_choices/html/job-parameter/");
 			
 			applyCustomStateToParameterView(config, parameterView);
 			
+			logger.traceExit(m);
 			return parameterView.render();
 		} 
 		catch (Exception e) {
 			e.printStackTrace();
+			logger.traceExit(m);
 			return stackTraceToHTML(e);
 		}
 	}
 
 	@Override
 	public void checkJobParameterConfig(JobParameterConfiguration config) {
+		EntryMessage m = logger.traceEntry("checkJobParameterConfig(config.getParameterName()={})", config.getParameterName());
 		String possibleAlias = config.getParameterMap().get(ParameterName.LANDSCAPE.name());
 		config.setParameterMapValue(ParameterName.LANDSCAPE.name(), Landscape.idFromAlias(possibleAlias));
+		logger.traceExit(m);
 	}
 	
 	/**
@@ -117,6 +127,7 @@ public class StackCreateDelete extends AbstractJob {
 	 */
 	@SuppressWarnings("incomplete-switch")
 	private void applyCustomStateToParameterView(JobParameterConfiguration config, AbstractParameterView parameterView) throws Exception {
+		EntryMessage m = logger.traceEntry("applyCustomStateToParameterView(config.getParameterName()={}, parameterView.getViewName()={})", config.getParameterName(), parameterView.getViewName());
 		
 		ParameterName parameter = ParameterName.valueOf(config.getParameterName());
 		
@@ -126,10 +137,12 @@ public class StackCreateDelete extends AbstractJob {
 		}
 		switch(parameter) {
 			case STACK:
-				StackList stackList = new StackList(credentials);
+				logger.debug("Rendering: {}", ParameterName.STACK.name());
+				StackDAO stackList = new StackDAO(credentials);
 				parameterView.setContextVariable("stacks", stackList.getKualiApplicationStacks());
 				break;
 			case STACK_ACTION:
+				logger.debug("Rendering: {}", ParameterName.STACK_ACTION.name());
 				if( ! jobParameter.otherParmBlank(ParameterName.STACK)) {
 					parameterView.setContextVariable("stackSelected", true);
 				}
@@ -145,6 +158,7 @@ public class StackCreateDelete extends AbstractJob {
 						case LANDSCAPE:
 							break;
 						case STACK_TYPE:
+							logger.debug("Rendering: {}", ParameterName.STACK_TYPE.name());
 							if(jobParameter.otherParmSetWith(ParameterName.LANDSCAPE, "prod")) {
 								parameterView.setContextVariable("ParameterValue", "ecs");
 								parameterView.setContextVariable("ecs_only", true);
@@ -154,9 +168,11 @@ public class StackCreateDelete extends AbstractJob {
 						case ADVANCED_KEEP_LAMBDA_LOGS: 
 						case ADVANCED_MANUAL_ENTRIES:
 							// These views are to be rendered as a sub view of other views view, so deactivate it here.
+							logger.debug("Rendering: {}", ParameterName.ADVANCED_MANUAL_ENTRIES.name());
 							parameterView.setContextVariable("deactivate", true);
 							break;
 						case AUTHENTICATION:
+							logger.debug("Rendering: {}", ParameterName.AUTHENTICATION.name());
 							if(jobParameter.otherParmSetWith(ParameterName.LANDSCAPE, "prod")) {
 								parameterView.setContextVariable("ParameterValue", "shibboleth");
 								parameterView.setContextVariable("deactivate_cor_main", true);
@@ -168,6 +184,7 @@ public class StackCreateDelete extends AbstractJob {
 							}
 							break;
 						case DNS:							
+							logger.debug("Rendering: {}", ParameterName.DNS.name());
 							if(jobParameter.otherParmSetWith(ParameterName.LANDSCAPE, "prod")) {
 								parameterView.setContextVariable("ParameterValue", "route53");
 								parameterView.setContextVariable("deactivate_none", true);
@@ -184,6 +201,7 @@ public class StackCreateDelete extends AbstractJob {
 							}							
 							break;
 						case WAF:
+							logger.debug("Rendering: {}", ParameterName.WAF.name());
 							if(jobParameter.otherParmSetWith(ParameterName.LANDSCAPE, "prod")) {
 								parameterView.setContextVariable("deactivate_waf", true);
 								parameterView.setContextVariable("ParameterValue", "enabled");
@@ -197,6 +215,7 @@ public class StackCreateDelete extends AbstractJob {
 							}
 							break;
 						case ALB:
+							logger.debug("Rendering: {}", ParameterName.ALB.name());
 							if(jobParameter.otherParmSetWith(ParameterName.LANDSCAPE, "prod")) {
 								parameterView.setContextVariable("deactivate_alb", true);
 								parameterView.setContextVariable("ParameterValue", "enabled");
@@ -214,6 +233,7 @@ public class StackCreateDelete extends AbstractJob {
 							}
 							break;
 						case RDS_SOURCE:							
+							logger.debug("Rendering: {}", ParameterName.RDS_SOURCE.name());
 							if(jobParameter.otherParmSetWith(ParameterName.LANDSCAPE, "prod")) {
 								parameterView.setContextVariable("deactivate_landscape", true);
 								parameterView.setContextVariable("ParameterValue", "instance");
@@ -229,6 +249,7 @@ public class StackCreateDelete extends AbstractJob {
 							}
 							break;
 						case RDS_INSTANCES_BY_LANDSCAPE:
+							logger.debug("Rendering: {}", ParameterName.RDS_INSTANCES_BY_LANDSCAPE.name());
 							if(jobParameter.otherParmSetWith(ParameterName.RDS_SOURCE, "instance")) {
 								List<RdsInstance> rdsInstances = new ArrayList<RdsInstance>(rdsDAO.getDeployedKualiRdsInstances());
 								parameterView.setContextVariable("rdsInstances", rdsInstances);								
@@ -238,6 +259,7 @@ public class StackCreateDelete extends AbstractJob {
 							parameterView.setContextVariable("include", include);
 							break;
 						case RDS_INSTANCES_BY_BASELINE:
+							logger.debug("Rendering: {}", ParameterName.RDS_INSTANCES_BY_BASELINE.name());
 							if(jobParameter.otherParmSetWith(ParameterName.RDS_SOURCE, "snapshot")) {
 								Map<String, List<RdsInstance>> map = rdsDAO.getDeployedKualiRdsInstancesGroupedByBaseline();
 								parameterView.setContextVariable("rdsArnsByBaseline", map);
@@ -247,6 +269,7 @@ public class StackCreateDelete extends AbstractJob {
 							parameterView.setContextVariable("include", include);
 							break;
 						case RDS_SNAPSHOT:	
+							logger.debug("Rendering: {}", ParameterName.RDS_SNAPSHOT.name());
 							if(jobParameter.otherParmNotSetWith(ParameterName.LANDSCAPE, "prod") && 
 									jobParameter.otherParmSetWith(ParameterName.RDS_SOURCE, "snapshot")) {
 								String rdsArn = getRdsArnForBaseline(jobParameter);
@@ -259,6 +282,7 @@ public class StackCreateDelete extends AbstractJob {
 							parameterView.setContextVariable("include", include);
 							break;
 						case RDS_WARNING:
+							logger.debug("Rendering: {}", ParameterName.RDS_WARNING.name());
 							String landscape = jobParameter.getOtherParmValue(ParameterName.LANDSCAPE);
 							String warning = null;
 							if(Landscape.fromAlias(landscape) != null) {
@@ -303,6 +327,7 @@ public class StackCreateDelete extends AbstractJob {
 							parameterView.setContextVariable("include", warning != null);
 							break;
 						case MONGO:
+							logger.debug("Rendering: {}", ParameterName.MONGO.name());
 							if(jobParameter.otherParmSetWith(ParameterName.LANDSCAPE, "prod")) {
 								parameterView.setContextVariable("deactivate_mongo", true);
 								parameterView.setContextVariable("ParameterValue", "disabled");
@@ -312,6 +337,7 @@ public class StackCreateDelete extends AbstractJob {
 							}
 							break;
 						case ADVANCED:
+							logger.debug("Rendering: {}", ParameterName.ADVANCED.name());
 							parameterView.setContextVariable("ParameterValue", jobParameter.isChecked() ? "enabled" : "disabled");
 							parameterView.setContextVariable("ksbrlEnum", ParameterName.ADVANCED_KEEP_LAMBDA_LOGS);
 							parameterView.setContextVariable("ksbrlValue", jobParameter.isChecked(ParameterName.ADVANCED_KEEP_LAMBDA_LOGS) ? "enabled" : "disabled");
@@ -325,7 +351,7 @@ public class StackCreateDelete extends AbstractJob {
 					}					
 				}
 		}
-		
+		logger.traceExit(m);
 	}
 	
 	/**
@@ -333,9 +359,11 @@ public class StackCreateDelete extends AbstractJob {
 	 * compatible with LANDSCAPE, else the first value found.
 	 */
 	private String getRdsArnForLandscape(JobParameter jobParameter) {
+		EntryMessage m = logger.traceEntry("getRdsArnForLandscape(jobParameter.getName()={})", jobParameter.getName());
 		
 		String rdsArn = jobParameter.getOtherParmValue(ParameterName.RDS_INSTANCES_BY_LANDSCAPE);
 		if(rdsArn != null) {
+			logger.traceExit(m);
 			return rdsArn;
 		}
 		
@@ -345,22 +373,23 @@ public class StackCreateDelete extends AbstractJob {
 		if(jobParameter.isBlank() && rdsInstances.isEmpty() == false) {
 			String landscape = jobParameter.getOtherParmValue(ParameterName.LANDSCAPE);
 			rdsArn = rdsInstances.get(0).getArn();
-			if(landscape != null) {	
-				for(RdsInstance rdsInstance : rdsInstances) {
-					if(landscape.equalsIgnoreCase(rdsInstance.getBaseline())) {
-						rdsArn = rdsInstance.getArn();
-					}
+			for(RdsInstance rdsInstance : rdsInstances) {
+				if(landscape != null && landscape.equalsIgnoreCase(rdsInstance.getBaseline())) {
+					rdsArn = rdsInstance.getArn();
 				}
 			}
 		}
 		
+		logger.traceExit(m);
 		return rdsArn;
 	}
 	
 	private String getRdsArnForBaseline(JobParameter jobParameter) {
+		EntryMessage m = logger.traceEntry("getRdsArnForBaseline(jobParameter.getName()={})", jobParameter.getName());
 		
 		String rdsArn = jobParameter.getOtherParmValue(ParameterName.RDS_INSTANCES_BY_BASELINE);
 		if(rdsArn != null) {
+			logger.traceExit(m);
 			return rdsArn;
 		}
 		
@@ -368,27 +397,26 @@ public class StackCreateDelete extends AbstractJob {
 		
 		if(jobParameter.isBlank() && map.isEmpty() == false) {
 			String landscape = jobParameter.getOtherParmValue(ParameterName.LANDSCAPE);
-			if(landscape != null) {	
-				for(String baseline : map.keySet()) {
-					List<RdsInstance> rdsInstances = map.get(baseline);
-					if( ! rdsInstances.isEmpty()) {
-						if(rdsArn == null) {
-							rdsArn = rdsInstances.get(0).getArn();
-						}
-						if(baseline.equalsIgnoreCase(landscape)) {
-							rdsArn = rdsInstances.get(0).getArn();
-							break;
-						}
+			for(String baseline : map.keySet()) {
+				List<RdsInstance> rdsInstances = map.get(baseline);
+				if( ! rdsInstances.isEmpty()) {
+					if(rdsArn == null) {
+						rdsArn = rdsInstances.get(0).getArn();
+					}
+					if(baseline.equalsIgnoreCase(landscape)) {
+						rdsArn = rdsInstances.get(0).getArn();
+						break;
 					}
 				}
 			}
 		}
 		
+		logger.traceExit(m);
 		return rdsArn;
 	}
 
 	public static void main(String[] args) {
-		NamedArgs namedArgs = new NamedArgs(args);
+		NamedArgs namedArgs = new NamedArgs(new LoggingStarterImpl(new CaseInsensitiveEnvironment()), args);
 		AbstractJob job = new StackCreateDelete(new AWSCredentials(namedArgs));
 		
 		if(namedArgs.has("parameter-name")) {

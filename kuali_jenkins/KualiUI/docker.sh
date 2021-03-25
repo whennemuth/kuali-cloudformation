@@ -67,11 +67,12 @@ getJenkinsInstanceId() {
 }
 
 jenkinsPull() {
-    aws ssm send-command \
+  local loggingLevel=${LOGGING_LEVEL:-'INFO'}
+  aws ssm send-command \
     --instance-ids $(getJenkinsInstanceId) \
     --document-name "AWS-RunShellScript" \
     --comment "Refesh Active Choices" \
-    --parameters commands="sh /etc/init.d/jenkins-docker.sh refresh > /tmp/jenkins-docker-refresh.log"
+    --parameters commands="sh /etc/init.d/jenkins-docker.sh refresh $loggingLevel > /tmp/jenkins-docker-refresh.log"
 }
 
 task="$1"
@@ -95,3 +96,5 @@ case "$task" in
     jenkinsPull
     ;;
 esac
+
+# Example: sh docker.sh all password=[dockerhub password] logging_level=TRACE

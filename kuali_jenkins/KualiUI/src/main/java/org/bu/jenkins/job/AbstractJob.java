@@ -3,11 +3,14 @@ package org.bu.jenkins.job;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.lang.reflect.Constructor;
-import java.net.URLDecoder;
-import java.nio.charset.Charset;
 import java.util.Map;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.EntryMessage;
 import org.bu.jenkins.AWSCredentials;
+import org.bu.jenkins.CaseInsensitiveEnvironment;
+import org.bu.jenkins.LoggingStarterImpl;
 import org.bu.jenkins.NamedArgs;
 import org.bu.jenkins.SimpleHttpHandler;
 import org.bu.jenkins.active_choices.html.AbstractParameterView;
@@ -21,6 +24,8 @@ import org.bu.jenkins.active_choices.html.AbstractParameterView;
  *
  */
 public abstract class AbstractJob {
+	
+	private Logger logger = LogManager.getLogger(AbstractJob.class.getName());
 
 	protected AWSCredentials credentials = new AWSCredentials();
 	protected String ajaxHost;
@@ -62,6 +67,10 @@ public abstract class AbstractJob {
 	 * @return
 	 */
 	public String getRenderedJob(Map<String, String> parameters, boolean developmentMode) {
+		EntryMessage m = logger.traceEntry(
+				"getRenderedJob(parameters.size()={}, developmentMode={})", 
+				parameters==null ? "null" : parameters.size(), 
+				developmentMode);
 		StringBuilder html = new StringBuilder();
 		try {
 			html.append(getCssView())
@@ -94,15 +103,18 @@ public abstract class AbstractJob {
 				html.insert(0, "<html><body>");
 				html.append("</body></html>");
 			}
+			logger.traceExit(m, html.length());
 			return html.toString();
 		} 
 		catch (Exception e) {
 			e.printStackTrace(System.out);
+			logger.traceExit(m, e.getMessage());
 			return stackTraceToHTML(e);
 		}
 	}
 	
 	protected String getJavascriptView(boolean developmentMode) {
+		EntryMessage m = logger.traceEntry("getJavascriptView(developmentMode={})", developmentMode);
 		AbstractParameterView javascriptView = new AbstractParameterView() {
 			@Override public String getResolverPrefix() {
 				return "org/bu/jenkins/active_choices/html/job-javascript/";
@@ -112,18 +124,22 @@ public abstract class AbstractJob {
 			.setContextVariable("jobName", getJobName())
 			.setContextVariable("mode", developmentMode ? "development" : "UnoChoice")
 			.setContextVariable("ajaxHost", ajaxHost);
-		return javascriptView.render();		
+		String retval = javascriptView.render();
+		logger.traceExit(m, retval==null ? "null" : retval.length());
+		return retval;
 	}
 	
 	protected String getCssView() {
-		AbstractParameterView javascriptView = new AbstractParameterView() {
+		EntryMessage m = logger.traceEntry("getCssView()");
+		AbstractParameterView cssView = new AbstractParameterView() {
 			@Override public String getResolverPrefix() {
 				return "org/bu/jenkins/active_choices/html/job-css/";
 			} }
 			.setViewName("Stylesheet")
 			.setTemplateSelector("stack-stylesheet");
-		return javascriptView.render();		
-		
+		String retval = cssView.render();
+		logger.traceExit(m, retval==null ? "null" : retval.length());
+		return retval;
 	}
 	
 	/**
@@ -132,6 +148,10 @@ public abstract class AbstractJob {
 	 * @return
 	 */
 	protected AbstractParameterView getSparseParameterView(JobParameterConfiguration config, String resolverPrefix) throws Exception {
+		EntryMessage m = logger.traceEntry(
+				"getSparseParameterView(config.getParameterName()={}, resolverPrefix={})", 
+				config==null ? "null" : config.getParameterName(), 
+				resolverPrefix);
 		JobParameterMetadata parameter = getParameterMetadata(config.getParameterName());
 		AbstractParameterView parameterView = new AbstractParameterView() {
 			@Override public String getResolverPrefix() {
@@ -149,6 +169,7 @@ public abstract class AbstractJob {
 		if( ! config.isActiveChoices()) {
 			parameterView.setContextVariable("ParameterName", parameter.toString());
 		}
+		logger.traceExit(m, parameterView.getViewName());
 		return parameterView;
 	}
 
@@ -164,7 +185,7 @@ public abstract class AbstractJob {
 	}
 	
 	public static void main(String[] args) throws Exception {
-		NamedArgs namedArgs = new NamedArgs(args);
+		NamedArgs namedArgs = new NamedArgs(new LoggingStarterImpl(new CaseInsensitiveEnvironment()), args);
 		
 		if(namedArgs.has("job-class")) {
 			Class<?> jobclass = Class.forName(namedArgs.get("job-class"));

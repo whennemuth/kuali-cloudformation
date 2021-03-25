@@ -1,11 +1,16 @@
-package org.bu.jenkins.active_choices.model;
+package org.bu.jenkins.active_choices.dao;
 
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.EntryMessage;
 import org.bu.jenkins.AWSCredentials;
+import org.bu.jenkins.CaseInsensitiveEnvironment;
+import org.bu.jenkins.LoggingStarterImpl;
 import org.bu.jenkins.NamedArgs;
 
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
@@ -29,13 +34,17 @@ import software.amazon.awssdk.services.cloudformation.model.Tag;
  * @author wrh
  *
  */
-public class StackList extends AbstractModel {
+public class StackDAO extends AbstractDAO {
 	
-	public StackList(AWSCredentials credentials) {
+	private Logger logger = LogManager.getLogger(StackDAO.class.getName());
+	
+	public static final StackDAOCache CACHE = new StackDAOCache();
+	
+	public StackDAO(AWSCredentials credentials) {
 		super(credentials);
 	}
 	
-	public StackList(AwsCredentialsProvider provider) {
+	public StackDAO(AwsCredentialsProvider provider) {
 		super(provider);
 	}
 	
@@ -52,16 +61,26 @@ public class StackList extends AbstractModel {
 	 * This will include nested stacks.
 	 * @return
 	 */
-	public List<StackSummary> getKualiStackSummaries() {
+	public List<StackSummary> getKualiStackSummaries(boolean reload) {
+		EntryMessage m = logger.traceEntry("getKualiStackSummaries()");
+		
+		if(CACHE.stacksSummariesAlreadyLoaded() && ! reload) {
+			logger.info("++++++++ CACHE USE ++++++++ : Using cache for kuali stack summaries");
+			logger.traceExit(m);
+			return new ArrayList<StackSummary>(CACHE.getSummaries());
+		}
+
 		ListStacksResponse response = null;
 		List<StackSummary> filtered = new ArrayList<StackSummary>();
 		try {
+			logger.info("++++++++ API CALL ++++++++ : Getting kuali stack summaries");
 			response = getClient().listStacks(ListStacksRequest.builder()
 					.stackStatusFilters(getAllButDeletedStackStatuses()).build());
 			for (StackSummary summary : response.stackSummaries()) {
 				if(summary.rootId() == null) {
 					if(summary.stackName().toLowerCase().startsWith("kuali")) {
 						filtered.add(summary);
+						CACHE.put(summary);
 					}
 				}
 			}
@@ -70,6 +89,7 @@ public class StackList extends AbstractModel {
 			e.printStackTrace();
 		}
 		
+		logger.traceExit(m);
 		return filtered;
 	}
 	
@@ -78,10 +98,19 @@ public class StackList extends AbstractModel {
 	 * This will include nested stacks.
 	 * @return
 	 */
-	public List<Stack> getKualiStacks() {
+	public List<Stack> getKualiStacks(boolean reload) {
+		EntryMessage m = logger.traceEntry("getKualiStacks()");
+		
+		if(CACHE.stacksAlreadyLoaded() && ! reload) {
+			logger.info("++++++++ CACHE USE ++++++++ : Using cache for kuali stacks");
+			logger.traceExit(m);
+			return new ArrayList<Stack>(CACHE.getStacks());
+		}
+		
 		DescribeStacksResponse response = null;
 		List<Stack> filtered = new ArrayList<Stack>();
 		try {
+			logger.info("++++++++ API CALL ++++++++ : Getting kuali stacks");
 			response = getClient().describeStacks(DescribeStacksRequest.builder().build());
 			for(Stack stack : response.stacks()) {
 				if(stack.hasTags()) {
@@ -95,6 +124,7 @@ public class StackList extends AbstractModel {
 						}
 						if(foundTags == 2) {
 							filtered.add(stack);
+							CACHE.put(stack);
 							break;
 						}
 					}
@@ -105,6 +135,7 @@ public class StackList extends AbstractModel {
 			e.printStackTrace();
 		}
 		
+		logger.traceExit(m);
 		return filtered;
 	}
 	
@@ -114,7 +145,7 @@ public class StackList extends AbstractModel {
 	 * @return
 	 */
 	public List<Stack> getKualiApplicationStacks() {
-		List<Stack> stacks = getKualiStacks();
+		List<Stack> stacks = getKualiStacks(false);
 		List<Stack> filtered = new ArrayList<Stack>();
 		for(Stack stack : stacks) {
 			if(stack.rootId() == null) {
@@ -128,23 +159,6 @@ public class StackList extends AbstractModel {
 		return filtered;
 	}
 	
-	/**
-	 * Get the kuali application stack tagged for the specified landscape.
-	 * @param landscape
-	 * @return The stack, or null if no such stack can be found as tagged.
-	 */
-	public Stack getKualiApplicationStackForLandscape(String landscape) {
-		List<Stack> stacks = getKualiApplicationStacks();
-		for(Stack stack : stacks) {
-			for(Tag tag : stack.tags()) {
-				if(tag.key().equalsIgnoreCase(landscape)) {
-					return stack;
-				}
-			}
-		}
-		return null;
-	}
-	
 	public static Set<StackStatus> getAllButDeletedStackStatuses() {
 		Set<StackStatus> statuses = new HashSet<StackStatus>(StackStatus.knownValues());
 		statuses.remove(StackStatus.DELETE_COMPLETE);
@@ -152,8 +166,9 @@ public class StackList extends AbstractModel {
 	}
 	
 	public static void main(String[] args) {
-		StackList stacklist = new StackList(new AWSCredentials(new NamedArgs(args)));		
-		for (Stack stack : stacklist.getKualiStacks()) {
+		NamedArgs namedArgs = new NamedArgs(new LoggingStarterImpl(new CaseInsensitiveEnvironment()), args);
+		StackDAO dao = new StackDAO(new AWSCredentials(namedArgs));		
+		for (Stack stack : dao.getKualiStacks(false)) {
 			System.out.println(stack.stackName());
 		}
 	}

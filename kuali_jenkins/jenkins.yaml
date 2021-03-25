@@ -483,12 +483,14 @@ Resources:
                 runContainer() {
                   local port=$1
                   local jobClass=$2
+                  local logLevel=${3:-'INFO'}
                   local host=$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4 2> /dev/null)
                   docker run \
                     -d \
                     --restart unless-stopped \
                     --name $jobClass \
                     -p $port:8001 \
+                    -e logging_level=$logLevel \
                     $JENKINS_IMAGE \
                     job-class=$jobClass \
                     ajax-host=$host
@@ -496,7 +498,7 @@ Resources:
 
                 runContainers() {
                   echo "Running containers..."
-                  runContainer '8001' 'org.bu.jenkins.job.kuali.StackCreateDelete'
+                  runContainer '8001' 'org.bu.jenkins.job.kuali.StackCreateDelete' $@
                 }
 
                 task="$1"
@@ -504,15 +506,15 @@ Resources:
 
                 case "$task" in
                   start)
-                    runContainers
+                    runContainers $@
                     ;;
                   refresh)
                     killContainers
                     killImage
-                    runContainers
+                    runContainers $@
                     ;;
                   *)
-                    runContainers
+                    runContainers $@
                     ;;
                 esac
 

@@ -5,6 +5,9 @@ import java.util.Comparator;
 import java.util.Set;
 import java.util.TreeSet;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 /**
  * There are 5 basic landscapes (environments) that have traditionally been used for kuali deployments.
  * Therefore, they are enumerated here.
@@ -18,6 +21,8 @@ public enum Landscape {
 	QA(3, "qa", "Quality assurance environment", new String[] {}),
 	STAGING(4, "stg", "Staging environment", new String[] {"staging", "stage"}),
 	PRODUCTION(5, "prod", "Production environment", new String[] {"production"});
+	
+	private Logger logger = LogManager.getLogger(Landscape.class.getName());
 	
 	private String id;
 	private String description;

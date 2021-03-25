@@ -5,6 +5,9 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Map;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.EntryMessage;
 import org.bu.jenkins.SimpleHttpHandler;
 import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
@@ -20,6 +23,8 @@ import org.thymeleaf.templateresolver.ClassLoaderTemplateResolver;
  *
  */
 public abstract class AbstractParameterView implements ParameterView {
+	
+	private Logger logger = LogManager.getLogger(AbstractParameterView.class.getName());
 
 	protected Context context = new Context();
 	protected String templateSelector;
@@ -29,6 +34,7 @@ public abstract class AbstractParameterView implements ParameterView {
 
 	@Override
 	public String render() {
+		EntryMessage m = logger.traceEntry("render()");
 		try {
 			TemplateEngine engine = new TemplateEngine();
 			ClassLoaderTemplateResolver resolver = new ClassLoaderTemplateResolver();
@@ -40,11 +46,14 @@ public abstract class AbstractParameterView implements ParameterView {
 			resolver.setOrder(1);
 			engine.setTemplateResolver(resolver);
 			if(templateSelector == null) {
+				logger.traceExit(m);
 				return engine.process(viewName, context);
 			}
+			logger.traceExit(m);
 			return engine.process(viewName, new HashSet<String>(Arrays.asList(templateSelector)), context);
 		} 
 		catch (Exception e) {
+			logger.traceExit(m, e.getMessage());
 			return new ParameterErrorView(e).render();
 		}
 	}

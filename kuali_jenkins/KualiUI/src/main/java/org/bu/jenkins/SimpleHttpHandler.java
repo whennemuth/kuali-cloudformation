@@ -10,6 +10,10 @@ import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.EntryMessage;
+
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
@@ -25,6 +29,8 @@ import com.sun.net.httpserver.HttpServer;
  */
 @SuppressWarnings("restriction")
 public abstract class SimpleHttpHandler implements HttpHandler {
+	
+	private Logger logger = LogManager.getLogger(SimpleHttpHandler.class.getName());
 
 	private HttpServer server;
 	private ThreadPoolExecutor threadPoolExecutor;
@@ -33,6 +39,7 @@ public abstract class SimpleHttpHandler implements HttpHandler {
 	
 	public SimpleHttpHandler() {
 		super();
+		logger.trace("SimpleHttpHandler()");
 	}
 	
 	public abstract String getHtml(Map<String, String> parameters);
@@ -40,6 +47,7 @@ public abstract class SimpleHttpHandler implements HttpHandler {
 	@SuppressWarnings("restriction")
 	@Override
 	public void handle(HttpExchange exchange) throws IOException {
+		EntryMessage m = logger.traceEntry("handle(exchange.getRequestURI()={}", exchange.getRequestURI().toString());
 		Map<String, String> parameters = new HashMap<String, String>(); 
 		if("GET".equals(exchange.getRequestMethod())) { 
 		   parameters.putAll(handleGetRequest(exchange));
@@ -47,12 +55,14 @@ public abstract class SimpleHttpHandler implements HttpHandler {
 		else if("POST".equals(exchange.getRequestMethod())) { 
 			parameters.putAll(handlePostRequest(exchange));       
 		}
-		handleResponse(exchange, parameters); 
+		handleResponse(exchange, parameters);
+		logger.traceExit(m);
 	}
 
 	@SuppressWarnings("restriction")
 	private Map<String, String> handleGetRequest(HttpExchange exchange) {
-		System.out.println("Processing get request: " + exchange.getRequestURI().toString());
+		EntryMessage m = logger.traceEntry("handleGetRequest(exchange.getRequestURI()={}", exchange.getRequestURI().toString());
+		logger.info("Processing get request: " + exchange.getRequestURI().toString());
 		String[] parts = exchange.getRequestURI().toString().split("\\?");
 		Map<String, String> parameters = new HashMap<String, String>();
 		if(parts.length == 2) {
@@ -64,11 +74,14 @@ public abstract class SimpleHttpHandler implements HttpHandler {
 				}
 			}
 		}
+		logger.traceExit(m);
 		return parameters;
 	}
 
 	@SuppressWarnings("restriction")
 	private Map<String, String> handlePostRequest(HttpExchange exchange) {
+		EntryMessage m = logger.traceEntry("handlePostRequest(exchange.getRequestURI()={}", exchange.getRequestURI().toString());
+		logger.info("Processing post request: " + exchange.getRequestURI().toString());
 		Map<String, String> map = new HashMap<String, String>();
         Map<String, Object> parameters = (Map<String, Object>) exchange.getAttribute("parameters");
         InputStreamReader isr = null;
@@ -86,11 +99,16 @@ public abstract class SimpleHttpHandler implements HttpHandler {
 			e.printStackTrace();
 		}
 
+		logger.traceExit(m);
 		return map;
 	}
 
 	@SuppressWarnings("restriction")
 	private void handleResponse(HttpExchange exchange, Map<String, String> parameters) {
+		EntryMessage m = logger.traceEntry(
+				"handleResponse(exchange.getRequestURI()={}, parameters.size()={}", 
+				exchange.getRequestURI().toString(), 
+				parameters==null ? "null" : parameters.size());
 		OutputStream outputStream = exchange.getResponseBody();
 		try {
 			String html = getHtml(parameters);
@@ -102,18 +120,20 @@ public abstract class SimpleHttpHandler implements HttpHandler {
 		catch (IOException e) {
 			e.printStackTrace(System.out);
 		}
+		logger.traceExit(m);
 	}
 	
 	public void start() {
-		System.out.println("Begin server startup...");
+		EntryMessage m = logger.traceEntry("start()");
+		logger.info("Begin server startup...");
 		try {
 			if(isWindows()) {
-				System.out.println("Creating server as 127.0.0.1 on port " + String.valueOf(DEFAULT_PORT));
+				logger.info("Creating server as 127.0.0.1 on port " + String.valueOf(DEFAULT_PORT));
 				// Avoids bind issues, but won't work in a docker container because it does not refer to the bridge network
 				server = HttpServer.create(new InetSocketAddress("127.0.0.1", DEFAULT_PORT), 0);
 			}
 			else {
-				System.out.println("Creating server on port " + String.valueOf(DEFAULT_PORT));
+				logger.info("Creating server on port " + String.valueOf(DEFAULT_PORT));
 				server = HttpServer.create(new InetSocketAddress(DEFAULT_PORT), 0);
 			}
 			server.createContext(CONTEXT, this);
@@ -124,7 +144,7 @@ public abstract class SimpleHttpHandler implements HttpHandler {
 		catch (IOException e) {
 			e.printStackTrace(System.out);
 		}		
-		
+		logger.traceExit(m);
 	}
 	
 	private boolean isWindows() {
@@ -149,7 +169,7 @@ public abstract class SimpleHttpHandler implements HttpHandler {
 	}
 
 	public static void main(String[] args) {
-		NamedArgs namedArgs = new NamedArgs(args);
+		NamedArgs namedArgs = new NamedArgs(new LoggingStarterImpl(new CaseInsensitiveEnvironment()), args);
 		SimpleHttpHandler handler = new SimpleHttpHandler() {
 			@Override
 			public String getHtml(Map<String, String> map) {

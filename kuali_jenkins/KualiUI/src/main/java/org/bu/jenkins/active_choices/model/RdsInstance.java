@@ -8,7 +8,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.EntryMessage;
+
 public class RdsInstance {
+	
+	private Logger logger = LogManager.getLogger(RdsInstance.class.getName());
 
 	private String arn;
 	private Map<String, String> tags = new HashMap<String, String>();
@@ -66,8 +72,10 @@ public class RdsInstance {
 	 * @return
 	 */
 	public List<RdsSnapshot> getAutomaticallyCreatedSnapshots() {
+		EntryMessage m = logger.traceEntry("getAutomaticallyCreatedSnapshots()");
 		List<RdsSnapshot> manual = new ArrayList<RdsSnapshot>(getSnapshots());
 		manual.removeIf(snapshot -> (!snapshot.getType().equalsIgnoreCase("automated")));
+		logger.traceExit(m);
 		return manual;
 	}
 	
@@ -77,27 +85,37 @@ public class RdsInstance {
 	 * @return
 	 */
 	public List<RdsSnapshot> getManuallyCreatedSnapshots() {
+		EntryMessage m = logger.traceEntry("getManuallyCreatedSnapshots()");
 		List<RdsSnapshot> manual = new ArrayList<RdsSnapshot>(getSnapshots());
 		manual.removeIf(snapshot -> (!snapshot.getType().equalsIgnoreCase("manual")));
+		logger.traceExit(m);
 		return manual;
 	}
 
 	public RdsInstance setSnapshots(Set<RdsSnapshot> snapshots) {
-		if(snapshots == null || snapshots.isEmpty())
+		EntryMessage m = logger.traceEntry("setSnapshots(snapshots.size()={})", snapshots==null ? "null" : snapshots.size());
+		if(snapshots == null || snapshots.isEmpty()) {
+			logger.traceExit(m, this.getArn());
 			return this;
+		}
 		for(RdsSnapshot snapshot: snapshots) {
 			putSnapshot(snapshot);
 		}
+		logger.traceExit(m, this.getArn());
 		return this;
 	}
 	
 	public RdsInstance putSnapshot(RdsSnapshot snapshot) {
-		if(snapshot == null)
+		EntryMessage m = logger.traceEntry("putSnapshot(snapshot={})", snapshot==null ? "null" : snapshot.getArn());
+		if(snapshot == null) {
+			logger.traceExit(m, this.getArn());
 			return this;
+		}
 		if(this.snapshots == null)
 			this.snapshots = new HashSet<RdsSnapshot>();
 		snapshot.setRdsInstance(this);
 		this.snapshots.add(snapshot);
+		logger.traceExit(m, this.getArn());
 		return this;
 	}
 	

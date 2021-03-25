@@ -2,6 +2,11 @@ package org.bu.jenkins;
 
 import java.util.LinkedList;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.EntryMessage;
+import org.bu.jenkins.active_choices.dao.StackDAO;
+
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProviderChain;
@@ -20,13 +25,16 @@ import software.amazon.awssdk.auth.credentials.SystemPropertyCredentialsProvider
  */
 public class AWSCredentials {
 	
+	private Logger logger = LogManager.getLogger(AWSCredentials.class.getName());
+	
 	private NamedArgs args;
 	private RuntimeException exception;
 	
 	public AWSCredentials() { }
 
 	public AWSCredentials(String profile) {
-		this.args = new NamedArgs().set("profile", profile);
+		NamedArgs namedArgs = new NamedArgs(new LoggingStarterImpl(new CaseInsensitiveEnvironment()));
+		this.args = namedArgs.set("profile", profile);
 	}
 	
 	public AWSCredentials(NamedArgs args) {		
@@ -40,6 +48,7 @@ public class AWSCredentials {
 	 * @return
 	 */
 	private boolean unresolvable(AwsCredentialsProvider provider) {
+		EntryMessage m = logger.traceEntry("unresolvable(provider=[Object])");
 		@SuppressWarnings("unused")
 		AwsCredentials credentials = null;
 		try {
@@ -48,8 +57,10 @@ public class AWSCredentials {
 		} 
 		catch (RuntimeException e) {
 			exception = e;
+			logger.traceExit(m, "true");
 			return true;
 		}
+		logger.traceExit(m, "false");
 		return false;
 	}
 	
@@ -66,6 +77,7 @@ public class AWSCredentials {
 	 * @return
 	 */
 	public AwsCredentialsProvider getProvider() {
+		EntryMessage m = logger.traceEntry("getProvider()");
 		AwsCredentialsProvider provider = null;
 		LinkedList<AwsCredentialsProvider> chain = new LinkedList<AwsCredentialsProvider>();
 		chain.add(EnvironmentVariableCredentialsProvider.create());
@@ -82,10 +94,12 @@ public class AWSCredentials {
 		provider = AwsCredentialsProviderChain.builder().credentialsProviders(chain).build();
 		
 		if(unresolvable(provider)) {
-			System.out.println("No valid credentials could be found along provider chain!");
+			logger.warn("No valid credentials could be found along provider chain!");
+			logger.traceExit(m, "null");
 			return null;
 		}
 		
+		logger.traceExit(m, "[Object]");
 		return provider;
 	}
 }

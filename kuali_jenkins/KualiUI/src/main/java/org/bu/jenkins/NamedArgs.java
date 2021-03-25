@@ -17,11 +17,16 @@ public class NamedArgs {
 	Map<String, String> namedArgs = new HashMap<String, String>();
 	Set<String> unamedArgs = new HashSet<String>();
 	
-	public NamedArgs() {
+	public NamedArgs(LoggingStarter loggingStarter) {
 		super();
+		loggingStarter.start(this);
 	}
 	
-	public NamedArgs(String[] args) {
+	public NamedArgs(LoggingStarter loggingStarter, String[] args) {
+		System.out.println(String.format(
+				"NamedArgs(loggingStarter%s, args=%s", 
+				loggingStarter==null ? "null" : loggingStarter.hashCode(),
+				args==null ? "null" : args.length));
 		for(String arg : args) {
 			String[] parts = arg.split("=");
 			if(parts.length > 1) {
@@ -31,6 +36,7 @@ public class NamedArgs {
 				unamedArgs.add(parts[0]);
 			}
 		}
+		loggingStarter.start(this);
 	}
 	
 	public NamedArgs set(String key, String value) {

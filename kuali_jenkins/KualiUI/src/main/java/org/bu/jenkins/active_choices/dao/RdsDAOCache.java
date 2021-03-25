@@ -5,9 +5,14 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.EntryMessage;
 import org.bu.jenkins.active_choices.model.RdsInstance;
 
 public class RdsDAOCache {
+	
+	private Logger logger = LogManager.getLogger(RdsDAOCache.class.getName());
 
 	private Map<String, RdsInstance> cache = new HashMap<String, RdsInstance>();	
 	
@@ -16,6 +21,7 @@ public class RdsDAOCache {
 	}
 	
 	public RdsDAOCache add(RdsInstance instance) {
+		EntryMessage m = logger.traceEntry("add(instance.getArn()={}", instance==null ? "null" : instance.getArn());
 		RdsInstance cached = cache.get(instance.getArn());
 		if(cached == null) {
 			cache.put(instance.getArn(), instance);
@@ -30,6 +36,7 @@ public class RdsDAOCache {
 			cache.put(cached.getArn(), cached);
 		}	
 		
+		logger.traceExit(m);
 		return this;
 	}
 
@@ -45,11 +52,14 @@ public class RdsDAOCache {
 	}
 	
 	public RdsInstance getItem(TestItem tester) {
+		EntryMessage m = logger.traceEntry("getItem(tester={}", tester==null ? "null" : tester.hashCode());
 		for(Entry<String, RdsInstance> entry : cache.entrySet()) {
 			if(tester.match(entry.getValue())) {
+				logger.traceExit(m, entry.getKey());
 				return entry.getValue();
 			}
 		}
+		logger.traceExit(m, "null");
 		return null;
 	}
 	

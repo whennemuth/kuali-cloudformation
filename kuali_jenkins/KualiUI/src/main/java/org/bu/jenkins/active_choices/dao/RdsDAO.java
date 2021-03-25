@@ -9,6 +9,8 @@ import java.util.Map.Entry;
 import java.util.TreeMap;
 
 import org.bu.jenkins.AWSCredentials;
+import org.bu.jenkins.CaseInsensitiveEnvironment;
+import org.bu.jenkins.LoggingStarterImpl;
 import org.bu.jenkins.NamedArgs;
 import org.bu.jenkins.active_choices.dao.RdsDAOCache.ProcessItem;
 import org.bu.jenkins.active_choices.dao.RdsDAOCache.TestItem;
@@ -31,8 +33,15 @@ import software.amazon.awssdk.services.resourcegroupstaggingapi.model.GetResourc
 import software.amazon.awssdk.services.resourcegroupstaggingapi.model.ResourceTagMapping;
 import software.amazon.awssdk.services.resourcegroupstaggingapi.model.TagFilter;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.EntryMessage;
+import org.apache.logging.log4j.LogManager;
+
+
 public class RdsDAO extends AbstractDAO {
 
+	private Logger logger = LogManager.getLogger(RdsDAO.class.getName());
+	
 	public static final RdsDAOCache CACHE = new RdsDAOCache();
 	
 	public RdsDAO(AwsCredentialsProvider provider) {
@@ -83,7 +92,12 @@ public class RdsDAO extends AbstractDAO {
 	 * @param loadSnapshots
 	 */
 	private void loadAllKualiRdsInstances(boolean reload, boolean loadSnapshots) {
+		
+		EntryMessage m = logger.traceEntry("loadAllKualiRdsInstances(reload={}, loadSnapshots={})", reload, loadSnapshots);
+		
 		if(CACHE.alreadyLoaded() && ! reload) {
+			logger.info("++++++++ CACHE USE ++++++++ : Using cached resource mapping list for kuali rds instances");
+			logger.traceExit(m);
 			return;
 		}
 		try {
@@ -100,6 +114,7 @@ public class RdsDAO extends AbstractDAO {
 					.httpClient(ApacheHttpClient.builder().build())
 					.build();
 			
+			logger.info("++++++++ API CALL ++++++++ : Making api call for resource mapping list for kuali rds instances...");
 			GetResourcesResponse response = client.getResources(request);
 			if(response.hasResourceTagMappingList()) {
 				
@@ -121,6 +136,8 @@ public class RdsDAO extends AbstractDAO {
 		catch (AwsServiceException | SdkClientException e) {
 			e.printStackTrace();
 		}
+		
+		logger.traceExit(m);
 	}
 
 	/**
@@ -170,8 +187,13 @@ public class RdsDAO extends AbstractDAO {
 	 * Make the aws api calls to get the snapshot data for the specified rds instance.
 	 */
 	private RdsInstance loadSnapshots(RdsInstance rdsInstance) {
-		if(rdsInstance.snapshotsLoaded())
+		
+		EntryMessage m = logger.traceEntry("loadSnapshots(RdsInstance.getArn()={})", rdsInstance.getArn());
+		
+		if(rdsInstance.snapshotsLoaded()) {
+			logger.info("++++++++ CACHE USE ++++++++ : Snapshots already loaded for {}", rdsInstance.getArn());
 			return rdsInstance;
+		}
 		if(hasValue(rdsInstance.getArn())) {
 			try {
 				DescribeDbSnapshotsRequest request = DescribeDbSnapshotsRequest.builder()
@@ -184,6 +206,7 @@ public class RdsDAO extends AbstractDAO {
 						.httpClient(ApacheHttpClient.builder().build())
 						.build();
 				
+				logger.info("++++++++ API CALL ++++++++ : Loading snapshots for {}...", rdsInstance.getArn());
 				DescribeDbSnapshotsResponse response = client.describeDBSnapshots(request);
 				
 				if(response.hasDbSnapshots()) {
@@ -203,6 +226,7 @@ public class RdsDAO extends AbstractDAO {
 				e.printStackTrace();
 			}
 		}
+		logger.traceExit(m);
 		return rdsInstance;
 	}
 		
@@ -272,7 +296,7 @@ public class RdsDAO extends AbstractDAO {
 	}
 	
 	public static void main(String[] args) {
-		NamedArgs namedArgs = new NamedArgs(args);
+		NamedArgs namedArgs = new NamedArgs(new LoggingStarterImpl(new CaseInsensitiveEnvironment()), args);
 		if( ! namedArgs.has("task")) {
 			System.out.println("Missing: task parameter");
 			return;

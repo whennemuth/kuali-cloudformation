@@ -3,6 +3,7 @@ package org.bu.jenkins.active_choices.model;
 import java.time.Instant;
 
 public class RdsSnapshot {
+	
 	private RdsInstance rdsInstance;
 	private Instant creationTime;
 	private String arn;
