@@ -16,6 +16,13 @@ import org.bu.jenkins.active_choices.model.CloudformationStack;
 import software.amazon.awssdk.services.cloudformation.model.Stack;
 import software.amazon.awssdk.services.cloudformation.model.StackSummary;
 
+/**
+ * Store the return values of api calls for stack resource and summary information so that repeat calls 
+ * for the same or overlapping information need not be made. This is a primary performance optimization.
+ * 
+ * @author wrh
+ *
+ */
 public class StackDAOCache {
 	
 	private Logger logger = LogManager.getLogger(StackDAOCache.class.getName());
@@ -91,5 +98,9 @@ public class StackDAOCache {
 		catch (NoSuchMethodException | SecurityException | InvocationTargetException | IllegalAccessException e) {
 			e.printStackTrace();
 		}
+	}
+	
+	public void flush() {
+		cache.clear();
 	}
 }

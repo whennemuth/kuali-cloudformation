@@ -44,7 +44,6 @@ public abstract class SimpleHttpHandler implements HttpHandler {
 	
 	public abstract String getHtml(Map<String, String> parameters);
 	
-	@SuppressWarnings("restriction")
 	@Override
 	public void handle(HttpExchange exchange) throws IOException {
 		EntryMessage m = logger.traceEntry("handle(exchange.getRequestURI()={}", exchange.getRequestURI().toString());
@@ -59,7 +58,6 @@ public abstract class SimpleHttpHandler implements HttpHandler {
 		logger.traceExit(m);
 	}
 
-	@SuppressWarnings("restriction")
 	private Map<String, String> handleGetRequest(HttpExchange exchange) {
 		EntryMessage m = logger.traceEntry("handleGetRequest(exchange.getRequestURI()={}", exchange.getRequestURI().toString());
 		logger.info("Processing get request: " + exchange.getRequestURI().toString());
@@ -78,7 +76,6 @@ public abstract class SimpleHttpHandler implements HttpHandler {
 		return parameters;
 	}
 
-	@SuppressWarnings("restriction")
 	private Map<String, String> handlePostRequest(HttpExchange exchange) {
 		EntryMessage m = logger.traceEntry("handlePostRequest(exchange.getRequestURI()={}", exchange.getRequestURI().toString());
 		logger.info("Processing post request: " + exchange.getRequestURI().toString());
@@ -103,7 +100,6 @@ public abstract class SimpleHttpHandler implements HttpHandler {
 		return map;
 	}
 
-	@SuppressWarnings("restriction")
 	private void handleResponse(HttpExchange exchange, Map<String, String> parameters) {
 		EntryMessage m = logger.traceEntry(
 				"handleResponse(exchange.getRequestURI()={}, parameters.size()={}", 
@@ -152,7 +148,6 @@ public abstract class SimpleHttpHandler implements HttpHandler {
 		return name.toLowerCase().contains("window");
 	}
 	
-	@SuppressWarnings("restriction")
 	public void visitWithBrowser(boolean keepRunning) {
 		try {
 			start();

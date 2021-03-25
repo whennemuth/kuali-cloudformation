@@ -5,6 +5,7 @@ import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -41,6 +42,25 @@ public class StackCreateDelete extends AbstractJob {
 	
 	public StackCreateDelete() {
 		this.credentials = AWSCredentials.getInstance();
+	}
+
+	@Override
+	public boolean isPageRefresh(Map<String, String> parameters) {
+		if(parameters.isEmpty()) {
+			logger.info("New or refreshed page");
+			return true;
+		}
+		for(Entry<String, String> p : parameters.entrySet()) {
+			logger.debug("          {}: {}", p.getKey(), p.getValue());
+		}
+		return false;
+	}
+
+	@Override
+	public void flushCache() {
+		logger.info("Flushing cache...");
+		StackDAO.CACHE.flush();
+		RdsDAO.CACHE.flush();
 	}
 	
 	public static enum ParameterName implements JobParameterMetadata {
@@ -168,7 +188,7 @@ public class StackCreateDelete extends AbstractJob {
 						case ADVANCED_KEEP_LAMBDA_LOGS: 
 						case ADVANCED_MANUAL_ENTRIES:
 							// These views are to be rendered as a sub view of other views view, so deactivate it here.
-							logger.debug("Rendering: {}", ParameterName.ADVANCED_MANUAL_ENTRIES.name());
+							logger.debug("Skipping rendering: {}", parameter.name());
 							parameterView.setContextVariable("deactivate", true);
 							break;
 						case AUTHENTICATION:

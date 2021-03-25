@@ -10,6 +10,13 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.EntryMessage;
 import org.bu.jenkins.active_choices.model.RdsInstance;
 
+/**
+ * Store the return values of api calls for rds resource information so that repeat calls for the same or overlapping information need not be made.
+ * This is a primary performance optimization.
+ * 
+ * @author wrh
+ *
+ */
 public class RdsDAOCache {
 	
 	private Logger logger = LogManager.getLogger(RdsDAOCache.class.getName());
@@ -43,6 +50,10 @@ public class RdsDAOCache {
 	public RdsDAOCache remove(RdsInstance instance) {
 		cache.remove(instance.getArn());
 		return this;
+	}
+	
+	public void flush() {
+		cache.clear();
 	}
 	
 	public void processAll(ProcessItem processor) {

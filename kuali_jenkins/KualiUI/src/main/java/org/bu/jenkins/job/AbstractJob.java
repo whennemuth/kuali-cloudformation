@@ -42,6 +42,10 @@ public abstract class AbstractJob {
 	
 	public abstract void checkJobParameterConfig(JobParameterConfiguration config);
 	
+	public abstract boolean isPageRefresh(Map<String, String> parameters);
+	
+	public abstract void flushCache();
+	
 	public String getAjaxHost() {
 		return ajaxHost;
 	}
@@ -71,7 +75,12 @@ public abstract class AbstractJob {
 				"getRenderedJob(parameters.size()={}, developmentMode={})", 
 				parameters==null ? "null" : parameters.size(), 
 				developmentMode);
-		StringBuilder html = new StringBuilder();
+		
+		if(isPageRefresh(parameters)) {
+			flushCache();
+		}
+				
+ 		StringBuilder html = new StringBuilder();
 		try {
 			html.append(getCssView())
 				.append("<form method='GET' name='kuali-parameters' id='kuali-parameters'>")
@@ -112,7 +121,7 @@ public abstract class AbstractJob {
 			return stackTraceToHTML(e);
 		}
 	}
-	
+
 	protected String getJavascriptView(boolean developmentMode) {
 		EntryMessage m = logger.traceEntry("getJavascriptView(developmentMode={})", developmentMode);
 		AbstractParameterView javascriptView = new AbstractParameterView() {
