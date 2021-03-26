@@ -75,8 +75,8 @@ public class StackCreateDelete extends AbstractJob {
 		WAF("WAF", "waf"),
 		ALB("ALB", "alb"),
 		RDS_SOURCE("RDS", "rds-source"),
-		RDS_INSTANCES_BY_BASELINE("RDS", "rds-instances-by-baseline"),
-		RDS_INSTANCES_BY_LANDSCAPE("RDS", "rds-instances-by-landscape"),
+		RDS_INSTANCE_BY_BASELINE("RDS", "rds-instances-by-baseline"),
+		RDS_INSTANCE_BY_LANDSCAPE("RDS", "rds-instances-by-landscape"),
 		RDS_SNAPSHOT("RDS", "rds-snapshot"),
 		RDS_WARNING("RDS", "rds-warning"),
 		MONGO("Mongo", "mongo"),
@@ -268,8 +268,8 @@ public class StackCreateDelete extends AbstractJob {
 								}								
 							}
 							break;
-						case RDS_INSTANCES_BY_LANDSCAPE:
-							logger.debug("Rendering: {}", ParameterName.RDS_INSTANCES_BY_LANDSCAPE.name());
+						case RDS_INSTANCE_BY_LANDSCAPE:
+							logger.debug("Rendering: {}", ParameterName.RDS_INSTANCE_BY_LANDSCAPE.name());
 							if(jobParameter.otherParmSetWith(ParameterName.RDS_SOURCE, "instance")) {
 								List<RdsInstance> rdsInstances = new ArrayList<RdsInstance>(rdsDAO.getDeployedKualiRdsInstances());
 								parameterView.setContextVariable("rdsInstances", rdsInstances);								
@@ -278,8 +278,8 @@ public class StackCreateDelete extends AbstractJob {
 							}
 							parameterView.setContextVariable("include", include);
 							break;
-						case RDS_INSTANCES_BY_BASELINE:
-							logger.debug("Rendering: {}", ParameterName.RDS_INSTANCES_BY_BASELINE.name());
+						case RDS_INSTANCE_BY_BASELINE:
+							logger.debug("Rendering: {}", ParameterName.RDS_INSTANCE_BY_BASELINE.name());
 							if(jobParameter.otherParmSetWith(ParameterName.RDS_SOURCE, "snapshot")) {
 								Map<String, List<RdsInstance>> map = rdsDAO.getDeployedKualiRdsInstancesGroupedByBaseline();
 								parameterView.setContextVariable("rdsArnsByBaseline", map);
@@ -381,7 +381,7 @@ public class StackCreateDelete extends AbstractJob {
 	private String getRdsArnForLandscape(JobParameter jobParameter) {
 		EntryMessage m = logger.traceEntry("getRdsArnForLandscape(jobParameter.getName()={})", jobParameter.getName());
 		
-		String rdsArn = jobParameter.getOtherParmValue(ParameterName.RDS_INSTANCES_BY_LANDSCAPE);
+		String rdsArn = jobParameter.getOtherParmValue(ParameterName.RDS_INSTANCE_BY_LANDSCAPE);
 		if(rdsArn != null) {
 			logger.traceExit(m);
 			return rdsArn;
@@ -407,7 +407,7 @@ public class StackCreateDelete extends AbstractJob {
 	private String getRdsArnForBaseline(JobParameter jobParameter) {
 		EntryMessage m = logger.traceEntry("getRdsArnForBaseline(jobParameter.getName()={})", jobParameter.getName());
 		
-		String rdsArn = jobParameter.getOtherParmValue(ParameterName.RDS_INSTANCES_BY_BASELINE);
+		String rdsArn = jobParameter.getOtherParmValue(ParameterName.RDS_INSTANCE_BY_BASELINE);
 		if(rdsArn != null) {
 			logger.traceExit(m);
 			return rdsArn;
