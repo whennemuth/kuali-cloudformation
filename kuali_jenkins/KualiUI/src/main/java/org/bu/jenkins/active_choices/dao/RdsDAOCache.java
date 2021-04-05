@@ -20,8 +20,8 @@ import org.bu.jenkins.active_choices.model.RdsInstance;
 public class RdsDAOCache {
 	
 	private Logger logger = LogManager.getLogger(RdsDAOCache.class.getName());
-
-	private Map<String, RdsInstance> cache = new HashMap<String, RdsInstance>();	
+	private Map<String, RdsInstance> cache = new HashMap<String, RdsInstance>();
+	private boolean flushable = true;
 	
 	public boolean alreadyLoaded() {
 		return cache.isEmpty() == false;
@@ -53,7 +53,13 @@ public class RdsDAOCache {
 	}
 	
 	public void flush() {
-		cache.clear();
+		if(flushable) {
+			cache.clear();
+		}
+	}
+
+	public void setFlushable(boolean flushable) {
+		this.flushable = flushable;
 	}
 	
 	public void processAll(ProcessItem processor) {
@@ -88,6 +94,12 @@ public class RdsDAOCache {
 
 	public void put(String arn, RdsInstance instance) {
 		cache.put(arn, instance);
+	}
+	
+	public void putAll(Collection<RdsInstance> instances) {
+		for(RdsInstance instance : instances) {
+			cache.put(instance.getArn(), instance);
+		}
 	}
 	
 	public Collection<RdsInstance> getValues() {

@@ -5,13 +5,23 @@
   <body>
   	<div th:fragment="stack-list-table" class="kuali-field-wrapper">
   	    <table>
-	    <tr><th colspan=5 class=top>Currrent cloudformation stacks for Kuali</th></tr>
+	    <tr><th colspan=5 class=top>Current cloudformation stacks for Kuali</th></tr>
 	    <tr>
 		    <th>Name</th>
 		    <th>Created</th>
 		    <th>Updated</th>
 		    <th>Status</th>
-		    <th>&nbsp;</th>
+		    <th valign="middle" style="padding-left: 10px;">
+		    	<div style="float:left; padding-top:3px;">
+		        	<input 
+		        		type="radio" 
+		        		onchange="sendData();"
+		        		th:value="none"  
+		        		th:name="${ParameterName} ?: 'value'" 
+		        		th:checked="${ParameterValue=='none'}">
+		    	</div>
+	        	<div style="float:left; padding-left:5px; padding-top:5px; font-style: italic; font-weight: normal;">reset</div>
+			</th>
 	    </tr>
 	    <tr th:each="stack : ${stacks}">
 	        <td th:text="${stack.stackName}"></td>

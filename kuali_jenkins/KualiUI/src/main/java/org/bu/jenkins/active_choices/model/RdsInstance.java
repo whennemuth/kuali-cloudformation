@@ -7,6 +7,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -38,8 +39,9 @@ public class RdsInstance {
 	public String getArn() {
 		return arn;
 	}
-	public void setArn(String arn) {
+	public RdsInstance setArn(String arn) {
 		this.arn = arn;
+		return this;
 	}
 	
 	public String getLandscape() {
@@ -53,11 +55,13 @@ public class RdsInstance {
 	public Map<String, String> getTags() {
 		return tags;
 	}
-	public void setTags(Map<String, String> tags) {
+	public RdsInstance setTags(Map<String, String> tags) {
 		this.tags.putAll(tags);
+		return this;
 	}
-	public void putTag(String key, String value) {
+	public RdsInstance putTag(String key, String value) {
 		this.tags.put(key, value);
+		return this;
 	}
 	
 	public Set<RdsSnapshot> getSnapshots() {
@@ -71,9 +75,9 @@ public class RdsInstance {
 	 * 
 	 * @return
 	 */
-	public List<RdsSnapshot> getAutomaticallyCreatedSnapshots() {
+	public Set<RdsSnapshot> getAutomaticallyCreatedSnapshots() {
 		EntryMessage m = logger.traceEntry("getAutomaticallyCreatedSnapshots()");
-		List<RdsSnapshot> manual = new ArrayList<RdsSnapshot>(getSnapshots());
+		Set<RdsSnapshot> manual = new TreeSet<RdsSnapshot>(getSnapshots());
 		manual.removeIf(snapshot -> (!snapshot.getType().equalsIgnoreCase("automated")));
 		logger.traceExit(m);
 		return manual;
@@ -84,9 +88,9 @@ public class RdsInstance {
 	 * 
 	 * @return
 	 */
-	public List<RdsSnapshot> getManuallyCreatedSnapshots() {
+	public Set<RdsSnapshot> getManuallyCreatedSnapshots() {
 		EntryMessage m = logger.traceEntry("getManuallyCreatedSnapshots()");
-		List<RdsSnapshot> manual = new ArrayList<RdsSnapshot>(getSnapshots());
+		Set<RdsSnapshot> manual = new TreeSet<RdsSnapshot>(getSnapshots());
 		manual.removeIf(snapshot -> (!snapshot.getType().equalsIgnoreCase("manual")));
 		logger.traceExit(m);
 		return manual;

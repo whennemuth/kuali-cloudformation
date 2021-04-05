@@ -32,6 +32,25 @@ public class JobParameter {
 		return getOtherParmValue(name);
 	}
 	
+	public void setValue(String value) {
+		allParameters.put(name, value);
+	}
+	
+	public boolean hasValue(String value) {
+		if(getValue() == null) return false;
+		if(getValue().equalsIgnoreCase(value)) return true;
+		return false;
+	}
+	
+	public boolean hasAnyValue(String...values) {
+		for(String value : values) {
+			if(hasValue(value)) {
+				return true;
+			}
+		}
+		return false;
+	}
+	
 	public boolean isChecked() {
 		return "true".equalsIgnoreCase(getValue());
 	}

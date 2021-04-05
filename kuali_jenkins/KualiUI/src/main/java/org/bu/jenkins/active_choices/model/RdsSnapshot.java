@@ -2,7 +2,7 @@ package org.bu.jenkins.active_choices.model;
 
 import java.time.Instant;
 
-public class RdsSnapshot {
+public class RdsSnapshot implements Comparable<RdsSnapshot> {
 	
 	private RdsInstance rdsInstance;
 	private Instant creationTime;
@@ -27,8 +27,9 @@ public class RdsSnapshot {
 	public RdsInstance getRdsInstance() {
 		return rdsInstance;
 	}
-	public void setRdsInstance(RdsInstance rdsInstance) {
+	public RdsSnapshot setRdsInstance(RdsInstance rdsInstance) {
 		this.rdsInstance = rdsInstance;
+		return this;
 	}
 	@Override
 	public String toString() {
@@ -77,5 +78,16 @@ public class RdsSnapshot {
 		} else if (!type.equals(other.type))
 			return false;
 		return true;
+	}
+	/**
+	 * Compare by reverse creation date order
+	 */
+	@Override
+	public int compareTo(RdsSnapshot snapshot) {
+		if(this.creationTime != null && snapshot.creationTime != null) {
+			if(this.creationTime.isAfter(snapshot.creationTime)) return -1;
+			if(this.creationTime.isBefore(snapshot.creationTime)) return 1;
+		}
+		return 0;
 	}
 }

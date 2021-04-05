@@ -14,6 +14,14 @@
         	th:checked="${ParameterValue=='create'}" >
         <label>Create stack</label><br>
         <div>
+	        <input 
+	        	type="radio"
+	        	value="recreate" 
+		        onchange="sendData();"
+	        	th:name="${ParameterName} ?: 'value'" 
+	        	th:disabled="${!stackSelected}" 
+	        	th:checked="${ParameterValue=='recreate'}" >
+	        <label th:attr="style=${!stackSelected} ? 'color:#AAAAAA' : _">Recreate stack</label><br>
 	        <input
 	        	type="radio" 
 	        	value="delete" 

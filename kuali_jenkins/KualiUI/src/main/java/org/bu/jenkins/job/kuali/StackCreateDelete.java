@@ -152,7 +152,7 @@ public class StackCreateDelete extends AbstractJob {
 		ParameterName parameter = ParameterName.valueOf(config.getParameterName());
 		
 		JobParameter jobParameter = new JobParameter(parameter, config.getParameterMap());
-		if( ! jobParameter.otherParmBlank(ParameterName.STACK)) {
+		if( stackSelected(jobParameter)) {
 			parameterView.setContextVariable("stackSelected", true);
 		}
 		switch(parameter) {
@@ -163,13 +163,18 @@ public class StackCreateDelete extends AbstractJob {
 				break;
 			case STACK_ACTION:
 				logger.debug("Rendering: {}", ParameterName.STACK_ACTION.name());
-				if( ! jobParameter.otherParmBlank(ParameterName.STACK)) {
+				if(stackSelected(jobParameter)) {
 					parameterView.setContextVariable("stackSelected", true);
+				}
+				else if(jobParameter.hasAnyValue("create", "recreate")) {
+					jobParameter.setValue(null);
+					parameterView.setContextVariable(ParameterName.STACK_ACTION.name(), null);
 				}
 				break;
 			default:
-				if( ! jobParameter.otherParmSetWith(ParameterName.STACK_ACTION, "create")) {
+				if(jobParameter.otherParmSetWith(ParameterName.STACK_ACTION, "delete")) {
 					parameterView.setContextVariable("deactivate", true);
+					parameterView.setContextVariable(ParameterName.STACK_ACTION.name(), null);
 				}
 				else {
 					RdsDAO rdsDAO = new RdsDAO(credentials);
@@ -433,6 +438,11 @@ public class StackCreateDelete extends AbstractJob {
 		
 		logger.traceExit(m);
 		return rdsArn;
+	}
+	
+	private boolean stackSelected(JobParameter jobParameter) {
+		return ! jobParameter.otherParmBlank(ParameterName.STACK) && 
+				 jobParameter.otherParmNotSetWith(ParameterName.STACK.name(), "none");
 	}
 
 	public static void main(String[] args) {

@@ -25,9 +25,9 @@ import software.amazon.awssdk.services.cloudformation.model.StackSummary;
  */
 public class StackDAOCache {
 	
-	private Logger logger = LogManager.getLogger(StackDAOCache.class.getName());
-	
-	private Map<String, CloudformationStack> cache = new HashMap<String, CloudformationStack>();
+	private Logger logger = LogManager.getLogger(StackDAOCache.class.getName());	
+	private Map<String, CloudformationStack> cache = new HashMap<String, CloudformationStack>();	
+	private boolean flushable = true;
 
 	public boolean stacksSummariesAlreadyLoaded() {
 		return alreadyLoaded(StackSummary.class);
@@ -101,6 +101,13 @@ public class StackDAOCache {
 	}
 	
 	public void flush() {
-		cache.clear();
+		if(flushable) {
+			cache.clear();
+		}
 	}
+
+	public void setFlushable(boolean flushable) {
+		this.flushable = flushable;
+	}
+	
 }

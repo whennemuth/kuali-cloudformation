@@ -1,6 +1,6 @@
 ## Kuali Research Single EC2 instance creation
 
-Use this template to perform the simplest form of deployment for kuali research, a single publicly addressable ec2 instance application host.
+Use this template to perform the simplest form of deployment for kuali research, a single privately addressable ec2 instance application host.
     
 ![layout](./diagram1.png)
 
@@ -9,7 +9,8 @@ Use this template to perform the simplest form of deployment for kuali research,
 ### Features:
 
 1. **EC2:**
-   A single EC2 instance running the application modules and optionally a second EC2 instance running several mongo databases.te ip address.
+   A single EC2 instance running the application modules and optionally a second EC2 instance running several mongo databases.
+   There is no hostname for the application and the tcp/ip address for the ec2 instance is used and is only reachable if logged in through the appropriate campus vpn.
 2. **Docker:**
    Part of EC2 initialization includes starting up docker containers for kc, core, dashboard and pdf modules.
 3. **Nginx:**
