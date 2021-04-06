@@ -353,7 +353,7 @@ Conditions:
   CreateJumpboxInstance: !Not [!Equals [!Ref JumpboxInstanceType, none]]
   MonoCampusSubnet: !Equals [!Ref CampusSubnetCIDR1, !Ref CampusSubnetCIDR2]
   LogGroupRetentionSpecified: !Not [!Equals [!Ref LogGroupRetention, 0]]
-  IncludeSAPBW: !Or [ !Equals [!Ref Baseline, 'stg'], !Equals [!Ref Baseline, 'prod']]
+  IncludeSAPBW: !Or [ Condition: IsStagingBaseline, Condition: IsProdBaseline]
   ExcludeSAPBW: !Not [ Condition: IncludeSAPBW ]
   IncludeSAPBWProd: !And [ Condition: IncludeSAPBW, Condition: IsProdBaseline ]
   ExcludeSAPBWProd: !Not [ Condition: IncludeSAPBWProd ]
@@ -463,7 +463,7 @@ Resources:
             ToPort: !Ref Port
             CidrIp: !FindInMap [ SAPBWCidrs, !Ref Baseline, "cidr3" ]
         - !If
-          - IsProdBaseline
+          - ExcludeSAPBWProd
           - !Ref AWS::NoValue
           - Description: !Sub 
               - "Oracle: SAPBW ${sid} ${host} ingress to $Landscape oracle rds instance(s)"
