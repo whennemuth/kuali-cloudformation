@@ -119,9 +119,15 @@ Resources:
   # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/crpg-ref-requesttypes-delete.html
   ToggleAlbLoggingLambda:
     Type: AWS::Lambda::Function
-    DependsOn: !If [ Condition: deleteLogs, LambdaLogsGroupTemp, LambdaLogsGroup ]
+    # DependsOn: LambdaLogsGroup
+    # DependsOn can't take a conditional expresssion. The use of GetAtt below is functionally equivalent.
     Properties:
-      Description: Turn off logging for the specified ALB.
+      Description: !Sub 
+      - Empty all contents from a specified s3 bucket (LogGroup - ${loggroup}).
+      - loggroup: !If 
+        - deleteLogs
+        - !GetAtt LambdaLogsGroupTemp.Arn
+        - !GetAtt LambdaLogsGroup.Arn
       Handler: toggle_alb_logging.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Runtime: nodejs12.x
