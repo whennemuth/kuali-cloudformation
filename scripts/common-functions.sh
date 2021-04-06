@@ -1498,6 +1498,7 @@ getLatestImage() {
 }
 
 waitForStackToDelete() {
+  echo ""
   outputHeading "Deleting existing stack..."
   local counter=1
   local status="unknown"
@@ -1874,6 +1875,7 @@ validateShibboleth() {
 
 checkLandscapeParameters() {
   [ "$task" == 'delete-stack' ] && return 0
+  echo ""
   outputHeading "Checking Landscape parameters..."
   [ -z "$LANDSCAPE" ] && echo "Missing landscape parameter!" && exit 1
   if stackExistsForLandscape ; then
