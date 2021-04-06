@@ -15,6 +15,10 @@
 			}
 		}
 		
+		/**
+		 * A Formdata object is a native javascript object convenient for wrapping the name=value pairs of the 
+		 * fields in a form. It can also be dynamically populated as is done in this function.
+		 */
 		function getFormData() {
 			var formdata = new FormData();
 			
@@ -43,6 +47,9 @@
 		    return formdata;
 		}
 		
+		/**
+		 * Construct a querystring comprising the name=value pairs as you would see in a url resulting from a form GET request being issued.
+		 */
 		function getQuerystring(formdata) {
 			var data = [...formdata.entries()];
 			var querystring = data
@@ -52,6 +59,11 @@
 			return querystring;
 		}
 		
+		/**
+		 * The "cascader" object is part of the uno-choices javascript library, is one per active choices parameter, has
+		 * properties and methods that can be called to programatically invoke the active choices cascading update features,
+		 * causing other "subscribing" parameters to autorefresh.
+		 */
 		function getUnoChoiceCascadeElement() {
 			var x = document.getElementById(jobName);
 			while(x) {
@@ -70,6 +82,9 @@
 			}
 		}
 		
+		/**
+		 * Triggered when a form field has changed (onchange, onblur, etc.)
+		 */
 		function sendData() {
 			try {
 				var FD = getFormData();				

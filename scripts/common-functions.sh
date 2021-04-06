@@ -1712,6 +1712,7 @@ zipPackageAndCopyToS3() {
   cd $rootPath
   local s3path="$2"
   [ -z "$s3path" ] && echo "Target path in s3 was ommitted!" && cd - && return 1
+  ls -la
 
   npm run pack
   [ $? -gt 0 ] && "Error using npm!" && exit 1
