@@ -119,7 +119,7 @@ Resources:
   # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/crpg-ref-requesttypes-delete.html
   ToggleAlbLoggingLambda:
     Type: AWS::Lambda::Function
-    DependsOn: LambdaLogsGroup
+    DependsOn: !If [ Condition: deleteLogs, LambdaLogsGroupTemp, LambdaLogsGroup ]
     Properties:
       Description: Turn off logging for the specified ALB.
       Handler: toggle_alb_logging.handler

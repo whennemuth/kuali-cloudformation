@@ -95,7 +95,7 @@ Resources:
     DeletionPolicy: Delete
     Properties:
       LogGroupName: !Sub /aws/lambda/${GlobalTag}-${Landscape}-bucket-emptier
-      RetentionInDays: 30        
+      RetentionInDays: 30       
   LambdaLogsGroup:
     Type: AWS::Logs::LogGroup
     Condition: retainLogs
@@ -108,7 +108,7 @@ Resources:
   # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/crpg-ref-requesttypes-delete.html
   EmptyBucketLoggingLambda:
     Type: AWS::Lambda::Function
-    DependsOn: LambdaLogsGroup
+    DependsOn: !If [ Condition: deleteLogs, LambdaLogsGroupTemp, LambdaLogsGroup ]
     Properties:
       Description: Empty all contents from a specified s3 bucket.
       Handler: bucket_emptier.handler
