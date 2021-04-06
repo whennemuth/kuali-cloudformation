@@ -338,7 +338,7 @@ Resources:
     Condition: CreateRdsClone
     Properties:
       TemplateURL:
-        !Sub https://s3.amazonaws.com/${TemplateBucketName}/cloudformation/kuali_rds/rds-oracle2.yaml
+        !Sub https://s3.amazonaws.com/${TemplateBucketName}/cloudformation/kuali_rds/rds-oracle.yaml
       Parameters:
         Landscape: !Ref Landscape
         Baseline: !Ref Baseline
