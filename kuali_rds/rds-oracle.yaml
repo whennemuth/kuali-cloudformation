@@ -353,7 +353,7 @@ Conditions:
   CreateJumpboxInstance: !Not [!Equals [!Ref JumpboxInstanceType, none]]
   MonoCampusSubnet: !Equals [!Ref CampusSubnetCIDR1, !Ref CampusSubnetCIDR2]
   LogGroupRetentionSpecified: !Not [!Equals [!Ref LogGroupRetention, 0]]
-  IncludeSAPBW: !Or [ Condition: IsStagingBaseline, Condition: IsProdBaseline]
+  IncludeSAPBW: !Or [ !Equals [!Ref Baseline, stg], !Equals [!Ref Baseline, prod]]
   ExcludeSAPBW: !Not [ Condition: IncludeSAPBW ]
   IncludeSAPBWProd: !And [ Condition: IncludeSAPBW, Condition: IsProdBaseline ]
   ExcludeSAPBWProd: !Not [ Condition: IncludeSAPBWProd ]
