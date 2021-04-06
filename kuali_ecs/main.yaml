@@ -352,7 +352,6 @@ Resources:
         DBSubnet2: !Ref RdsDbSubnet2
         DBSubnetCIDR1: !Ref RdsSubnetCIDR1
         DBSubnetCIDR2: !Ref RdsSubnetCIDR2
-        CampusSG: !GetAtt SecurityGroups.Outputs.ECSHostSecurityGroup
         CampusSubnetCIDR1: !Ref RdsJumpboxSubnetCIDR1
         CampusSubnetCIDR2: !Ref RdsJumpboxSubnetCIDR2
         AvailabilityZone: !Ref RdsAvailabilityZone
