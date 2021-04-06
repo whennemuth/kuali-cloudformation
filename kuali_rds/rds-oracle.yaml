@@ -355,6 +355,8 @@ Conditions:
   LogGroupRetentionSpecified: !Not [!Equals [!Ref LogGroupRetention, 0]]
   IncludeSAPBW: !Or [ !Equals [!Ref Baseline, 'stg'], !Equals [!Ref Baseline, 'prod']]
   ExcludeSAPBW: !Not [ Condition: IncludeSAPBW ]
+  IncludeSAPBWProd: !And [ Condition: IncludeSAPBW, Condition: IsProdBaseline ]
+  ExcludeSAPBWProd: !Not [ Condition: IncludeSAPBWProd ]
 
 
 Resources:
@@ -429,75 +431,92 @@ Resources:
         - !If 
           - ExcludeSAPBW
           - !Ref AWS::NoValue
-          -
-            - Description: !Sub 
+          - Description: !Sub 
+            - "Oracle: SAPBW ${sid} ${host} ingress to $Landscape oracle rds instance(s)"
+            - sid: !FindInMap [ SAPBWCidrs, !Ref Baseline, "sid1" ]
+              host: !FindInMap [ SAPBWCidrs, !Ref Baseline, "host1" ]
+            IpProtocol: tcp
+            FromPort: !Ref Port
+            ToPort: !Ref Port
+            CidrIp: !FindInMap [ SAPBWCidrs, !Ref Baseline, "cidr1" ]
+        - !If 
+          - ExcludeSAPBW
+          - !Ref AWS::NoValue
+          - Description: !Sub 
               - "Oracle: SAPBW ${sid} ${host} ingress to $Landscape oracle rds instance(s)"
-              - sid: !FindInMap [ SAPBWCidrs, !Ref Baseline, "sid1" ]
-                host: !FindInMap [ SAPBWCidrs, !Ref Baseline, "host1" ]
-              IpProtocol: tcp
-              FromPort: !Ref Port
-              ToPort: !Ref Port
-              CidrIp: !FindInMap [ SAPBWCidrs, !Ref Baseline, "cidr1" ]
-            - Description: !Sub 
-                - "Oracle: SAPBW ${sid} ${host} ingress to $Landscape oracle rds instance(s)"
-                - sid: !FindInMap [ SAPBWCidrs, !Ref Baseline, "sid2" ]
-                  host: !FindInMap [ SAPBWCidrs, !Ref Baseline, "host2" ]
-              IpProtocol: tcp
-              FromPort: !Ref Port
-              ToPort: !Ref Port
-              CidrIp: !FindInMap [ SAPBWCidrs, !Ref Baseline, "cidr2" ]
-            - Description: !Sub 
-                - "Oracle: SAPBW ${sid} ${host} ingress to $Landscape oracle rds instance(s)"
-                - sid: !FindInMap [ SAPBWCidrs, !Ref Baseline, "sid3" ]
-                  host: !FindInMap [ SAPBWCidrs, !Ref Baseline, "host3" ]
-              IpProtocol: tcp
-              FromPort: !Ref Port
-              ToPort: !Ref Port
-              CidrIp: !FindInMap [ SAPBWCidrs, !Ref Baseline, "cidr3" ]
-            - !If
-                - IsProdBaseline
-                - !Ref AWS::NoValue
-                -
-                  - Description: !Sub 
-                      - "Oracle: SAPBW ${sid} ${host} ingress to $Landscape oracle rds instance(s)"
-                      - sid: !FindInMap [ SAPBWCidrs, !Ref Baseline, "sid4" ]
-                        host: !FindInMap [ SAPBWCidrs, !Ref Baseline, "host4" ]
-                    IpProtocol: tcp
-                    FromPort: !Ref Port
-                    ToPort: !Ref Port
-                    CidrIp: !FindInMap [ SAPBWCidrs, !Ref Baseline, "cidr4" ]
-                  - Description: !Sub 
-                      - "Oracle: SAPBW ${sid} ${host} ingress to $Landscape oracle rds instance(s)"
-                      - sid: !FindInMap [ SAPBWCidrs, !Ref Baseline, "sid5" ]
-                        host: !FindInMap [ SAPBWCidrs, !Ref Baseline, "host5" ]
-                    IpProtocol: tcp
-                    FromPort: !Ref Port
-                    ToPort: !Ref Port
-                    CidrIp: !FindInMap [ SAPBWCidrs, !Ref Baseline, "cidr5" ]
-                  - Description: !Sub 
-                      - "Oracle: SAPBW ${sid} ${host} ingress to $Landscape oracle rds instance(s)"
-                      - sid: !FindInMap [ SAPBWCidrs, !Ref Baseline, "sid6" ]
-                        host: !FindInMap [ SAPBWCidrs, !Ref Baseline, "host6" ]
-                    IpProtocol: tcp
-                    FromPort: !Ref Port
-                    ToPort: !Ref Port
-                    CidrIp: !FindInMap [ SAPBWCidrs, !Ref Baseline, "cidr6" ]
-                  - Description: !Sub 
-                      - "Oracle: SAPBW ${sid} ${host} ingress to $Landscape oracle rds instance(s)"
-                      - sid: !FindInMap [ SAPBWCidrs, !Ref Baseline, "sid7" ]
-                        host: !FindInMap [ SAPBWCidrs, !Ref Baseline, "host7" ]
-                    IpProtocol: tcp
-                    FromPort: !Ref Port
-                    ToPort: !Ref Port
-                    CidrIp: !FindInMap [ SAPBWCidrs, !Ref Baseline, "cidr7" ]
-                  - Description: !Sub 
-                      - "Oracle: SAPBW ${sid} ${host} ingress to $Landscape oracle rds instance(s)"
-                      - sid: !FindInMap [ SAPBWCidrs, !Ref Baseline, "sid8" ]
-                        host: !FindInMap [ SAPBWCidrs, !Ref Baseline, "host8" ]
-                    IpProtocol: tcp
-                    FromPort: !Ref Port
-                    ToPort: !Ref Port
-                    CidrIp: !FindInMap [ SAPBWCidrs, !Ref Baseline, "cidr8" ]
+              - sid: !FindInMap [ SAPBWCidrs, !Ref Baseline, "sid2" ]
+                host: !FindInMap [ SAPBWCidrs, !Ref Baseline, "host2" ]
+            IpProtocol: tcp
+            FromPort: !Ref Port
+            ToPort: !Ref Port
+            CidrIp: !FindInMap [ SAPBWCidrs, !Ref Baseline, "cidr2" ]
+        - !If 
+          - ExcludeSAPBW
+          - !Ref AWS::NoValue
+          - Description: !Sub 
+              - "Oracle: SAPBW ${sid} ${host} ingress to $Landscape oracle rds instance(s) - ${test}"
+              - sid: !FindInMap [ SAPBWCidrs, !Ref Baseline, "sid3" ]
+                host: !FindInMap [ SAPBWCidrs, !Ref Baseline, "host3" ]
+                test: !If [ ExcludeSAPBW, 'exclude', 'include' ]
+            IpProtocol: tcp
+            FromPort: !Ref Port
+            ToPort: !Ref Port
+            CidrIp: !FindInMap [ SAPBWCidrs, !Ref Baseline, "cidr3" ]
+        - !If
+          - IsProdBaseline
+          - !Ref AWS::NoValue
+          - Description: !Sub 
+              - "Oracle: SAPBW ${sid} ${host} ingress to $Landscape oracle rds instance(s)"
+              - sid: !FindInMap [ SAPBWCidrs, !Ref Baseline, "sid4" ]
+                host: !FindInMap [ SAPBWCidrs, !Ref Baseline, "host4" ]
+            IpProtocol: tcp
+            FromPort: !Ref Port
+            ToPort: !Ref Port
+            CidrIp: !FindInMap [ SAPBWCidrs, !Ref Baseline, "cidr4" ]
+        - !If
+          - ExcludeSAPBWProd
+          - !Ref AWS::NoValue
+          - Description: !Sub 
+              - "Oracle: SAPBW ${sid} ${host} ingress to $Landscape oracle rds instance(s)"
+              - sid: !FindInMap [ SAPBWCidrs, !Ref Baseline, "sid5" ]
+                host: !FindInMap [ SAPBWCidrs, !Ref Baseline, "host5" ]
+            IpProtocol: tcp
+            FromPort: !Ref Port
+            ToPort: !Ref Port
+            CidrIp: !FindInMap [ SAPBWCidrs, !Ref Baseline, "cidr5" ]
+        - !If
+          - ExcludeSAPBWProd
+          - !Ref AWS::NoValue
+          - Description: !Sub 
+              - "Oracle: SAPBW ${sid} ${host} ingress to $Landscape oracle rds instance(s)"
+              - sid: !FindInMap [ SAPBWCidrs, !Ref Baseline, "sid6" ]
+                host: !FindInMap [ SAPBWCidrs, !Ref Baseline, "host6" ]
+            IpProtocol: tcp
+            FromPort: !Ref Port
+            ToPort: !Ref Port
+            CidrIp: !FindInMap [ SAPBWCidrs, !Ref Baseline, "cidr6" ]
+        - !If
+          - ExcludeSAPBWProd
+          - !Ref AWS::NoValue
+          - Description: !Sub 
+              - "Oracle: SAPBW ${sid} ${host} ingress to $Landscape oracle rds instance(s)"
+              - sid: !FindInMap [ SAPBWCidrs, !Ref Baseline, "sid7" ]
+                host: !FindInMap [ SAPBWCidrs, !Ref Baseline, "host7" ]
+            IpProtocol: tcp
+            FromPort: !Ref Port
+            ToPort: !Ref Port
+            CidrIp: !FindInMap [ SAPBWCidrs, !Ref Baseline, "cidr7" ]
+        - !If
+          - ExcludeSAPBWProd
+          - !Ref AWS::NoValue
+          - Description: !Sub 
+              - "Oracle: SAPBW ${sid} ${host} ingress to $Landscape oracle rds instance(s)"
+              - sid: !FindInMap [ SAPBWCidrs, !Ref Baseline, "sid8" ]
+                host: !FindInMap [ SAPBWCidrs, !Ref Baseline, "host8" ]
+            IpProtocol: tcp
+            FromPort: !Ref Port
+            ToPort: !Ref Port
+            CidrIp: !FindInMap [ SAPBWCidrs, !Ref Baseline, "cidr8" ]
 
 
   # Anticipate the name of, and create the log groups that the rds instances "EnableCloudwatchLogsExports"
