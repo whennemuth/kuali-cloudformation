@@ -40,6 +40,7 @@ declare -A defaults=(
   # [ENABLE_NEWRELIC_INFRASTRUCTURE]='false'
   # [MIN_CLUSTER_SIZE]='2'
   # [MAX_CLUSTER_SIZE]='3'
+  # [JUMPBOX_INSTANCE_TYPE]='???'
 )
 
 run() {
@@ -219,6 +220,7 @@ EOF
     add_parameter $cmdfile 'EnableALBLogging' 'ENABLE_ALB_LOGGING'
     add_parameter $cmdfile 'RetainLambdaCleanupLogs' 'RETAIN_LAMBDA_CLEANUP_LOGS'
     add_parameter $cmdfile 'UsingShibboleth' 'USING_SHIBBOLETH'
+    add_parameter $cmdfile 'RdsJumpboxInstanceType' 'JUMPBOX_INSTANCE_TYPE'
 
     if [ "${CREATE_MONGO,,}" == 'true' ] ; then
       add_parameter $cmdfile 'MongoSubnetId' 'PRIVATE_SUBNET1'

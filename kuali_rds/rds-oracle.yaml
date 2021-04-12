@@ -37,6 +37,10 @@ Parameters:
   VpcId:
     Type: AWS::EC2::VPC::Id
     Description: The id of the vpc to deploy to.
+
+  ApplicationSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: Id that identifies the security group for the ec2 instance
   
   TemplateBucketName:
     Type: String
@@ -89,7 +93,7 @@ Parameters:
     - 'false'
     Default: 'false'
 
-  AvailabilityZone:
+  RdsAvailabilityZone:
     # Type: AWS::EC2::AvailabilityZone::Name
     Type: String
     Description: >
@@ -195,15 +199,15 @@ Parameters:
     MaxValue: 10000
     Default: 0    
 
-  DBSubnet1:
+  RdsDbSubnet1:
     Type: AWS::EC2::Subnet::Id
     Description: Id of the first private subnet of the RDS subnet group
 
-  DBSubnet2:
+  RdsDbSubnet2:
     Type: AWS::EC2::Subnet::Id
     Description: Id of the second private subnet of the RDS subnet group
 
-  DBSubnetCIDR1:
+  RdsSubnetCIDR1:
     AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
     ConstraintDescription: It must be a valid IP CIDR range of the form x.x.x.x/x. 
     Description: |
@@ -213,7 +217,7 @@ Parameters:
     MinLength: 9 
     Type: String
 
-  DBSubnetCIDR2:
+  RdsSubnetCIDR2:
     AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
     ConstraintDescription: It must be a valid IP CIDR range of the form x.x.x.x/x. 
     Description: |
@@ -251,97 +255,6 @@ Parameters:
     AllowedValues: [0, 1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 3653]
     ConstraintDescription: Allowed values - 1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, and 3653
     Default: 0
-
-
-Mappings:
-
-  2faCidrs:
-    # dbreport vpn: offcampus
-    first:
-      cidr: "168.122.78.128/28"
-    # dbreport vpn: oncampus
-    second:
-      cidr: "168.122.84.240/28"
-    # first:
-    #   cidr: "168.122.81.0/24"
-    # second:
-    #   cidr: "168.122.82.0/23"
-    # third:
-    #   cidr: "168.122.76.0/24"
-    # fourth:
-    #   cidr: "168.122.68.0/24"
-    # fifth:
-    #   cidr: "168.122.69.0/24"
-    # sixth:
-    #   cidr: "10.1.0.0/21"
-
-  InformaticaCidrs:
-    sb: 
-      host: ist-etl-sb01.bu.edu
-      cidr: 10.231.31.12/32
-    ci:
-      host: ist-etl-devl01.bu.edu
-      cidr: 10.231.31.13/32
-    qa:
-      host: ist-etl-qa01.bu.edu
-      cidr: 10.231.31.14/32
-    stg:
-      host: ist-etl-qa01.bu.edu
-      cidr: 10.231.31.14/32
-    prod:
-      host: ist-etl-prod01.bu.edu
-      cidr: 10.231.31.15/32
-
-  SAPBWCidrs:
-    sb: {
-      sid1: n/a, host1: n/a, cidr1: n/a,
-      sid2: n/a, host2: n/a, cidr2: n/a,
-      sid3: n/a, host3: n/a, cidr3: n/a,
-      sid4: n/a, host4: n/a, cidr4: n/a,
-      sid5: n/a, host5: n/a, cidr5: n/a,
-      sid6: n/a, host6: n/a, cidr6: n/a,
-      sid7: n/a, host7: n/a, cidr7: n/a,
-      sid8: n/a, host8: n/a, cidr8: n/a 
-    }
-
-    ci: {
-      sid1: n/a, host1: n/a, cidr1: n/a,
-      sid2: n/a, host2: n/a, cidr2: n/a,
-      sid3: n/a, host3: n/a, cidr3: n/a,
-      sid4: n/a, host4: n/a, cidr4: n/a,
-      sid5: n/a, host5: n/a, cidr5: n/a,
-      sid6: n/a, host6: n/a, cidr6: n/a,
-      sid7: n/a, host7: n/a, cidr7: n/a,
-      sid8: n/a, host8: n/a, cidr8: n/a 
-    }
-
-    qa: {
-      sid1: SBW, host1: sbwci/holbuws502, cidr1: 10.230.9.140/32,
-      sid2: DBW, host2: dbwci/bosbuwd502, cidr2: 10.230.5.120/32,
-      sid3: QBW, host3: qbwci/holbuwq502, cidr3: 10.230.9.160/32,
-      sid4: QBW, host4: qbwci/holbuwq503, cidr4: 10.230.9.161/32,
-      sid5: QBW, host5: qbwci/holbuwq504, cidr5: 10.230.9.162/32,
-      sid6: XBW, host6: xbwci/holbuwx502, cidr6: 10.230.9.130/32,
-      sid7: YBW, host7: ybwci/holbuwy502, cidr7: 10.230.9.118/32,
-      sid8: ZBW, host8: zbwci/holbuwz502, cidr8: 10.230.9.175/32
-    }
-
-    stg: {
-      sid1: SBW, host1: sbwci/holbuws502, cidr1: 10.230.9.140/32,
-      sid2: DBW, host2: dbwci/bosbuwd502, cidr2: 10.230.5.120/32,
-      sid3: QBW, host3: qbwci/holbuwq502, cidr3: 10.230.9.160/32,
-      sid4: QBW, host4: qbwci/holbuwq503, cidr4: 10.230.9.161/32,
-      sid5: QBW, host5: qbwci/holbuwq504, cidr5: 10.230.9.162/32,
-      sid6: XBW, host6: xbwci/holbuwx502, cidr6: 10.230.9.130/32,
-      sid7: YBW, host7: ybwci/holbuwy502, cidr7: 10.230.9.118/32,
-      sid8: ZBW, host8: zbwci/holbuwz502, cidr8: 10.230.9.175/32
-    }
-
-    prod: {
-      sid1: PBW, host1: pbwci/bosbuwp502, cidr1: 10.230.4.20/32,
-      sid2: PBW, host2: pbwa1/bosbuwp503, cidr2: 10.230.4.21/32,
-      sid3: PBW, host3: pwa2/bosbuwp504,  cidr3: 10.230.4.22/32
-    }
 
 
 Conditions:
@@ -383,141 +296,45 @@ Resources:
     Properties:
       DBSubnetGroupDescription: Subnet available for the Oracle Instance
       SubnetIds:
-        - !Ref DBSubnet1
-        - !Ref DBSubnet2
+        - !Ref RdsDbSubnet1
+        - !Ref RdsDbSubnet2
 
   DBVpcSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
+    Type: AWS::CloudFormation::Stack
     Properties:
-      VpcId: !Ref VpcId
-      GroupDescription: Security group for migration instances.
-      SecurityGroupIngress:
-
-        # APPLICATION: Allow ingress from the subnets where the application servers reside
-        - CidrIp: !Ref CampusSubnetCIDR1
-          Description: Allows inbound access from the first application subnet.
-          FromPort: !Ref Port
-          IpProtocol: tcp
-          ToPort: !Ref Port
-        - !If
-          - MonoCampusSubnet
-          - !Ref AWS::NoValue
-          - CidrIp: !Ref CampusSubnetCIDR2
-            Description: Allows inbound access from the second application subnet.
-            FromPort: !Ref Port
-            IpProtocol: tcp
-            ToPort: !Ref Port
-
-        # CAMPUS VPN: Allow ingress from the campus subnet associated with the "dbreport" vpn
-        - Description: "Oracle: vpn.bu.edu/dbreport Off Campus"
-          IpProtocol: tcp
-          FromPort: !Ref Port
-          ToPort: !Ref Port
-          CidrIp: !FindInMap [ 2faCidrs, "first", "cidr" ]
-        - Description: "Oracle: vpn.bu.edu/dbreport On Campus"
-          IpProtocol: tcp
-          FromPort: !Ref Port
-          ToPort: !Ref Port
-          CidrIp: !FindInMap [ 2faCidrs, "second", "cidr" ]
-
-        # INFORMATICA: Allow ingress from the informatica server(s) associated with the baseline landscape
-        - CidrIp: !FindInMap [ InformaticaCidrs, !Ref Baseline, "cidr" ]
-          Description: "Oracle: Informatica ingress to $Landscape oracle rds instance(s)"
-          IpProtocol: tcp
-          FromPort: !Ref Port
-          ToPort: !Ref Port
-
-        # SAPBW: Allow ingress from the SAP BW server(s) associated with the prod or staging baseline landscapes only
-        - !If 
-          - ExcludeSAPBW
-          - !Ref AWS::NoValue
-          - Description: !Sub 
-            - "Oracle: SAPBW ${sid} ${host} ingress to $Landscape oracle rds instance(s)"
-            - sid: !FindInMap [ SAPBWCidrs, !Ref Baseline, "sid1" ]
-              host: !FindInMap [ SAPBWCidrs, !Ref Baseline, "host1" ]
-            IpProtocol: tcp
-            FromPort: !Ref Port
-            ToPort: !Ref Port
-            CidrIp: !FindInMap [ SAPBWCidrs, !Ref Baseline, "cidr1" ]
-        - !If 
-          - ExcludeSAPBW
-          - !Ref AWS::NoValue
-          - Description: !Sub 
-              - "Oracle: SAPBW ${sid} ${host} ingress to $Landscape oracle rds instance(s)"
-              - sid: !FindInMap [ SAPBWCidrs, !Ref Baseline, "sid2" ]
-                host: !FindInMap [ SAPBWCidrs, !Ref Baseline, "host2" ]
-            IpProtocol: tcp
-            FromPort: !Ref Port
-            ToPort: !Ref Port
-            CidrIp: !FindInMap [ SAPBWCidrs, !Ref Baseline, "cidr2" ]
-        - !If 
-          - ExcludeSAPBW
-          - !Ref AWS::NoValue
-          - Description: !Sub 
-              - "Oracle: SAPBW ${sid} ${host} ingress to $Landscape oracle rds instance(s) - ${test}"
-              - sid: !FindInMap [ SAPBWCidrs, !Ref Baseline, "sid3" ]
-                host: !FindInMap [ SAPBWCidrs, !Ref Baseline, "host3" ]
-                test: !If [ ExcludeSAPBW, 'exclude', 'include' ]
-            IpProtocol: tcp
-            FromPort: !Ref Port
-            ToPort: !Ref Port
-            CidrIp: !FindInMap [ SAPBWCidrs, !Ref Baseline, "cidr3" ]
-        - !If
-          - ExcludeSAPBWProd
-          - !Ref AWS::NoValue
-          - Description: !Sub 
-              - "Oracle: SAPBW ${sid} ${host} ingress to $Landscape oracle rds instance(s)"
-              - sid: !FindInMap [ SAPBWCidrs, !Ref Baseline, "sid4" ]
-                host: !FindInMap [ SAPBWCidrs, !Ref Baseline, "host4" ]
-            IpProtocol: tcp
-            FromPort: !Ref Port
-            ToPort: !Ref Port
-            CidrIp: !FindInMap [ SAPBWCidrs, !Ref Baseline, "cidr4" ]
-        - !If
-          - ExcludeSAPBWProd
-          - !Ref AWS::NoValue
-          - Description: !Sub 
-              - "Oracle: SAPBW ${sid} ${host} ingress to $Landscape oracle rds instance(s)"
-              - sid: !FindInMap [ SAPBWCidrs, !Ref Baseline, "sid5" ]
-                host: !FindInMap [ SAPBWCidrs, !Ref Baseline, "host5" ]
-            IpProtocol: tcp
-            FromPort: !Ref Port
-            ToPort: !Ref Port
-            CidrIp: !FindInMap [ SAPBWCidrs, !Ref Baseline, "cidr5" ]
-        - !If
-          - ExcludeSAPBWProd
-          - !Ref AWS::NoValue
-          - Description: !Sub 
-              - "Oracle: SAPBW ${sid} ${host} ingress to $Landscape oracle rds instance(s)"
-              - sid: !FindInMap [ SAPBWCidrs, !Ref Baseline, "sid6" ]
-                host: !FindInMap [ SAPBWCidrs, !Ref Baseline, "host6" ]
-            IpProtocol: tcp
-            FromPort: !Ref Port
-            ToPort: !Ref Port
-            CidrIp: !FindInMap [ SAPBWCidrs, !Ref Baseline, "cidr6" ]
-        - !If
-          - ExcludeSAPBWProd
-          - !Ref AWS::NoValue
-          - Description: !Sub 
-              - "Oracle: SAPBW ${sid} ${host} ingress to $Landscape oracle rds instance(s)"
-              - sid: !FindInMap [ SAPBWCidrs, !Ref Baseline, "sid7" ]
-                host: !FindInMap [ SAPBWCidrs, !Ref Baseline, "host7" ]
-            IpProtocol: tcp
-            FromPort: !Ref Port
-            ToPort: !Ref Port
-            CidrIp: !FindInMap [ SAPBWCidrs, !Ref Baseline, "cidr7" ]
-        - !If
-          - ExcludeSAPBWProd
-          - !Ref AWS::NoValue
-          - Description: !Sub 
-              - "Oracle: SAPBW ${sid} ${host} ingress to $Landscape oracle rds instance(s)"
-              - sid: !FindInMap [ SAPBWCidrs, !Ref Baseline, "sid8" ]
-                host: !FindInMap [ SAPBWCidrs, !Ref Baseline, "host8" ]
-            IpProtocol: tcp
-            FromPort: !Ref Port
-            ToPort: !Ref Port
-            CidrIp: !FindInMap [ SAPBWCidrs, !Ref Baseline, "cidr8" ]
-
+      TemplateURL: 
+        !Sub https://s3.amazonaws.com/${TemplateBucketName}/cloudformation/kuali_campus_security/main.yaml
+      Parameters:
+        Landscape:
+          !Ref Landscape
+        Service:
+          !Ref Service
+        Function:
+          !Ref Function
+        Baseline:
+          !Ref Baseline
+        VpcId:
+          !Ref VpcId
+        SecurityGroupName:
+          !Sub ${GlobalTag}-${Landscape}-oracle-security-group
+        SecurityGroupDescription:
+          Reduces oracle RDS access to a cherry-picked selection of cidrs/ips from within the campus network.
+        CampusSubnetCIDR1:
+          !Ref CampusSubnetCIDR1
+        CampusSubnetCIDR2:
+          !Ref CampusSubnetCIDR2
+        FromPort:
+          1521
+        ToPort:
+          1521
+        ApplicationSecurityGroupId:
+          !Ref ApplicationSecurityGroupId
+        GrantDBReportIngress:
+          'true'
+        GrantInformaticaIngress:
+          'true'
+        GrantSAPBWIngress:
+          'true'
 
   # Anticipate the name of, and create the log groups that the rds instances "EnableCloudwatchLogsExports"
   # setting is configured to automatically create so that cloudformation has control of the retention settings
@@ -579,7 +396,7 @@ Resources:
       AvailabilityZone: 
         !If 
         - SingleDBAvailabilityZone
-        - !Ref AvailabilityZone
+        - !Ref RdsAvailabilityZone
         - !Ref AWS::NoValue
       BackupRetentionPeriod: !Ref BackupRetentionPeriod
       CharacterSetName: !Ref CharacterSetName
@@ -635,6 +452,8 @@ Resources:
       PreferredBackupWindow: 22:00-23:00
       PreferredMaintenanceWindow: sat:20:00-sat:21:00
       PubliclyAccessible: 'false'
+      VPCSecurityGroups:
+        - !GetAtt DBVpcSecurityGroup.Outputs.GroupId
       StorageType:
         !If
         - IopsSpecified
@@ -655,8 +474,6 @@ Resources:
         Value: !Ref Service
       - Key: Function
         Value: !Ref Function
-      VPCSecurityGroups:
-      - !Ref DBVpcSecurityGroup
 
 
   DBJumpbox:
@@ -670,9 +487,9 @@ Resources:
         TemplateBucketName: !Ref TemplateBucketName
         JumpboxInstanceType: !Ref JumpboxInstanceType
         VpcId: !Ref VpcId
-        DBSubnet1: !Ref DBSubnet1
-        DBSubnetCIDR1: !Ref DBSubnetCIDR1
-        DBSubnetCIDR2: !Ref DBSubnetCIDR2
+        RdsDbSubnet1: !Ref RdsDbSubnet1
+        RdsSubnetCIDR1: !Ref RdsSubnetCIDR1
+        RdsSubnetCIDR2: !Ref RdsSubnetCIDR2
         DBPort: !Ref Port
 
 

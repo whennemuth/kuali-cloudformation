@@ -50,6 +50,11 @@ stackAction() {
     uploadStack silent
     [ $? -gt 0 ] && exit 1
 
+    # validateStack silent ../kuali_campus_security/main.yaml > /dev/null
+    validateStack silent ../kuali_campus_security/main.yaml
+    [ $? -gt 0 ] && exit 1
+    aws s3 cp ../kuali_campus_security/main.yaml s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_campus_security/
+
     cat <<-EOF > $cmdfile
     aws \\
       cloudformation $action \\
@@ -63,9 +68,12 @@ EOF
 
     add_parameter $cmdfile 'GlobalTag' 'GLOBAL_TAG'
     add_parameter $cmdfile 'Landscape' 'LANDSCAPE'
+    add_parameter $cmdfile 'Baseline' 'BASELINE'
     add_parameter $cmdfile 'EC2InstanceType' 'EC2_INSTANCE_TYPE'
     add_parameter $cmdfile 'VpcId' 'VpcId'
     add_parameter $cmdfile 'MongoSubnet' 'PRIVATE_SUBNET1'
+    add_parameter $cmdfile 'CampusSubnetCIDR1' 'CAMPUS_SUBNET1_CIDR'
+    add_parameter $cmdfile 'CampusSubnetCIDR2' 'CAMPUS_SUBNET2_CIDR'
     add_parameter $cmdfile 'ApplicationSecurityGroupId' 'APP_SECURITY_GROUP_ID'
 
     echo "      ]'" >> $cmdfile

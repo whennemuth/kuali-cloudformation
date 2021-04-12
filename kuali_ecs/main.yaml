@@ -281,6 +281,11 @@ Parameters:
     Type: String
     Default: 0.0.0.0/0
   
+  RdsJumpboxInstanceType:
+    Description: What size for the jumpbox? Omitting this parameter skips jumpbox creation
+    Type: String
+    Default: empty
+
   RdsJumpboxSubnetCIDR1:
     AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
     ConstraintDescription: It must be a valid IP CIDR range of the form x.x.x.x/x. 
@@ -316,6 +321,7 @@ Conditions:
   UseKeypair: !Not [!Equals [!Ref EC2KeypairName, empty]]
   IsProd: !Equals [!Ref Landscape, prod]
   CreateRdsClone: !Not [!Equals [!Ref RdsSnapshotARN, empty]]
+  CreateJumpboxInstance: !Not [!Equals [!Ref RdsJumpboxInstanceType, empty]]
 
 
 Resources:
@@ -348,13 +354,15 @@ Resources:
         DBInstanceClass: !If [ IsProd, db.m5.xlarge, !Ref AWS::NoValue ]
         DBSnapshotARN: !Ref RdsSnapshotARN
         EngineVersion: !Ref RdsEngineVersion
-        DBSubnet1: !Ref RdsDbSubnet1
-        DBSubnet2: !Ref RdsDbSubnet2
-        DBSubnetCIDR1: !Ref RdsSubnetCIDR1
-        DBSubnetCIDR2: !Ref RdsSubnetCIDR2
+        RdsDbSubnet1: !Ref RdsDbSubnet1
+        RdsDbSubnet2: !Ref RdsDbSubnet2
+        RdsSubnetCIDR1: !Ref RdsSubnetCIDR1
+        RdsSubnetCIDR2: !Ref RdsSubnetCIDR2
+        JumpboxInstanceType: !If [ CreateJumpboxInstance, !Ref RdsJumpboxInstanceType, !Ref AWS::NoValue ]
         CampusSubnetCIDR1: !Ref RdsJumpboxSubnetCIDR1
         CampusSubnetCIDR2: !Ref RdsJumpboxSubnetCIDR2
-        AvailabilityZone: !Ref RdsAvailabilityZone
+        RdsAvailabilityZone: !Ref RdsAvailabilityZone
+        ApplicationSecurityGroupId: !GetAtt SecurityGroups.Outputs.ECSHostSecurityGroup
 
   BucketEmptierLambda:
     Type: AWS::CloudFormation::Stack
@@ -483,13 +491,20 @@ Resources:
           !Sub ${GlobalTag}-mongo
         Landscape:
           !Ref Landscape
+        Baseline:
+          !Ref Baseline
         VpcId:
           !Ref VpcId
         ApplicationSecurityGroupId:
           !GetAtt SecurityGroups.Outputs.ECSHostSecurityGroup
         MongoSubnet:
           !Ref MongoSubnetId
-        TemplateBucketName: !Ref TemplateBucketName
+        TemplateBucketName: 
+          !Ref TemplateBucketName
+        CampusSubnetCIDR1:
+          !Ref CampusSubnet
+        CampusSubnetCIDR2:
+          !Ref CampusSubnet
 
   ECS:
     Type: AWS::CloudFormation::Stack

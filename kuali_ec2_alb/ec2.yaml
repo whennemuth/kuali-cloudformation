@@ -298,6 +298,10 @@ Resources:
   EC2Instance:
     Type: AWS::EC2::Instance
     Description: EC2 instance for hosting kuali research modules.
+    CreationPolicy:
+      ResourceSignal:
+        Count: 1
+        Timeout: PT5M
     Properties:
       Tags:
       - Key: Name

@@ -25,6 +25,12 @@ Parameters:
     Type: String
     AllowedPattern: "[a-zA-Z\\d]{1,12}"
     ConstraintDescription: Up to 12 letters and/or numbers
+
+  Baseline:
+    Description: Specify one of a set of standard landscapes. Indicates secrets manager secrets to use for database access.
+    Type: String
+    AllowedPattern: "[a-zA-Z\\d]{1,12}"
+    ConstraintDescription: Up to 12 letters and/or numbers
     
   Service:
     Description: Service catalog name
@@ -72,28 +78,61 @@ Parameters:
     ConstraintDescription: Specified instance type is not within selection list.
     Default: t3.medium
 
+  CampusSubnetCIDR1:
+    AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
+    ConstraintDescription: It must be a valid IP CIDR range of the form x.x.x.x/x. 
+    Description:  The IP address range that ingress will be allowed on. This will be a subset of the on/off campus vpn(s).
+    MaxLength: 18
+    MinLength: 9 
+    Type: String
+
+  CampusSubnetCIDR2:
+    AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
+    ConstraintDescription: It must be a valid IP CIDR range of the form x.x.x.x/x. 
+    Description:  The IP address range that ingress will be allowed on. This will be a subset of the on/off campus vpn(s).
+    MaxLength: 18
+    MinLength: 9 
+    Type: String
+
       
 Resources:
 
   EC2SecurityGroup:
-    Type: AWS::EC2::SecurityGroup
+    Type: AWS::CloudFormation::Stack
     Properties:
-      VpcId: !Ref VpcId
-      GroupDescription: !Sub Security group for mongodb instance in ${Landscape} landscape.
-      GroupName: !Sub ${GlobalTag}-${Landscape}-mongo-security-group
-      SecurityGroupIngress:
-      - SourceSecurityGroupId: !Ref ApplicationSecurityGroupId
-        IpProtocol: -1
-        Description: Allows inbound access to the mongo EC2 instance from the application ec2 instance(s) only.
-      Tags:
-        - Key: Name
-          Value: !Sub ${GlobalTag}-${Landscape}-mongo-security-group
-        - Key: Landscape
-          Value: !Ref Landscape
-        - Key: Service
-          Value: !Ref Service
-        - Key: Function
-          Value: !Ref Function
+      TemplateURL: 
+        !Sub https://s3.amazonaws.com/${TemplateBucketName}/cloudformation/kuali_campus_security/main.yaml
+      Parameters:
+        Landscape:
+          !Ref Landscape
+        Service:
+          !Ref Service
+        Function:
+          !Ref Function
+        Baseline:
+          !Ref Baseline
+        VpcId:
+          !Ref VpcId
+        SecurityGroupName:
+          !Sub ${GlobalTag}-${Landscape}-mongo-security-group
+        SecurityGroupDescription:
+          Reduces mongo EC2 access to a cherry-picked selection of cidrs/ips from within the campus network.
+        CampusSubnetCIDR1:
+          !Ref CampusSubnetCIDR1
+        CampusSubnetCIDR2:
+          !Ref CampusSubnetCIDR2
+        FromPort:
+          27017
+        ToPort:
+          27023
+        ApplicationSecurityGroupId:
+          !Ref ApplicationSecurityGroupId
+        GrantDBReportIngress:
+          'true'
+        GrantInformaticaIngress:
+          'true'
+        GrantSAPBWIngress:
+          'false'
 
   EC2Role:
     Type: AWS::IAM::Role
@@ -150,6 +189,10 @@ Resources:
   EC2Instance:
     Type: AWS::EC2::Instance
     Description: EC2 instance for hosting mongo databases.
+    CreationPolicy:
+      ResourceSignal:
+        Count: 1
+        Timeout: PT5M
     Properties:
       Tags:
       - Key: Name
@@ -167,7 +210,7 @@ Resources:
       InstanceType:
         !Ref EC2InstanceType
       SecurityGroupIds:
-      - !GetAtt EC2SecurityGroup.GroupId
+        - !GetAtt EC2SecurityGroup.Outputs.GroupId
       IamInstanceProfile:
         !Ref EC2InstanceProfile
       BlockDeviceMappings:
@@ -322,8 +365,7 @@ Resources:
               owner: root
               group: root
             /opt/kuali/stop-instance.sh:
-              source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/cloudformation/scripts/ec2/stop-instance.sh
-              content: !Sub |
+              source: !Sub https://${TemplateBucketName}.s3.amazonaws.com/cloudformation/scripts/ec2/stop-instance.sh
               mode: "000775"
               owner: root
               group: root

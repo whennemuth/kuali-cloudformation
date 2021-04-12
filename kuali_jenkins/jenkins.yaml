@@ -136,6 +136,10 @@ Resources:
             Action: "cloudformation:*"
             Resource: arn:aws:cloudformation:*:*:stack/kuali*/*
           - Effect: Deny
+            # Deny the main cloudformation actions (especially delete) as long of neither of the following are true:
+            # The stack arn has "/kuali*/" in it
+            # or...
+            # The stack has a "service" tag with "research-administration" as the value
             Action: 
               - cloudformation:Cancel*
               - cloudformation:Delete*
@@ -144,6 +148,9 @@ Resources:
               - cloudformation:Stop*
               - cloudformation:Update*
             NotResource: arn:aws:cloudformation:*:*:stack/kuali*/*
+            Condition:
+              StringNotEqualsIfExists: 
+                aws:ResourceTag/Service: !Ref Service
           - Effect: Allow
             Action: "*"
             Resource: "*"
@@ -157,7 +164,7 @@ Resources:
           - Effect: Deny
             Action: [
               ec2:Delete*, ec2:Deregister*, ec2:Detach*, ec2:Disable*, ec2:Disassociate*, ec2:Modify*, ec2:Move*, ec2:Purchase*, ec2:Reboot*, ec2:Replace*, ec2:Reset*, ec2:Revoke*, ec2:Start*, ec2:Stop*, ec2:Terminate*, ec2:Unassign*, ec2:Update*, 
-              ecs:Delete*, ecs:Deploy*, ecs:Put*, ecs:Register*, ecs:Run*, ecs:Start*, ecs:Stop*, ecs:Submit*, ecs:Tag*, ecs:Untag*, ecs:Update*, 
+              ecs:Delete*, ecs:Put*, ecs:Register*, ecs:Run*, ecs:Start*, ecs:Stop*, ecs:Submit*, ecs:Tag*, ecs:Untag*, ecs:Update*, 
               iam:Add*, iam:Attach*, iam:Change*, iam:Deactivate*, iam:Delete*, iam:Put*, iam:Remove*, iam:Resync*, iam:Set*, iam:Tag*, iam:Untag*, iam:Update*, 
               rds:Add*, rds:Authorize*, rds:Cancel*, rds:Copy*, rds:Delete*, rds:Modify*, rds:Promote*, rds:Purchase*, rds:Register*, rds:Remove*, rds:Revoke*, rds:Start*, rds:Stop*, 
               elbv2:Add*, elbv2:Delete*, elbv2:Modify*, elbv2:Register*, elbv2:Remove*, elbv2:Set*, 
@@ -172,8 +179,8 @@ Resources:
               autoscaling-plans:Delete*, autoscaling-plans:Update*, 
               lambda:Add*, lambda:Delete*, lambda:Invoke*, lambda:Publish*, lambda:Put*, lambda:Remove*, lambda:Tag*, lambda:Untag*, lambda:Update*, 
               cloudwatch:Delete*, cloudwatch:Disable*, cloudwatch:Enable*, cloudwatch:Put*, cloudwatch:Set*, cloudwatch:Tag*, cloudwatch:Untag*, 
-              apigateway:Delete*, apigateway:flush*, apigateway:Put*, apigateway:Tag*, apigateway:Untag*, apigateway:Update*, 
-              apigatewayv2:Delete*, apigateway2:Put*, apigateway2:Tag*, apigateway2:Untag*, apigateway2:Update*, apigatewayv2:Import*, apigatewayv2:Reimport*, 
+              apigateway:Delete*, apigateway:Put*, apigateway:Update*, 
+              apigatewayv2:Delete*, apigateway2:Put*, apigateway2:Update*, 
               kinesis:Decrease*, kinesis:Delete*, kinesis:Deregister*, kinesis:Disable*, kinesis:Increase*, kinesis:Merge*, kinesis:Put*, kinesis:Register*, kinesis:Remove*, kinesis:Split*, kinesis:Start*, kinesis:Stop*, kinesis:Update*, 
               firehose:Delete*, firehose:Put*, firehose:Start*, firehose:Stop*, firehose:Tag*, firehose:Untag*, firehose:Update*
             ]

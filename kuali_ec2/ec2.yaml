@@ -232,7 +232,6 @@ Resources:
       TemplateURL:
         !Sub https://s3.amazonaws.com/${TemplateBucketName}/cloudformation/kuali_rds/rds-oracle.yaml
       Parameters:
-        GlobalTag: !Ref GlobalTag
         Landscape: !Ref Landscape
         Baseline: !Ref Baseline
         Service: !Ref Service
@@ -241,13 +240,14 @@ Resources:
         DBInstanceClass: !If [ IsProd, db.m5.xlarge, !Ref AWS::NoValue ]
         DBSnapshotARN: !Ref RdsSnapshotARN
         EngineVersion: !Ref RdsEngineVersion
-        DBSubnet1: !Ref RdsDbSubnet1
-        DBSubnet2: !Ref RdsDbSubnet2
-        DBSubnetCIDR1: !Ref RdsSubnetCIDR1
-        DBSubnetCIDR2: !Ref RdsSubnetCIDR2
+        RdsDbSubnet1: !Ref RdsDbSubnet1
+        RdsDbSubnet2: !Ref RdsDbSubnet2
+        RdsSubnetCIDR1: !Ref RdsSubnetCIDR1
+        RdsSubnetCIDR2: !Ref RdsSubnetCIDR2
         CampusSubnetCIDR1: !Ref RdsJumpboxSubnetCIDR1
         CampusSubnetCIDR2: !Ref RdsJumpboxSubnetCIDR2
-        AvailabilityZone: !Ref RdsAvailabilityZone
+        RdsAvailabilityZone: !Ref RdsAvailabilityZone
+        ApplicationSecurityGroupId: !GetAtt EC2InstanceSecurityGroup.GroupId
 
   EC2Role:
     Type: AWS::IAM::Role
@@ -373,17 +373,27 @@ Resources:
           !Sub ${GlobalTag}-mongo
         Landscape:
           !Ref Landscape
+        Baseline:
+          !Ref Baseline
         VpcId:
           !Ref VpcId
         ApplicationSecurityGroupId:
           !GetAtt EC2InstanceSecurityGroup.GroupId
         MongoSubnet:
           !Ref MongoSubnetId
+        CampusSubnetCIDR1:
+          !Ref CampusSubnet
+        CampusSubnetCIDR2:
+          !Ref CampusSubnet
       
   EC2Instance:
     Type: AWS::EC2::Instance
     DependsOn: EC2InstanceLogsGroup
     Description: EC2 instance for hosting kuali research modules.
+    CreationPolicy:
+      ResourceSignal:
+        Count: 1
+        Timeout: PT5M
     Properties:
       Tags:
       - Key: Name

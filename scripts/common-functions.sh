@@ -1234,7 +1234,25 @@ addRdsSnapshotParameters() {
   add_parameter $cmdfile 'RdsSubnetCIDR2' 'PRIVATE_SUBNET1_CIDR'
   add_parameter $cmdfile 'RdsJumpboxSubnetCIDR1' 'CAMPUS_SUBNET1_CIDR'
   add_parameter $cmdfile 'RdsJumpboxSubnetCIDR2' 'CAMPUS_SUBNET2_CIDR'
-  add_parameter $cmdfile 'RdsAvailabilityZone' 'PRIVATE_SUBNET1_AZ'
+
+    # AVAILABILITY ZONE: 
+    # 1) 
+    #   An rds instance must have a subnet group that includes at least two subnets in at least two availability zones.
+    #   This requirement exists even for single-az deployments. AWS documentation states that this is to allow for a change 
+    #   of heart where one wants to convert the existing single-az to a mulit-az deployment.
+    #   If multi-az is false, we want to specify our preferred of the two availability zones. This is done by
+    #   setting the "AvailabilityZone" property of the rds instance. In our case it will be the availability zone of the first
+    #   of the two subnets in the database subnet group. When deployment is complete, the rds instance should have a private
+    #   ip address that falls within the cidr block of the first subnet.
+    # 2)
+    #   If multi-az is true, then the "AvailabilityZone" property becomes an illegal setting and will cause an error.    
+  if [ "$MULTI_AZ" != 'true' ] ; then
+    add_parameter $cmdfile 'RdsAvailabilityZone' 'PRIVATE_SUBNET1_AZ'
+    if [ -z "$PRIVATE_SUBNET1_AZ" ] ; then
+      echo "ERROR! Single-AZ deployment indicated, but the availability zone of the first subnet in the database subnet group cannot be determined."
+      exit 1
+    fi
+  fi
 
   if [ "${rdsSnapshotARN,,}" == 'new' ] ; then
     rdsSnapshotARN="$(createRdsSnapshot $rdsArnToSnapshot $(date -u +'kuali-oracle-'$landscape'-cfn-%Y-%m-%d-%H-%M') $landscape)"
@@ -1251,13 +1269,14 @@ addRdsSnapshotParameters() {
 
   addParameter $cmdfile 'RdsSnapshotARN' $rdsSnapshotARN
 
-  local engineVersion="$(getOracleEngineVersion $rdsSnapshotARN)"
-  if [ -z "$engineVersion" ] ; then
+  local engineVersion="$ENGINE_VERSION"
+  [ -z "$engineVersion" ] && engineVersion="$(getOracleEngineVersion $rdsSnapshotARN)"
+  [ -z "$engineVersion" ] && engineVersion="$(getLatestOracleEngineVersion $ENGINE $MAJOR_VERSION)"
+  if [ -z "$engineVersion" ] && [ "$action" == "create-stack" ] ; then
     echo "ERROR! Cannot determine rds engine version"
     exit 1
   fi
   addParameter $cmdfile 'RdsEngineVersion' $engineVersion
-
 }
 
 isDryrun() {
@@ -1472,8 +1491,8 @@ getOracleEngineVersion() {
 }
 
 getLatestOracleEngineVersion() {
-  local engine="$1"
-  local majorVersion="$2"
+  local engine="${1:-'oracle-se2'}"
+  local majorVersion="${2:-'19'}"
   
   aws rds describe-db-engine-versions \
     --engine $engine \
@@ -1639,7 +1658,7 @@ checkLegacyAccount() {
     if ! isBuCloudInfAccount ; then
       LEGACY_ACCOUNT='true'
       echo 'Current profile indicates legacy account.'
-      defaults['TEMPLATE_BUCKET_PATH']=$(echo "${defaults['TEMPLATE_BUCKET_PATH']}" | sed -i 's/kuali-config/kuali-research-ec2-setup/')
+      defaults['TEMPLATE_BUCKET_PATH']=$(echo "${defaults['TEMPLATE_BUCKET_PATH']}" | sed 's/kuali-conf/kuali-research-ec2-setup/')
       if [ "$BASELINE" != 'prod' ] && [ -n "${defaults['HOSTED_ZONE']}" ] ; then
         defaults['HOSTED_ZONE']="kuali-research-$BASELINE.bu.edu"
       fi

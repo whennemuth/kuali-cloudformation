@@ -1,6 +1,6 @@
 ## RDS Schema Creation (Oracle to RDS Oracle)
 
-Create the kuali "KCOEUS" schema in an empty RDS database.
+Create the kuali "KCOEUS" and peripheral schemas in an empty RDS database.
 The [AWS Schema Conversion tool](https://docs.aws.amazon.com/SchemaConversionTool/latest/userguide/CHAP_Welcome.html) is used for this. *[Reference documentation: [Oracle to RDS Oracle](https://docs.aws.amazon.com/SchemaConversionTool/latest/userguide/CHAP_Source.Oracle.ToRDSOracle.html)]*
 
 

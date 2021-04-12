@@ -1,0 +1,437 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: |
+  Centralized security group creation for resources (like databases) that require ingress restrictions consistent with "private" css subnets.
+  This mainly involves reducing cidr ingress down from campus vpn-wide to just the ip addresses of SAPBW and Informatica servers and
+  the "dbreport" VPN subgroup only.
+
+Parameters:
+
+  GlobalTag:
+    Type: String
+    Description: >
+      A common value that all resources in this template will have prefixed to
+      their name and attached as a tag to establish a bundling through naming convention.
+    Default: kuali-sg
+
+  Landscape:
+    Description: Specify a name for your landscape (currently just a label - kc-config.xml is hard-coded for now).
+    Type: String
+    AllowedPattern: "[a-zA-Z\\d]{1,12}"
+    ConstraintDescription: Up to 12 letters and/or numbers
+    
+  Service:
+    Description: Service catalog name
+    Type: String
+    Default: research-administration
+
+  Function:
+    Description: The Function within the Service
+    Type: String
+    Default: kuali
+
+  Baseline:
+    Description: Specify one of a set of standard landscapes. Indicates secrets manager secrets to use for database access.
+    Type: String
+    AllowedPattern: "[a-zA-Z\\d]{1,12}"
+    ConstraintDescription: Up to 12 letters and/or numbers
+
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: The id of the vpc to deploy to.
+
+  SecurityGroupName:
+    Description: Supply a custom name for the security group
+    Type: String
+    Default: empty.
+
+  SecurityGroupDescription:
+    Description: Supply a custom name for the security group
+    Type: String
+    Default: empty.
+
+  CampusSubnetCIDR1:
+    AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
+    ConstraintDescription: It must be a valid IP CIDR range of the form x.x.x.x/x. 
+    Description:  The IP address range that ingress will be allowed on. This will be a subset of the on/off campus vpn(s).
+    MaxLength: 18
+    MinLength: 9 
+    Type: String
+
+  CampusSubnetCIDR2:
+    AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
+    ConstraintDescription: It must be a valid IP CIDR range of the form x.x.x.x/x. 
+    Description:  The IP address range that ingress will be allowed on. This will be a subset of the on/off campus vpn(s).
+    MaxLength: 18
+    MinLength: 9 
+    Type: String
+
+  FromPort:
+    Description: The starting port in a port range.
+    Type: Number
+
+  ToPort:
+    Description: The ending port in a port range. If same as FromPort this value will be ignored.
+    Type: Number
+  
+  ApplicationSecurityGroupId:
+    # Type: AWS::EC2::SecurityGroup::Id
+    Type: String
+    Description: Id that identifies the security group for the ec2 instances that host the application
+    Default: empty
+
+  GrantDBReportIngress:
+    Type: String
+    Description: Persons who have logged into the "DBReport" vpn subgroup can have ingress
+    AllowedValues:
+    - 'true'
+    - 'false'
+
+  GrantInformaticaIngress:
+    Type: String
+    Description: Grants ingress to the various informatica servers on the bu network
+    AllowedValues:
+    - 'true'
+    - 'false'
+    Default: 'true'
+
+  GrantSAPBWIngress:
+    Type: String
+    Description: Grants ingress to the various SAPBW servers on the bu network
+    AllowedValues:
+    - 'true'
+    - 'false'
+    Default: 'true'
+
+
+Mappings:
+
+  DbReportCidrs:
+    # dbreport vpn: offcampus
+    first:
+      cidr: "168.122.78.128/28"
+    # dbreport vpn: oncampus
+    second:
+      cidr: "168.122.84.240/28"
+
+  # CampusVpnCidrs:
+    # first:
+    #   cidr: "168.122.81.0/24"
+    # second:
+    #   cidr: "168.122.82.0/23"
+    # third:
+    #   cidr: "168.122.76.0/24"
+    # fourth:
+    #   cidr: "168.122.68.0/24"
+    # fifth:
+    #   cidr: "168.122.69.0/24"
+    # sixth:
+    #   cidr: "10.1.0.0/21"
+
+  InformaticaCidrs:
+    sb: 
+      host: ist-etl-sb01.bu.edu
+      cidr: 10.231.31.12/32
+    ci:
+      host: ist-etl-devl01.bu.edu
+      cidr: 10.231.31.13/32
+    qa:
+      host: ist-etl-qa01.bu.edu
+      cidr: 10.231.31.14/32
+    stg:
+      host: ist-etl-qa01.bu.edu
+      cidr: 10.231.31.14/32
+    prod:
+      host: ist-etl-prod01.bu.edu
+      cidr: 10.231.31.15/32
+
+  SAPBWCidrs:
+    qa: {
+      sid1: SBW, host1: sbwci/holbuws502, cidr1: 10.230.9.140/32,
+      sid2: DBW, host2: dbwci/bosbuwd502, cidr2: 10.230.5.120/32,
+      sid3: QBW, host3: qbwci/holbuwq502, cidr3: 10.230.9.160/32,
+      sid4: QBW, host4: qbwci/holbuwq503, cidr4: 10.230.9.161/32,
+      sid5: QBW, host5: qbwci/holbuwq504, cidr5: 10.230.9.162/32,
+      sid6: XBW, host6: xbwci/holbuwx502, cidr6: 10.230.9.130/32,
+      sid7: YBW, host7: ybwci/holbuwy502, cidr7: 10.230.9.118/32,
+      sid8: ZBW, host8: zbwci/holbuwz502, cidr8: 10.230.9.175/32
+    }
+    stg: {
+      sid1: SBW, host1: sbwci/holbuws502, cidr1: 10.230.9.140/32,
+      sid2: DBW, host2: dbwci/bosbuwd502, cidr2: 10.230.5.120/32,
+      sid3: QBW, host3: qbwci/holbuwq502, cidr3: 10.230.9.160/32,
+      sid4: QBW, host4: qbwci/holbuwq503, cidr4: 10.230.9.161/32,
+      sid5: QBW, host5: qbwci/holbuwq504, cidr5: 10.230.9.162/32,
+      sid6: XBW, host6: xbwci/holbuwx502, cidr6: 10.230.9.130/32,
+      sid7: YBW, host7: ybwci/holbuwy502, cidr7: 10.230.9.118/32,
+      sid8: ZBW, host8: zbwci/holbuwz502, cidr8: 10.230.9.175/32
+    }
+    prod: {
+      sid1: PBW, host1: pbwci/bosbuwp502, cidr1: 10.230.4.20/32,
+      sid2: PBW, host2: pbwa1/bosbuwp503, cidr2: 10.230.4.21/32,
+      sid3: PBW, host3: pwa2/bosbuwp504,  cidr3: 10.230.4.22/32
+    }
+
+
+Conditions:
+  MonoCampusSubnet: !Equals [!Ref CampusSubnetCIDR1, !Ref CampusSubnetCIDR2]
+  DuoCampusSubnet: !Not [ Condition: MonoCampusSubnet ]
+  MonoPort: !Equals [!Ref FromPort, !Ref ToPort]
+  IncludeAppSg1: !Not [ !Equals [ !Ref ApplicationSecurityGroupId, empty ]]
+  IncludeAppSg2: !And [ Condition: IncludeAppSg1, Condition: DuoCampusSubnet ]
+  IncludeDbReportIngress: !Equals [ !Ref GrantDBReportIngress, 'true' ]
+  IncludeInformaticaIngress: !Equals [ !Ref GrantDBReportIngress, 'true' ]
+  IsProdBaseline: !Equals [!Ref Baseline, prod]
+  IsSAPBWBaseline: !Or [ !Equals [!Ref Baseline, stg], !Equals [!Ref Baseline, prod], !Equals [!Ref Baseline, qa] ]
+  IncludeSAPBW1To3: !And [ Condition: IsSAPBWBaseline, !Equals [ !Ref GrantSAPBWIngress, 'true' ] ]
+  IncludeSAPBW4To8: !And [ Condition: IncludeSAPBW1To3, !Not [ Condition: IsProdBaseline ] ]
+  GroupNameProvided: !Not [ !Equals [ !Ref SecurityGroupName, empty ]]
+  GroupDescProvided: !Not [ !Equals [ !Ref SecurityGroupDescription, empty ]]
+
+Resources:
+
+  # The security group (Add ingress rules separately)
+  SGBase:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VpcId
+      GroupName: 
+        !If
+          - GroupNameProvided
+          - !Ref SecurityGroupName
+          - !Sub 
+            - ${gt}-${ls}-${portrange}-sg
+            - gt: !Ref GlobalTag
+              ls: !Ref Landscape
+              portrange:
+                !If
+                  - MonoPort
+                  - !Ref FromPort
+                  - !Sub ${FromPort}-${ToPort}
+
+      GroupDescription: 
+        !If
+          - GroupDescProvided
+          - !Ref SecurityGroupDescription
+          - !Sub 
+              - Security group for db access in ${ls} landscape, port(s) - ${portrange}.
+              - ls: !Ref Landscape
+                portrange:
+                  !If
+                    - MonoPort
+                    - !Ref FromPort
+                    - !Sub ${FromPort}-${ToPort}
+
+      Tags:
+        - Key: Name
+          Value: 
+            !If
+              - GroupNameProvided
+              - !Ref SecurityGroupName
+              - !Sub 
+                - ${gt}-${ls}-${portrange}-sg
+                - gt: !Ref GlobalTag
+                  ls: !Ref Landscape
+                  portrange:
+                    !If
+                      - MonoPort
+                      - !Ref FromPort
+                      - !Sub ${FromPort}-${ToPort}
+        - Key: Landscape
+          Value: !Ref Landscape
+        - Key: Service
+          Value: !Ref Service
+        - Key: Function
+          Value: !Ref Function
+  
+  # APPLICATION: Allow ingress for any other resource that belongs to the application security group.
+  ApplicationIngress0:
+   Type: 'AWS::EC2::SecurityGroupIngress'
+   Condition: IncludeAppSg1
+   Properties:
+      GroupId: !Ref SGBase
+      SourceSecurityGroupId: !Ref ApplicationSecurityGroupId
+      Description: Allows inbound access from the first application subnet.
+      FromPort: !Ref FromPort
+      IpProtocol: tcp
+      ToPort: !Ref ToPort
+  
+  # APPLICATION: Allow ingress from the first subnet where the application servers reside
+  ApplicationIngress1:
+   Type: 'AWS::EC2::SecurityGroupIngress'
+   Condition: IncludeAppSg1
+   Properties:
+      GroupId: !Ref SGBase
+      CidrIp: !Ref CampusSubnetCIDR1
+      Description: Allows inbound access from the first application subnet.
+      FromPort: !Ref FromPort
+      IpProtocol: tcp
+      ToPort: !Ref ToPort
+
+  # APPLICATION: Allow ingress from the second (if exists) subnet where the application servers reside
+  ApplicationIngress2:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Condition: IncludeAppSg2
+    Properties:
+      GroupId: !Ref SGBase
+      CidrIp: !Ref CampusSubnetCIDR2
+      Description: Allows inbound access from the second application subnet.
+      FromPort: !Ref FromPort
+      IpProtocol: tcp
+      ToPort: !Ref ToPort
+
+  # DBReport VPN Subgroup: Allow ingress from the campus subnet associated with the "dbreport" vpn
+  DBReportOnCampusIngress:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Condition: IncludeDbReportIngress
+    Properties:
+      GroupId: !Ref SGBase
+      Description: "Oracle: vpn.bu.edu/dbreport On Campus"
+      IpProtocol: tcp
+      FromPort: !Ref FromPort
+      ToPort: !Ref ToPort
+      CidrIp: !FindInMap [ DbReportCidrs, "second", "cidr" ]
+
+  # DBReport VPN Subgroup: Allow ingress from the campus subnet associated with the "dbreport" vpn
+  DBReportOffCampusIngress:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Condition: IncludeDbReportIngress
+    Properties:
+      GroupId: !Ref SGBase
+      Description: "Oracle: vpn.bu.edu/dbreport Off Campus"
+      IpProtocol: tcp
+      FromPort: !Ref FromPort
+      ToPort: !Ref ToPort
+      CidrIp: !FindInMap [ DbReportCidrs, "first", "cidr" ]
+
+  # INFORMATICA: Allow ingress from the informatica server(s) associated with the baseline landscape
+  InformaticaServerIngress:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Condition: IncludeInformaticaIngress
+    Properties:
+      GroupId: !Ref SGBase
+      CidrIp: !FindInMap [ InformaticaCidrs, !Ref Baseline, "cidr" ]
+      Description: "Oracle: Informatica ingress to $Landscape oracle rds instance(s)"
+      IpProtocol: tcp
+      FromPort: !Ref FromPort
+      ToPort: !Ref ToPort
+
+  # SAPBW: Allow ingress from the SAP BW server(s) associated with the prod or staging baseline landscapes only
+  SAPBWServerIngress1:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Condition: IncludeSAPBW1To3
+    Properties:
+      GroupId: !Ref SGBase
+      Description: !Sub 
+      - "Oracle: SAPBW ${sid} ${host} ingress to $Landscape oracle rds instance(s)"
+      - sid: !FindInMap [ SAPBWCidrs, !Ref Baseline, "sid1" ]
+        host: !FindInMap [ SAPBWCidrs, !Ref Baseline, "host1" ]
+      IpProtocol: tcp
+      FromPort: !Ref FromPort
+      ToPort: !Ref ToPort
+      CidrIp: !FindInMap [ SAPBWCidrs, !Ref Baseline, "cidr1" ]
+
+  SAPBWServerIngress2:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Condition: IncludeSAPBW1To3
+    Properties:
+      GroupId: !Ref SGBase
+      Description: !Sub 
+        - "Oracle: SAPBW ${sid} ${host} ingress to $Landscape oracle rds instance(s)"
+        - sid: !FindInMap [ SAPBWCidrs, !Ref Baseline, "sid2" ]
+          host: !FindInMap [ SAPBWCidrs, !Ref Baseline, "host2" ]
+      IpProtocol: tcp
+      FromPort: !Ref FromPort
+      ToPort: !Ref ToPort
+      CidrIp: !FindInMap [ SAPBWCidrs, !Ref Baseline, "cidr2" ]
+
+  SAPBWServerIngress3:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Condition: IncludeSAPBW1To3
+    Properties:
+      GroupId: !Ref SGBase
+      Description: !Sub 
+        - "Oracle: SAPBW ${sid} ${host} ingress to $Landscape oracle rds instance(s) - ${test}"
+        - sid: !FindInMap [ SAPBWCidrs, !Ref Baseline, "sid3" ]
+          host: !FindInMap [ SAPBWCidrs, !Ref Baseline, "host3" ]
+          test: !If [ ExcludeSAPBW, 'exclude', 'include' ]
+      IpProtocol: tcp
+      FromPort: !Ref FromPort
+      ToPort: !Ref ToPort
+      CidrIp: !FindInMap [ SAPBWCidrs, !Ref Baseline, "cidr3" ]
+
+  SAPBWServerIngress4:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Condition: IncludeSAPBW4To8
+    Properties:
+      GroupId: !Ref SGBase
+      Description: !Sub 
+        - "Oracle: SAPBW ${sid} ${host} ingress to $Landscape oracle rds instance(s)"
+        - sid: !FindInMap [ SAPBWCidrs, !Ref Baseline, "sid4" ]
+          host: !FindInMap [ SAPBWCidrs, !Ref Baseline, "host4" ]
+      IpProtocol: tcp
+      FromPort: !Ref FromPort
+      ToPort: !Ref ToPort
+      CidrIp: !FindInMap [ SAPBWCidrs, !Ref Baseline, "cidr4" ]
+
+  SAPBWServerIngress5:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Condition: IncludeSAPBW4To8
+    Properties:
+      GroupId: !Ref SGBase
+      Description: !Sub 
+        - "Oracle: SAPBW ${sid} ${host} ingress to $Landscape oracle rds instance(s)"
+        - sid: !FindInMap [ SAPBWCidrs, !Ref Baseline, "sid5" ]
+          host: !FindInMap [ SAPBWCidrs, !Ref Baseline, "host5" ]
+      IpProtocol: tcp
+      FromPort: !Ref FromPort
+      ToPort: !Ref ToPort
+      CidrIp: !FindInMap [ SAPBWCidrs, !Ref Baseline, "cidr5" ]
+
+  SAPBWServerIngress6:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Condition: IncludeSAPBW4To8
+    Properties:
+      GroupId: !Ref SGBase
+      Description: !Sub 
+        - "Oracle: SAPBW ${sid} ${host} ingress to $Landscape oracle rds instance(s)"
+        - sid: !FindInMap [ SAPBWCidrs, !Ref Baseline, "sid6" ]
+          host: !FindInMap [ SAPBWCidrs, !Ref Baseline, "host6" ]
+      IpProtocol: tcp
+      FromPort: !Ref FromPort
+      ToPort: !Ref ToPort
+      CidrIp: !FindInMap [ SAPBWCidrs, !Ref Baseline, "cidr6" ]
+
+  SAPBWServerIngress7:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Condition: IncludeSAPBW4To8
+    Properties:
+      GroupId: !Ref SGBase
+      Description: !Sub 
+        - "Oracle: SAPBW ${sid} ${host} ingress to $Landscape oracle rds instance(s)"
+        - sid: !FindInMap [ SAPBWCidrs, !Ref Baseline, "sid7" ]
+          host: !FindInMap [ SAPBWCidrs, !Ref Baseline, "host7" ]
+      IpProtocol: tcp
+      FromPort: !Ref FromPort
+      ToPort: !Ref ToPort
+      CidrIp: !FindInMap [ SAPBWCidrs, !Ref Baseline, "cidr7" ]
+
+  SAPBWServerIngress8:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Condition: IncludeSAPBW4To8
+    Properties:
+      GroupId: !Ref SGBase
+      Description: !Sub 
+        - "Oracle: SAPBW ${sid} ${host} ingress to $Landscape oracle rds instance(s)"
+        - sid: !FindInMap [ SAPBWCidrs, !Ref Baseline, "sid8" ]
+          host: !FindInMap [ SAPBWCidrs, !Ref Baseline, "host8" ]
+      IpProtocol: tcp
+      FromPort: !Ref FromPort
+      ToPort: !Ref ToPort
+      CidrIp: !FindInMap [ SAPBWCidrs, !Ref Baseline, "cidr8" ]
+
+Outputs:
+
+  GroupId:
+    Description: The group id of the security group.
+    Value: !GetAtt SGBase.GroupId
