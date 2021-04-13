@@ -47,6 +47,7 @@ run() {
   source ../scripts/common-functions.sh
 
   if ! isCurrentDir "kuali_ecs" ; then
+    echo "Current directory: $(getCurrentDir)"
     echo "You must run this script from the kuali_ecs subdirectory!."
     exit 1
   fi

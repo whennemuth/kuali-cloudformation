@@ -166,7 +166,6 @@ createStack() {
   fi
 
   echo "New working directory: $(pwd)"
-  echo "Test working directory $(getCurrentDir)"
   echo " "
 
   echo "$cmd"
