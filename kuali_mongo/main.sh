@@ -72,9 +72,12 @@ EOF
     add_parameter $cmdfile 'EC2InstanceType' 'EC2_INSTANCE_TYPE'
     add_parameter $cmdfile 'VpcId' 'VpcId'
     add_parameter $cmdfile 'MongoSubnet' 'PRIVATE_SUBNET1'
-    add_parameter $cmdfile 'CampusSubnetCIDR1' 'CAMPUS_SUBNET1_CIDR'
-    add_parameter $cmdfile 'CampusSubnetCIDR2' 'CAMPUS_SUBNET2_CIDR'
-    add_parameter $cmdfile 'ApplicationSecurityGroupId' 'APP_SECURITY_GROUP_ID'
+    if [ -n "$APP_SECURITY_GROUP_ID" ] ; then
+      add_parameter $cmdfile 'ApplicationSecurityGroupId' 'APP_SECURITY_GROUP_ID'
+    else
+      add_parameter $cmdfile 'CampusSubnetCIDR1' 'CAMPUS_SUBNET1_CIDR'
+      add_parameter $cmdfile 'CampusSubnetCIDR2' 'CAMPUS_SUBNET2_CIDR'
+    fi
 
     echo "      ]'" >> $cmdfile
 

@@ -169,28 +169,6 @@ Parameters:
     MinLength: 9 
     Type: String
     Default: 0.0.0.0/0
-  
-  RdsJumpboxSubnetCIDR1:
-    AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
-    ConstraintDescription: It must be a valid IP CIDR range of the form x.x.x.x/x. 
-    Description: |
-      The IP address range of the subnet containing the oracle RDS instances. 
-      Accessible from the campus subnet over the default "local" route.
-    MaxLength: 18
-    MinLength: 9 
-    Type: String
-    Default: 0.0.0.0/0
-
-  RdsJumpboxSubnetCIDR2:
-    AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
-    ConstraintDescription: It must be a valid IP CIDR range of the form x.x.x.x/x. 
-    Description: |
-      The IP address range of the subnet containing the oracle RDS instances. 
-      Accessible from the campus subnet over the default "local" route.
-    MaxLength: 18
-    MinLength: 9 
-    Type: String
-    Default: 0.0.0.0/0
 
   RdsAvailabilityZone:
     Type: String
@@ -244,8 +222,6 @@ Resources:
         RdsDbSubnet2: !Ref RdsDbSubnet2
         RdsSubnetCIDR1: !Ref RdsSubnetCIDR1
         RdsSubnetCIDR2: !Ref RdsSubnetCIDR2
-        CampusSubnetCIDR1: !Ref RdsJumpboxSubnetCIDR1
-        CampusSubnetCIDR2: !Ref RdsJumpboxSubnetCIDR2
         RdsAvailabilityZone: !Ref RdsAvailabilityZone
         ApplicationSecurityGroupId: !GetAtt EC2InstanceSecurityGroup.GroupId
 
@@ -377,14 +353,12 @@ Resources:
           !Ref Baseline
         VpcId:
           !Ref VpcId
-        ApplicationSecurityGroupId:
-          !GetAtt EC2InstanceSecurityGroup.GroupId
         MongoSubnet:
           !Ref MongoSubnetId
-        CampusSubnetCIDR1:
-          !Ref CampusSubnet
-        CampusSubnetCIDR2:
-          !Ref CampusSubnet
+        TemplateBucketName: 
+          !Ref TemplateBucketName
+        ApplicationSecurityGroupId:
+          !GetAtt EC2InstanceSecurityGroup.GroupId
       
   EC2Instance:
     Type: AWS::EC2::Instance

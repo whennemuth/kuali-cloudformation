@@ -49,22 +49,30 @@ Parameters:
     Description: Supply a custom name for the security group
     Type: String
     Default: empty.
+  
+  ApplicationSecurityGroupId:
+    # Type: AWS::EC2::SecurityGroup::Id
+    Type: String
+    Description: Id that identifies the security group for the ec2 instances that host the application
+    Default: empty
 
   CampusSubnetCIDR1:
-    AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
+    AllowedPattern: "((UsingAppSg)|((\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})))"
     ConstraintDescription: It must be a valid IP CIDR range of the form x.x.x.x/x. 
     Description:  The IP address range that ingress will be allowed on. This will be a subset of the on/off campus vpn(s).
     MaxLength: 18
     MinLength: 9 
     Type: String
+    Default: UsingAppSg
 
   CampusSubnetCIDR2:
-    AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
+    AllowedPattern: "((UsingAppSg)|((\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})))"
     ConstraintDescription: It must be a valid IP CIDR range of the form x.x.x.x/x. 
     Description:  The IP address range that ingress will be allowed on. This will be a subset of the on/off campus vpn(s).
     MaxLength: 18
     MinLength: 9 
     Type: String
+    Default: UsingAppSg
 
   FromPort:
     Description: The starting port in a port range.
@@ -73,12 +81,6 @@ Parameters:
   ToPort:
     Description: The ending port in a port range. If same as FromPort this value will be ignored.
     Type: Number
-  
-  ApplicationSecurityGroupId:
-    # Type: AWS::EC2::SecurityGroup::Id
-    Type: String
-    Description: Id that identifies the security group for the ec2 instances that host the application
-    Default: empty
 
   GrantDBReportIngress:
     Type: String
@@ -177,8 +179,9 @@ Conditions:
   MonoCampusSubnet: !Equals [!Ref CampusSubnetCIDR1, !Ref CampusSubnetCIDR2]
   DuoCampusSubnet: !Not [ Condition: MonoCampusSubnet ]
   MonoPort: !Equals [!Ref FromPort, !Ref ToPort]
-  IncludeAppSg1: !Not [ !Equals [ !Ref ApplicationSecurityGroupId, empty ]]
-  IncludeAppSg2: !And [ Condition: IncludeAppSg1, Condition: DuoCampusSubnet ]
+  IncludeAppSg: !Not [ !Equals [ !Ref ApplicationSecurityGroupId, empty ] ]
+  IncludeCampusSg1: !And [ !Not [ !Equals [ !Ref CampusSubnetCIDR1, 'UsingAppSg' ] ], Condition: IncludeAppSg ]
+  IncludeCampusSg2: !And [ !Not [ !Equals [ !Ref CampusSubnetCIDR2, 'UsingAppSg' ] ], Condition: IncludeCampusSg1, Condition: DuoCampusSubnet ]
   IncludeDbReportIngress: !Equals [ !Ref GrantDBReportIngress, 'true' ]
   IncludeInformaticaIngress: !Equals [ !Ref GrantDBReportIngress, 'true' ]
   IsProdBaseline: !Equals [!Ref Baseline, prod]
@@ -245,9 +248,10 @@ Resources:
           Value: !Ref Function
   
   # APPLICATION: Allow ingress for any other resource that belongs to the application security group.
-  ApplicationIngress0:
+  # (Redundant if CampusIngress1&2 are used since the same CIDR blocks apply - though this is preferred)
+  ApplicationIngress:
    Type: 'AWS::EC2::SecurityGroupIngress'
-   Condition: IncludeAppSg1
+   Condition: IncludeAppSg
    Properties:
       GroupId: !Ref SGBase
       SourceSecurityGroupId: !Ref ApplicationSecurityGroupId
@@ -255,11 +259,14 @@ Resources:
       FromPort: !Ref FromPort
       IpProtocol: tcp
       ToPort: !Ref ToPort
-  
-  # APPLICATION: Allow ingress from the first subnet where the application servers reside
-  ApplicationIngress1:
+
+  # Or...
+
+  # CAMPUS: Allow ingress from the first subnet where the application servers reside 
+  # (Redundant if ApplicationIngress is used since the same CIDR blocks apply)
+  CampusIngress1:
    Type: 'AWS::EC2::SecurityGroupIngress'
-   Condition: IncludeAppSg1
+   Condition: IncludeCampusSg1
    Properties:
       GroupId: !Ref SGBase
       CidrIp: !Ref CampusSubnetCIDR1
@@ -267,11 +274,11 @@ Resources:
       FromPort: !Ref FromPort
       IpProtocol: tcp
       ToPort: !Ref ToPort
-
-  # APPLICATION: Allow ingress from the second (if exists) subnet where the application servers reside
-  ApplicationIngress2:
+  # CAMPUS: Allow ingress from the second (if exists) subnet where the application servers reside
+  # (Redundant if ApplicationIngress is used since the same CIDR blocks apply)
+  CampusIngress2:
     Type: 'AWS::EC2::SecurityGroupIngress'
-    Condition: IncludeAppSg2
+    Condition: IncludeCampusSg2
     Properties:
       GroupId: !Ref SGBase
       CidrIp: !Ref CampusSubnetCIDR2
@@ -279,6 +286,8 @@ Resources:
       FromPort: !Ref FromPort
       IpProtocol: tcp
       ToPort: !Ref ToPort
+
+  # And...
 
   # DBReport VPN Subgroup: Allow ingress from the campus subnet associated with the "dbreport" vpn
   DBReportOnCampusIngress:

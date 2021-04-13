@@ -286,28 +286,6 @@ Parameters:
     Type: String
     Default: empty
 
-  RdsJumpboxSubnetCIDR1:
-    AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
-    ConstraintDescription: It must be a valid IP CIDR range of the form x.x.x.x/x. 
-    Description: |
-      The IP address range of the subnet containing the oracle RDS instances. 
-      Accessible from the campus subnet over the default "local" route.
-    MaxLength: 18
-    MinLength: 9 
-    Type: String
-    Default: 0.0.0.0/0
-
-  RdsJumpboxSubnetCIDR2:
-    AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
-    ConstraintDescription: It must be a valid IP CIDR range of the form x.x.x.x/x. 
-    Description: |
-      The IP address range of the subnet containing the oracle RDS instances. 
-      Accessible from the campus subnet over the default "local" route.
-    MaxLength: 18
-    MinLength: 9 
-    Type: String
-    Default: 0.0.0.0/0
-
   RdsAvailabilityZone:
     Type: String
     Description: The availability zone of the rds instance
@@ -359,8 +337,6 @@ Resources:
         RdsSubnetCIDR1: !Ref RdsSubnetCIDR1
         RdsSubnetCIDR2: !Ref RdsSubnetCIDR2
         JumpboxInstanceType: !If [ CreateJumpboxInstance, !Ref RdsJumpboxInstanceType, !Ref AWS::NoValue ]
-        CampusSubnetCIDR1: !Ref RdsJumpboxSubnetCIDR1
-        CampusSubnetCIDR2: !Ref RdsJumpboxSubnetCIDR2
         RdsAvailabilityZone: !Ref RdsAvailabilityZone
         ApplicationSecurityGroupId: !GetAtt SecurityGroups.Outputs.ECSHostSecurityGroup
 
@@ -495,16 +471,12 @@ Resources:
           !Ref Baseline
         VpcId:
           !Ref VpcId
-        ApplicationSecurityGroupId:
-          !GetAtt SecurityGroups.Outputs.ECSHostSecurityGroup
         MongoSubnet:
           !Ref MongoSubnetId
         TemplateBucketName: 
           !Ref TemplateBucketName
-        CampusSubnetCIDR1:
-          !Ref CampusSubnet
-        CampusSubnetCIDR2:
-          !Ref CampusSubnet
+        ApplicationSecurityGroupId:
+          !GetAtt SecurityGroups.Outputs.ECSHostSecurityGroup
 
   ECS:
     Type: AWS::CloudFormation::Stack

@@ -106,12 +106,6 @@ stackAction() {
 EOF
 
     add_parameter $cmdfile 'VpcId' 'VPC_ID'
-    add_parameter $cmdfile 'CampusSubnetCIDR1' 'CAMPUS_SUBNET1_CIDR'
-    add_parameter $cmdfile 'CampusSubnetCIDR2' 'CAMPUS_SUBNET2_CIDR'
-    # add_parameter $cmdfile 'RdsDbSubnet1' 'PRIVATE_SUBNET1'
-    # add_parameter $cmdfile 'RdsDbSubnet2' 'PRIVATE_SUBNET2'
-    # add_parameter $cmdfile 'RdsSubnetCIDR1' 'PRIVATE_SUBNET1_CIDR'
-    # add_parameter $cmdfile 'RdsSubnetCIDR2' 'PRIVATE_SUBNET2_CIDR'
     add_parameter $cmdfile 'TemplateBucketName' 'TEMPLATE_BUCKET_NAME'
     add_parameter $cmdfile 'Landscape' 'LANDSCAPE'
     add_parameter $cmdfile 'GlobalTag' 'GLOBAL_TAG'
@@ -127,6 +121,12 @@ EOF
     add_parameter $cmdfile 'CharacterSetName' 'CHARACTERSET_NAME'
     add_parameter $cmdfile 'Iops' 'IOPS'
     add_parameter $cmdfile 'JumpboxInstanceType' 'JUMPBOX_INSTANCE_TYPE'
+    if [ -n "$APP_SECURITY_GROUP_ID" ] ; then
+      add_parameter $cmdfile 'ApplicationSecurityGroupId' 'APP_SECURITY_GROUP_ID'
+    else
+      add_parameter $cmdfile 'CampusSubnetCIDR1' 'CAMPUS_SUBNET1_CIDR'
+      add_parameter $cmdfile 'CampusSubnetCIDR2' 'CAMPUS_SUBNET2_CIDR'
+    fi
 
     checkLandscapeParameters
 
@@ -134,7 +134,12 @@ EOF
 
     add_parameter $cmdfile 'Baseline' 'BASELINE'
 
-    addRdsSnapshotParameters $cmdfile $LANDSCAPE "$RDS_SNAPSHOT_ARN" "$RDS_ARN_TO_CLONE"
+
+    if [ -n "$RDS_SNAPSHOT_ARN" ] ; then
+      addRdsSnapshotParameters $cmdfile $LANDSCAPE "$RDS_SNAPSHOT_ARN" "$RDS_ARN_TO_CLONE"
+    else
+      echo "No RDS snapshotting indicated. Will use existing RDS database directly."
+    fi
 
     echo "      ]' \\" >> $cmdfile
     echo "      --tags '[" >> $cmdfile

@@ -1232,8 +1232,8 @@ addRdsSnapshotParameters() {
   add_parameter $cmdfile 'RdsDbSubnet2' 'PRIVATE_SUBNET2'
   add_parameter $cmdfile 'RdsSubnetCIDR1' 'PRIVATE_SUBNET1_CIDR'
   add_parameter $cmdfile 'RdsSubnetCIDR2' 'PRIVATE_SUBNET1_CIDR'
-  add_parameter $cmdfile 'RdsJumpboxSubnetCIDR1' 'CAMPUS_SUBNET1_CIDR'
-  add_parameter $cmdfile 'RdsJumpboxSubnetCIDR2' 'CAMPUS_SUBNET2_CIDR'
+  # add_parameter $cmdfile 'RdsJumpboxSubnetCIDR1' 'PRIVATE_SUBNET1_CIDR'
+  # add_parameter $cmdfile 'RdsJumpboxSubnetCIDR2' 'PRIVATE_SUBNET1_CIDR'
 
     # AVAILABILITY ZONE: 
     # 1) 
