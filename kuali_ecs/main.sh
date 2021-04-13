@@ -130,44 +130,59 @@ stackAction() {
     if [ "$DEEP_VALIDATION" == 'true' ] ; then
       outputHeading "Validating and uploading nested templates..."
       if [ "${CREATE_MONGO,,}" == 'true' ] ; then
-        validateStack silent ../kuali_mongo/mongo.yaml
-        [ $? -gt 0 ] && exit 1
-        aws s3 cp ../kuali_mongo/mongo.yaml s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_mongo/
+        validateTemplateAndUploadToS3 \
+          silent=true \
+          filepath=../kuali_mongo/mongo.yaml \
+          s3path=s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_mongo/
+
         aws s3 cp ../scripts/ec2/initialize-mongo-database.sh s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/
+
+        validateTemplateAndUploadToS3 \
+          silent=true \
+          filepath=../kuali_campus_security/main.yaml \
+          s3path=s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_campus_security/
       fi
       if [ "${ENABLE_ALB_LOGGING,,}" != 'false' ] || [ "${CREATE_WAF,,}" == 'true' ] ; then
-        validateStack silent ../kuali_alb/logs.yaml
-        [ $? -gt 0 ] && exit 1
-        aws s3 cp ../kuali_alb/logs.yaml s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_alb/
+        validateTemplateAndUploadToS3 \
+          silent=true \
+          filepath=../kuali_alb/logs.yaml \
+          s3path=s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_alb/
 
-        validateStack silent ../kuali_waf/waf.yaml
-        [ $? -gt 0 ] && exit 1
-        aws s3 cp ../kuali_waf/waf.yaml s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_waf/
+        validateTemplateAndUploadToS3 \
+          silent=true \
+          filepath=../kuali_waf/waf.yaml \
+          s3path=s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_waf/
 
-        validateStack silent ../kuali_waf/aws-waf-security-automations-custom.yaml
-        [ $? -gt 0 ] && exit 1
-        aws s3 cp ../kuali_waf/aws-waf-security-automations-custom.yaml s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_waf/
+        validateTemplateAndUploadToS3 \
+          silent=true \
+          filepath=../kuali_waf/aws-waf-security-automations-custom.yaml \
+          s3path=s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_waf/
 
-        validateStack silent ../kuali_waf/aws-waf-security-automations-webacl-custom.yaml
-        [ $? -gt 0 ] && exit 1
-        aws s3 cp ../kuali_waf/aws-waf-security-automations-webacl-custom.yaml s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_waf/
+        validateTemplateAndUploadToS3 \
+          silent=true \
+          filepath=../kuali_waf/aws-waf-security-automations-webacl-custom.yaml \
+          s3path=s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_waf/
 
-        validateStack silent ../lambda/toggle_alb_logging/toggle_alb_logging.yaml
-        [ $? -gt 0 ] && exit 1
-        aws s3 cp ../lambda/toggle_alb_logging/toggle_alb_logging.yaml s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_lambda/
+        validateTemplateAndUploadToS3 \
+          silent=true \
+          filepath=../lambda/toggle_alb_logging/toggle_alb_logging.yaml \
+          s3path=s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_lambda/
 
-        validateStack silent ../lambda/toggle_waf_logging/toggle_waf_logging.yaml
-        [ $? -gt 0 ] && exit 1
-        aws s3 cp ../lambda/toggle_waf_logging/toggle_waf_logging.yaml s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_lambda/
+        validateTemplateAndUploadToS3 \
+          silent=true \
+          filepath=../lambda/toggle_waf_logging/toggle_waf_logging.yaml \
+          s3path=s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_lambda/
       fi
 
-      validateStack silent ../kuali_alb/alb.yaml
-      [ $? -gt 0 ] && exit 1
-      aws s3 cp ../kuali_alb/alb.yaml s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_alb/
+      validateTemplateAndUploadToS3 \
+        silent=true \
+        filepath=../kuali_alb/alb.yaml \
+        s3path=s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_alb/
 
-      validateStack silent ../lambda/bucket_emptier/bucket_emptier.yaml
-      [ $? -gt 0 ] && exit 1
-      aws s3 cp ../lambda/bucket_emptier/bucket_emptier.yaml s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_lambda/
+      validateTemplateAndUploadToS3 \
+        silent=true \
+        filepath=../lambda/bucket_emptier/bucket_emptier.yaml \
+        s3path=s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_lambda/
 
       # Upload lambda code used by custom resources
       outputHeading "Building, zipping, and uploading lambda code behind custom resources..."
@@ -246,12 +261,26 @@ EOF
     add_parameter $cmdfile 'Baseline' 'BASELINE'
 
     if [ -n "$RDS_SNAPSHOT_ARN" ] ; then
-      validateStack silent ../kuali_rds/rds-oracle.yaml
-      [ $? -gt 0 ] && exit 1
-      aws s3 cp ../kuali_rds/rds-oracle.yaml s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_rds/
+      validateTemplateAndUploadToS3 \
+        silent=true \
+        filepath=../kuali_rds/rds-oracle.yaml \
+        s3path=s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_rds/
+
       addRdsSnapshotParameters $cmdfile $LANDSCAPE "$RDS_SNAPSHOT_ARN" "$RDS_ARN_TO_CLONE"
+
+      validateTemplateAndUploadToS3 \
+        silent=true \
+        filepath=../kuali_campus_security/main.yaml \
+        s3path=s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_campus_security/
     else
       echo "No RDS snapshotting indicated. Will use existing RDS database directly."
+    fi
+
+    if [ -n "$JUMPBOX_INSTANCE_TYPE" ] ; then
+      validateTemplateAndUploadToS3 \
+        silent=true \
+        filepath=../kuali_rds/jumpbox/jumpbox.yaml \
+        s3path=s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_rds/jumpbox/
     fi
 
     echo "      ]' \\" >> $cmdfile

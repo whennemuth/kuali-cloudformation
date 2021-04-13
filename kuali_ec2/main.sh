@@ -26,6 +26,7 @@ declare -A defaults=(
   # [NEWRELIC_LICENSE_KEY]='???'
   # [ENABLE_NEWRELIC_APM]='false'
   # [ENABLE_NEWRELIC_INFRASTRUCTURE]='false'
+  # [JUMPBOX_INSTANCE_TYPE]='???'
 )
 
 run() {
@@ -119,6 +120,7 @@ EOF
     add_parameter $cmdfile 'EnableNewRelicAPM' 'ENABLE_NEWRELIC_APM'
     add_parameter $cmdfile 'EnableNewRelicInfrastructure' 'ENABLE_NEWRELIC_INFRASTRUCTURE'
     add_parameter $cmdfile 'EC2KeypairName' 'KEYPAIR_NAME'
+    add_parameter $cmdfile 'RdsJumpboxInstanceType' 'JUMPBOX_INSTANCE_TYPE'
 
     if [ "${CREATE_MONGO,,}" == 'true' ] ; then
       add_parameter $cmdfile 'MongoSubnetId' 'PRIVATE_SUBNET1'
@@ -136,12 +138,18 @@ EOF
     add_parameter $cmdfile 'Baseline' 'BASELINE'
 
     if [ -n "$RDS_SNAPSHOT_ARN" ]; then
-      validateStack silent ../kuali_rds/rds-oracle.yaml
+      validateStack silent=true filepath=../kuali_rds/rds-oracle.yaml
       [ $? -gt 0 ] && exit 1
       aws s3 cp ../kuali_rds/rds-oracle.yaml s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_rds/
       addRdsSnapshotParameters $cmdfile $LANDSCAPE "$RDS_SNAPSHOT_ARN" "$RDS_ARN_TO_CLONE"
     else
       echo "No RDS snapshotting indicated. Will use existing RDS database directly."
+    fi
+
+    if [ -n "$JUMPBOX_INSTANCE_TYPE" ] ; then
+      validateStack silent=true filepath=../kuali_rds/jumpbox/jumpbox.yaml
+      [ $? -gt 0 ] && exit 1
+      aws s3 cp ../kuali_rds/jumpbox/jumpbox.yaml s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_rds/jumpbox/
     fi
 
     echo "      ]' \\" >> $cmdfile

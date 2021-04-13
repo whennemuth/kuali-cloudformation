@@ -95,6 +95,10 @@ stackAction() {
     # Upload scripts that will be run as part of AWS::CloudFormation::Init
     aws s3 cp ../scripts/ec2/stop-instance.sh s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/
 
+    validateStack silent=true filepath=../kuali_campus_security/main.yaml
+    [ $? -gt 0 ] && exit 1
+    aws s3 cp ../kuali_campus_security/main.yaml s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_campus_security/
+
     cat <<-EOF > $cmdfile
     aws cloudformation $action \\
       --stack-name ${FULL_STACK_NAME} \\
@@ -156,7 +160,7 @@ EOF
 runTask() {
   case "$task" in
     validate)
-      validateStack silent;;
+      validateStack silent=true;
     upload)
       uploadStack ;;
     create-stack)

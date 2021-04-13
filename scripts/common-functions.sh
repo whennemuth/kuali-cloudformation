@@ -9,6 +9,10 @@ declare -A kualiTags=(
   [Function]='kuali'
 )
 
+# Keep a record of yaml templates that have been validated and uploaded to s3 so as to ignore repeats
+declare -A validatedStacks=()
+declare -A uploadedTemplates=()
+
 outputHeading() {
   local border='*******************************************************************************'
   echo ""
@@ -71,6 +75,21 @@ parseArgs() {
   fi
 }
 
+# Another function can pass all it's argument list to this function and will get a string
+# in return, which when run with eval, will set all any name=value pairs found in that argument list as local variables.
+getEvalArgs() {
+  evalstr=""
+  for nv in $@ ; do
+    [ -z "$(grep '=' <<< $nv)" ] && continue;
+    if [ -z "$evalstr" ] ; then
+      evalstr="local $nv"
+    else
+      evalstr="$evalstr && local $nv"
+    fi
+  done
+  echo "$evalstr"
+}
+
 setDefaults() {
   # Set explicit defaults first
   [ -z "$LANDSCAPE" ] && LANDSCAPE="${defaults['LANDSCAPE']}" || LANDSCAPE="${LANDSCAPE,,}"
@@ -114,9 +133,7 @@ setDefaults() {
 
 # Validate one or all cloudformation yaml templates.
 validateStack() {
-
-  local silent="$1"
-  local singlefile="$2"
+  eval "$(getEvalArgs $@)"
   local root=$(pwd)
     
   [ -d "$TEMPLATE_PATH" ] && cd $TEMPLATE_PATH
@@ -127,14 +144,21 @@ validateStack() {
   while read line; do \
     local f=$(printf "$line" | sed 's/^.\///'); \
     [ -n "$TEMPLATE" ] && [ "$TEMPLATE" != "$f" ] && continue;
+    if [ "${validatedStacks[$f]}" == "$f" ] ; then
+      echo "$f already validated once - skipping..."
+      continue
+    fi
+
     printf "validating $f";
 
     validate "$f" >> $root/validate.valid 2>> $root/validate.invalid
     if [ $? -gt 0 ] ; then
       echo $f >> $root/validate.invalid
+    else
+      validatedStacks["$f"]="$f"
     fi
     echo " "
-  done <<< "$([ -n "$singlefile" ] && echo $singlefile || find . -type f -iname "*.yaml")"
+  done <<< "$([ -n "$filepath" ] && echo $filepath || find . -type f -iname "*.yaml")"
   cd $root
   if [ -z "$silent" ] ; then
     cat $root/validate.valid
@@ -148,6 +172,26 @@ validateStack() {
     rm -f $root/validate.invalid 2> /dev/null
     rm -f $root/validate.valid 2> /dev/null
     echo "SUCCESS! (no errors found)"
+  fi
+}
+
+validateTemplateAndUploadToS3() {
+  eval "$(getEvalArgs $@)"
+
+  if [ "${validatedStacks[$filepath]}" == "$filepath" ] ; then
+    echo "$f already validated once - skipping..."
+  else
+    validateStack silent=$silent filepath=$filepath
+    [ $? -gt 0 ] && exit 1
+    validatedStacks["$filepath"]="$filepath"
+  fi
+
+  if [ "${uploadedTemplates[$s3path]}" == "$s3path" ] ; then
+    echo "$s3path already uploaded to s3 - skipping..."
+  else
+    aws s3 cp $filepath $s3path
+    [ $? -gt 0 ] && exit 1
+    uploadedTemplates["$s3path"]="$s3path"
   fi
 }
 
@@ -170,7 +214,7 @@ validate() {
 
 # Upload one or all cloudformation yaml templates to s3
 uploadStack() {
-  validateStack silent
+  validateStack silent=true
 
   [ $? -gt 0 ] && exit 1
 
@@ -1614,7 +1658,9 @@ jqInstalled() {
 # The aws cloudformation stack create/update command has just been constructed.
 # Prompt the user and/or run it according to certain flags.
 runStackActionCommand() {
+  
   if [ "$DEBUG" ] ; then
+    outputHeading "DEBUG: Would execute the following to trigger cloudformation..."
     cat $cmdfile
     exit 0
   fi

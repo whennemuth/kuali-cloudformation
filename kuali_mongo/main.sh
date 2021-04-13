@@ -50,7 +50,7 @@ stackAction() {
     uploadStack silent
     [ $? -gt 0 ] && exit 1
 
-    validateStack silent ../kuali_campus_security/main.yaml
+    validateStack silent=true filepath=../kuali_campus_security/main.yaml
     [ $? -gt 0 ] && exit 1
     aws s3 cp ../kuali_campus_security/main.yaml s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_campus_security/
 

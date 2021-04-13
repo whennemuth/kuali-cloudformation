@@ -106,7 +106,7 @@ EOF
 runTask() {
   case "$task" in
     validate)
-      validateStack silent;;
+      validateStack silent=true;
     upload)
       uploadStack ;;
     create-stack)

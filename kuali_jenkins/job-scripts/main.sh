@@ -132,8 +132,6 @@ buildArgs() {
   [ -z "$DEEP_VALIDATION" ] && putArg DEEP_VALIDATION=false
   [ -z "$PROMPT" ] && putArg PROMPT=false
   [ "$DRYRUN" == true ] && putArg DEBUG=true
-  
-  echo ${args[@]}
 }
 
 
@@ -148,14 +146,12 @@ pullCodeFromGithub() {
 
 # Create a new stack
 createStack() {
-  local method="${1:-'create'}"
+  local method="${1:-"create"}"
   outputHeading "Preparing to $method stack..."
-  local args=($(buildArgs LANDSCAPE AUTHENTICATION DNS WAF ALB MONGO RDS_SOURCE ADVANCED))
-  local cmd="sh main.sh $method-stack ${args[@]}"
+  local args=($(buildArgs LANDSCAPE AUTHENTICATION DNS WAF ALB MONGO RDS_SOURCE ADVANCED)) 
+  local cmd="sh main.sh $method-stack ${args[@]}"  
   local rootdir="kuali_$(echo $STACK_TYPE | sed 's/-/_/g')"
   local rootpath="$JENKINS_HOME/kuali-infrastructure/$rootdir"
-
-  echo "Current working directory: $(pwd)"
   
   if [ -d "$rootpath" ] ; then
     cd $rootpath
@@ -164,9 +160,6 @@ createStack() {
   elif isCurrentDir 'KualiUI' ; then
     cd ../../$rootdir
   fi
-
-  echo "New working directory: $(pwd)"
-  echo " "
 
   echo "$cmd"
   eval "$cmd"

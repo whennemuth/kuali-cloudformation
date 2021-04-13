@@ -257,7 +257,7 @@ runTask() {
     migrate)
       migrate $TASK_TYPE ;;
     validate)
-      validateStack silent ;;
+      validateStack silent=true;;
     upload)
       uploadStack ;;
     create-stack)
