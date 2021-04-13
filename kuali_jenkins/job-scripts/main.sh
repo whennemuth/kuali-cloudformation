@@ -155,6 +155,9 @@ createStack() {
   local rootdir="kuali_$(echo $STACK_TYPE | sed 's/-/_/g')"
   local rootpath="$JENKINS_HOME/kuali-infrastructure/$rootdir"
 
+  echo "Current working directory: $(pwd)"
+  echo "New working directory: $rootpath"
+
   if [ -d "$rootpath" ] ; then
     cd $rootpath
   elif [ -d ./$rootdir ] ; then
