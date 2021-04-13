@@ -269,7 +269,6 @@ Resources:
               group: root
             /usr/local/sbin/stop-instance.sh:
               source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/cloudformation/scripts/ec2/stop-instance.sh
-              content: !Sub |
               mode: "000775"
               owner: root
               group: root
