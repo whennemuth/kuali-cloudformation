@@ -129,13 +129,13 @@ stackAction() {
     if [ "$DEEP_VALIDATION" == 'true' ] ; then
       outputHeading "Validating and uploading nested templates..."
       if [ "${CREATE_MONGO,,}" == 'true' ] ; then
-        validateStack silent ../kuali_mongo/mongo.yaml > /dev/null
+        validateStack silent ../kuali_mongo/mongo.yaml
         [ $? -gt 0 ] && exit 1
         aws s3 cp ../kuali_mongo/mongo.yaml s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_mongo/
         aws s3 cp ../scripts/ec2/initialize-mongo-database.sh s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/
       fi
       if [ "${ENABLE_ALB_LOGGING,,}" != 'false' ] || [ "${CREATE_WAF,,}" == 'true' ] ; then
-        validateStack silent ../kuali_alb/logs.yaml > /dev/null
+        validateStack silent ../kuali_alb/logs.yaml
         [ $? -gt 0 ] && exit 1
         aws s3 cp ../kuali_alb/logs.yaml s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_alb/
 
@@ -160,7 +160,7 @@ stackAction() {
         aws s3 cp ../lambda/toggle_waf_logging/toggle_waf_logging.yaml s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_lambda/
       fi
 
-      validateStack silent ../kuali_alb/alb.yaml > /dev/null
+      validateStack silent ../kuali_alb/alb.yaml
       [ $? -gt 0 ] && exit 1
       aws s3 cp ../kuali_alb/alb.yaml s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_alb/
 
