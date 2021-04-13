@@ -41,6 +41,9 @@ isCurrentDir() {
   local askDir="$1"
   # local thisDir="$(pwd | grep -oP '[^/]+$')"  # Will blow up if run on mac (-P switch)
   local thisDir="$(getCurrentDir)"
+echo "THIS DIR: $thisdir"
+echo "PWD: $(pwd)"
+echo "PWD FOLDER: $(pwd | grep -oP '[^/]+$')"
   [ "$askDir" == "$thisDir" ] && true || false
 }
 
