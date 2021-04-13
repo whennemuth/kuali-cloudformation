@@ -267,6 +267,7 @@ Conditions:
   IncludeSAPBWProd: !And [ Condition: IncludeSAPBW, Condition: IsProdBaseline ]
   ExcludeSAPBWProd: !Not [ Condition: IncludeSAPBWProd ]
   IncludeAppSg: !Not [ !Equals [ !Ref ApplicationSecurityGroupId, empty ] ]
+  DuoCampusSubnet: !Not [ !Equals [ !Ref CampusSubnetCIDR1, !Ref CampusSubnetCIDR2 ] ]
   IncludeCampusSg1: !And [ !Not [ !Equals [ !Ref CampusSubnetCIDR1, 'UsingAppSg' ] ], Condition: IncludeAppSg ]
   IncludeCampusSg2: !And [ !Not [ !Equals [ !Ref CampusSubnetCIDR2, 'UsingAppSg' ] ], Condition: IncludeCampusSg1, Condition: DuoCampusSubnet ]
 
