@@ -34,16 +34,19 @@ std_err() {
 }
 
 getCurrentDir() {
-  pwd | awk 'BEGIN {RS="/"} {print $1}' | tail -1
+  local thisdir=$(pwd | awk 'BEGIN {RS="/"} {print $1}' | tail -1)
+  if [ -z "$thisdir" ] ; then
+    # For some reason, this comes up blank when run in the context of a jenkins job.
+    # Using this second method works, but beware of it when running on a mac (blows up due to -P switch)
+    thisdir=$(pwd | grep -oP '[^/]+$')
+  fi
+  echo "$thisdir"
 }
 
 isCurrentDir() {
   local askDir="$1"
   # local thisDir="$(pwd | grep -oP '[^/]+$')"  # Will blow up if run on mac (-P switch)
   local thisDir="$(getCurrentDir)"
-echo "THIS DIR: $thisdir"
-echo "PWD: $(pwd)"
-echo "PWD FOLDER: $(pwd | grep -oP '[^/]+$')"
   [ "$askDir" == "$thisDir" ] && true || false
 }
 
