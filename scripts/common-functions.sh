@@ -33,10 +33,14 @@ std_err() {
   echo "$*" >>/dev/stderr
 }
 
+getCurrentDir() {
+  pwd | awk 'BEGIN {RS="/"} {print $1}' | tail -1
+}
+
 isCurrentDir() {
   local askDir="$1"
   # local thisDir="$(pwd | grep -oP '[^/]+$')"  # Will blow up if run on mac (-P switch)
-  local thisDir="$(pwd | awk 'BEGIN {RS="/"} {print $1}' | tail -1)"
+  local thisDir="$(getCurrentDir)"
   [ "$askDir" == "$thisDir" ] && true || false
 }
 

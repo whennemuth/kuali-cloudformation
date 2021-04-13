@@ -156,8 +156,7 @@ createStack() {
   local rootpath="$JENKINS_HOME/kuali-infrastructure/$rootdir"
 
   echo "Current working directory: $(pwd)"
-  echo "New working directory: $rootpath"
-
+  
   if [ -d "$rootpath" ] ; then
     cd $rootpath
   elif [ -d ./$rootdir ] ; then
@@ -165,6 +164,10 @@ createStack() {
   elif isCurrentDir 'KualiUI' ; then
     cd ../../$rootdir
   fi
+
+  echo "New working directory: $(pwd)"
+  echo "Test working directory $(getCurrentDir)"
+  echo " "
 
   echo "$cmd"
   eval "$cmd"
