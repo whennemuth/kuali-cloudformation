@@ -254,7 +254,7 @@ Resources:
    Properties:
       GroupId: !Ref SGBase
       SourceSecurityGroupId: !Ref ApplicationSecurityGroupId
-      Description: Allows inbound access from the first application subnet.
+      Description: Allows inbound access from any resource in the kuali application subnet(s).
       FromPort: !Ref FromPort
       IpProtocol: tcp
       ToPort: !Ref ToPort
@@ -319,7 +319,7 @@ Resources:
     Properties:
       GroupId: !Ref SGBase
       CidrIp: !FindInMap [ InformaticaCidrs, !Ref Baseline, "cidr" ]
-      Description: "Oracle: Informatica ingress to $Landscape oracle rds instance(s)"
+      Description: !Sub "Oracle: Informatica ingress to $Landscape oracle rds instance(s)"
       IpProtocol: tcp
       FromPort: !Ref FromPort
       ToPort: !Ref ToPort
