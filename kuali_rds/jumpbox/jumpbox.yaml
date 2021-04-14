@@ -232,6 +232,17 @@ Resources:
             --resource JumpboxInstance
 
     Metadata:
+
+      AWS::CloudFormation::Authentication:
+        # This authentication will make possible replacing inline file content with paths to files in s3
+        # https://aws.amazon.com/blogs/devops/authenticated-file-downloads-with-cloudformation/
+        S3AccessCreds:
+          type: S3
+          roleName:
+            !Ref JumpboxRole
+          buckets:
+          - !Ref TemplateBucketName
+
       AWS::CloudFormation::Init:
         config: 
           packages: 
@@ -271,7 +282,7 @@ Resources:
               owner: root
               group: root
             /usr/local/sbin/stop-instance.sh:
-              source: !Sub https://${TemplateBucketName}.s3.amazonaws.com/cloudformation/scripts/ec2/stop-instance.sh
+              source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/cloudformation/scripts/ec2/stop-instance.sh
               mode: "000775"
               owner: root
               group: root
