@@ -34,7 +34,8 @@ COPY bin/sql/*.sql /usr/local/sbin/
 
 RUN \
   dos2unix /usr/local/sbin/* && \
-  chmod -R +x /usr/local/sbin/
+  chmod -R +x /usr/local/sbin/ && \
+  yum install -y jq
 
 ENV CLIENT_HOME=/usr/lib/oracle/18.3/client64
 ENV ORACLE_HOME=$CLIENT_HOME

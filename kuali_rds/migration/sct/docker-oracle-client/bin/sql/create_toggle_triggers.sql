@@ -85,7 +85,7 @@ begin
                 end;
             end loop i;
         else
-            dbms_output.put_line('No ' || key_type || ' constraints to ' || task || ' for ' || schema_name);
+            dbms_output.put_line('No triggers to ' || task || ' for ' || schema_name);
         end if;
     end;
     

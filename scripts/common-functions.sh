@@ -9,6 +9,13 @@ declare -A kualiTags=(
   [Function]='kuali'
 )
 
+declare -A migrationSecrets=(
+  [app]='kuali-oracle-rds-app-password username password' 
+  [admin]='kuali-oracle-rds-admin-password MasterUsername MasterUserPassword'
+  [sct]='kuali-oracle-ec2-sct-password username password'
+  [dms]='kuali-oracle-ec2-dms-password username password'
+)
+
 # Keep a record of yaml templates that have been validated and uploaded to s3 so as to ignore repeats
 declare -A validatedStacks=()
 declare -A uploadedTemplates=()
@@ -78,13 +85,25 @@ parseArgs() {
 # Another function can pass all it's argument list to this function and will get a string
 # in return, which when run with eval, will set all any name=value pairs found in that argument list as local variables.
 getEvalArgs() {
+  local cse="${1,,}"
+  if [ "$cse" != 'lowercase' ] && [ "$cse" != 'uppercase' ] ; then
+    cse=''
+  fi
+    
   evalstr=""
   for nv in $@ ; do
     [ -z "$(grep '=' <<< $nv)" ] && continue;
+    name="$(echo $nv | cut -d'=' -f1)"
+    value="$(echo $nv | cut -d'=' -f2-)"
+    local NV="$nv"
+    case "$cse" in
+      lowercase) NV="${name,,}=$value" ;;
+      uppercase) NV="${name^^}=$value" ;;
+    esac
     if [ -z "$evalstr" ] ; then
-      evalstr="local $nv"
+      evalstr="local $NV"
     else
-      evalstr="$evalstr && local $nv"
+      evalstr="$evalstr && local $NV"
     fi
   done
   echo "$evalstr"
@@ -95,7 +114,7 @@ setDefaults() {
   [ -z "$LANDSCAPE" ] && LANDSCAPE="${defaults['LANDSCAPE']}" || LANDSCAPE="${LANDSCAPE,,}"
   if isABaselineLandscape && [ -z "$BASELINE" ] ; then
     BASELINE=$LANDSCAPE
-    echo "BASELINE=$BASELINE"
+    [ "$SILENT" != 'true' ] && echo "BASELINE=$BASELINE"
   fi
   [ -z "$GLOBAL_TAG" ] && GLOBAL_TAG="${defaults['GLOBAL_TAG']}"
   for k in ${!defaults[@]} ; do
@@ -264,6 +283,7 @@ addParameter() {
   local cmdfile="$1"
   local key="$2"
   local value="$3"
+  [ -z "$value" ] && return 0
   [ -n "$(cat $cmdfile | grep 'ParameterKey')" ] && local comma=","
   cat <<-EOF >> $cmdfile
         ${comma}{
@@ -1081,22 +1101,26 @@ secretExistsForBaseline() {
     [ -n "$result" ] && true || false
 }
 
+
 getRdsSecret() {
   [ -n "$RDS_SECRET" ] && echo "$RDS_SECRET" && return 0
+  [ -z "$BASELINE" ] && BASELINE="$LANDSCAPE"
+  _getRdsSecret "$1" "$BASELINE"
+}
+_getRdsSecret() {
   local type="$1"
+  local landscape="$2"
+  local secId=$(echo kuali/$landscape/${migrationSecrets[$type]} | awk '{print $1}')
+  
   RDS_SECRET=$(
     aws secretsmanager get-secret-value \
-      --secret-id kuali/$BASELINE/kuali-oracle-rds-${type}-password \
+      --secret-id $secId \
       --output text \
       --query '{SecretString:SecretString}' 2> /dev/null
     )
   echo "$RDS_SECRET"
 }
 
-getRdsAdminUsername() {
-  # getRdsSecret | cut -d'"' -f8
-  getRdsSecret 'admin' | jq '.MasterUsername' | sed 's/"//g'
-}
 
 getRdsAdminPassword() {
   # getRdsSecret | cut -d'"' -f4
@@ -1109,6 +1133,177 @@ getRdsAppUsername() {
 
 getRdsAppPassword() {
   getRdsSecret 'app' | jq '.password' | sed 's/"//g'
+}
+
+getDbUsername() {
+  local type="$1"
+  local landscape="$2"
+  [ -n "$landscape" ] && _getRdsSecret $type $landscape 1> /dev/null
+  local usrFld=$(echo ${migrationSecrets[$type]} | awk '{print $2}')
+  echo "$RDS_SECRET" | jq '.'$usrFld | sed 's/"//g'
+}
+getDbPassword() {
+  local type="$1"
+  local landscape="$2"
+  [ -n "$landscape" ] && _getRdsSecret $type $landscape 1> /dev/null
+  local pwdFld=$(echo ${migrationSecrets[$type]} | awk '{print $3}')
+  echo "$RDS_SECRET" | jq '.'$pwdFld | sed 's/"//g'
+}
+
+getRdsCredentials() {
+  if [ $# -lt 2 ] ; then
+    getRdsCredentials $@ 'app' 'admin' 'sct' 'dms'
+    return 0
+  fi
+  eval "$(getEvalArgs lowercase $@)"
+
+  [ -z "$landscape" ] && local landscape="$BASELINE"
+  [ -z "$landscape" ] && local landscape="$LANDSCAPE"
+  [ -z "$landscape" ] && echo "Missing landscape value" && return 1
+  
+  for type in $@ ; do
+    [ -n "$(echo $type | grep '=')" ] && continue
+    RDS_SECRET=''
+    _getRdsSecret $type $landscape 1> /dev/null
+    echo "$(getDbUsername $type): $(getDbPassword $type)"
+
+  done
+}
+
+# The ip address issued by the vpn client will be a 10.x ip, so look for that one.
+getVpnClientIp() {
+  echo $(ipconfig | grep -B 1 'IPv4 Address' | grep -A 1 'bu.edu' | tail -1 | awk '{print $NF}')/32 2> /dev/null
+}
+
+getRdsIngressLogPath() {
+  local landscape="$1"
+  local profile="$2"
+  [ -z "$profile" ] && profile=$AWS_PROFILE
+  local name='rds.ingress'
+  if [ -n "$profile" ] ; then
+    name="$name.$profile"
+    if [ -n "$landscape" ] ; then
+      name="$name.$landscape"
+    fi
+  fi
+  local path="~/$name"
+  # Need tilde expansion
+  eval path=$path
+  echo $path
+}
+
+securityGroupExists() {
+  local groupId="$1"
+  if [ -n "$groupId" ] ; then
+    groupId="$(aws ec2 describe-security-groups \
+      --output text \
+      --filters Name=group-id,Values=$groupId \
+      --query "SecurityGroups[*].{ID:GroupId}")"
+  fi
+  [ -n "$groupId" ] && true || false
+}
+
+# Put your own workstations ip address into the security group ingress rules for access to the rds instance identified by landscape
+# (NOTE: Only works on windows)
+toggleRdsIngress() {
+  local landscape=${1:-$LANDSCAPE}
+  [ -z "$landscape" ] && echo "Missing landscape value!" && exit 1
+  local name=${2:-"$(whoami)"}
+  [ -z "$name" ] && echo "No name" && exit 1
+
+  local ingressFile=$(getRdsIngressLogPath $landscape)
+
+  if [ -f $ingressFile ] ; then
+    # Last event was granting ingress, so now revoke it.
+    local secGrpId="$(cat $ingressFile | head -1)"
+    local cidr="$(cat $ingressFile | tail -1)"
+
+    if securityGroupExists $secGrpId ; then
+      echo "Revoking access for $cidr in $secGrpId"
+      aws ec2 revoke-security-group-ingress \
+        --group-id $secGrpId \
+        --protocol tcp \
+        --port 1521 \
+        --cidr $cidr
+    else
+      echo "Logged security group no longer exists!"
+    fi
+
+    if [ $? -le 0 ] ; then
+      echo "Removing $ingressFile"
+      rm -f $ingressFile
+    fi
+  else 
+    # Ingress has not been granted yet, so do it now.
+    local cidr="$(getVpnClientIp)"
+    [ -z "$cidr" ] && echo "Cannot determine your vpn client id! (are you logged in?)" && exit 1
+    echo "cidr: $cidr"
+    
+    local arn="$(getRdsArn $landscape)"
+    [ -z "$arn" ] && echo "Cannot determine rds arn!" && exit 1
+    echo "rdsArn: $arn"
+
+    local secGrpId=$(
+      aws rds describe-db-instances \
+        --db-instance-id $arn \
+        --output text \
+        --query 'DBInstances[].VpcSecurityGroups[0].VpcSecurityGroupId' 2> /dev/null
+    )  
+    [ -z "$secGrpId" ] && echo "Cannot determine security group id!" && exit 1
+    echo "securityGroupId: $secGrpId"
+
+    echo "Authorizing access for: $cidr in $secGrpId"
+    aws ec2 authorize-security-group-ingress \
+      --group-id $secGrpId \
+      --ip-permissions '
+        [
+          {
+            "FromPort": 1521,
+            "ToPort": 1521,
+            "IpProtocol": "tcp",
+            "IpRanges": [
+              {
+                "CidrIp": "'$cidr'",
+                "Description": "'$name' vpn client ip"
+              }
+            ]
+          }
+        ]'
+
+    # aws ec2 authorize-security-group-ingress \
+    #   --group-id $secGrpId \
+    #   --protocol tcp \
+    #   --port 1521 \
+    #   --cidr $cidr
+
+    eval "echo $secGrpId > $ingressFile"
+    eval "echo $cidr >> $ingressFile"
+  fi
+}
+
+# (NOTE: Only works on windows)
+refreshRdsIngress() {
+  local landscape=${1:-$LANDSCAPE}
+  [ -z "$landscape" ] && echo "Missing landscape value!" && exit 1
+
+  local ingressFile=$(getRdsIngressLogPath $landscape)
+  if [ -f $ingressFile ] ; then
+    local secGrpId="$(cat $ingressFile | head -1)"
+    local lastcidr="$(cat $ingressFile | tail -1)"
+    local thiscidr="$(getVpnClientIp)"
+    [ -z "$thiscidr" ] && echo "Cannot determine your vpn client id! (are you logged in?)" && exit 1
+    if [ "$lastcidr" == "$thiscidr" ] ; then
+      echo "The last cidr ingress ($lastcidr) granted in $secGrpId matches your current vpn client issued ip address."
+      echo "This means you should already have access - nothing to do, cancelling."
+      return 0
+    else
+      echo "Your vpn client ip, $thiscidr, has changed from its last value, $lastcidr"
+    fi
+    # Revoke ingress
+    toggleRdsIngress $landscape
+  fi
+  # Grant ingress
+  toggleRdsIngress $landscape
 }
 
 getRandomPassword() {
@@ -1276,7 +1471,7 @@ waitForRdsSnapshotCompletion() {
 
 # Most of the RDS related parameters have been determined at this point.
 # Add them all to the final cloudformation stack creation/update cli function call being built.
-addRdsSnapshotParameters() {
+processRdsParameters() {
   local cmdfile="$1"
   local landscape="$2"
   local rdsSnapshotARN="$3"
@@ -1321,7 +1516,7 @@ addRdsSnapshotParameters() {
     [ $? -gt 0 ] && err "Problem with snapshot attempt!" && exit 1
   fi
 
-  addParameter $cmdfile 'RdsSnapshotARN' $rdsSnapshotARN
+  addParameter $cmdfile 'RdsSnapshotARN' "$rdsSnapshotARN"
 
   local engineVersion="$ENGINE_VERSION"
   [ -z "$engineVersion" ] && engineVersion="$(getOracleEngineVersion $rdsSnapshotARN)"
@@ -1330,7 +1525,7 @@ addRdsSnapshotParameters() {
     echo "ERROR! Cannot determine rds engine version"
     exit 1
   fi
-  addParameter $cmdfile 'RdsEngineVersion' $engineVersion
+  addParameter $cmdfile 'EngineVersion' $engineVersion
 }
 
 isDryrun() {
@@ -1466,7 +1661,7 @@ getKcConfigDb() {
   getKcConfigSctDbUsername && echo ''
   getKcConfigSctDbPassword && echo ''
 
-  [ -f 'kc-config.xml.temp' ] && rm -f 'kc-config.xml.temp'
+  # [ -f 'kc-config.xml.temp' ] && rm -f 'kc-config.xml.temp'
 }
 
 
@@ -1520,6 +1715,7 @@ getKcConfigDbCtnStrItem() {
   getKcConfigLine 'datasource.url' \
     | grep -oE $1'=[^\(\))]+' \
     | cut -d'=' -f2 \
+    | head -1 \
     | tr -d '[:space:]\n'
 }
 
@@ -1713,7 +1909,7 @@ checkLegacyAccount() {
   if [[ "$task" == *create-stack ]] || [[ "$task" == *update-stack ]] || [[ "$task" == 'set-cert-arn' ]] ; then
     if ! isBuCloudInfAccount ; then
       LEGACY_ACCOUNT='true'
-      echo 'Current profile indicates legacy account.'
+      [ -z "$SILENT" ] && echo 'Current profile indicates legacy account.'
       defaults['TEMPLATE_BUCKET_PATH']=$(echo "${defaults['TEMPLATE_BUCKET_PATH']}" | sed 's/kuali-conf/kuali-research-ec2-setup/')
       if [ "$BASELINE" != 'prod' ] && [ -n "${defaults['HOSTED_ZONE']}" ] ; then
         defaults['HOSTED_ZONE']="kuali-research-$BASELINE.bu.edu"
@@ -1954,7 +2150,7 @@ checkLandscapeParameters() {
   echo ""
   outputHeading "Checking Landscape parameters..."
   [ -z "$LANDSCAPE" ] && echo "Missing landscape parameter!" && exit 1
-  if stackExistsForLandscape ; then
+  if [ "$task" == 'create-stack' ] && stackExistsForLandscape ; then
     echo "A cloudformation stack for the $LANDSCAPE landscape already exists!"
     exit 1
   fi

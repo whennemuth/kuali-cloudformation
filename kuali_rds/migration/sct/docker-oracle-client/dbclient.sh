@@ -55,6 +55,7 @@ run() {
   [ ! -d 'input' ] && mkdir input
   [ ! -d 'output' ] && mkdir output
   [ -z "$INPUT_MOUNT" ] && INPUT_MOUNT=$(getPwdForMount)/input
+  
   docker run \
     -ti \
     --rm \
@@ -219,6 +220,20 @@ toggleConstraintsAndTriggers() {
   run $@ encoded_sql="$encoded_sql" "log_path=toggle_constraints_triggers.log"
 }
 
+checkLandscape() {
+  if [ -z "$LANDSCAPE" ] ; then
+    echo "Missing landscape parameter!"
+    exit 1
+  fi
+}
+
+checkAwsCredentials() {
+  if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ] ; then
+    echo "Missing aws access key and/or secret access key"
+    exit 1
+  fi
+}
+
 task="$1"
 
 case "$task" in
@@ -235,12 +250,20 @@ case "$task" in
     build && run $@ ;;
   shell)
     shell ;;
+  get-mount)
+    checkLandscape
+    getPwdForSctScriptMount ;;
   run-sct-scripts)
+    checkLandscape
+    checkAwsCredentials
     INPUT_MOUNT="$(getPwdForSctScriptMount)"
     echo 'Running all meta data creation scripts...'
     run $@ files_to_run=all
+    [ $? -gt 0 ] && echo "Error code: $?, Cancelling..." && exit 1
     echo 'Creating constraint and trigger toggling procedures...' 
     run $@ files_to_run=create_toggle_constraints.sql,create_toggle_triggers.sql log_path=create_toggling.log
+    [ $? -gt 0 ] && echo "Error code: $?, Cancelling..." && exit 1
+return 0
     toggleConstraintsAndTriggers $@
     echo 'FINISHED (next step is data migration).'
     ;;

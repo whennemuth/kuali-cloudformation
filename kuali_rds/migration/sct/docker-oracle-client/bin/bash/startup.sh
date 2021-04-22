@@ -54,8 +54,38 @@ setLegacyParms() {
 }
 
 
-setRdsParms() {
-  # Database connection should be through localhost tunneled to target db endpoint.
+setRdsParms() {  
+  if needTunnel ; then
+    startTunnel $@
+  fi
+
+  if [ -z "$DB_PASSWORD" ] ; then
+    landscape="$BASELINE"
+    [ -z "$landscape" ] && landscape="$LANDSCAPE"
+    getDbPassword 'admin' "$landscape"
+    DB_PASSWORD="$(getDbPassword 'admin' "$landscape")"
+  fi
+  [ -z "$DB_PASSWORD" ] && echo "ERROR! RDS DB password not provided and lookup failed." && exit 1
+  [ -z "$DB_USER" ] && DB_USER="admin"
+  [ -z "$DB_HOST" ] && DB_HOST="127.0.0.1"
+  [ -z "$LOCAL_PORT" ] && LOCAL_PORT="5432"
+}
+
+
+# A tunnel is needed if the TUNNEL parameter is true, or the DB_HOST parameter is unset or indicates localhost.
+needTunnel() {
+  local need='false'
+  [ "${TUNNEL,,}" == 'true' ] && need='true'
+  [ -z "$DB_HOST" ] && need='true'
+  [ "$DB_HOST" == '127.0.0.1' ] && need='true'
+  [ "$DB_HOST" == 'localhost' ] && need='true'
+  [ $need == 'true' ] && true || false
+}
+
+
+# Database connection should be through localhost tunneled to target db endpoint, unless
+# specific details are provided that indicate the db host can be reached directly.
+startTunnel() {
   tunnelCmd="sh tunnel.sh silent=true user_terminated=false default_profile=true $@"
   if [ "$DEBUG" == 'true' ] ; then
     echo "$tunnelCmd"
@@ -72,11 +102,6 @@ setRdsParms() {
     fi
     printf "\nTunnel established.\n"
   fi
-  [ -z "$DB_PASSWORD" ] && DB_PASSWORD="$(getRdsAdminPassword)"
-  [ -z "$DB_PASSWORD" ] && echo "ERROR! RDS DB password not provided and lookup failed." && exit 1
-  [ -z "$DB_USER" ] && DB_USER="admin"
-  [ -z "$DB_HOST" ] && DB_HOST="127.0.0.1"
-  [ -z "$LOCAL_PORT" ] && LOCAL_PORT="5432"
 }
 
 
@@ -112,11 +137,19 @@ connectAndRun() {
     for f in $(echo $FILES_TO_RUN | sed 's/,/ /g') ; do
       if [ -n "$(echo $f | grep '.*\.sql')" ] ; then
         FILE_TO_RUN=$f
-        sh run-one.sh
+        # if [ "$DRYRUN" == 'true' ] ; then
+        #   echo "DRYRUN: $f"
+        # else
+          sh run-one.sh
+        # fi
       fi
     done
   elif [ -n "$ENCODED_SQL" ] ; then
-    sh run-raw.sh
+    # if [ "$DRYRUN" == 'true' ] ; then
+    #   echo "DRYRUN: $ENCODED_SQL"
+    # else
+      sh run-raw.sh
+    # fi
   else
     sqlplus $DB_USER/$DB_PASSWORD@"$url"
   fi

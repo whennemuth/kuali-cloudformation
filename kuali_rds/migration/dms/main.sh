@@ -34,13 +34,13 @@ run() {
 
   if ! isBuCloudInfAccount ; then
     LEGACY_ACCOUNT='true'
-    echo 'Current profile indicates legacy account.'
+    [ "$task" != 'get-password' ] && echo 'Current profile indicates legacy account.'
     defaults['TEMPLATE_BUCKET_PATH']='s3://kuali-research-ec2-setup/cloudformation/kuali_rds/migration/dms'
   fi
 
-  if [ "$task" == "test" ] ; then
+  if [ "$task" == "test" ] || [ "$task" == 'get-password' ] ; then
     SILENT='true'
-    [ -z "$PROFILE" ] && PROFILE='default'
+    [ -z "$PROFILE" ] && [ -z "$AWS_PROFILE" ] && PROFILE='default'
   fi
 
   parseArgs $@
@@ -257,7 +257,7 @@ runTask() {
     migrate)
       migrate $TASK_TYPE ;;
     validate)
-      validateStack silent=true;;
+      validateStack silent ;;
     upload)
       uploadStack ;;
     create-stack)
@@ -282,8 +282,9 @@ runTask() {
     pre-migration-assessment)
       preMigrationAssessmentOk ;;
     get-password)
-      # Must include PROFILE and LANDSCAPE
-      getRdsAdminPassword ;;
+      local landscape="$BASELINE"
+      [ -z "$landscape" ] && landscape="$LANDSCAPE"
+      getDbPassword 'admin' "$landscape" ;;
     test)
       LANDSCAPE='ci'
       # local counter=1

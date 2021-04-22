@@ -319,7 +319,7 @@ Resources:
     Properties:
       GroupId: !Ref SGBase
       CidrIp: !FindInMap [ InformaticaCidrs, !Ref Baseline, "cidr" ]
-      Description: !Sub "Oracle: Informatica ingress to $Landscape oracle rds instance(s)"
+      Description: !Sub "Oracle: Informatica ingress to ${Landscape} oracle rds instance(s)"
       IpProtocol: tcp
       FromPort: !Ref FromPort
       ToPort: !Ref ToPort
@@ -331,9 +331,10 @@ Resources:
     Properties:
       GroupId: !Ref SGBase
       Description: !Sub 
-      - "Oracle: SAPBW ${sid} ${host} ingress to $Landscape oracle rds instance(s)"
-      - sid: !FindInMap [ SAPBWCidrs, !Ref Baseline, "sid1" ]
-        host: !FindInMap [ SAPBWCidrs, !Ref Baseline, "host1" ]
+        - "Oracle: SAPBW ${sid} ${host} ingress to ${landscape} oracle rds instance(s)"
+        - sid: !FindInMap [ SAPBWCidrs, !Ref Baseline, "sid1" ]
+          host: !FindInMap [ SAPBWCidrs, !Ref Baseline, "host1" ]
+          landscape: !Ref Landscape
       IpProtocol: tcp
       FromPort: !Ref FromPort
       ToPort: !Ref ToPort
@@ -345,9 +346,10 @@ Resources:
     Properties:
       GroupId: !Ref SGBase
       Description: !Sub 
-        - "Oracle: SAPBW ${sid} ${host} ingress to $Landscape oracle rds instance(s)"
+        - "Oracle: SAPBW ${sid} ${host} ingress to ${landscape} oracle rds instance(s)"
         - sid: !FindInMap [ SAPBWCidrs, !Ref Baseline, "sid2" ]
           host: !FindInMap [ SAPBWCidrs, !Ref Baseline, "host2" ]
+          landscape: !Ref Landscape
       IpProtocol: tcp
       FromPort: !Ref FromPort
       ToPort: !Ref ToPort
@@ -359,10 +361,10 @@ Resources:
     Properties:
       GroupId: !Ref SGBase
       Description: !Sub 
-        - "Oracle: SAPBW ${sid} ${host} ingress to $Landscape oracle rds instance(s) - ${test}"
+        - "Oracle: SAPBW ${sid} ${host} ingress to ${landscape} oracle rds instance(s)"
         - sid: !FindInMap [ SAPBWCidrs, !Ref Baseline, "sid3" ]
           host: !FindInMap [ SAPBWCidrs, !Ref Baseline, "host3" ]
-          test: !If [ ExcludeSAPBW, 'exclude', 'include' ]
+          landscape: !Ref Landscape
       IpProtocol: tcp
       FromPort: !Ref FromPort
       ToPort: !Ref ToPort
@@ -374,9 +376,10 @@ Resources:
     Properties:
       GroupId: !Ref SGBase
       Description: !Sub 
-        - "Oracle: SAPBW ${sid} ${host} ingress to $Landscape oracle rds instance(s)"
+        - "Oracle: SAPBW ${sid} ${host} ingress to ${landscape} oracle rds instance(s)"
         - sid: !FindInMap [ SAPBWCidrs, !Ref Baseline, "sid4" ]
           host: !FindInMap [ SAPBWCidrs, !Ref Baseline, "host4" ]
+          landscape: !Ref Landscape
       IpProtocol: tcp
       FromPort: !Ref FromPort
       ToPort: !Ref ToPort
@@ -388,9 +391,10 @@ Resources:
     Properties:
       GroupId: !Ref SGBase
       Description: !Sub 
-        - "Oracle: SAPBW ${sid} ${host} ingress to $Landscape oracle rds instance(s)"
+        - "Oracle: SAPBW ${sid} ${host} ingress to ${landscape} oracle rds instance(s)"
         - sid: !FindInMap [ SAPBWCidrs, !Ref Baseline, "sid5" ]
           host: !FindInMap [ SAPBWCidrs, !Ref Baseline, "host5" ]
+          landscape: !Ref Landscape
       IpProtocol: tcp
       FromPort: !Ref FromPort
       ToPort: !Ref ToPort
@@ -402,9 +406,10 @@ Resources:
     Properties:
       GroupId: !Ref SGBase
       Description: !Sub 
-        - "Oracle: SAPBW ${sid} ${host} ingress to $Landscape oracle rds instance(s)"
+        - "Oracle: SAPBW ${sid} ${host} ingress to ${landscape} oracle rds instance(s)"
         - sid: !FindInMap [ SAPBWCidrs, !Ref Baseline, "sid6" ]
           host: !FindInMap [ SAPBWCidrs, !Ref Baseline, "host6" ]
+          landscape: !Ref Landscape
       IpProtocol: tcp
       FromPort: !Ref FromPort
       ToPort: !Ref ToPort
@@ -416,9 +421,10 @@ Resources:
     Properties:
       GroupId: !Ref SGBase
       Description: !Sub 
-        - "Oracle: SAPBW ${sid} ${host} ingress to $Landscape oracle rds instance(s)"
+        - "Oracle: SAPBW ${sid} ${host} ingress to ${landscape} oracle rds instance(s)"
         - sid: !FindInMap [ SAPBWCidrs, !Ref Baseline, "sid7" ]
           host: !FindInMap [ SAPBWCidrs, !Ref Baseline, "host7" ]
+          landscape: !Ref Landscape
       IpProtocol: tcp
       FromPort: !Ref FromPort
       ToPort: !Ref ToPort
@@ -430,9 +436,10 @@ Resources:
     Properties:
       GroupId: !Ref SGBase
       Description: !Sub 
-        - "Oracle: SAPBW ${sid} ${host} ingress to $Landscape oracle rds instance(s)"
+        - "Oracle: SAPBW ${sid} ${host} ingress to ${landscape} oracle rds instance(s)"
         - sid: !FindInMap [ SAPBWCidrs, !Ref Baseline, "sid8" ]
           host: !FindInMap [ SAPBWCidrs, !Ref Baseline, "host8" ]
+          landscape: !Ref Landscape
       IpProtocol: tcp
       FromPort: !Ref FromPort
       ToPort: !Ref ToPort

@@ -116,14 +116,17 @@ The [AWS Schema Conversion tool](https://docs.aws.amazon.com/SchemaConversionToo
 
       - `Server Level Objects/Tablespaces/APPMNGR_TS_01`
       - `Server Level Objects/Tablespaces/KUALI_DATA`
+      - `Server Level Objects/Tablespaces/INFOSEC_DATA`
+        *(This one only applies to staging and production environments)*
 
       `Filename: 01.create.tablespaces.sql`
 
-   2. **"NOEXPIRE" Profile:**
+   2. **User Profiles:**
 
       - `Server Level Objects/User Profiles/NOEXPIRE`
+      - `Server Level Objects/User Profiles/BU_DBA` *(if exists)*
 
-      `Filename: 02.profile.noexpire.create.sql`
+      `Filename: 02.create.profiles.sql`
 
    3. **KCOEUS user:**
 
@@ -223,8 +226,40 @@ The [AWS Schema Conversion tool](https://docs.aws.amazon.com/SchemaConversionToo
        - `Server Level Objects/User Roles/KCRM_SELECT`
        - `Server Level Objects/User Roles/KCRM_UPDATE`
        - `Server Level Objects/User Roles/SAPBWKCRM_READ_ONLY`
+       - `Server Level Objects/User Roles/SAPBWKCRM_SELECT`*(If exists)*
+       - `Server Level Objects/User Roles/SAPETLKCRM_READ_ONLY`*(If exists)*
+       - `Server Level Objects/User Roles/KUL_DEVELOPER`*(If exists)*
+       - `Server Level Objects/User Roles/SQLT_USER_ROLE`*(If exists)*
 
        `Filename: 12.create.user.roles.sql`
+
+       For staging and production environments, you will find the KCRM_SELECT, KUL_DEVELOPER, and SQLT_USER_ROLE are granted in the user creation scripts `03.create.kcoeus.user.sql` and `06.create.4.users.sql`. This will cause those scripts to blow up because the roles have not been created yet. To avoid this and possibly others, move role creation for all roles earlier:
+
+       1.  Place the following at the bottom of `02.create.profiles.sql`
+
+          ```
+          CREATE ROLE KCOEUS_READ_ONLY
+          /
+          CREATE ROLE KCRM_SELECT
+          /
+          CREATE ROLE KCRM_UPDATE
+          /
+          CREATE ROLE SAPBWKCRM_SELECT
+          /
+          CREATE ROLE SAPBWKCRM_READ_ONLY
+          /
+          CREATE ROLE SAPETLKCRM_READ_ONLY
+          /
+          CREATE ROLE KUL_DEVELOPER
+          /
+          CREATE ROLE SQLT_USER_ROLE
+          /
+          ```
+
+          These roles should now get created BEFORE any attempt to grant them to users.
+
+       2. Locate each corresponding statement in  `12.create.user.roles.sql` and comment them out.
+          This will avoid attempts to create roles that now already exist.
 
    13. **Remaining users:**
        Choose from the remaining users you want to also include. Some of the choices include people who no longer work at BU or defunct application users. These you can omit.
@@ -233,8 +268,25 @@ The [AWS Schema Conversion tool](https://docs.aws.amazon.com/SchemaConversionToo
 
        `Filename: 13.create.remaining.users.sql`
 
-          
+       There may be some roles or targets of role grants for administrators that either cannot be created by the schema conversion tool or that simply don't exist anymore in the source database (but the grants remained). Below are those found for the staging conversion, which needed to be located in `13.create.remaining.users.sql` and commented out in order to avoid errors (The same or similar removals may need to be done for other environments when converted - you may not be able to identify them until running the sql and encountering the error, in which case, fix and rerun):
 
+       ```
+       GRANT DELETE_CATALOG_ROLE TO BGIVEN
+       /
+       GRANT DELETE_CATALOG_ROLE TO GSHOCK
+       /
+       GRANT EXECUTE ON SYS.SYS_PLSQL_DA3FBA35_644_1 TO DBYAM WITH GRANT OPTION
+       /
+       GRANT EXECUTE ON SYS.TARGETDBDIR TO DBYAM WITH GRANT OPTION
+       /
+       GRANT READ ON SYS.TARGETDBDIR TO DBYAM WITH GRANT OPTION
+       /
+       GRANT WRITE ON SYS.TARGETDBDIR TO DBYAM WITH GRANT OPTION
+       /
+       ```
+       
+         
+       
 14. #### Clean up the generated SQL:
 
     The SQL that was generated will cause errors if run as is. The issues are as follows:

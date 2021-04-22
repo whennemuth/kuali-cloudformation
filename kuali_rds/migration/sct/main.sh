@@ -23,7 +23,7 @@ run() {
 
   if [ "$task" != "test" ] ; then
 
-    [ -z "$PROFILE" ] && PROFILE='default'
+    [ -z "$PROFILE" ] && [ -z "$AWS_PROFILE" ] && PROFILE='default'
 
     parseArgs silent=true $@
 
@@ -221,7 +221,10 @@ runTask() {
       cleanSqlFiles $@ ;;
     get-password)
       # Must include PROFILE and LANDSCAPE
-      getRdsAdminPassword ;;
+      local landscape="$BASELINE"
+      [ -z "$landscape" ] && landscape="$LANDSCAPE"
+      [ -z "$landscape" ] && echo "Missing landscape value!" && return 1      
+      getDbPassword 'admin' "$landscape" ;;
     test)
       autoExtendTableSpaces sql/ci-example/01.create.tablespaces.sql ;;
     *)

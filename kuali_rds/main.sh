@@ -52,8 +52,8 @@ run() {
   task="${1,,}"
   shift
 
-  if [ "$task" == 'get-password' ] ; then
-    # Operate silently so that only the password shows up without the extra console output.
+  if [ "$task" == 'get-secret' ] || [ "$task" == 'get-password' ] || [ "$task" == 'set-rds-access' ] ; then
+    # Operate silently so that only the desired content shows up without the extra console output.
     parseArgs $@ 1> /dev/null
 
     checkLegacyAccount 1> /dev/null
@@ -138,12 +138,7 @@ EOF
 
     add_parameter $cmdfile 'Baseline' 'BASELINE'
 
-
-    if [ -n "$RDS_SNAPSHOT_ARN" ] ; then
-      addRdsSnapshotParameters $cmdfile $LANDSCAPE "$RDS_SNAPSHOT_ARN" "$RDS_ARN_TO_CLONE"
-    else
-      echo "No RDS snapshotting indicated. Will use existing RDS database directly."
-    fi
+    processRdsParameters $cmdfile $LANDSCAPE "$RDS_SNAPSHOT_ARN" "$RDS_ARN_TO_CLONE"
 
     echo "      ]' \\" >> $cmdfile
     echo "      --tags '[" >> $cmdfile
@@ -160,7 +155,7 @@ EOF
 runTask() {
   case "$task" in
     validate)
-      validateStack silent=true;
+      validateStack silent ;;
     upload)
       uploadStack ;;
     create-stack)
@@ -181,8 +176,12 @@ runTask() {
     delete-stack)
       stackAction "delete-stack" ;;
     get-password)
-      # Must include PROFILE and LANDSCAPE
-      getRdsAdminPassword ;;
+      # Must include PROFILE and LANDSCAPE/BASELINE
+      local landscape="$BASELINE"
+      [ -z "$landscape" ] && landscape="$LANDSCAPE"
+      getDbPassword 'admin' "$landscape" ;;
+    set-rds-access)
+      refreshRdsIngress $LANDSCAPE ;;
     test)
       LANDSCAPE=sb
       checkSubnetsInLegacyAccount ;;

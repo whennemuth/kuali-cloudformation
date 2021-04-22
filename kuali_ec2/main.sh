@@ -141,7 +141,7 @@ EOF
       validateStack silent=true filepath=../kuali_rds/rds-oracle.yaml
       [ $? -gt 0 ] && exit 1
       aws s3 cp ../kuali_rds/rds-oracle.yaml s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_rds/
-      addRdsSnapshotParameters $cmdfile $LANDSCAPE "$RDS_SNAPSHOT_ARN" "$RDS_ARN_TO_CLONE"
+      processRdsParameters $cmdfile $LANDSCAPE "$RDS_SNAPSHOT_ARN" "$RDS_ARN_TO_CLONE"
     else
       echo "No RDS snapshotting indicated. Will use existing RDS database directly."
     fi

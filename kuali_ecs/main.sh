@@ -266,7 +266,7 @@ EOF
         filepath=../kuali_rds/rds-oracle.yaml \
         s3path=s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_rds/
 
-      addRdsSnapshotParameters $cmdfile $LANDSCAPE "$RDS_SNAPSHOT_ARN" "$RDS_ARN_TO_CLONE"
+      processRdsParameters $cmdfile $LANDSCAPE "$RDS_SNAPSHOT_ARN" "$RDS_ARN_TO_CLONE"
 
       validateTemplateAndUploadToS3 \
         silent=true \
@@ -326,7 +326,7 @@ runTask() {
     snapshot)
       echo "" > $cmdfile
       if [ -n "$RDS_SNAPSHOT_ARN" ]; then
-        addRdsSnapshotParameters $cmdfile $LANDSCAPE "$RDS_SNAPSHOT_ARN" "$RDS_ARN_TO_CLONE"
+        processRdsParameters $cmdfile $LANDSCAPE "$RDS_SNAPSHOT_ARN" "$RDS_ARN_TO_CLONE"
       fi
       ;;
     test)
