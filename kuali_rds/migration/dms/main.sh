@@ -154,7 +154,7 @@ connectSuccess() {
       aws dms describe-connections \
         --filters Name=endpoint-arn,Values=$endpointArn \
         --output text \
-        --query 'Connections[].{status:Status}' 2> /dev/null
+        --query 'Connections[?ReplicationInstanceIdentifier==`'${GLOBAL_TAG}-${LANDSCAPE}'-replication-instance`].{status:Status}' 2> /dev/null
     )"
     [ -z "$status" ] && status='unknown' && break
     [ "${status,,}" != 'testing' ] && break
@@ -175,7 +175,7 @@ connectionsOk() {
     echo "$evalstr"
     eval "$evalstr"
   done <<< $(aws cloudformation describe-stacks \
-    --stack-name kuali-dms-oracle-ci \
+    --stack-name kuali-dms-oracle-$LANDSCAPE \
     --output text \
     --query 'Stacks[].Outputs[].{key:OutputKey,val:OutputValue}'
   )

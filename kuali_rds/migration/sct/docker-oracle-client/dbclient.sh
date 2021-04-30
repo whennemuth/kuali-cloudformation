@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -a 
+
 source ../../../../scripts/common-functions.sh
 
 if [ -n "$(echo "$nv" | grep -i 'raw_sql=')" ] ; then
@@ -40,11 +42,11 @@ getPwdForSctScriptMount() {
 build() {
   [ ! -f ../../../jumpbox/tunnel.sh ] && echo "Cannot find tunnel.sh" && exit 1
   [ ! -f ../../../../scripts/common-functions.sh ] && echo "Cannot find common-functions.sh" && exit 1
-  cp ../../../jumpbox/tunnel.sh ./bin/bash/
-  cp ../../../../scripts/common-functions.sh ./bin/bash/
+  cp ../../../jumpbox/tunnel.sh ./docker/bash/
+  cp ../../../../scripts/common-functions.sh ./docker/bash/
   docker build -t oracle/sqlplus .
-  rm -f ./bin/bash/tunnel.sh
-  rm -f ./bin/bash/common-functions.sh
+  rm -f ./docker/bash/tunnel.sh
+  rm -f ./docker/bash/common-functions.sh
   echo "Removing dangling images..."
   docker rmi $(docker images --filter dangling=true -q) 2> /dev/null
 }
@@ -84,109 +86,6 @@ shell() {
     oracle/sqlplus
 }
 
-# There should exist two log files, each containing lines that separate, with a colon, the name of a table and the number of row in that table.
-# This function will display any tables that the two files do not have in common, and any matching tables whose row counts differ.
-compareTableRowCounts() {
-  local source="output/$1"
-  [ ! -f "$source" ] && [ "${source:0:7}" != '/output' ] && source="output/$source"
-  [ ! -f $source ] && echo "ERROR! No such source file: $source" && exit 1
-  
-  local target="output/$2"
-  [ ! -f "$target" ] && [ "${target:0:7}" != '/output' ] && target="output/$target"
-  [ ! -f $target ] && echo "ERROR! No such target file: $target" && exit 1
-
-  declare -A sourceTables=();
-  declare -A targetTables=();
-  declare -A mismatches=();
-
-  # Display mismatches found thus far
-  displayMismatches() {
-    for m in ${!mismatches[@]} ; do
-      echo "Mismatch found: $m - ${mismatches[$m]}"
-    done
-  }
-
-  parseLine() {
-    local output="name=$(echo "$1" | awk 'BEGIN{RS=":"}{print $1}' | head -1)"
-    echo "$output && rows=$(echo "$1" | awk 'BEGIN{RS=":"}{print $1}' | tail -1)"
-  }
-
-  # Load the source tables array
-  loadSourceTableLog() {
-    local counter=0
-    while read table ; do
-      ((counter++))
-      eval "$(parseLine "$table")"
-      clear
-      echo "Loading source tables..."
-      printf "$counter) $name: $rows"
-      if [ -n "$rows" ] ; then
-        sourceTables["$name"]=$rows
-      fi
-    done <<< $(cat $source)
-    echo " "
-    sourceTableCount=$counter
-  }
-
-  # Iterate the target tables, comparing with the corresponding source tables for row counts as you go.
-  loadTargetTableLog() {
-    local counter=0
-    while read table ; do
-      ((counter++))
-      eval "$(parseLine "$table")"
-      clear
-      echo "Loading target tables..."
-      targetTables[$name]=$rows
-      if [ ! ${sourceTables[$name]} ] ; then
-        mismatches[$name]="source rows: ?, target rows: $rows"
-      else
-        local sourceRows=${sourceTables[$name]}
-        if [ $rows -ne $sourceRows ] || [ "$rows" != "$sourceRows" ]; then
-          mismatches[$name]="source rows: $sourceRows, target rows: $rows"
-        # else
-        #   mismatches[$name]="source rows: $sourceRows, target rows: $rows"
-        fi
-      fi
-      displayMismatches
-      echo "Table $counter: $name"
-    done <<< $(cat $target)
-    echo " "
-    targetTableCount=$counter
-  }
-
-  # Iterate over the source tables log again, now that the target tables log has been loaded, 
-  # to detect any source tables that don't exist in the target log.
-  checkMissingTargetTables() {
-    local counter=0
-    while read table ; do
-      ((counter++))
-      eval "$(parseLine "$table")"
-      clear
-      echo "Finding any missing target tables..."
-      if [ ! ${targetTables[$name]} ] ; then
-        mismatches[$name]="source rows: $rows, target rows: ?"
-      fi
-      displayMismatches
-      echo "Table $counter: $name"
-    done <<< $(cat $source)
-  }
-  
-  displayResults() {
-    clear
-    echo "RESULTS: source tables: $sourceTableCount, target tables: $targetTableCount"
-    for m in ${!mismatches[@]} ; do
-      echo "Mismatch found: $m - ${mismatches[$m]}"
-    done
-  }
-
-  loadSourceTableLog 
-
-  loadTargetTableLog
-
-  checkMissingTargetTables
-
-  displayResults
-}
 
 # Call stored procs that can disable/enable constraints and triggers.
 # Disable these before migrating, enable after migrating.
@@ -263,15 +162,25 @@ case "$task" in
     echo 'Creating constraint and trigger toggling procedures...' 
     run $@ files_to_run=create_toggle_constraints.sql,create_toggle_triggers.sql log_path=create_toggling.log
     [ $? -gt 0 ] && echo "Error code: $?, Cancelling..." && exit 1
-return 0
     toggleConstraintsAndTriggers $@
     echo 'FINISHED (next step is data migration).'
     ;;
   toggle-constraints-triggers)
     toggleConstraintsAndTriggers $@ ;;
+  update-sequences)
+    if [ -n "$SEQUENCE_TASK" ] ; then
+      sh bash/update.sequences.sh $@ sequence_task=$SEQUENCE_TASK
+    else
+      sh bash/update.sequences.sh $@ sequence_task=report-raw-create legacy=true
+      sh bash/update.sequences.sh $@ sequence_task=report-sql-create legacy=true
+      sh bash/update.sequences.sh $@ sequence_task=report-sql-upload
+      sh bash/update.sequences.sh $@ sequence_task=resequence
+    fi
+    ;;
   table-counts)
     run $@ files_to_run=inventory.sql log_path=source-counts.log ;;
-  compare-table-counts)
+  compare-table-counts)  
+    source bash/compare.row.counts.sh
     run $@ legacy=true  files_to_run=inventory.sql log_path=source-counts.log
     run $@ legacy=false files_to_run=inventory.sql log_path=target-counts.log
     compareTableRowCounts source-counts.log target-counts.log ;;

@@ -27,15 +27,18 @@ RUN \
   yum install -y session-manager-plugin.rpm && \
   yum -y install openssh-server openssh-clients
 
-RUN dnf install -y dos2unix  
+RUN dnf install -y dos2unix && \
+  yum install -y jq
 
-COPY bin/bash/*.sh /usr/local/sbin/
-COPY bin/sql/*.sql /usr/local/sbin/
+WORKDIR /usr/local/sbin/
+
+COPY docker/bash/*.sh /usr/local/sbin/
+COPY docker/sql/*.sql /usr/local/sbin/
 
 RUN \
   dos2unix /usr/local/sbin/* && \
-  chmod -R +x /usr/local/sbin/ && \
-  yum install -y jq
+  chmod -R +x /usr/local/sbin/
+  
 
 ENV CLIENT_HOME=/usr/lib/oracle/18.3/client64
 ENV ORACLE_HOME=$CLIENT_HOME
@@ -44,8 +47,6 @@ ENV PATH=$PATH:$CLIENT_HOME/bin
 ENV TNS_ADMIN=$CLIENT_HOME/network/admin
 ENV ORACLE_SID=ORCLCDB
 ENV AWS_REGION=us-east-1
-
-WORKDIR /usr/local/sbin/
 
 ENTRYPOINT ["/usr/local/sbin/startup.sh"]
 

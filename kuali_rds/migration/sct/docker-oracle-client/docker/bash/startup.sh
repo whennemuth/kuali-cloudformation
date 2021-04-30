@@ -9,10 +9,11 @@ source common-functions.sh
 
 canLookupInS3() {
   local reqs=0
+  [ -z "$BASELINE" ] && BASELINE="$LANDSCAPE"
   [ -n "$AWS_ACCESS_KEY_ID" ] && ((reqs++))
   [ -n "$AWS_SECRET_ACCESS_KEY" ] && ((reqs++))
   [ -n "$AWS_REGION" ] && ((reqs++))
-  [ -n "$LANDSCAPE" ] && ((reqs++))
+  [ -n "$BASELINE" ] && ((reqs++))
   [ -n "$TEMPLATE_BUCKET_NAME" ] && ((reqs++))
   [ $reqs -eq 5 ] && true || false
 }
@@ -22,13 +23,36 @@ dbParmsComplete() {
   [ -n "$DB_HOST" ] && ((reqs++))
   [ -n "$DB_PASSWORD" ] && ((reqs++))
   [ -n "$DB_USER" ] && ((reqs++))
-  [ -n "$SID" ] && ((reqs++))
-  [ -n "$LOCAL_PORT" ] && ((reqs++))
+  [ -n "$DB_SID" ] && ((reqs++))
+  [ -n "$DB_PORT" ] && ((reqs++))
   [ $reqs -eq 5 ] && true || false
+}
+
+setLocalhostDbParms() {
+  [ -z "$DB_USER" ] && DB_USER="admin"
+  [ -z "$DB_HOST" ] && DB_HOST="127.0.0.1"
+  [ -z "$DB_PORT" ] && DB_PORT="5432"
+  [ -z "$DB_SID" ] && DB_SID="Kuali"
+}
+
+printDbParms() {
+  echo "DB_HOST=$DB_HOST"
+  echo "DB_SID=$DB_SID"
+  echo "DB_PORT=$DB_PORT"
+  echo "DB_USER=$DB_USER"
+  echo "DB_PASSWORD="$(maskString "${DB_PASSWORD}")""
 }
 
 setLegacyParms() {
   # Database connection should be direct to host, accessible over bu vpn.
+
+  [ -n "$LEGACY_DB_HOST" ] && DB_HOST="$LEGACY_DB_HOST"
+  [ -n "$LEGACY_DB_PASSWORD" ] && DB_PASSWORD="$LEGACY_DB_PASSWORD"
+  [ -n "$LEGACY_DB_USER" ] && DB_USER="$LEGACY_DB_USER"
+  [ -n "$LEGACY_DB_SID" ] && DB_SID="$LEGACY_DB_SID"
+  [ -n "$LEGACY_DB_PORT" ] && DB_PORT="$LEGACY_DB_PORT"
+  [ -z "$DB_SID" ] && DB_SID="Kuali"
+
   if ! dbParmsComplete && canLookupInS3 ; then
     # Get database details from kc-config.xml in s3
     echo "Performing s3 lookup for kc-config.xml..."
@@ -37,8 +61,8 @@ setLegacyParms() {
       case $counter in
         1) [ -z "$DB_PASSWORD" ] && DB_PASSWORD="$dbParm" ;;
         2) [ -z "$DB_HOST" ] && DB_HOST="$dbParm" ;;
-        3) [ -z "$SID" ] && SID="$dbParm" ;;
-        4) [ -z "$LOCAL_PORT" ] && LOCAL_PORT="$dbParm" ;;
+        3) [ -z "$DB_SID" ] && DB_SID="$dbParm" ;;
+        4) [ -z "$DB_PORT" ] && DB_PORT="$dbParm" ;;
         5) [ -z "$DB_USER" ] && DB_USER="$dbParm" ;;
       esac
       ((counter++))
@@ -50,38 +74,62 @@ setLegacyParms() {
   [ -z "$DB_HOST" ] && printf "ERROR! Legacy DB Host not provided and lookup %s.\n" \
     "$(canLookupInS3 && printf 'failed' || printf 'needs more parameters from you to work')" && exit 1
   [ -z "$DB_USER" ] && DB_USER="KCOEUS"
-  [ -z "$LOCAL_PORT" ] && LOCAL_PORT="1521"
+  [ -z "$DB_PORT" ] && DB_PORT="1521"
+
+  printDbParms
 }
 
 
 setRdsParms() {  
-  if needTunnel ; then
-    startTunnel $@
-  fi
+  [ -n "$RDS_DB_HOST" ] && DB_HOST="$RDS_DB_HOST"
+  [ -n "$RDS_DB_PASSWORD" ] && DB_PASSWORD="$RDS_DB_PASSWORD"
+  [ -n "$RDS_DB_USER" ] && DB_USER="$RDS_DB_USER"
+  [ -n "$RDS_DB_SID" ] && DB_SID="$RDS_DB_SID"
+  [ -n "$RDS_DB_PORT" ] && DB_PORT="$RDS_DB_PORT"
 
   if [ -z "$DB_PASSWORD" ] ; then
     landscape="$BASELINE"
     [ -z "$landscape" ] && landscape="$LANDSCAPE"
-    getDbPassword 'admin' "$landscape"
     DB_PASSWORD="$(getDbPassword 'admin' "$landscape")"
   fi
+
   [ -z "$DB_PASSWORD" ] && echo "ERROR! RDS DB password not provided and lookup failed." && exit 1
+
+  if [ "${TUNNEL,,}" == 'true' ] ; then
+    local tunnel='true'
+  elif isUnknownHost ; then
+    echo "Looking up rds instance for host and port values..."
+    local json=$(getRdsJson $landscape)
+    DB_HOST=$(echo "$json" | jq .Endpoint.Address)
+    DB_PORT=$(echo "$json" | jq .Endpoint.Port)
+  fi
+
+  if isLocalHost || isUnknownHost ; then
+    local tunnel='true'
+    echo "WARNING! The \"TUNNEL\" parameter was not set to true, but no database HOST can be determined."
+    echo "Will attempt to establish tunnel anyway..."
+  fi
+
   [ -z "$DB_USER" ] && DB_USER="admin"
-  [ -z "$DB_HOST" ] && DB_HOST="127.0.0.1"
-  [ -z "$LOCAL_PORT" ] && LOCAL_PORT="5432"
+  [ -z "$DB_SID" ] && DB_SID="Kuali"
+
+  printDbParms
+
+  if [ "$tunnel" == 'true' ] ; then
+    setLocalhostDbParms
+    startTunnel $@
+  fi
 }
 
-
-# A tunnel is needed if the TUNNEL parameter is true, or the DB_HOST parameter is unset or indicates localhost.
-needTunnel() {
-  local need='false'
-  [ "${TUNNEL,,}" == 'true' ] && need='true'
-  [ -z "$DB_HOST" ] && need='true'
-  [ "$DB_HOST" == '127.0.0.1' ] && need='true'
-  [ "$DB_HOST" == 'localhost' ] && need='true'
-  [ $need == 'true' ] && true || false
+isRemoteHost() {
+  ( [ -n "$DB_HOST" ] && ! isLocalHost ) && true || false
 }
-
+isLocalHost() {
+  ( [ "$DB_HOST" == '127.0.0.1' ] || [ "$DB_HOST" == 'localhost' ] ) && true || false
+}
+isUnknownHost() {
+  [ -z "$DB_HOST" ] && true || false
+}
 
 # Database connection should be through localhost tunneled to target db endpoint, unless
 # specific details are provided that indicate the db host can be reached directly.
@@ -111,7 +159,7 @@ setConnectionParms() {
   else
     setRdsParms $@
   fi
-  [ -z "$SID" ] && SID="Kuali"
+  [ -z "$DB_SID" ] && DB_SID="Kuali"
 }
 
 
@@ -119,8 +167,8 @@ setConnectionURL() {
   url='
     (DESCRIPTION=(
       ADDRESS_LIST=(FAILOVER=OFF)(LOAD_BALANCE=OFF)(ADDRESS=(PROTOCOL=TCP)
-      (HOST='$DB_HOST')(PORT='$LOCAL_PORT')
-    ))(CONNECT_DATA=(SERVER=DEDICATED)(SERVICE_NAME='$SID')))'
+      (HOST='$DB_HOST')(PORT='$DB_PORT')
+    ))(CONNECT_DATA=(SERVER=DEDICATED)(SERVICE_NAME='$DB_SID')))'
 
   if [ "$DEBUG" == 'true' ] ; then
     echo "sqlplus $DB_USER/$DB_PASSWORD@\"$url\""
@@ -137,19 +185,11 @@ connectAndRun() {
     for f in $(echo $FILES_TO_RUN | sed 's/,/ /g') ; do
       if [ -n "$(echo $f | grep '.*\.sql')" ] ; then
         FILE_TO_RUN=$f
-        # if [ "$DRYRUN" == 'true' ] ; then
-        #   echo "DRYRUN: $f"
-        # else
-          sh run-one.sh
-        # fi
+        sh run-one.sh
       fi
     done
   elif [ -n "$ENCODED_SQL" ] ; then
-    # if [ "$DRYRUN" == 'true' ] ; then
-    #   echo "DRYRUN: $ENCODED_SQL"
-    # else
-      sh run-raw.sh
-    # fi
+    sh run-raw.sh
   else
     sqlplus $DB_USER/$DB_PASSWORD@"$url"
   fi

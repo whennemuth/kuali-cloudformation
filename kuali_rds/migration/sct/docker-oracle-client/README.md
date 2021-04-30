@@ -44,10 +44,25 @@ You can drive what the container does with name=value parameter pairs:
   Run all scripts in this folder as follows: 
 
   ```
+  # Have omitted rds parameters dynamically looked-up based on tag values that match the provided landscape:
   sh dbclient.sh run-sct-scripts \
     aws_access_key_id=[your key] \
     aws_secret_access_key=[your secret] \
     landscape=ci
+    
+  # or...
+  
+  # Explicitly provide rds parameters:
+  sh dbclient.sh run-sct-scripts \
+    aws_access_key_id=[your key] \
+    aws_secret_access_key=[your secret] \
+    landscape=stg \
+    template_bucket_name=kuali-research-ec2-setup \
+    db_host=kuali-oracle-stg.cnc9dm5uqxog.us-east-1.rds.amazonaws.com \
+    db_user=admin \
+    local_port=1521
+    
+  # include a "dryrun=true" parameter to see what would get run without actually invoking it.
   ```
 
      
@@ -73,6 +88,25 @@ You can drive what the container does with name=value parameter pairs:
 
      
 
+- **Update sequences**
+A migration that continues with [Change data capture](https://docs.aws.amazon.com/dms/latest/userguide/CHAP_Task.CDC.html) replicates all table data on an ongoing basis, but not the changes to sequences used by those tables:
+   
+   > *"As DMS does not replicate incremental sequence numbers during CDC from source database, you will need to generate the latest sequence value from the source for all the sequences and apply it on the target Amazon RDS for Oracle database to avoid sequence value inconsistencies."*
+
+   When cutting over from the source database to the target RDS database, the sequences in the target database will need to be advanced so that they reflect the changes to the sequences in the source database that occurred since the original target database sequences were created using the [schema conversion tool](../sct/README.md). Use the following script to update the sequences in the target RDS database to catch them back up with and match the corresponding source database sequences:
+   
+   ```
+   sh dbclient.sh update-sequences \
+     aws_access_key_id=[your key] \
+     aws_secret_access_key=[your secret] \
+     aws_region=us-east-1 \
+     template_bucket_name=kuali-research-ec2-setup \
+  landscape=stg \
+     tunnel=false
+   ```
+   
+   
+   
 - **Run Table row count comparison scripts:**
 
    After the AWS migration service has run, one way to validate that all data has been migrated is to compare table row counts between the source and target schemas. The following script will print out only the names of tables whos row counts differ between source and target schemas.
@@ -117,7 +151,7 @@ You can drive what the container does with name=value parameter pairs:
      db_port=1521 \
      db_user=KCOEUS \
      db_password=[password] \
-     sid=Kuali
+     db_sid=Kuali
    ```
 
   ​    

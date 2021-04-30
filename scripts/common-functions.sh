@@ -1319,13 +1319,25 @@ getRdsArn() {
     --query 'ResourceTagMappingList[].{ARN:ResourceARN}' 2> /dev/null
 }
 
+getRdsJson() {
+  local landscape=${1:-$LANDSCAPE}
+  local rdsArn=$(getRdsArn $landscape)
+  if [ -n "$rdsArn" ] ; then
+    aws rds describe-db-instances \
+      --db-instance-id $rdsArn \
+      --output json \
+      --query 'DBInstances[0]' 2> /dev/null
+  fi
+}
+
 getRdsHostname() {
-  local rdsArn=$(getRdsArn)
+  local landscape=${1:-$LANDSCAPE}
+  local rdsArn=$(getRdsArn $landscape)
   if [ -n "$rdsArn" ] ; then
     aws rds describe-db-instances \
       --db-instance-id $rdsArn \
       --output text \
-      --query 'DBInstances[].Endpoint.{Hostname:Address}' 2> /dev/null
+      --query 'DBInstances[].Endpoint.{hostaddr:Address}' 2> /dev/null
   fi
 }
 
@@ -2110,8 +2122,8 @@ getStackByTag() {
   --resource-type-filters cloudformation:stack \
   --output text \
   --tag-filters \
-    'Key=Service,Values='${kualiTags['Service']} \
-    'Key=Function,Values='${kualiTags['Function']} \
+    'Key=Service,Values='${kualiTags["Service"]} \
+    'Key=Function,Values='${kualiTags["Function"]} \
     "Key=$tagname,Values=$tagvalue"
 }
 
@@ -2155,4 +2167,18 @@ checkLandscapeParameters() {
     exit 1
   fi
   echo "Ok"
+}
+
+maskString() {
+  local string="$1"
+  local maskChar=${2:-'*'}
+  [ ${#maskChar} -gt 1 ] && maskChar=${maskChar:0:1}
+  local mask=""
+  if [ -n "$string" ] ; then
+    for i in $(seq ${#string}) ; do
+      mask="${mask}$maskChar"
+    done
+  fi
+  [ -z "$mask" ] && mask="[empty]"
+  echo "$mask"
 }

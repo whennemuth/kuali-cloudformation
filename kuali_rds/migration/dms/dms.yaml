@@ -275,7 +275,7 @@ Resources:
   DMSVpcRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: dms-vpc-role
+      RoleName: !Sub dms-vpc-role-${Landscape}
       AssumeRolePolicyDocument:
         Statement:
           - Effect: Allow
@@ -290,7 +290,7 @@ Resources:
   DMSCloudwatchLogsRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: dms-cloudwatch-logs-role
+      RoleName: !Sub dms-cloudwatch-logs-role-${Landscape}
       AssumeRolePolicyDocument:
         Statement:
           - Effect: Allow
@@ -305,7 +305,7 @@ Resources:
   DMSS3AccessRole: 
     Type: AWS::IAM::Role
     Properties:
-      RoleName: dms-access-for-tasks
+      RoleName: !Sub dms-access-for-tasks-${Landscape}
       AssumeRolePolicyDocument:
         Statement:
           - Effect: Allow

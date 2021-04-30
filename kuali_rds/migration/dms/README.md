@@ -72,12 +72,52 @@ Instructions: [Kuali secrets stack creation](../../../kuali_secrets/README.md)
    sh main.sh update-stack profile=default landscape=ci replication_instance_class=dms.r4.2xlarge
    ```
 
-      
-
-3. **Monitor stack progress:**
-   Go to the stack in the [AWS Console](https://console.aws.amazon.com/cloudformation/home?region=us-east-1). Click on the new stack in the list and go to the "Events" tab.
-   Watch for failures (these will show up in red).
-
+   **Change data capture (CDC):** 
+The default migration type is "full-load", but you can override this with one of the other two values:
+   
+   - cdc
+   - full-load-and-cdc
+   
+   Where cdc stands for "change data capture", which performs ongoing replication of changes to schema data between the source and target.
+   If you wanted to keep the migrated database up to date after the initial load, you would use the "full-load-and-cdc" option.
+   
+   Example:
+   
+   ```
+   cd kuali_rds/migration/dms
+   sh main.sh create-stack profile=default landscape=ci migration_type=full-load-and-cdc
+   
+   # Or if updating the stack to increase the instance class:
+   sh main.sh update-stack profile=default landscape=ci migration_type=full-load-and-cdc
+   ```
+   
+   Using CDC requires that the source database have supplemental data logging enabled.
+   When properly established, the following query should return "YES" for the all 3 columns:
+   
+   ```
+   select
+   SUPPLEMENTAL_LOG_DATA_MIN,
+   SUPPLEMENTAL_LOG_DATA_PK,
+   SUPPLEMENTAL_LOG_DATA_UI
+   from
+   v$database;
+   ```
+   
+   
+   
+3. **Allow Replication Instance ingress to RDS instance:**
+   When the stack is finished, the newly created [Replication Instance](https://docs.aws.amazon.com/dms/latest/userguide/CHAP_ReplicationInstance.html) will need access to the source and target databases involved in the data migration. In our case all three entities (Source db, replication instance, and target db) are in the same VPC.
+   This means we can go with the first and simplest networking access scenario: [Configuration with all database migration components in one VPC](https://docs.aws.amazon.com/dms/latest/userguide/CHAP_ReplicationInstance.VPC.html#CHAP_ReplicationInstance.VPC.Configurations.ScenarioAllVPC)
+In the case of a kuali migration, the source database is hosted on an ec2 instance, and the target database is an rds instance.
+   Both have security groups associated with them.
+   Each of these security groups needs to have added ingress rules on port 1521 that reference one of the following:
+   
+   1. The CIDR entries of the two subnets in the Replication instances ReplicationSubnetGroup
+   2. The VpcSecurityGroup of the the Replication instance (Will have been created if ReplicationSubnetGroup was not)
+   
+   Once this has been done, the Pre-Migration Assessment should pass its connectivity tests.
+   
+   
 4. **Pre-Migration Assessment:**
    This step involves using helper scripts to invoke a [Premigration Assessment](https://aws.amazon.com/about-aws/whats-new/2020/07/aws-database-migration-service-now-supports-enhanced-premigration-assessments/). This will trigger:
 
@@ -92,6 +132,7 @@ Instructions: [Kuali secrets stack creation](../../../kuali_secrets/README.md)
 
    Once triggered, you can wait for the output to indicate results and/or log into the [AWS Console for DMS tasks](https://console.aws.amazon.com/dms/v2/home?region=us-east-1#tasks) and watch the progress of the assessment.
    
+
 5. **Migrate the data:**
    You can either start a migration from the [AWS Console for DMS tasks](https://console.aws.amazon.com/dms/v2/home?region=us-east-1#tasks) by clicking on the task and selecting `"Actions > Restart/Resume"` or, use a helper script:
 
@@ -100,7 +141,7 @@ Instructions: [Kuali secrets stack creation](../../../kuali_secrets/README.md)
    sh main.sh migrate profile=default landscape=ci
    ```
 
-   The default migration task type is "start-replication", but you can override this with one of the other two values:
+   Also, the default migration task type is "start-replication", but you can override this with one of the other two values:
 
    - resume-processing
    - reload-target
@@ -113,5 +154,10 @@ Instructions: [Kuali secrets stack creation](../../../kuali_secrets/README.md)
    ```
 
    See: [StartReplicationTask - StartReplicationTaskType](https://docs.aws.amazon.com/dms/latest/APIReference/API_StartReplicationTask.html#DMS-StartReplicationTask-request-StartReplicationTaskType)   
+   
 
-6. NEXT
+6. **Monitor stack progress:**
+   Go to the stack in the [AWS Console](https://console.aws.amazon.com/cloudformation/home?region=us-east-1). Click on the new stack in the list and go to the "Events" tab.
+   Watch for failures (these will show up in red).
+
+7. 
