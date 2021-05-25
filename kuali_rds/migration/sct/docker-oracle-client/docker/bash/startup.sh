@@ -10,6 +10,7 @@ source common-functions.sh
 canLookupInS3() {
   local reqs=0
   [ -z "$BASELINE" ] && BASELINE="$LANDSCAPE"
+  [ -z "$TEMPLATE_BUCKET_NAME" ] && TEMPLATE_BUCKET_NAME="$BUCKET_NAME"
   [ -n "$AWS_ACCESS_KEY_ID" ] && ((reqs++))
   [ -n "$AWS_SECRET_ACCESS_KEY" ] && ((reqs++))
   [ -n "$AWS_REGION" ] && ((reqs++))
@@ -35,6 +36,16 @@ setLocalhostDbParms() {
   [ -z "$DB_SID" ] && DB_SID="Kuali"
 }
 
+setExplicitDbParms() {
+  [ -n "$DB_HOST" ] && DB_HOST="$DB_HOST"
+  [ -n "$DB_PASSWORD" ] && DB_PASSWORD="$DB_PASSWORD"
+  [ -n "$DB_USER" ] && DB_USER="$DB_USER"
+  [ -n "$DB_SID" ] && DB_SID="$DB_SID"
+  [ -n "$DB_PORT" ] && DB_PORT="$DB_PORT"
+  [ -z "$DB_SID" ] && DB_SID="Kuali"
+  [ -z "$DB_PORT" ] && DB_PORT="1521"
+}
+
 printDbParms() {
   echo "DB_HOST=$DB_HOST"
   echo "DB_SID=$DB_SID"
@@ -46,12 +57,7 @@ printDbParms() {
 setLegacyParms() {
   # Database connection should be direct to host, accessible over bu vpn.
 
-  [ -n "$LEGACY_DB_HOST" ] && DB_HOST="$LEGACY_DB_HOST"
-  [ -n "$LEGACY_DB_PASSWORD" ] && DB_PASSWORD="$LEGACY_DB_PASSWORD"
-  [ -n "$LEGACY_DB_USER" ] && DB_USER="$LEGACY_DB_USER"
-  [ -n "$LEGACY_DB_SID" ] && DB_SID="$LEGACY_DB_SID"
-  [ -n "$LEGACY_DB_PORT" ] && DB_PORT="$LEGACY_DB_PORT"
-  [ -z "$DB_SID" ] && DB_SID="Kuali"
+  setExplicitDbParms
 
   if ! dbParmsComplete && canLookupInS3 ; then
     # Get database details from kc-config.xml in s3
@@ -81,11 +87,8 @@ setLegacyParms() {
 
 
 setRdsParms() {  
-  [ -n "$RDS_DB_HOST" ] && DB_HOST="$RDS_DB_HOST"
-  [ -n "$RDS_DB_PASSWORD" ] && DB_PASSWORD="$RDS_DB_PASSWORD"
-  [ -n "$RDS_DB_USER" ] && DB_USER="$RDS_DB_USER"
-  [ -n "$RDS_DB_SID" ] && DB_SID="$RDS_DB_SID"
-  [ -n "$RDS_DB_PORT" ] && DB_PORT="$RDS_DB_PORT"
+
+  setExplicitDbParms
 
   if [ -z "$DB_PASSWORD" ] ; then
     landscape="$BASELINE"

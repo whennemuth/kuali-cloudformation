@@ -130,47 +130,62 @@ Mappings:
     #   cidr: "10.1.0.0/21"
 
   InformaticaCidrs:
-    sb: 
-      host: ist-etl-sb01.bu.edu
-      cidr: 10.231.31.12/32
-    ci:
-      host: ist-etl-devl01.bu.edu
-      cidr: 10.231.31.13/32
-    qa:
-      host: ist-etl-qa01.bu.edu
-      cidr: 10.231.31.14/32
-    stg:
-      host: ist-etl-qa01.bu.edu
-      cidr: 10.231.31.14/32
+    nonprod: 
+      host1: ist-etl-sb01.bu.edu
+      cidr1: 10.231.31.12/32
+      host2: ist-etl-devl01.bu.edu
+      cidr2: 10.231.31.13/32
+      host3: ist-etl-qa01.bu.edu
+      cidr3: 10.231.31.14/32
+      host4: ist-etl-qa01.bu.edu
+      cidr4: 10.231.31.14/32
     prod:
       host: ist-etl-prod01.bu.edu
       cidr: 10.231.31.15/32
 
   SAPBWCidrs:
     qa: {
-      sid1: SBW, host1: sbwci/holbuws502, cidr1: 10.230.9.140/32,
-      sid2: DBW, host2: dbwci/bosbuwd502, cidr2: 10.230.5.120/32,
-      sid3: QBW, host3: qbwci/holbuwq502, cidr3: 10.230.9.160/32,
-      sid4: QBW, host4: qbwci/holbuwq503, cidr4: 10.230.9.161/32,
-      sid5: QBW, host5: qbwci/holbuwq504, cidr5: 10.230.9.162/32,
-      sid6: XBW, host6: xbwci/holbuwx502, cidr6: 10.230.9.130/32,
-      sid7: YBW, host7: ybwci/holbuwy502, cidr7: 10.230.9.118/32,
-      sid8: ZBW, host8: zbwci/holbuwz502, cidr8: 10.230.9.175/32
+      sid1: 'SBW, DBW, QBW, XBW, YBW, ZBW', 
+      host1: 'sbwci, holbuws502, dbwci, bosbuwd502, qbwci, holbuwq502, holbuwq503, holbuwq504, xbwci, holbuwx502, ybwci, holbuwy502, zbwci, holbuwz502', 
+      cidr1: 10.230.5.0/24,
+      sid2: 'SBW, DBW, QBW, XBW, YBW, ZBW', 
+      host2: 'sbwci, holbuws502, dbwci, bosbuwd502, qbwci, holbuwq502, holbuwq503, holbuwq504, xbwci, holbuwx502, ybwci, holbuwy502, zbwci, holbuwz502', 
+      cidr2: 10.230.9.0/24
+      # sid1: SBW, host1: sbwci/holbuws502, cidr1: 10.230.9.140/32,
+      # sid2: DBW, host2: dbwci/bosbuwd502, cidr2: 10.230.5.120/32,
+      # sid3: QBW, host3: qbwci/holbuwq502, cidr3: 10.230.9.160/32,
+      # sid4: QBW, host4: qbwci/holbuwq503, cidr4: 10.230.9.161/32,
+      # sid5: QBW, host5: qbwci/holbuwq504, cidr5: 10.230.9.162/32,
+      # sid6: XBW, host6: xbwci/holbuwx502, cidr6: 10.230.9.130/32,
+      # sid7: YBW, host7: ybwci/holbuwy502, cidr7: 10.230.9.118/32,
+      # sid8: ZBW, host8: zbwci/holbuwz502, cidr8: 10.230.9.175/32
     }
     stg: {
-      sid1: SBW, host1: sbwci/holbuws502, cidr1: 10.230.9.140/32,
-      sid2: DBW, host2: dbwci/bosbuwd502, cidr2: 10.230.5.120/32,
-      sid3: QBW, host3: qbwci/holbuwq502, cidr3: 10.230.9.160/32,
-      sid4: QBW, host4: qbwci/holbuwq503, cidr4: 10.230.9.161/32,
-      sid5: QBW, host5: qbwci/holbuwq504, cidr5: 10.230.9.162/32,
-      sid6: XBW, host6: xbwci/holbuwx502, cidr6: 10.230.9.130/32,
-      sid7: YBW, host7: ybwci/holbuwy502, cidr7: 10.230.9.118/32,
-      sid8: ZBW, host8: zbwci/holbuwz502, cidr8: 10.230.9.175/32
+      sid1: 'SBW, DBW, QBW, XBW, YBW, ZBW', 
+      host1: 'sbwci, holbuws502, dbwci, bosbuwd502, qbwci, holbuwq502, holbuwq503, holbuwq504, xbwci, holbuwx502, ybwci, holbuwy502, zbwci, holbuwz502', 
+      cidr1: 10.230.5.0/24,
+      sid2: 'SBW, DBW, QBW, XBW, YBW, ZBW', 
+      host2: 'sbwci, holbuws502, dbwci, bosbuwd502, qbwci, holbuwq502, holbuwq503, holbuwq504, xbwci, holbuwx502, ybwci, holbuwy502, zbwci, holbuwz502', 
+      cidr2: 10.230.9.0/24
+      # sid1: SBW, host1: sbwci/holbuws502, cidr1: 10.230.9.140/32,
+      # sid2: DBW, host2: dbwci/bosbuwd502, cidr2: 10.230.5.120/32,
+      # sid3: QBW, host3: qbwci/holbuwq502, cidr3: 10.230.9.160/32,
+      # sid4: QBW, host4: qbwci/holbuwq503, cidr4: 10.230.9.161/32,
+      # sid5: QBW, host5: qbwci/holbuwq504, cidr5: 10.230.9.162/32,
+      # sid6: XBW, host6: xbwci/holbuwx502, cidr6: 10.230.9.130/32,
+      # sid7: YBW, host7: ybwci/holbuwy502, cidr7: 10.230.9.118/32,
+      # sid8: ZBW, host8: zbwci/holbuwz502, cidr8: 10.230.9.175/32
     }
     prod: {
-      sid1: PBW, host1: pbwci/bosbuwp502, cidr1: 10.230.4.20/32,
-      sid2: PBW, host2: pbwa1/bosbuwp503, cidr2: 10.230.4.21/32,
-      sid3: PBW, host3: pwa2/bosbuwp504,  cidr3: 10.230.4.22/32
+      sid1: PBW, host1: bosbuwp502, cidr1: 10.230.3.20/32,
+      sid2: PBW, host2: bosbuwp503, cidr2: 10.230.3.21/32,
+      sid3: PBW, host3: bosbuwp504, cidr3: 10.230.3.22/32,
+      sid4: PBW, host4: pbwci,      cidr4: 10.230.4.20/32,
+      sid5: PBW, host5: pbwa1,      cidr5: 10.230.4.21/32,
+      sid6: PBW, host6: pbwa2,      cidr6: 10.230.4.22/32,
+      sid7: PBW, host7: holbuwr502, cidr7: 10.230.8.20/32,
+      sid8: PBW, host8: holbuwr503, cidr8: 10.230.8.21/32,
+      sid9: PBW, host9: holbuwr504, cidr9: 10.230.8.22/32
     }
 
 
@@ -182,11 +197,13 @@ Conditions:
   IncludeCampusSg1: !And [ !Not [ !Equals [ !Ref CampusSubnetCIDR1, 'UsingAppSg' ] ], Condition: IncludeAppSg ]
   IncludeCampusSg2: !And [ !Not [ !Equals [ !Ref CampusSubnetCIDR2, 'UsingAppSg' ] ], Condition: IncludeCampusSg1, Condition: DuoCampusSubnet ]
   IncludeDbReportIngress: !Equals [ !Ref GrantDBReportIngress, 'true' ]
-  IncludeInformaticaIngress: !Equals [ !Ref GrantDBReportIngress, 'true' ]
+  IncludeInformaticaIngress: !Equals [ !Ref GrantInformaticaIngress, 'true' ]
   IsProdBaseline: !Equals [!Ref Baseline, prod]
+  GrantInformaticaNonProdIngress: !And [ Condition: IncludeInformaticaIngress, !Not [ Condition: IsProdBaseline ] ]
+  GrantInformaticaProdIngress: !And [ Condition: IncludeInformaticaIngress, Condition: IsProdBaseline ]
   IsSAPBWBaseline: !Or [ !Equals [!Ref Baseline, stg], !Equals [!Ref Baseline, prod], !Equals [!Ref Baseline, qa] ]
-  IncludeSAPBW1To3: !And [ Condition: IsSAPBWBaseline, !Equals [ !Ref GrantSAPBWIngress, 'true' ] ]
-  IncludeSAPBW4To8: !And [ Condition: IncludeSAPBW1To3, !Not [ Condition: IsProdBaseline ] ]
+  IncludeSAPBW1And2: !And [ Condition: IsSAPBWBaseline, !Equals [ !Ref GrantSAPBWIngress, 'true' ] ]
+  IncludeSAPBW3To9: !And [ Condition: IncludeSAPBW1And2, Condition: IsProdBaseline ]
   GroupNameProvided: !Not [ !Equals [ !Ref SecurityGroupName, empty ]]
   GroupDescProvided: !Not [ !Equals [ !Ref SecurityGroupDescription, empty ]]
 
@@ -312,14 +329,73 @@ Resources:
       ToPort: !Ref ToPort
       CidrIp: !FindInMap [ DbReportCidrs, "first", "cidr" ]
 
-  # INFORMATICA: Allow ingress from the informatica server(s) associated with the baseline landscape
-  InformaticaServerIngress:
+  # INFORMATICA: Allow ingress from the informatica server(s) associated with the baseline landscapes
+  InformaticaNonProdServerIngress1:
     Type: 'AWS::EC2::SecurityGroupIngress'
-    Condition: IncludeInformaticaIngress
+    Condition: GrantInformaticaNonProdIngress
     Properties:
       GroupId: !Ref SGBase
-      CidrIp: !FindInMap [ InformaticaCidrs, !Ref Baseline, "cidr" ]
-      Description: !Sub "Oracle: Informatica ingress to ${Landscape} oracle rds instance(s)"
+      CidrIp: !FindInMap [ InformaticaCidrs, nonprod, "cidr1" ]
+      Description: !Sub 
+        - "Oracle: Informatica ${host} host ingress to ${baseline} oracle rds instance(s)"
+        - baseline: !Ref Baseline
+          host: !FindInMap [ InformaticaCidrs, nonprod, "host1" ]
+      IpProtocol: tcp
+      FromPort: !Ref FromPort
+      ToPort: !Ref ToPort
+  
+  InformaticaNonProdServerIngress2:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Condition: GrantInformaticaNonProdIngress
+    Properties:
+      GroupId: !Ref SGBase
+      CidrIp: !FindInMap [ InformaticaCidrs, nonprod, "cidr2" ]
+      Description: !Sub 
+        - "Oracle: Informatica ${host} host ingress to ${baseline} oracle rds instance(s)"
+        - baseline: !Ref Baseline
+          host: !FindInMap [ InformaticaCidrs, nonprod, "host2" ]
+      IpProtocol: tcp
+      FromPort: !Ref FromPort
+      ToPort: !Ref ToPort
+
+  InformaticaNonProdServerIngress3:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Condition: GrantInformaticaNonProdIngress
+    Properties:
+      GroupId: !Ref SGBase
+      CidrIp: !FindInMap [ InformaticaCidrs, nonprod, "cidr3" ]
+      Description: !Sub 
+        - "Oracle: Informatica ${host} host ingress to ${baseline} oracle rds instance(s)"
+        - baseline: !Ref Baseline
+          host: !FindInMap [ InformaticaCidrs, nonprod, "host3" ]
+      IpProtocol: tcp
+      FromPort: !Ref FromPort
+      ToPort: !Ref ToPort
+
+  InformaticaNonProdServerIngress4:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Condition: GrantInformaticaNonProdIngress
+    Properties:
+      GroupId: !Ref SGBase
+      CidrIp: !FindInMap [ InformaticaCidrs, nonprod, "cidr4" ]
+      Description: !Sub 
+        - "Oracle: Informatica ${host} host ingress to ${baseline} oracle rds instance(s)"
+        - baseline: !Ref Baseline
+          host: !FindInMap [ InformaticaCidrs, nonprod, "host4" ]
+      IpProtocol: tcp
+      FromPort: !Ref FromPort
+      ToPort: !Ref ToPort
+
+  InformaticaProdServerIngress:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Condition: GrantInformaticaProdIngress
+    Properties:
+      GroupId: !Ref SGBase
+      CidrIp: !FindInMap [ InformaticaCidrs, prod, "cidr" ]
+      Description: !Sub 
+        - "Oracle: Informatica ${host} host ingress to ${baseline} oracle rds instance(s)"
+        - baseline: !Ref Baseline
+          host: !FindInMap [ InformaticaCidrs, prod, "host" ]
       IpProtocol: tcp
       FromPort: !Ref FromPort
       ToPort: !Ref ToPort
@@ -327,11 +403,11 @@ Resources:
   # SAPBW: Allow ingress from the SAP BW server(s) associated with the prod or staging baseline landscapes only
   SAPBWServerIngress1:
     Type: 'AWS::EC2::SecurityGroupIngress'
-    Condition: IncludeSAPBW1To3
+    Condition: IncludeSAPBW1And2
     Properties:
       GroupId: !Ref SGBase
       Description: !Sub 
-        - "Oracle: SAPBW ${sid} ${host} ingress to ${landscape} oracle rds instance(s)"
+        - "Oracle: SAPBW ingress to ${landscape} oracle rds instance(s) -- sid(s): ${sid} -- host(s): ${host}"
         - sid: !FindInMap [ SAPBWCidrs, !Ref Baseline, "sid1" ]
           host: !FindInMap [ SAPBWCidrs, !Ref Baseline, "host1" ]
           landscape: !Ref Landscape
@@ -342,11 +418,11 @@ Resources:
 
   SAPBWServerIngress2:
     Type: 'AWS::EC2::SecurityGroupIngress'
-    Condition: IncludeSAPBW1To3
+    Condition: IncludeSAPBW1And2
     Properties:
       GroupId: !Ref SGBase
       Description: !Sub 
-        - "Oracle: SAPBW ${sid} ${host} ingress to ${landscape} oracle rds instance(s)"
+        - "Oracle: SAPBW ingress to ${landscape} oracle rds instance(s) -- sid(s): ${sid} -- host(s): ${host}"
         - sid: !FindInMap [ SAPBWCidrs, !Ref Baseline, "sid2" ]
           host: !FindInMap [ SAPBWCidrs, !Ref Baseline, "host2" ]
           landscape: !Ref Landscape
@@ -357,11 +433,11 @@ Resources:
 
   SAPBWServerIngress3:
     Type: 'AWS::EC2::SecurityGroupIngress'
-    Condition: IncludeSAPBW1To3
+    Condition: IncludeSAPBW3To9
     Properties:
       GroupId: !Ref SGBase
       Description: !Sub 
-        - "Oracle: SAPBW ${sid} ${host} ingress to ${landscape} oracle rds instance(s)"
+        - "Oracle: SAPBW ingress to ${landscape} oracle rds instance(s) -- sid(s): ${sid} -- host(s): ${host}"
         - sid: !FindInMap [ SAPBWCidrs, !Ref Baseline, "sid3" ]
           host: !FindInMap [ SAPBWCidrs, !Ref Baseline, "host3" ]
           landscape: !Ref Landscape
@@ -372,11 +448,11 @@ Resources:
 
   SAPBWServerIngress4:
     Type: 'AWS::EC2::SecurityGroupIngress'
-    Condition: IncludeSAPBW4To8
+    Condition: IncludeSAPBW3To9
     Properties:
       GroupId: !Ref SGBase
       Description: !Sub 
-        - "Oracle: SAPBW ${sid} ${host} ingress to ${landscape} oracle rds instance(s)"
+        - "Oracle: SAPBW ingress to ${landscape} oracle rds instance(s) -- sid(s): ${sid} -- host(s): ${host}"
         - sid: !FindInMap [ SAPBWCidrs, !Ref Baseline, "sid4" ]
           host: !FindInMap [ SAPBWCidrs, !Ref Baseline, "host4" ]
           landscape: !Ref Landscape
@@ -387,11 +463,11 @@ Resources:
 
   SAPBWServerIngress5:
     Type: 'AWS::EC2::SecurityGroupIngress'
-    Condition: IncludeSAPBW4To8
+    Condition: IncludeSAPBW3To9
     Properties:
       GroupId: !Ref SGBase
       Description: !Sub 
-        - "Oracle: SAPBW ${sid} ${host} ingress to ${landscape} oracle rds instance(s)"
+        - "Oracle: SAPBW ingress to ${landscape} oracle rds instance(s) -- sid(s): ${sid} -- host(s): ${host}"
         - sid: !FindInMap [ SAPBWCidrs, !Ref Baseline, "sid5" ]
           host: !FindInMap [ SAPBWCidrs, !Ref Baseline, "host5" ]
           landscape: !Ref Landscape
@@ -402,11 +478,11 @@ Resources:
 
   SAPBWServerIngress6:
     Type: 'AWS::EC2::SecurityGroupIngress'
-    Condition: IncludeSAPBW4To8
+    Condition: IncludeSAPBW3To9
     Properties:
       GroupId: !Ref SGBase
       Description: !Sub 
-        - "Oracle: SAPBW ${sid} ${host} ingress to ${landscape} oracle rds instance(s)"
+        - "Oracle: SAPBW ingress to ${landscape} oracle rds instance(s) -- sid(s): ${sid} -- host(s): ${host}"
         - sid: !FindInMap [ SAPBWCidrs, !Ref Baseline, "sid6" ]
           host: !FindInMap [ SAPBWCidrs, !Ref Baseline, "host6" ]
           landscape: !Ref Landscape
@@ -417,11 +493,11 @@ Resources:
 
   SAPBWServerIngress7:
     Type: 'AWS::EC2::SecurityGroupIngress'
-    Condition: IncludeSAPBW4To8
+    Condition: IncludeSAPBW3To9
     Properties:
       GroupId: !Ref SGBase
       Description: !Sub 
-        - "Oracle: SAPBW ${sid} ${host} ingress to ${landscape} oracle rds instance(s)"
+        - "Oracle: SAPBW ingress to ${landscape} oracle rds instance(s) -- sid(s): ${sid} -- host(s): ${host}"
         - sid: !FindInMap [ SAPBWCidrs, !Ref Baseline, "sid7" ]
           host: !FindInMap [ SAPBWCidrs, !Ref Baseline, "host7" ]
           landscape: !Ref Landscape
@@ -432,11 +508,11 @@ Resources:
 
   SAPBWServerIngress8:
     Type: 'AWS::EC2::SecurityGroupIngress'
-    Condition: IncludeSAPBW4To8
+    Condition: IncludeSAPBW3To9
     Properties:
       GroupId: !Ref SGBase
       Description: !Sub 
-        - "Oracle: SAPBW ${sid} ${host} ingress to ${landscape} oracle rds instance(s)"
+        - "Oracle: SAPBW ingress to ${landscape} oracle rds instance(s) -- sid(s): ${sid} -- host(s): ${host}"
         - sid: !FindInMap [ SAPBWCidrs, !Ref Baseline, "sid8" ]
           host: !FindInMap [ SAPBWCidrs, !Ref Baseline, "host8" ]
           landscape: !Ref Landscape
@@ -444,6 +520,21 @@ Resources:
       FromPort: !Ref FromPort
       ToPort: !Ref ToPort
       CidrIp: !FindInMap [ SAPBWCidrs, !Ref Baseline, "cidr8" ]
+
+  SAPBWServerIngress9:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Condition: IncludeSAPBW3To9
+    Properties:
+      GroupId: !Ref SGBase
+      Description: !Sub 
+        - "Oracle: SAPBW ingress to ${landscape} oracle rds instance(s) -- sid(s): ${sid} -- host(s): ${host}"
+        - sid: !FindInMap [ SAPBWCidrs, !Ref Baseline, "sid9" ]
+          host: !FindInMap [ SAPBWCidrs, !Ref Baseline, "host9" ]
+          landscape: !Ref Landscape
+      IpProtocol: tcp
+      FromPort: !Ref FromPort
+      ToPort: !Ref ToPort
+      CidrIp: !FindInMap [ SAPBWCidrs, !Ref Baseline, "cidr9" ]
 
 Outputs:
 

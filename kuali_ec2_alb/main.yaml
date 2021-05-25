@@ -307,6 +307,11 @@ Resources:
         RdsSubnetCIDR2: !Ref RdsSubnetCIDR2
         RdsAvailabilityZone: !Ref RdsAvailabilityZone
         ApplicationSecurityGroupId: !GetAtt SecurityGroups.Outputs.EC2SecurityGroupId
+        HostedZoneName:
+          !If
+            - CreateDnsRecord
+            - !Ref HostedZoneName
+            - !Ref AWS::NoValue
 
   BucketEmptierLambda:
     Type: AWS::CloudFormation::Stack

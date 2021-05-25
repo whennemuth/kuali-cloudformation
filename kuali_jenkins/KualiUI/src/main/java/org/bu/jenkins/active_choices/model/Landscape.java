@@ -85,6 +85,19 @@ public enum Landscape {
 		}
 		return null;		
 	}
+	
+	public boolean is(String landscape) {
+		if(id.equalsIgnoreCase(landscape))
+			return true;
+		if(this.name().equalsIgnoreCase(landscape))
+			return true;
+		for(String alias : getAliases()) {
+			if(alias.equalsIgnoreCase(landscape)) {
+				return true;
+			}
+		}
+		return false;
+	}
 
 	public String getId() {
 		return id;

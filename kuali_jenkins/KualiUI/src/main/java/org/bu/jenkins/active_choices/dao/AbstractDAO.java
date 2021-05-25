@@ -1,5 +1,7 @@
 package org.bu.jenkins.active_choices.dao;
 
+import java.util.Collection;
+
 import org.bu.jenkins.AWSCredentials;
 
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
@@ -11,7 +13,7 @@ import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 	 * @author wrh
 	 *
 	 */
-public class AbstractDAO {
+public abstract class AbstractDAO {
 	
 	protected AwsCredentialsProvider provider;
 	
@@ -21,6 +23,16 @@ public class AbstractDAO {
 	
 	public AbstractDAO(AwsCredentialsProvider provider) {
 		this.provider = provider;
+	}
+	
+	public abstract Collection<?> getResources();
+	
+	static void printHeader(String msg) {
+		final String border = "----------------------------------------------------------------------------------------------------";
+		System.out.println("");
+		System.out.println(border);
+		System.out.println("             " + msg);
+		System.out.println(border);
 	}
 		
 }

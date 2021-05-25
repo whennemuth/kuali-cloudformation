@@ -200,7 +200,7 @@ EOF
       # HOSTED_ZONE_NAME="$(getHostedZoneNameByLandscape $LANDSCAPE)"
       # [ -z "$HOSTED_ZONE_NAME" ] && echo "ERROR! Cannot acquire hosted zone name. Cancelling..." && exit 1
       # add_parameter $cmdfile 'HostedZoneName' 'HOSTED_ZONE_NAME'
-      [ -z "$(getHostedZoneId $HOSTED_ZONE)" ] && echo "ERROR! Cannot detect hosted zone for $HOSTED_ZONE"
+      [ -z "$(getHostedZoneId $HOSTED_ZONE)" ] && echo "ERROR! Cannot detect hosted zone for $HOSTED_ZONE" && exit 1
       addParameter $cmdfile 'HostedZoneName' $HOSTED_ZONE
     fi
 

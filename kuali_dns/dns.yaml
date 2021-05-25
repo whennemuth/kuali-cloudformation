@@ -33,8 +33,21 @@ Parameters:
     Type: String
     Default: kuali.research.bu.edu
 
+  DBDomainName:
+    Description: The domain name for the private hosted zone designated for rds host endpoints
+    Type: String
+    Default: kuali.db.nonprod.css.edu
+
   CreateHostedZoneLogGroup:
-    Description: Log activity for the hosted zone to cloudwatch?
+    Description: Log activity for the app hosted zone to cloudwatch?
+    Type: String
+    Default: "yes"
+    AllowedValues:
+    - "yes"
+    - "no"
+
+  CreateHostedZoneDbLogGroup:
+    Description: Log activity for the database hosted zone to cloudwatch?
     Type: String
     Default: "yes"
     AllowedValues:
@@ -44,6 +57,7 @@ Parameters:
 
 Conditions:
     CreateLogGroup: !Equals [!Ref CreateHostedZoneLogGroup, 'yes']
+    CreateDbLogGroup: !Equals [!Ref CreateHostedZoneDbLogGroup, 'yes']
 
 
 Resources:
@@ -54,6 +68,14 @@ Resources:
     DeletionPolicy: Delete
     Properties:
       LogGroupName: !Sub /aws/route53/${GlobalTag}-hosted-zone
+      RetentionInDays: 30
+
+  HostedZoneDbLogGroup:
+    Type: AWS::Logs::LogGroup
+    Condition: CreateDbLogGroup
+    DeletionPolicy: Delete
+    Properties:
+      LogGroupName: !Sub /aws/route53/${GlobalTag}-db-hosted-zone
       RetentionInDays: 30
 
   # This won't work. You must manually created a resouce-based policy first.
@@ -92,6 +114,24 @@ Resources:
       HostedZoneTags: 
         - Key: Name
           Value: !Sub ${GlobalTag}-hosted-zone
+        - Key: Service
+          Value: !Ref Service
+        - Key: Function
+          Value: !Ref Function
+
+  # SEE: https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/routing-to-rds-db.html
+  # RELATED: https://aws.amazon.com/premiumsupport/knowledge-center/route53-resolve-with-inbound-endpoint/
+  DBDNS: 
+    Type: AWS::Route53::HostedZone
+    Properties: 
+      Name: !Ref DBDomainName
+      HostedZoneConfig: 
+        Comment: !Sub Hosted zone for ${DBDomainName}
+      QueryLoggingConfig:
+        CloudWatchLogsLogGroupArn: !GetAtt HostedZoneDbLogGroup.Arn
+      HostedZoneTags: 
+        - Key: Name
+          Value: !Sub ${GlobalTag}-db-hosted-zone
         - Key: Service
           Value: !Ref Service
         - Key: Function

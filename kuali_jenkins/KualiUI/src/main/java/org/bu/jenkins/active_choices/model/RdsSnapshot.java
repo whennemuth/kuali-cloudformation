@@ -2,40 +2,92 @@ package org.bu.jenkins.active_choices.model;
 
 import java.time.Instant;
 
-public class RdsSnapshot implements Comparable<RdsSnapshot> {
+import software.amazon.awssdk.services.rds.model.DBSnapshot;
+
+public class RdsSnapshot extends AbstractAwsResource implements Comparable<RdsSnapshot> {
 	
-	private RdsInstance rdsInstance;
+	private DBSnapshot snapshot;
+	private AbstractAwsResource rdsInstance = new RdsInstance();
 	private Instant creationTime;
-	private String arn;
 	private String type;
 	
-	public RdsSnapshot(RdsInstance rdsInstance, Instant creationTime, String arn, String type) {
+	public RdsSnapshot() {
 		super();
+	}
+	public RdsSnapshot(DBSnapshot snapshot) {
+		this.snapshot = snapshot;
+		super.arn = snapshot.dbSnapshotArn();
+		super.name = snapshot.dbSnapshotIdentifier();
+		for(software.amazon.awssdk.services.rds.model.Tag tag : snapshot.tagList()) {
+			super.putTag(tag.key(), tag.value());
+		}
+		this.creationTime = snapshot.snapshotCreateTime();
+		this.type = snapshot.snapshotType();
+		this.rdsInstance = new RdsInstance(snapshot.dbiResourceId());
+	}
+	public RdsSnapshot(AbstractAwsResource rdsInstance, Instant creationTime, String arn, String type) {
+		super(arn);
+		this.rdsInstance = rdsInstance;
 		this.creationTime = creationTime;
-		this.arn = arn;
 		this.type = type;
+	}
+	public RdsSnapshot(String arn) {
+		super(arn);
+	}
+	public RdsSnapshot(String arn, String landscape, String baseline) {
+		super(arn, landscape, baseline);
+	}
+	public DBSnapshot getDBSnapshot() {
+		return snapshot;
 	}
 	public String getCreationTime() {
 		return creationTime.toString();
 	}
-	public String getArn() {
-		return arn;
+	public RdsSnapshot setCreationTime(Instant creationTime) {
+		this.creationTime = creationTime;
+		return this;
 	}
 	public String getType() {
 		return type;
 	}
-	public RdsInstance getRdsInstance() {
+	public RdsSnapshot setType(String type) {
+		this.type = type;
+		return this;
+	}
+	public AbstractAwsResource getRdsInstance() {
 		return rdsInstance;
 	}
-	public RdsSnapshot setRdsInstance(RdsInstance rdsInstance) {
+	public RdsSnapshot setRdsInstance(AbstractAwsResource rdsInstance) {
 		this.rdsInstance = rdsInstance;
 		return this;
+	}
+	public String getRdsInstanceArn() {
+		if(rdsInstance == null)
+			return null;
+		return rdsInstance.getArn();
+	}
+	@Override
+	public String getName() {
+		String name = super.getName();
+		if(name == null && super.arn != null) {
+			String[] parts = arn.split(":");
+			name = parts[parts.length - 1];
+		}
+		return name;
+	}
+	public String getRdsInstanceName() {
+		if(rdsInstance == null)
+			return null;
+		return rdsInstance.getName();
 	}
 	@Override
 	public String toString() {
 		StringBuilder builder = new StringBuilder();
-		builder.append("RdsSnapshot [rdsInstance=").append(rdsInstance.getArn()).append(", creationTime=").append(creationTime)
-				.append(", arn=").append(arn).append(", type=").append(type).append("]");
+		builder.append("RdsSnapshot [creationTime=").append(creationTime).append(", type=").append(type)
+				.append(", arn=").append(arn).append(", name=").append(name).append(", getRdsInstanceArn()=")
+				.append(getRdsInstanceArn()).append(", getRdsInstanceName()=").append(getRdsInstanceName())
+				.append(", getBaseline()=").append(getBaseline()).append(", getLandscape()=").append(getLandscape())
+				.append("]");
 		return builder.toString();
 	}
 	@Override
@@ -43,8 +95,6 @@ public class RdsSnapshot implements Comparable<RdsSnapshot> {
 		final int prime = 31;
 		int result = 1;
 		result = prime * result + ((arn == null) ? 0 : arn.hashCode());
-		result = prime * result + ((creationTime == null) ? 0 : creationTime.hashCode());
-		result = prime * result + ((rdsInstance == null) ? 0 : rdsInstance.getArn().hashCode());
 		result = prime * result + ((type == null) ? 0 : type.hashCode());
 		return result;
 	}
@@ -57,27 +107,11 @@ public class RdsSnapshot implements Comparable<RdsSnapshot> {
 		if (getClass() != obj.getClass())
 			return false;
 		RdsSnapshot other = (RdsSnapshot) obj;
-		if (arn == null) {
-			if (other.arn != null)
-				return false;
-		} else if (!arn.equals(other.arn))
+		if(arn == null)
 			return false;
-		if (creationTime == null) {
-			if (other.creationTime != null)
-				return false;
-		} else if (!creationTime.equals(other.creationTime))
-			return false;
-		if (rdsInstance == null) {
-			if (other.rdsInstance != null)
-				return false;
-		} else if (!rdsInstance.getArn().equals(other.rdsInstance.getArn()))
-			return false;
-		if (type == null) {
-			if (other.type != null)
-				return false;
-		} else if (!type.equals(other.type))
-			return false;
-		return true;
+		if(arn.equals(other.arn))
+			return true;
+		return false;
 	}
 	/**
 	 * Compare by reverse creation date order

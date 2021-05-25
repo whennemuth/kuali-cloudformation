@@ -339,6 +339,11 @@ Resources:
         JumpboxInstanceType: !If [ CreateJumpboxInstance, !Ref RdsJumpboxInstanceType, !Ref AWS::NoValue ]
         RdsAvailabilityZone: !Ref RdsAvailabilityZone
         ApplicationSecurityGroupId: !GetAtt SecurityGroups.Outputs.ECSHostSecurityGroup
+        HostedZoneName:
+          !If
+            - CreateDnsRecord
+            - !Ref HostedZoneName
+            - !Ref AWS::NoValue
 
   BucketEmptierLambda:
     Type: AWS::CloudFormation::Stack

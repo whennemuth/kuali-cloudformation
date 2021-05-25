@@ -1362,6 +1362,20 @@ getRdsBaseline() {
 getRdsSnapshotBaseline() {
   local snapshotArn="$1"
   if [ -n "$snapshotArn" ] ; then
+
+    # Check the snapshot directly for a baseline tag
+    local baseline=$(
+      aws rds list-tags-for-resource \
+        --resource-name $snapshotArn \
+        --output text \
+        --query 'TagList[?Key==`Baseline`].{Value:Value}' 2> /dev/null
+    )
+    if [ -n "$baseline" ] ; then
+      echo $baseline
+      return 0
+    fi
+
+    # Failing a direct check, check for a baseline tag of the rds instance the snapshot was taken from.
     local rdsRN=$(
       aws rds describe-db-snapshots \
         --db-snapshot-identifier $snapshotArn \
@@ -1413,7 +1427,10 @@ checkRDSParameters() {
   }
 
   if [ -n "$RDS_SNAPSHOT_ARN" ] ; then
+    local original="$BASELINE"
     BASELINE="$(getRdsSnapshotBaseline $RDS_SNAPSHOT_ARN)"
+    # The snapshot may be an orphan with no originating rds instance whose tags can be checked for a baseline value, hence...
+    [ -z "$BASELINE" ] && BASELINE=$original
     validateBaseline "rds snapshot ARN"
   elif [ -n "$RDS_ARN_TO_CLONE" ] ; then
     BASELINE="$(getRdsBaseline $RDS_ARN_TO_CLONE)"
@@ -1434,6 +1451,8 @@ checkRDSParameters() {
   fi
 
   validateBaseline
+
+  echo "Ok"
 }
 
 createRdsSnapshot() {
@@ -1528,7 +1547,7 @@ processRdsParameters() {
     [ $? -gt 0 ] && err "Problem with snapshot attempt!" && exit 1
   fi
 
-  addParameter $cmdfile 'RdsSnapshotARN' "$rdsSnapshotARN"
+  addParameter $cmdfile 'DBSnapshotARN' "$rdsSnapshotARN"
 
   local engineVersion="$ENGINE_VERSION"
   [ -z "$engineVersion" ] && engineVersion="$(getOracleEngineVersion $rdsSnapshotARN)"

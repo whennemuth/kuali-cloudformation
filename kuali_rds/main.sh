@@ -8,6 +8,7 @@ declare -A defaults=(
   [NO_ROLLBACK]='true'
   [ENGINE]='oracle-se2'
   [MAJOR_VERSION]='19'
+  [HOSTED_ZONE]='kuali.research.bu.edu'
   # ----- Some of the following are defaulted in the yaml file itself:
   # [LANDSCAPE]='???'
   # [PROFILE]='???'
@@ -38,6 +39,7 @@ declare -A defaults=(
   # [CHARACTERSET_NAME]='???'
   # [IOPS]='???'
   # [JUMPBOX_INSTANCE_TYPE]='???'
+  # [USING_ROUTE53]='false'
 )
 
 
@@ -130,6 +132,14 @@ EOF
     else
       add_parameter $cmdfile 'CampusSubnetCIDR1' 'CAMPUS_SUBNET1_CIDR'
       add_parameter $cmdfile 'CampusSubnetCIDR2' 'CAMPUS_SUBNET2_CIDR'
+    fi
+
+    if [ "${USING_ROUTE53,,}" == 'true' ] ; then
+      # HOSTED_ZONE_NAME="$(getHostedZoneNameByLandscape $LANDSCAPE)"
+      # [ -z "$HOSTED_ZONE_NAME" ] && echo "ERROR! Cannot acquire hosted zone name. Cancelling..." && exit 1
+      # add_parameter $cmdfile 'HostedZoneName' 'HOSTED_ZONE_NAME'
+      [ -z "$(getHostedZoneId $HOSTED_ZONE)" ] && echo "ERROR! Cannot detect hosted zone for $HOSTED_ZONE" && exit 1
+      addParameter $cmdfile 'HostedZoneName' $HOSTED_ZONE
     fi
 
     checkLandscapeParameters

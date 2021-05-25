@@ -1,10 +1,7 @@
 package org.bu.jenkins.active_choices.model;
 
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
@@ -13,55 +10,23 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.EntryMessage;
 
-public class RdsInstance {
+public class RdsInstance extends AbstractAwsResource {
 	
 	private Logger logger = LogManager.getLogger(RdsInstance.class.getName());
 
-	private String arn;
-	private Map<String, String> tags = new HashMap<String, String>();
 	private Set<RdsSnapshot> snapshots;
 	
+	public RdsInstance() {
+		super();
+	}
 	public RdsInstance(String arn) {
-		this.arn = arn;
-	}
-	
+		super(arn);
+	}	
 	public RdsInstance(String arn, Map<String, String> tags) {
-		this.arn = arn;
-		this.tags.putAll(tags);
-	}
-	
+		super(arn, tags);
+	}	
 	public RdsInstance(String arn, String landscape, String baseline) {
-		this.arn = arn;
-		this.tags.put("Landscape", landscape);
-		this.tags.put("Baseline", baseline);
-	}
-
-	public String getArn() {
-		return arn;
-	}
-	public RdsInstance setArn(String arn) {
-		this.arn = arn;
-		return this;
-	}
-	
-	public String getLandscape() {
-		return tags.get("Landscape");
-	}
-
-	public String getBaseline() {
-		return tags.get("Baseline");
-	}
-	
-	public Map<String, String> getTags() {
-		return tags;
-	}
-	public RdsInstance setTags(Map<String, String> tags) {
-		this.tags.putAll(tags);
-		return this;
-	}
-	public RdsInstance putTag(String key, String value) {
-		this.tags.put(key, value);
-		return this;
+		super(arn, landscape, baseline);
 	}
 	
 	public Set<RdsSnapshot> getSnapshots() {
@@ -96,7 +61,7 @@ public class RdsInstance {
 		return manual;
 	}
 
-	public RdsInstance setSnapshots(Set<RdsSnapshot> snapshots) {
+	public AbstractAwsResource setSnapshots(Set<RdsSnapshot> snapshots) {
 		EntryMessage m = logger.traceEntry("setSnapshots(snapshots.size()={})", snapshots==null ? "null" : snapshots.size());
 		if(snapshots == null || snapshots.isEmpty()) {
 			logger.traceExit(m, this.getArn());
@@ -109,7 +74,7 @@ public class RdsInstance {
 		return this;
 	}
 	
-	public RdsInstance putSnapshot(RdsSnapshot snapshot) {
+	public AbstractAwsResource putSnapshot(RdsSnapshot snapshot) {
 		EntryMessage m = logger.traceEntry("putSnapshot(snapshot={})", snapshot==null ? "null" : snapshot.getArn());
 		if(snapshot == null) {
 			logger.traceExit(m, this.getArn());
@@ -174,7 +139,7 @@ public class RdsInstance {
 			return false;
 		if (getClass() != obj.getClass())
 			return false;
-		RdsInstance other = (RdsInstance) obj;
+		AbstractAwsResource other = (AbstractAwsResource) obj;
 		if (arn == null) {
 			if (other.arn != null)
 				return false;

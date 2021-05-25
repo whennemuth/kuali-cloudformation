@@ -10,7 +10,7 @@ BEGIN
         ORDER BY TABLE_NAME
     )LOOP 
         V_TABL_NM := GET_TABL_LIST.TABLE_NAME;
-        EXECUTE IMMEDIATE 'select count(*) from "' || V_TABL_NM || '"' INTO ROW_COUNT;
+        EXECUTE IMMEDIATE 'select count(*) from "KCOEUS"."' || V_TABL_NM || '"' INTO ROW_COUNT;
         DBMS_OUTPUT.PUT_LINE(V_TABL_NM || ': ' || ROW_COUNT);
     END LOOP; 
 END;

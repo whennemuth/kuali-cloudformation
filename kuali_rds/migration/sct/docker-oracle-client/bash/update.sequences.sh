@@ -60,8 +60,8 @@ $(
           LAST_NUMBER NUMBER NOT NULL ENABLE, 
           "TIMESTAMP" TIMESTAMP (6) DEFAULT CURRENT_TIMESTAMP
         )';
-        exception when others then
-          if SQLCODE = -955 then null; else raise; end if;
+      exception when others then
+        if SQLCODE = -955 then null; else raise; end if;
       end;
       /
       prompt truncating $table...;
@@ -79,7 +79,12 @@ insert into $OLD_SEQUENCES_TABLE select s.sequence_owner, s.sequence_name, s.las
 $(awk '{print "prompt inserting "$1", "$2", "$3"...;\nINSERT INTO '$NEW_SEQUENCES_TABLE' VALUES(\x27"$1"\x27, \x27"$2"\x27, "$3", CURRENT_TIMESTAMP);\n/"}' \
   output/$NEW_SEQUENCES_LOG)
 EOF
-cat input/$NEW_SEQUENCES_SQL
+
+  if [ "$DRYRUN" == 'true' ] ; then
+    head -50 input/$NEW_SEQUENCES_SQL && printf "\nMore..."
+  else
+    cat input/$NEW_SEQUENCES_SQL
+  fi
 }
 
 # Run the script created by createUploadSqlScript() against the target database
@@ -118,7 +123,10 @@ updateSequences() {
     BEGIN
       DECLARE
         v_sql varchar2(200);
+        v_count number;
       BEGIN
+        v_count := 0;
+        dbms_output.put_line('Start updating sequences...');
         FOR v_row IN (
           SELECT O.SEQUENCE_OWNER, O.SEQUENCE_NAME, O.LAST_NUMBER as OLD_NUMBER, N.LAST_NUMBER as NEW_NUMBER 
           FROM $OLD_SEQUENCES_TABLE O, $NEW_SEQUENCES_TABLE N
@@ -127,6 +135,7 @@ updateSequences() {
           AND O.LAST_NUMBER < N.LAST_NUMBER
           AND UPPER(O.SEQUENCE_OWNER) = 'KCOEUS')
         LOOP
+          v_count := v_count + 1;
           v_sql := 'alter sequence ' 
             || v_row.sequence_owner 
             || '.' 
@@ -136,6 +145,7 @@ updateSequences() {
           dbms_output.put_line(v_sql);
           execute immediate v_sql ;
         END LOOP;
+        dbms_output.put_line('Updated ' || v_count || ' sequences');
       END;
     END DMS_UPDATE_SEQUENCES;
     /
@@ -150,7 +160,7 @@ updateSequences() {
         execute immediate 'grant alter any sequence to ' || v_user;
     END;
     /
-       
+
     execute DMS_UPDATE_SEQUENCES;
     /
 EOF
@@ -163,16 +173,37 @@ parseArgs $@
 
 case "${SEQUENCE_TASK,,}" in
   report-raw-create)
-    getSourceSequencesReport $@ 'legacy=true'
+    # If "db_" parms are ommitted, they will be looked up dynamically.
+    getSourceSequencesReport $@ \
+      "legacy=true" \
+      "db_host=$LEGACY_DB_HOST" \
+      "db_user=$LEGACY_DB_USER" \
+      "db_port=$LEGACY_DB_PORT" \
+      "db_sid=$LEGACY_DB_SID" \
+      "db_password=$LEGACY_DB_PASSWORD"
     ;;
   report-sql-create)
     createUploadSqlScript $@
     ;;
   report-sql-upload)
-    runUploadSqlScript $@ 'legacy=false'
+    # If "db_" parms are ommitted, they will be looked up dynamically.
+    runUploadSqlScript $@ \
+      "legacy=false" \
+      "db_host=$RDS_DB_HOST" \
+      "db_user=$RDS_DB_USER" \
+      "db_port=$RDS_DB_PORT" \
+      "db_sid=$RDS_DB_SID" \
+      "db_password=$RDS_DB_PASSWORD"
     ;;
   resequence)
-    updateSequences $@ 'legacy=false'
+    # If "db_" parms are ommitted, they will be looked up dynamically.
+    updateSequences $@ \
+      "legacy=false" \
+      "db_host=$RDS_DB_HOST" \
+      "db_user=$RDS_DB_USER" \
+      "db_port=$RDS_DB_PORT" \
+      "db_sid=$RDS_DB_SID" \
+      "db_password=$RDS_DB_PASSWORD"
     ;;
   *)
     echo "SEQUENCE_TASK parameter is missing!"

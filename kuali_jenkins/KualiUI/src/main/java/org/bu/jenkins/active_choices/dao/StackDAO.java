@@ -1,6 +1,7 @@
 package org.bu.jenkins.active_choices.dao;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -12,6 +13,8 @@ import org.bu.jenkins.AWSCredentials;
 import org.bu.jenkins.CaseInsensitiveEnvironment;
 import org.bu.jenkins.LoggingStarterImpl;
 import org.bu.jenkins.NamedArgs;
+import org.bu.jenkins.active_choices.dao.cache.BasicDAOCache;
+import org.bu.jenkins.active_choices.dao.cache.StackDAOCache;
 
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.awscore.exception.AwsServiceException;
@@ -84,6 +87,7 @@ public class StackDAO extends AbstractDAO {
 					}
 				}
 			}
+			CACHE.setLoaded(true);
 		} 
 		catch (AwsServiceException | SdkClientException e) {			
 			e.printStackTrace();
@@ -130,6 +134,7 @@ public class StackDAO extends AbstractDAO {
 					}
 				}
 			}
+			CACHE.setLoaded(true);
 		} 
 		catch (AwsServiceException | SdkClientException e) {
 			e.printStackTrace();
@@ -157,6 +162,11 @@ public class StackDAO extends AbstractDAO {
 			}
 		}
 		return filtered;
+	}
+
+	@Override
+	public Collection<?> getResources() {
+		return getKualiApplicationStacks();
 	}
 	
 	public static Set<StackStatus> getAllButDeletedStackStatuses() {

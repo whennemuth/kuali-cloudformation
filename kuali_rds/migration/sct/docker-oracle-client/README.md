@@ -101,8 +101,27 @@ A migration that continues with [Change data capture](https://docs.aws.amazon.co
      aws_secret_access_key=[your secret] \
      aws_region=us-east-1 \
      template_bucket_name=kuali-research-ec2-setup \
-  landscape=stg \
-     tunnel=false
+  landscape=stg
+   ```
+   
+   The prior invocation provided the aws credentials, a landscape, and the s3 bucket name where a copy of kc-config.xml is kept.
+   This will allow for source and target database connection details to be looked up, based on the landscape in s3 and secrets manager.
+   Alternatively, if you know the oracle connection parameters, you can provide them explicitly:
+   
+   ```
+   # The _db_sid and _db_port parameters will default to "Kuali" and "1521" respectively if ommitted.
+   # The remaining parameters are not optional.
+   sh dbclient.sh update-sequences \
+     legacy_db_host=buaws-kuali-db-stage001.bu.edu \
+     legacy_db_user=KCOEUS \
+     legacy_db_port=1521 \
+     legacy_db_sid=Kuali \
+     legacy_db_password=[legacy password] \
+     rds_db_host=buaws-kuali-oracle-stg.cnc9dm5uqxog.us-east-1.rds.amazonaws.com \
+     rds_db_user=admin \
+     rds_db_port=1521 \
+     rds_db_sid=Kuali \
+     rds_db_password=[rds password]
    ```
    
    

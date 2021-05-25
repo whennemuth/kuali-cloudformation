@@ -5,8 +5,9 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.bu.jenkins.active_choices.dao.RdsDAO;
+import org.bu.jenkins.active_choices.dao.RdsInstanceDAO;
 import org.bu.jenkins.active_choices.dao.StackDAO;
+import org.bu.jenkins.active_choices.model.AbstractAwsResource;
 import org.bu.jenkins.active_choices.model.RdsInstance;
 import org.bu.jenkins.active_choices.model.RdsSnapshot;
 
@@ -14,7 +15,7 @@ import software.amazon.awssdk.services.cloudformation.model.Stack;
 import software.amazon.awssdk.services.cloudformation.model.StackSummary;
 import software.amazon.awssdk.services.cloudformation.model.Tag;
 
-public class StackCreateDeleteTestHarness {
+public class StackCreateDeleteTest {
 
 	public static final long DAY = 1000 * 60 * 60 * 24;
 	
@@ -54,7 +55,7 @@ public class StackCreateDeleteTestHarness {
 	
 	public static void putRdsMock(String landscape, String baseline) {
 				
-		RdsInstance rds = new RdsInstance("rdsArn1")
+		RdsInstance rds = (RdsInstance) new RdsInstance("rdsArn1")
 				.putTag("Service", "research-administration")
 				.putTag("Function", "kuali")
 				.putTag("Landscape", landscape)
@@ -68,9 +69,9 @@ public class StackCreateDeleteTestHarness {
 			rds.putSnapshot(getSnapshot(rds, i, "automated"));
 		}
 		
-		RdsDAO.CACHE.put(rds.getArn(), rds);
+		RdsInstanceDAO.CACHE.put(rds);
 		
-		RdsDAO.CACHE.setFlushable(false);
+		RdsInstanceDAO.CACHE.setFlushable(false);
 	}
 	
 	private static String getTimeStr(int daysAgo) {
@@ -78,7 +79,7 @@ public class StackCreateDeleteTestHarness {
 		return new SimpleDateFormat("yyyy-MM-EEE-kk-mm-ss-SSS").format(time);
 	}
 	
-	private static RdsSnapshot getSnapshot(RdsInstance rds, int daysAgo, String type) {
+	private static RdsSnapshot getSnapshot(AbstractAwsResource rds, int daysAgo, String type) {
 		Long time = getTime(daysAgo);
 		Instant instant = Instant.ofEpochMilli(time);		
 		String arn = String.format("rdsSnapshotArn_%s", getTimeStr(daysAgo));

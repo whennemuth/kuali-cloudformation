@@ -27,16 +27,30 @@ fi
 
 getPwdForMount() {
   local dir="$1"
-  [ -z "$dir" ] && dir=$(pwd)
+  local subdir="$2"
+  if [ -z "$dir" ] ; then
+    dir=$(pwd)
+  elif [ -n "$subdir" ] ; then
+    dir=$(pwd)/$subdir
+  fi
   if windows ; then
-    echo $(echo $dir | sed 's/\/c\//C:\//g' | sed 's/\//\\\\/g')\\\\
+    echo $(echo $dir | sed 's/\/c\//C:\//g' | sed 's/\//\\\\/g')
   else
-    echo "$dir/"
+    echo "$dir"
   fi
 }
 
+getPwdForDefaultInputMount() {
+   getPwdForMount $(pwd)/input/
+}
+getPwdForDefaultOutputMount() {
+   getPwdForMount $(pwd)/output/
+}
 getPwdForSctScriptMount() {
-  getPwdForMount $(dirname $(pwd))/sql/$LANDSCAPE
+  getPwdForMount $(dirname $(pwd))/sql/$LANDSCAPE/
+}
+getPwdForGenericSqlMount() {
+  getPwdForMount $(pwd)/docker/sql/
 }
 
 build() {
@@ -56,15 +70,16 @@ run() {
   [ -z "$(docker images oracle/sqlplus -q)" ] && echo "ERROR! Failed to build image oracle/sqlplus." && exit 1
   [ ! -d 'input' ] && mkdir input
   [ ! -d 'output' ] && mkdir output
-  [ -z "$INPUT_MOUNT" ] && INPUT_MOUNT=$(getPwdForMount)/input
-  
+  [ -z "$INPUT_MOUNT" ] && INPUT_MOUNT=$(getPwdForDefaultInputMount)
+  [ -z "$OUTPUT_MOUNT" ] && OUTPUT_MOUNT=$(getPwdForDefaultOutputMount)
+
   docker run \
     -ti \
     --rm \
     -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
     -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
     -v $INPUT_MOUNT:/tmp/input/ \
-    -v $(getPwdForMount)/output:/tmp/output/ \
+    -v $OUTPUT_MOUNT:/tmp/output/ \
     oracle/sqlplus \
     $@
 }
@@ -74,14 +89,16 @@ shell() {
   [ -z "$(docker images oracle/sqlplus -q)" ] && echo "ERROR! Failed to build image oracle/sqlplus." && exit 1
   [ ! -d 'input' ] && mkdir input
   [ ! -d 'output' ] && mkdir output
-  [ -z "$INPUT_MOUNT" ] && INPUT_MOUNT=$(getPwdForMount)/input
+  [ -z "$INPUT_MOUNT" ] && INPUT_MOUNT=$(getPwdForDefaultInputMount)
+  [ -z "$OUTPUT_MOUNT" ] && OUTPUT_MOUNT=$(getPwdForDefaultOutputMount)
+
   docker run \
     -ti \
     --rm \
     -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
     -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
     -v $INPUT_MOUNT:/tmp/input/ \
-    -v $(getPwdForMount)/output:/tmp/output/ \
+    -v $OUTPUT_MOUNT:/tmp/output/ \
     --entrypoint bash \
     oracle/sqlplus
 }
@@ -151,7 +168,11 @@ case "$task" in
     shell ;;
   get-mount)
     checkLandscape
-    getPwdForSctScriptMount ;;
+    getPwdForDefaultInputMount
+    getPwdForSctScriptMount
+    getPwdForGenericSqlMount
+    ;;
+
   run-sct-scripts)
     checkLandscape
     checkAwsCredentials
@@ -179,11 +200,14 @@ case "$task" in
     ;;
   table-counts)
     run $@ files_to_run=inventory.sql log_path=source-counts.log ;;
-  compare-table-counts)  
+  compare-table-counts)
+    INPUT_MOUNT=$(getPwdForGenericSqlMount)
+    run $@ files_to_run=inventory.sql log_path=source-counts.log legacy=true
+    run $@ files_to_run=inventory.sql log_path=target-counts.log legacy=false
     source bash/compare.row.counts.sh
-    run $@ legacy=true  files_to_run=inventory.sql log_path=source-counts.log
-    run $@ legacy=false files_to_run=inventory.sql log_path=target-counts.log
     compareTableRowCounts source-counts.log target-counts.log ;;
   test)
-    compareTableRowCounts source-counts.log target-counts.log ;;
+    INPUT_MOUNT=$(getPwdForGenericSqlMount)
+    run $@ files_to_run=inventory.sql log_path=target-counts.log legacy=false ;;
+    # compareTableRowCounts source-counts.log target-counts.log ;;
 esac

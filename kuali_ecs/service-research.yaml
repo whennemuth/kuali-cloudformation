@@ -151,8 +151,21 @@ Resources:
     Type: AWS::ECS::Service
     DependsOn: ListenerRuleKC
     Properties:
+      ServiceName:
+        kuali-research
       Cluster:
         !Ref ClusterId
+      DeploymentController:
+        Type: ECS
+      DeploymentConfiguration:
+        MaximumPercent: 100
+        MinimumHealthyPercent: 50
+        DeploymentCircuitBreaker:
+          Enable: true
+          Rollback: true
+      PlacementStrategy:
+        Field: instanceId
+        Type: spread
       Role:
         !Ref ServiceRole
       DesiredCount:

@@ -3,17 +3,24 @@ package org.bu.jenkins.active_choices.dao;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.Map.Entry;
 import java.util.TreeMap;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.EntryMessage;
 import org.bu.jenkins.AWSCredentials;
 import org.bu.jenkins.CaseInsensitiveEnvironment;
 import org.bu.jenkins.LoggingStarterImpl;
 import org.bu.jenkins.NamedArgs;
-import org.bu.jenkins.active_choices.dao.RdsDAOCache.ProcessItem;
-import org.bu.jenkins.active_choices.dao.RdsDAOCache.TestItem;
+import org.bu.jenkins.active_choices.dao.cache.BasicDAOCache.ProcessItem;
+import org.bu.jenkins.active_choices.dao.cache.BasicDAOCache.TestItem;
+import org.bu.jenkins.active_choices.dao.cache.RdsInstanceDAOCache;
+import org.bu.jenkins.active_choices.model.AbstractAwsResource;
 import org.bu.jenkins.active_choices.model.Landscape;
 import org.bu.jenkins.active_choices.model.RdsInstance;
 import org.bu.jenkins.active_choices.model.RdsSnapshot;
@@ -33,29 +40,25 @@ import software.amazon.awssdk.services.resourcegroupstaggingapi.model.GetResourc
 import software.amazon.awssdk.services.resourcegroupstaggingapi.model.ResourceTagMapping;
 import software.amazon.awssdk.services.resourcegroupstaggingapi.model.TagFilter;
 
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.EntryMessage;
-import org.apache.logging.log4j.LogManager;
 
+public class RdsInstanceDAO extends AbstractDAO {
 
-public class RdsDAO extends AbstractDAO {
-
-	private Logger logger = LogManager.getLogger(RdsDAO.class.getName());
+	private Logger logger = LogManager.getLogger(RdsInstanceDAO.class.getName());
 	
-	public static final RdsDAOCache CACHE = new RdsDAOCache();
+	public static final RdsInstanceDAOCache CACHE = new RdsInstanceDAOCache();
 	
-	public RdsDAO(AwsCredentialsProvider provider) {
+	public RdsInstanceDAO(AwsCredentialsProvider provider) {
 		super(provider);
 	}
 	
-	public RdsDAO(AWSCredentials credentials) {
+	public RdsInstanceDAO(AWSCredentials credentials) {
 		super(credentials);
 	}
 	
-	public Map<String, List<RdsInstance>> getDeployedKualiRdsInstancesGroupedByBaseline() {
-		Map<String, List<RdsInstance>> rdsInstances = new TreeMap<String, List<RdsInstance>>(new Comparator<String>() {
-			@Override public int compare(String key1, String key2) {
-				return Landscape.fromAlias(key1).getOrder() - Landscape.fromAlias(key2).getOrder();
+	public Map<Landscape, List<RdsInstance>> getDeployedKualiRdsInstancesGroupedByBaseline() {
+		Map<Landscape, List<RdsInstance>> rdsInstances = new TreeMap<Landscape, List<RdsInstance>>(new Comparator<Landscape>() {
+			@Override public int compare(Landscape key1, Landscape key2) {
+				return key1.getOrder() - key2.getOrder();
 			}			
 		});
 		
@@ -64,15 +67,17 @@ public class RdsDAO extends AbstractDAO {
 		for(Landscape landscape : Landscape.values()) {
 			List<RdsInstance> instances = new ArrayList<RdsInstance>();
 			CACHE.processAll(new ProcessItem() {
-				@Override public void process(RdsInstance rds) {
-					if(Landscape.fromAlias(rds.getBaseline()) != null) {
-						if(Landscape.fromAlias(rds.getBaseline()).equals(landscape)) {
+				@Override public void process(AbstractAwsResource resource) {
+					RdsInstance rds = (RdsInstance) resource;
+					if(landscape.is(rds.getBaseline())) {
+//					if(Landscape.fromAlias(rds.getBaseline()) != null) {
+//						if(Landscape.fromAlias(rds.getBaseline()).equals(landscape)) {
 							instances.add(rds);
-						}
+//						}
 					}
 				}
 			});
-			rdsInstances.put(landscape.getId(), instances);
+			rdsInstances.put(landscape, instances);
 		}
 		return rdsInstances;
 	}
@@ -83,8 +88,19 @@ public class RdsDAO extends AbstractDAO {
 	 */
 	public Collection<RdsInstance> getDeployedKualiRdsInstances() {		
 		loadAllKualiRdsInstances(false, false);
-		return CACHE.getValues();
+		List<RdsInstance> instances = new ArrayList<RdsInstance>(CACHE.getValues().size());
+		for(AbstractAwsResource resource : CACHE.getValues()) {
+			instances.add((RdsInstance) resource);
+		}
+		return instances;
 	}
+	
+
+	@Override
+	public Collection<?> getResources() {
+		return getDeployedKualiRdsInstances();
+	}
+
 	
 	/**
 	 * Load all rds instances that whose tagging indicates kuali 
@@ -127,11 +143,11 @@ public class RdsDAO extends AbstractDAO {
 					if(loadSnapshots) {
 						loadSnapshots(rdsInstance);
 					}
-					CACHE.add(rdsInstance);
+					CACHE.put(rdsInstance);
 					continue outerloop;
-				}
-				
+				}				
 			}
+			CACHE.setLoaded(true);
 		} 
 		catch (AwsServiceException | SdkClientException e) {
 			e.printStackTrace();
@@ -146,12 +162,12 @@ public class RdsDAO extends AbstractDAO {
 	 * @param rdsArn
 	 * @return
 	 */
-	public RdsInstance getRdsInstanceByArn(String rdsArn) {
-		RdsInstance instance = CACHE.get(rdsArn);
+	public AbstractAwsResource getRdsInstanceByArn(String rdsArn) {
+		RdsInstance instance = (RdsInstance) CACHE.get(rdsArn);
 		if(instance == null || instance.getTags().isEmpty()) {
 			// Load all kuali rds instances - the instance we need will be one of them.
 			loadAllKualiRdsInstances(true, false);
-			instance = CACHE.get(rdsArn);
+			instance = (RdsInstance) CACHE.get(rdsArn);
 			if(instance != null) {
 				loadSnapshots(instance);
 			}
@@ -159,17 +175,17 @@ public class RdsDAO extends AbstractDAO {
 		else if( ! instance.snapshotsLoaded()) {
 			loadSnapshots(instance);
 		}
-		CACHE.add(instance);
+		CACHE.put(instance);
 		return instance;
 	}
 	
-	public RdsInstance getRdsInstanceByLandscape(String landscape) {
+	public AbstractAwsResource getRdsInstanceByLandscape(String landscape) {
 		return getRdsInstanceByLandscape(landscape, true);
 	}
 		
 	private RdsInstance getRdsInstanceByLandscape(String landscape, boolean recurse) {
-		RdsInstance rdsInstance = CACHE.getItem(new TestItem() {
-			@Override public boolean match(RdsInstance instance) {
+		RdsInstance rdsInstance = (RdsInstance) CACHE.getItem(new TestItem() {
+			@Override public boolean match(AbstractAwsResource instance) {
 				return landscape.equals(instance.getLandscape());
 			}			
 		});
@@ -182,11 +198,20 @@ public class RdsDAO extends AbstractDAO {
 		}
 		return rdsInstance;
 	}
+	
+	public Set<RdsSnapshot> getAllSnapshots() {		
+		loadAllKualiRdsInstances(false, true);
+		Set<RdsSnapshot> snapshots = new HashSet<RdsSnapshot>();
+		for(AbstractAwsResource resource : CACHE.getValues()) {
+			snapshots.addAll(((RdsInstance) resource).getSnapshots());
+		}
+		return snapshots;
+	}
 
 	/**
 	 * Make the aws api calls to get the snapshot data for the specified rds instance.
 	 */
-	private RdsInstance loadSnapshots(RdsInstance rdsInstance) {
+	private AbstractAwsResource loadSnapshots(RdsInstance rdsInstance) {
 		
 		EntryMessage m = logger.traceEntry("loadSnapshots(RdsInstance.getArn()={})", rdsInstance.getArn());
 		
@@ -212,12 +237,7 @@ public class RdsDAO extends AbstractDAO {
 				if(response.hasDbSnapshots()) {
 					for(DBSnapshot snapshot : response.dbSnapshots()) {
 						if("available".equalsIgnoreCase(snapshot.status())) {
-							rdsInstance.putSnapshot(new RdsSnapshot(
-								rdsInstance,
-								snapshot.snapshotCreateTime(),
-								snapshot.dbSnapshotArn(),
-								snapshot.snapshotType()
-							));
+							rdsInstance.putSnapshot(new RdsSnapshot(snapshot).setRdsInstance(rdsInstance));
 						}
 					}
 				}
@@ -238,27 +258,27 @@ public class RdsDAO extends AbstractDAO {
 		return true;
 	}
 	
-	public static Object test(String task, NamedArgs namedArgs) {
-		RdsDAO rdsDAO = new RdsDAO(AWSCredentials.getInstance(namedArgs));
+	public static Object runRdsDAOTest1(String task, NamedArgs namedArgs) {
+		RdsInstanceDAO rdsDAO = new RdsInstanceDAO(AWSCredentials.getInstance(namedArgs));
 		switch(task) {
 			case "landscape": 
 				printHeader(task);
 				Collection<RdsInstance> rdsInstances = rdsDAO.getDeployedKualiRdsInstances();
-				for(RdsInstance rdsInstance : rdsInstances) {
+				for(AbstractAwsResource rdsInstance : rdsInstances) {
 					System.out.println(rdsInstance);					
 				}
 				break;
 			case "baseline": 
 				printHeader(task);
-				Map<String, List<RdsInstance>> map = rdsDAO.getDeployedKualiRdsInstancesGroupedByBaseline();
+				Map<Landscape, List<RdsInstance>> map = rdsDAO.getDeployedKualiRdsInstancesGroupedByBaseline();
 				StringBuilder builder = new StringBuilder();
 				builder.append("RdsByBaseline [rdsInstances=\n");
 				final String offset = "   ";
-				for(Entry<String, List<RdsInstance>> baseline : map.entrySet()) {
+				for(Entry<Landscape, List<RdsInstance>> baseline : map.entrySet()) {
 					builder.append(offset)
 					.append(baseline.getKey())
 					.append(": \n");
-					for(RdsInstance instance : baseline.getValue()) {
+					for(AbstractAwsResource instance : baseline.getValue()) {
 						builder.append(offset).append(offset)
 						.append(instance.getArn())
 						.append("\n");
@@ -268,7 +288,7 @@ public class RdsDAO extends AbstractDAO {
 				System.out.println(builder.toString());				
 				break;
 			case "instance":
-				RdsInstance rds = null;
+				AbstractAwsResource rds = null;
 				if(namedArgs.has("arn")) {
 					printHeader(task + " (" + namedArgs.get("arn") + ")");
 					rds = rdsDAO.getRdsInstanceByArn(namedArgs.get("arn"));
@@ -287,14 +307,6 @@ public class RdsDAO extends AbstractDAO {
 		return null;
 	}
 
-	public static void printHeader(String msg) {
-		final String border = "----------------------------------------------------------------------------------------------------";
-		System.out.println("");
-		System.out.println(border);
-		System.out.println("             " + msg);
-		System.out.println(border);
-	}
-	
 	public static void main(String[] args) {
 		NamedArgs namedArgs = new NamedArgs(new LoggingStarterImpl(new CaseInsensitiveEnvironment()), args);
 		if( ! namedArgs.has("task")) {
@@ -305,18 +317,21 @@ public class RdsDAO extends AbstractDAO {
 		
 		if("all".equals(task)) {
 			
-			test("landscape", namedArgs);
+			runRdsDAOTest1("landscape", namedArgs);
 			
-			test("baseline", namedArgs);
+			runRdsDAOTest1("baseline", namedArgs);
 			
-			RdsInstance rds = (RdsInstance) test("instance", namedArgs);
-			CACHE.remove(rds);
-			namedArgs.set("arn", rds.getArn());
+			AbstractAwsResource rds = (AbstractAwsResource) runRdsDAOTest1("instance", namedArgs);
 			
-			test("instance", namedArgs);
+			if(rds != null) {
+				CACHE.remove(rds);
+				namedArgs.set("arn", rds.getArn());				
+				runRdsDAOTest1("instance", namedArgs);
+			}
+			
 		}
 		else {
-			test(task, namedArgs);
+			runRdsDAOTest1(task, namedArgs);
 		}
 	}
 

@@ -1,4 +1,4 @@
-package org.bu.jenkins.active_choices.dao;
+package org.bu.jenkins.active_choices.dao.cache;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -11,6 +11,7 @@ import java.util.Map.Entry;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.EntryMessage;
+import org.bu.jenkins.active_choices.model.AbstractAwsResource;
 import org.bu.jenkins.active_choices.model.CloudformationStack;
 
 import software.amazon.awssdk.services.cloudformation.model.Stack;
@@ -23,7 +24,7 @@ import software.amazon.awssdk.services.cloudformation.model.StackSummary;
  * @author wrh
  *
  */
-public class StackDAOCache {
+public class StackDAOCache extends BasicDAOCache {
 	
 	private Logger logger = LogManager.getLogger(StackDAOCache.class.getName());	
 	private Map<String, CloudformationStack> cache = new HashMap<String, CloudformationStack>();	
@@ -108,6 +109,14 @@ public class StackDAOCache {
 
 	public void setFlushable(boolean flushable) {
 		this.flushable = flushable;
+	}
+	@Override
+	protected void performCustomPreCachingAction(AbstractAwsResource resource, AbstractAwsResource cachedResource) {
+		// Not implemented.
+	}
+	@Override
+	protected Logger getLogger() {
+		return logger;
 	}
 	
 }

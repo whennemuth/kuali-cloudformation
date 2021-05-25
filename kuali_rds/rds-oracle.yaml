@@ -253,6 +253,11 @@ Parameters:
     ConstraintDescription: Allowed values - 1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, and 3653
     Default: 0
 
+  HostedZoneName:
+    Type: String
+    Description: If included, a DNS record will be created and registered with the specified HostedZone
+    Default: empty
+
 
 Conditions:
   SingleDBAvailabilityZone: !Equals [!Ref MultiAZ, 'false']
@@ -265,7 +270,7 @@ Conditions:
   DuoCampusSubnet: !Not [ !Equals [ !Ref CampusSubnetCIDR1, !Ref CampusSubnetCIDR2 ] ]
   IncludeCampusSg1: !And [ !Not [ !Equals [ !Ref CampusSubnetCIDR1, 'UsingAppSg' ] ], Condition: IncludeAppSg ]
   IncludeCampusSg2: !And [ !Not [ !Equals [ !Ref CampusSubnetCIDR2, 'UsingAppSg' ] ], Condition: IncludeCampusSg1, Condition: DuoCampusSubnet ]
-
+  CreateDnsRecord: !Not [!Equals [!Ref HostedZoneName, empty]]
 
 Resources:
 
@@ -470,6 +475,28 @@ Resources:
       - Key: Function
         Value: !Ref Function
 
+  # See: https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/resource-record-sets-values-basic.html
+  KualiDNSRecord:
+    Type: AWS::Route53::RecordSet
+    Condition: CreateDnsRecord
+    DependsOn: DBInstance
+    Properties:
+      Comment: 
+        !Sub
+        - More stable alternative for for rds endpoint address ${endpoint}
+        - endpoint: 
+            !GetAtt 
+            - DBInstance
+            - Endpoint.Address
+      HostedZoneName: !Sub ${HostedZoneName}.
+      Name: !Sub ${Landscape}.db.${HostedZoneName}
+      Type: CNAME
+      TTL: 300
+      ResourceRecords:
+        - !GetAtt 
+          - DBInstance
+          - Endpoint.Address
+
 
   DBJumpbox:
     Type: AWS::CloudFormation::Stack
@@ -490,8 +517,8 @@ Resources:
 
 Outputs:
 
-  OracleJDBCConnectionString:
-    Description: JDBC connection string for Oracle database
+  RdsOracleJDBCConnectionString:
+    Description: JDBC connection string for Oracle database using rds hostname endpoint directly.
     Value: !Join 
       - ""
       - - jdbc:oracle:thin:@
@@ -504,3 +531,17 @@ Outputs:
           - Endpoint.Port
         - ":"
         - !Ref DBName
+
+  KualiOracleJDBCConnectionString:
+    Description: JDBC connection string for Oracle database using friendlier hostname enpoint from hosted zone.
+    Value: !Join 
+      - ""
+      - - jdbc:oracle:thin:@
+        - !Sub ${Landscape}.db.${HostedZoneName}
+        - ":"
+        - !GetAtt 
+          - DBInstance
+          - Endpoint.Port
+        - ":"
+        - !Ref DBName
+
