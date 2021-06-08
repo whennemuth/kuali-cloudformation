@@ -68,6 +68,30 @@
       ]
     },
     {
+      "env": {
+        "DEBUG_MODE": "local_unmocked",
+        "AWS_SDK_LOAD_CONFIG": "1",
+        "AWS_PROFILE": "infnprd"
+      },
+      "cwd": "${workspaceFolder}/lambda/shutdown_scheduler",
+      "name": "Shutdown scheduler unmocked",
+      "type": "node",
+      "request": "launch",
+      "program": "debug.js"
+    },
+    {
+      "env": {
+        "DEBUG_MODE": "local_mocked",
+        "AWS_SDK_LOAD_CONFIG": "1",
+        "AWS_PROFILE": "infnprd"
+      },
+      "cwd": "${workspaceFolder}/lambda/shutdown_scheduler",
+      "name": "Shutdown scheduler mocked",
+      "type": "node",
+      "request": "launch",
+      "program": "debug.js"
+    },
+    {
       "cwd": "${workspaceFolder}/lambda/bucket_emptier",
       "name": "Pack",
       "type": "node",

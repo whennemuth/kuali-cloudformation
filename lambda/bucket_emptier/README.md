@@ -34,6 +34,17 @@ These instructions are for testing lambda code written in nodejs locally.
    ```
 
 2. **Create a launch configuration**
+   To debug the lambda code as a local nodejs app, create a new or extend the existing .vscode launch.json file.
+   There are 3 configurations below:
+
+   1. **Mocked**: 
+      - The launch configuration starts in a "local_mocked" DEBUG_MODE that imports a mocked aws sdk that returns fake s3 bucket listings, bucket object listings, and bucket deletion results. A mock cloud-formation response object is also used.
+      - A cloud-formation response object is mocked to simulate running as if called by a custom resource.
+   2. **Unmocked**:
+      - The launch configuration starts in a "local_unmocked" DEBUG_MODE that imports the actual aws sdk, which means that the s3 bucket should exist in whatever cloud account your profile indicates.
+      - A cloud-formation response object is mocked to simulate running as if called by a custom resource.
+   3. **Pack**:
+      Packs the application and zips the result. The zip file is ready for uploading to s3 in a location that the lambda function is configured to import it from. SEE the "Package the code for lambda" below for more details.
 
    ```
    cd kuali-infrastructure
@@ -44,27 +55,46 @@ These instructions are for testing lambda code written in nodejs locally.
      "configurations": [
        {
          "env": {
-           "MODE": "unmocked",
+           "DEBUG_MODE": "local_mocked",
            "AWS_SDK_LOAD_CONFIG": "1",
-           "AWS_PROFILE": "[profile, unless default]",
-           "LANDSCAPE": "ci"
+           "AWS_PROFILE": "infnprd"
          },
-         "cwd": "${workspaceFolder}/lambda/pre-alb-delete",
-         "name": "Bucket Cleanup",
+         "cwd": "${workspaceFolder}/lambda/bucket_emptier",
+         "name": "Empty s3 bucket mocked",
          "type": "node",
          "request": "launch",
          "program": "debug.js",
-         "args": [ 
-           "{resource:'waf', target:'bucket'}" 
+         "args": [
+           "{ BucketName: 'bucket2' }",
+           "{ MaxKeys: 2}"
          ]
        },
        {
-         "cwd": "${workspaceFolder}/lambda/pre-alb-delete",
+         "env": {
+           "DEBUG_MODE": "local_unmocked",
+           "AWS_SDK_LOAD_CONFIG": "1",
+           "AWS_PROFILE": "infnprd"
+         },
+         "cwd": "${workspaceFolder}/lambda/bucket_emptier",
+         "name": "Empty s3 bucket unmocked",
+         "type": "node",
+         "request": "launch",
+         "program": "debug.js",
+         "args": [
+           "{ BucketName: 'some_really_obscure_name_eelmrvlsiennmvsldee' }",
+           "{ MaxKeys: 50}"
+         ]
+       },
+       {
+         "cwd": "${workspaceFolder}/lambda/bucket_emptier",
          "name": "Pack",
          "type": "node",
          "request": "launch",
-         "program": "zip.js",
-       },
+         "program": "../zip.js",
+         "args": [
+           "bucket_emptier.js"
+         ]
+       } 
      ]
    }
    EOF
