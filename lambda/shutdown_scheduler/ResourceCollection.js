@@ -77,11 +77,11 @@ exports.load = function(AWS, tagsOfInterest, callback) {
    * @param {Function} task - A function (task) to execute for each resource (like stopping or starting the resource)
    * @param {Function} callback - A function to execute once the task function is executed.
    */
-  this.processEach = (task, callback) => {
+  this.processNext = (task, callback) => {
     var resource = this.resources.shift();
     if(resource) {
       task(resource, () => {
-        this.processEach(task, callback);
+        this.processNext(task, callback);
       });
     }
     else {
