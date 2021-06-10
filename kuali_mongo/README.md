@@ -30,7 +30,7 @@ A single ec2 instance is created with...
 - **Bash:**
   You will need the ability to run bash scripts. Natively, you can do this on a mac, though there may be some minor syntax/version differences that will prevent the scripts from working correctly. In that event, or if running windows, you can either:
   - Clone the repo on a linux box (ie: an ec2 instance), install the other prerequisites and run there.
-  - Download [gitbash](
+  - Download [gitbash](https://git-scm.com/downloads)
 
 ### Steps:
 

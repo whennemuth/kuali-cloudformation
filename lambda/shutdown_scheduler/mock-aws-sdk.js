@@ -1,5 +1,5 @@
 
-const delay = 1;
+const delay = .2;
 
 const MOCK_IDS = {
   ec2: {

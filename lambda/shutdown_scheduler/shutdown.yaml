@@ -1,0 +1,235 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+
+Description: >
+  Creates stack involving a single cloudwatch event that triggers at regular intervals a lambda function that checks 
+  for any and all resource that are tagged in such a way as to indicate a schedule for startup and shutdown, and 
+  performs that action if necessary.
+
+
+Parameters:
+
+  GlobalTag:
+    Type: String
+    Description: >
+      A common value that all resources in this template will have prefixed to
+      their name and attached as a tag to establish a bundling through naming convention.
+    Default: kuali-shutdown
+
+  TemplateBucketName:
+    Type: String
+    Description: The S3 bucket kuali research cloudformation templates, config files, keys, etc. are stored
+    Default: kuali-conf
+    
+  Service:
+    Description: Service catalog name.
+    Type: String
+    Default: research-administration
+
+  Function:
+    Description: The Function within the Service.
+    Type: String
+    Default: kuali
+
+  TagKey1:
+    Description: The first of up to 5 tag names that resources must have in order to be considered for startup and/or shutdown.
+    Type: String
+    Default: empty
+  TagKey2:
+    Description: The second of up to 5 tag names that resources must have in order to be considered for startup and/or shutdown.
+    Type: String
+    Default: empty
+  TagKey3:
+    Description: The third of up to 5 tag names that resources must have in order to be considered for startup and/or shutdown.
+    Type: String
+    Default: empty
+  TagKey4:
+    Description: The fourth of up to 5 tag names that resources must have in order to be considered for startup and/or shutdown.
+    Type: String
+    Default: empty
+  TagKey5:
+    Description: The fifth of up to 5 tag names that resources must have in order to be considered for startup and/or shutdown.
+    Type: String
+    Default: empty
+
+  TagVal1:
+    Description: The first of up to 5 tag values that resources must have in order to be considered for startup and/or shutdown.
+    Type: String
+    Default: empty
+  TagVal2:
+    Description: The second of up to 5 tag values that resources must have in order to be considered for startup and/or shutdown.
+    Type: String
+    Default: empty
+  TagVal3:
+    Description: The third of up to 5 tag values that resources must have in order to be considered for startup and/or shutdown.
+    Type: String
+    Default: empty
+  TagVal4:
+    Description: The fourth of up to 5 tag values that resources must have in order to be considered for startup and/or shutdown.
+    Type: String
+    Default: empty
+  TagVal5:
+    Description: The fifth of up to 5 tag values that resources must have in order to be considered for startup and/or shutdown.
+    Type: String
+    Default: empty
+    
+  StartupCronKey:
+    Description: The name of the tag a resource bears to indicate on what schedule it should be started.
+    Type: String
+    Default: StartupCron
+
+  ShutdownCronKey:
+    Description: The name of the tag a resource bears to indicate on what schedule it should be stopped.
+    Type: String
+    Default: ShutdownCron
+
+  CronExpression:
+    Description: The cloudwatch event will fire on a schedule indicated by this cron expression.
+    Type: String
+    Default: '*/5 * * * *'
+    ConstraintDescription: Every 1 to 15 minutes.
+    AllowedValues:
+      - '* * * * *'
+      - '*/2 * * * *'
+      - '*/3 * * * *'
+      - '*/4 * * * *'
+      - '*/5 * * * *'
+      - '*/6 * * * *'
+      - '*/7 * * * *'
+      - '*/8 * * * *'
+      - '*/9 * * * *'
+      - '*/10 * * * *'
+      - '*/11 * * * *'
+      - '*/12 * * * *'
+      - '*/13 * * * *'
+      - '*/14 * * * *'
+      - '*/15 * * * *'
+
+  LambdaTimeout:
+    Description: The number of seconds elapsed before unfinished lambda execution will trigger a timeout.
+    Type: Number
+    MinValue: 5
+    MaxValue: 900
+    Default: 60
+
+
+Conditions:
+  Tag1: !Not [ !Or [ !Equals [ !Ref TagKey1, 'empty' ], !Equals [ !Ref TagVal1, 'empty' ] ] ]
+  Tag2: !Not [ !Or [ !Equals [ !Ref TagKey2, 'empty' ], !Equals [ !Ref TagVal2, 'empty' ] ] ]
+  Tag3: !Not [ !Or [ !Equals [ !Ref TagKey3, 'empty' ], !Equals [ !Ref TagVal3, 'empty' ] ] ]
+  Tag4: !Not [ !Or [ !Equals [ !Ref TagKey4, 'empty' ], !Equals [ !Ref TagVal4, 'empty' ] ] ]
+  Tag5: !Not [ !Or [ !Equals [ !Ref TagKey5, 'empty' ], !Equals [ !Ref TagVal5, 'empty' ] ] ]
+  UseOrgTags: !Not [ !Or [ Condition: Tag1, Condition: Tag2, Condition: Tag3, Condition: Tag4, Condition: Tag5 ] ]
+
+Resources:
+
+  Role:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+              - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: ResourcePermissions
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                - tag:GetResources
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                - ec2:DescribeInstanceStatus
+                - ec2:StartInstances
+                - ec2:StopInstances
+                - rds:DescribeDBInstances
+                - rds:StartDBInstance
+                - rds:StopDBInstance
+                Resource: '*'
+                # Note: If not using org tags, the above actions can be performed on any resource - no tags will restrict.
+                # In this scenario, these actions are still restricted by the application using the TagKeyN/TagValN pairs as resource querying criteria.
+                # This limitation seems unavoidable because the "Tagkey" portion in any aws:ResourceTag/Tagkey value cannot be a variable.
+                # Put another way, the tag key must be known when creating this policy (at least until an unknown IAM nuance is discovered).
+                Condition:
+                  !If
+                    - UseOrgTags
+                    - StringEquals:
+                        aws:ResourceTag/Service:
+                          - !Ref Service
+                        aws:ResourceTag/Function:
+                          - !Ref Function
+                    - !Ref AWS::NoValue
+
+  ProcessResources:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: nodejs12.x
+      Role: !GetAtt Role.Arn
+      Handler: ResourceProcessor.handler
+      Timeout: !Ref LambdaTimeout
+      Environment:
+        Variables:
+          Region: !Ref Region
+          Service: [ UseOrgTags, !Ref Service, !Ref AWS::NoValue ]
+          Function: [ UseOrgTags, !Ref Function, !Ref AWS::NoValue ]
+          Tag1: 
+            !If
+              - Tag1
+              - !Sub '{ "key": "${TagKey1}", "value": "${TagVal1}" }'
+              - !Ref AWS::NoValue
+          Tag2: 
+            !If
+              - Tag2
+              - !Sub '{ "key": "${TagKey2}", "value": "${TagVal2}" }'
+              - !Ref AWS::NoValue
+          Tag3: 
+            !If
+              - Tag3
+              - !Sub '{ "key": "${TagKey3}", "value": "${TagVal3}" }'
+              - !Ref AWS::NoValue
+          Tag4: 
+            !If
+              - Tag4
+              - !Sub '{ "key": "${TagKey4}", "value": "${TagVal4}" }'
+              - !Ref AWS::NoValue
+          Tag5: 
+            !If
+              - Tag5
+              - !Sub '{ "key": "${TagKey5}", "value": "${TagVal5}" }'
+              - !Ref AWS::NoValue
+          StartupCronKey: !Ref StartupCronKey
+          ShutdownCronKey: !Ref ShutdownCronKey
+      Code:
+        S3Bucket: !Ref TemplateBucketName
+        S3Key: cloudformation/kuali_lambda/shutdown_scheduler.zip
+      Description: Function that stops instances
+
+  PermissionForEventsToInvokeLambda:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt ProcessResources.Arn
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn : !GetAtt ScheduledRule.Arn
+
+  ScheduledRule: 
+    Type: AWS::Events::Rule
+    Properties: 
+      Description: "Rule for a polling schedule"
+      ScheduleExpression: !Ref CronExpression
+      State: "ENABLED"
+      Targets: 
+        - Arn: !GetAtt ProcessResources.Arn
+          Id: !Sub ${GlobalTag}-target-function

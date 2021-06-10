@@ -21,31 +21,33 @@ module.exports = function(basicResource, AWS) {
     if(this.basicResource.getState()) {
       callback(this.basicResource.getState());
     }
-    var id = this.getId();
-    if(id) {
-      var rds = new AWS.RDS();
-      var self = this;
-      rds.describeDBInstances({ DBInstanceIdentifier: id}, function(err, data) {
-        try {
-          if (err) {
-            throw err;
-          }
-          else {
-            console.log(JSON.stringify(data, null, 2));
-            var state = data.DBInstances [0].DBInstanceStatus;
-            self.basicResource.setState(state);
-            callback(state);
-          }
-        }
-        catch(e) {
-          e.stack ? console.error(e, e.stack) : console.error(e);
-          callback(e.name)
-        }
-      });      
-    }
     else {
-      console.log("ERROR! Cannot determine rds instanceId!");
-      callback('');
+      var id = this.getId();
+      if(id) {
+        var rds = new AWS.RDS();
+        var self = this;
+        rds.describeDBInstances({ DBInstanceIdentifier: id}, function(err, data) {
+          try {
+            if (err) {
+              throw err;
+            }
+            else {
+              // console.log(JSON.stringify(data, null, 2));
+              var state = data.DBInstances [0].DBInstanceStatus;
+              self.basicResource.setState(state);
+              callback(state);
+            }
+          }
+          catch(e) {
+            e.stack ? console.error(e, e.stack) : console.error(e);
+            callback(e.name)
+          }
+        });      
+      }
+      else {
+        console.log("ERROR! Cannot determine rds instanceId!");
+        callback('');
+      }
     }
   };
 
@@ -68,20 +70,20 @@ module.exports = function(basicResource, AWS) {
         callback(e.name)
       }
       else {
-        console.log(data);
+        // console.log(data);
         callback();
       }
     });
   }
 
   this.start = (callback) => {
-    console.log(`   Starting rds instance ${this.getId()}...`);
+    console.log(`Starting rds instance ${this.getId()}...`);
     var rds = new AWS.RDS();
     this.change(rds.startDBInstance, callback);
   }
 
   this.stop = (callback) => {
-    console.log(`   Stopping rds instance ${this.getId()}...`);
+    console.log(`Stopping rds instance ${this.getId()}...`);
     var rds = new AWS.RDS();
     this.change(rds.stopDBInstance, callback);
   }

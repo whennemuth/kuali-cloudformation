@@ -44,8 +44,8 @@ exports.load = function(AWS, tagsOfInterest, callback) {
       else {
         var factory = new ResourceFactory(AWS);
         if(data && data.ResourceTagMappingList) {
-          console.log("Resources found: ");
-          console.log(JSON.stringify(data, null, 2));
+          // console.log("Resources found: ");
+          // console.log(JSON.stringify(data, null, 2));
           data.ResourceTagMappingList.forEach(tagsAndArnObj => {
             // Instantiate an object that represents a resource that "knows" only about its tags and arn
             var basicResource = new Resource(tagsAndArnObj, tagsOfInterest);

@@ -20,20 +20,31 @@ exports.handler = function (event, context) {
     // console.info("EVENT\n" + JSON.stringify(event, null, 2))
 
     var tagging = {
-      filters: {
-        Service: "research-administration",
-        Function: "kuali"
-      },
+      filters: {},
       cron: {
-        start: "StartupCron",
-        stop: "ShutdownCron"
+        start: process.env.StartupCronKey,
+        stop: process.env.ShutdownCronKey
       }
     };
+
+    if(process.env.Service) {
+      tagging.filters.Service = process.env.Service;
+    }
+    if(process.env.Function) {
+      tagging.filters.Function = process.env.Service;
+    }
+    for(var i=1; i<=5; i++) {
+      if(process.env[`Tag${i}`]) {
+        var tag = JSON.parse(process.env[`Tag${i}`]);
+        tagging.filters[tag.key] = tag.value;
+      }
+    }
 
     new ResourceCollection.load(AWS, tagging, (candidates) => {
       if(candidates.processNext) {
         candidates.processNext((resource, callback) => {
           var scheduled = new ScheduledResource(resource);
+          console.log("");
           scheduled.toStop((stop) => {
             if(stop) {
               resource.stop(callback);
@@ -51,8 +62,7 @@ exports.handler = function (event, context) {
           });
         },
         () => {
-          console.log(`Finished processing.`);
-          console.log('-----------------------------------------------------------------');
+          console.log('\nFinished processing.');
         });
       }
     });
