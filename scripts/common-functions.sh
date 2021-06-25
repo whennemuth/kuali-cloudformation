@@ -319,7 +319,9 @@ EOF
 addStandardTags() {
   addTag $cmdfile 'Service' ${kualiTags['Service']}
   addTag $cmdfile 'Function' ${kualiTags['Function']}
-  addTag $cmdfile 'Landscape' "$LANDSCAPE"
+  if [ -n "$LANDSCAPE" ] ; then
+    addTag $cmdfile 'Landscape' "$LANDSCAPE"
+  fi
   if [ -n "$BASELINE" ] ; then
     addTag $cmdfile 'Baseline' "$BASELINE"
   fi

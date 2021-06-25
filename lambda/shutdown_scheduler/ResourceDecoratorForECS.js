@@ -1,8 +1,9 @@
 const LAST_DESIRED_COUNT_TAG = 'LastDesiredCount';
 
 module.exports = function(basicResource, AWS) {
-  this.basicResource = basicResource;
   this.AWS = AWS;
+  this.basicResource = basicResource;
+  this.basicResource.autoDecorate(this);
 
   this.getId = () => {
     if(this.basicResource.getArn()) {
@@ -11,12 +12,8 @@ module.exports = function(basicResource, AWS) {
     return "";
   }
 
-  this.getStartCron = () => {
-    return this.basicResource.getStartCron();
-  }
-
-  this.getStopCron = () => {
-    return this.basicResource.getStopCron();
+  this.getIntroduction = () => {
+    return basicResource.getIntroduction(this.getId());
   }
   
   this.getDesiredCount = (callback) => {

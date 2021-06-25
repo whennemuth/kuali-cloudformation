@@ -19,18 +19,18 @@ exports.load = function(AWS, tagsOfInterest, callback) {
   try {
 
     // Construct parameters for the tagging api call.
+    
     var params = {
       ResourceTypeFilters: [ 'rds:db', 'ec2:instance' ],
-      TagFilters: []
+      TagFilters: [ ]
     };
-    for (const key in tagsOfInterest.filters) {
-      if (Object.hasOwnProperty.call(tagsOfInterest.filters, key)) {
-        const value = tagsOfInterest.filters[key];
-        params.TagFilters.push({
-          Key: key,
-          Values: [value]
-        })
-      }
+
+    if(process.env.DefaultTimeZone) {
+      console.log(`It looks like you are testing. Resources without timezone tags are not going to be filtered off
+                  as usual and will get "${process.env.DefaultTimeZone}" as a timezone.`.replace(/\s{2,}/g, ' '));
+    }
+    else {
+      params.TagFilters.push({ Key: tagsOfInterest.timezoneTag });
     }
 
     // Make the tagging api call.
@@ -49,10 +49,20 @@ exports.load = function(AWS, tagsOfInterest, callback) {
           data.ResourceTagMappingList.forEach(tagsAndArnObj => {
             // Instantiate an object that represents a resource that "knows" only about its tags and arn
             var basicResource = new Resource(tagsAndArnObj, tagsOfInterest);
-            if(basicResource.getStartCron() || basicResource.getStopCron()) {
-              // If tagging indicates a cron schedule, wrap the object with a factory produced decorator that "knows" 
+            if(basicResource.getStartCron() || basicResource.getStopCron() || basicResource.getRebootCron()) {
+              // Tagging indicates a cron schedule, so wrap the object with a factory produced decorator that "knows" 
               // how to perform actions specific to that resource and add it to the collection.
-              this.resources.push(factory.getResource(basicResource));
+              let resource = factory.getResource(basicResource);
+              if(basicResource.getTimeZone()) {
+                this.resources.push(resource);
+              }
+              else if(process.env.DefaultTimeZone) {
+                resource.setTimeZone(process.env.DefaultTimeZone);
+                this.resources.push(resource);
+              }
+              else {                
+                console.warn(`Resource ${resource.getId()} is missing a "${tagsOfInterest.timezoneTag}" tag.`);
+              }              
             }              
           });
         }

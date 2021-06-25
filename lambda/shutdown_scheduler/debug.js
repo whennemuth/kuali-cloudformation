@@ -1,2 +1,6 @@
 var scheduler = require('./ResourceProcessor.js');
-scheduler.handler();
+var event = '';
+if(process.argv.length == 3) {
+  event = JSON.parse(process.argv[2]);
+}
+scheduler.handler(event);

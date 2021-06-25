@@ -1,22 +1,23 @@
 module.exports = function(basicResource, AWS) {
-  this.basicResource = basicResource;
   this.AWS = AWS;
+  this.basicResource = basicResource;
+  this.basicResource.autoDecorate(this);
   
   this.getId = () => {
-    if(this.basicResource.getArn()) {
-      return this.basicResource.getArn().split("/")[1];
+    if(this.getArn()) {
+      return this.getArn().split("/")[1];
     }
-    return "";
+    return this.getName();
   }
 
-  this.getStartCron = () => {
-    return this.basicResource.getStartCron();
+  this.getIntroduction = () => {
+    return basicResource.getIntroduction(this.getId());
   }
 
-  this.getStopCron = () => {
-    return this.basicResource.getStopCron();
-  }
-
+  /**
+   * Decorate the getState method with api call specific to acquiring the state of an ec2 instance.
+   * @param {*} callback 
+   */
   this.getState = (callback) => {
     if(this.basicResource.getState()) {
       callback(this.basicResource.getState());
@@ -26,65 +27,86 @@ module.exports = function(basicResource, AWS) {
       if(id) {
         var ec2 = new AWS.EC2();
         var self = this;
-        ec2.describeInstanceStatus({ InstanceIds: [ id ]}, function(err, data) {
+        ec2.describeInstanceStatus({ InstanceIds: [ id ], IncludeAllInstances: true}, function(err, data) {
           try {
             if (err) {
+              console.error(`Cannot determine state of ${self.getId()}`);
               throw err;
             }
             else {
-              // console.log(JSON.stringify(data, null, 2));
               var state = data.InstanceStatuses[0].InstanceState.Name;
               self.basicResource.setState(state);
+              // console.log(`State of ${self.getId()} is ${state}`);
               callback(state);
             }          
           } 
           catch (e) {
+            console.error(`Cannot establish state of ${self.getId()}`);
             e.stack ? console.error(e, e.stack) : console.error(e);
-            callback(e.name)
+            callback(e.name, true);
           }
         });      
       }
       else {
-        console.log("ERROR! Cannot determine ec2 instanceId!");
-        callback('');
+        console.error("ERROR! Cannot determine ec2 instanceId!");
+        callback('', true);
       }
     }
   }
 
   this.isRunning = (callback) => {
-    return this.getState((state) => {
-      callback(state.equalsIgnoreCase('RUNNING'));
+    return this.getState((state, error) => {
+      callback(state.equalsIgnoreCase('RUNNING'), error);
     });
   }
 
   this.isStopped = (callback) => {
-    return this.getState((state) => {
-      callback(state.equalsIgnoreCase('STOPPED'));
+    return this.getState((state, error) => {
+      callback(state.equalsIgnoreCase('STOPPED'), error);
     });
   }
-  
-  this.change = (ec2Method, callback) => {
-    ec2Method({ InstanceIds: [ this.getId() ] }, function(err, data) {
+
+  this.start = (callback) => {
+    this.basicResource.logHeading(`STARTING EC2 INSTANCE ${this.getId()}...`);
+    var ec2 = new AWS.EC2();
+    ec2.startInstances({ InstanceIds: [ this.getId() ] }, function(err, data) {
       if (err) {
-        console.log(err, err.stack);
+        console.error(err, err.stack);
         callback(e.name)
       }
       else {
-        // console.log(data);
         callback();
       }
     });
   }
 
-  this.start = (callback) => {
-    console.log(`Starting ec2 instance ${this.getId()}...`);
+  this.stop = (callback) => {
+    this.basicResource.logHeading(`STOPPING EC2 INSTANCE ${this.getId()}...`);
     var ec2 = new AWS.EC2();
-    this.change(ec2.startInstances, callback);
+    ec2.stopInstances({ InstanceIds: [ this.getId() ] }, function(err, data) {
+      if (err) {
+        console.error(err, err.stack);
+        callback(e.name)
+      }
+      else {
+        callback();
+      }
+    });
   }
 
-  this.stop = (callback) => {
-    console.log(`Stopping ec2 instance ${this.getId()}...`);
+  this.reboot = (callback) => {
+    this.basicResource.logHeading(`REBOOTING EC2 INSTANCE ${this.getId()}...`);
     var ec2 = new AWS.EC2();
-    this.change(ec2.stopInstances, callback);
+    var self = this;
+    ec2.rebootInstances({ InstanceIds: [ this.getId() ] }, function(err, data) {
+      if (err) {
+        console.error(err, err.stack);
+        callback(e.name);
+      }
+      else {
+        console.log(`Reboot command issued. Proceeding to update ${self.basicResource.tagsOfInterest.lastRebootTag} tag value...`);
+        self.basicResource.tagWithLastRebootTime(AWS, callback);        
+      }
+    });
   }
 }

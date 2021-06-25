@@ -1,23 +1,24 @@
 module.exports = function(basicResource, AWS) {
-  this.basicResource = basicResource;
   this.AWS = AWS;
+  this.basicResource = basicResource;
+  this.basicResource.autoDecorate(this);
   
   this.getId = () => {
-    if(this.basicResource.getArn()) {
-      return this.basicResource.getArn().split(":").pop();      
+    if(this.getArn()) {
+      return this.getArn().split(":").pop();      
     }
-    return "";
+    return this.getName();
   }
 
-  this.getStartCron = () => {
-    return this.basicResource.getStartCron();
-  }
-
-  this.getStopCron = () => {
-    return this.basicResource.getStopCron();
+  this.getIntroduction = () => {
+    return basicResource.getIntroduction(this.getId());
   }
   
-  this.getState = (callback) => {
+  /**
+   * Decorate the getState method with api call specific to acquiring the state of an rds instance.
+   * @param {*} callback 
+   */
+   this.getState = (callback) => {
     if(this.basicResource.getState()) {
       callback(this.basicResource.getState());
     }
@@ -29,62 +30,82 @@ module.exports = function(basicResource, AWS) {
         rds.describeDBInstances({ DBInstanceIdentifier: id}, function(err, data) {
           try {
             if (err) {
+              console.error(`Cannot establish state of ${self.getId()}`);
               throw err;
             }
             else {
-              // console.log(JSON.stringify(data, null, 2));
               var state = data.DBInstances [0].DBInstanceStatus;
               self.basicResource.setState(state);
+              console.log(`State of ${self.getId()} is ${state}`);
               callback(state);
             }
           }
           catch(e) {
+            console.error(`Cannot establish state of ${self.getId()}`);
             e.stack ? console.error(e, e.stack) : console.error(e);
-            callback(e.name)
+            callback(e.name, true)
           }
         });      
       }
       else {
         console.log("ERROR! Cannot determine rds instanceId!");
-        callback('');
+        callback('', true);
       }
     }
   };
 
   this.isRunning = (callback) => {
-    return this.getState((state) => {
-      callback(state.equalsIgnoreCase('AVAILABLE'));
+    return this.getState((state, error) => {
+      callback(state.equalsIgnoreCase('AVAILABLE'), error);
     });
   }
 
   this.isStopped = (callback) => {
-    return this.getState((state) => {
-      callback(state.equalsIgnoreCase('STOPPED'));
+    return this.getState((state, error) => {
+      callback(state.equalsIgnoreCase('STOPPED'), error);
     });
   }
-  
-  this.change = (rdsMethod, callback) => {
-    rdsMethod({ DBInstanceIdentifier: this.getId()}, function(err, data) {
+
+  this.start = (callback) => {
+    this.basicResource.logHeading(`STARTING RDS INSTANCE ${this.getId()}...`);
+    var rds = new AWS.RDS();
+    rds.startDBInstance({ DBInstanceIdentifier: this.getId()}, function(err, data) {
       if (err) {
         console.log(err, err.stack);
         callback(e.name)
       }
       else {
-        // console.log(data);
         callback();
       }
     });
   }
 
-  this.start = (callback) => {
-    console.log(`Starting rds instance ${this.getId()}...`);
+  this.stop = (callback) => {
+    this.basicResource.logHeading(`STOPPING RDS INSTANCE ${this.getId()}...`);
     var rds = new AWS.RDS();
-    this.change(rds.startDBInstance, callback);
+    rds.stoptDBInstance({ DBInstanceIdentifier: this.getId()}, function(err, data) {
+      if (err) {
+        console.log(err, err.stack);
+        callback(e.name)
+      }
+      else {
+        callback();
+      }
+    });
   }
 
-  this.stop = (callback) => {
-    console.log(`Stopping rds instance ${this.getId()}...`);
+  this.reboot = (callback) => {
+    this.basicResource.logHeading(`REBOOTING RDS INSTANCE ${this.getId()}...`);
     var rds = new AWS.RDS();
-    this.change(rds.stopDBInstance, callback);
+    var self = this;
+    rds.reboottDBInstance({ DBInstanceIdentifier: this.getId()}, function(err, data) {
+      if (err) {
+        console.log(err, err.stack);
+        callback(e.name)
+      }
+      else {
+        self.basicResource.tagWithLastRebootTime(AWS, callback);
+      }
+    });
   }
 }

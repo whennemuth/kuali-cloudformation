@@ -14,37 +14,50 @@ switch(process.env.DEBUG_MODE) {
     break;
 }
 
+function ExperimentChecker(event) {
+  this.hasExperiments = () => {
+    return event && event.experiment;
+  }
+  this.runExperiments = () => {
+    const Experiment = require('./debugExperiment');
+    for (const trialName in event.experiment) {
+      if (Object.hasOwnProperty.call(event.experiment, trialName)) {
+        const trialArg = event.experiment[trialName];
+        Experiment.runTrial(trialName, trialArg);
+      }
+    }
+  }
+}
+
 exports.handler = function (event, context) {
   try {
-    // console.log("ENVIRONMENT VARIABLES\n" + JSON.stringify(process.env, null, 2))
-    // console.info("EVENT\n" + JSON.stringify(event, null, 2))
+    const experimentCheck = new ExperimentChecker(event);
+    if(experimentCheck.hasExperiments()) {
+      experimentCheck.runExperiments();
+      return;
+    }
 
     var tagging = {
-      filters: {},
+      timezoneTag: process.env.TimeZoneKey,
+      lastRebootTag: process.env.LastRebootTimeKey,
       cron: {
-        start: process.env.StartupCronKey,
-        stop: process.env.ShutdownCronKey
+        startTag: process.env.StartupCronKey,
+        stopTag: process.env.ShutdownCronKey,
+        rebootTag: process.env.RebootCronKey
       }
     };
 
-    if(process.env.Service) {
-      tagging.filters.Service = process.env.Service;
-    }
-    if(process.env.Function) {
-      tagging.filters.Function = process.env.Service;
-    }
-    for(var i=1; i<=5; i++) {
-      if(process.env[`Tag${i}`]) {
-        var tag = JSON.parse(process.env[`Tag${i}`]);
-        tagging.filters[tag.key] = tag.value;
-      }
-    }
+    console.log("Resources qualify for shutdown/startup with tagging as follows:");
+    console.log(JSON.stringify(tagging, null, 2));
 
     new ResourceCollection.load(AWS, tagging, (candidates) => {
       if(candidates.processNext) {
         candidates.processNext((resource, callback) => {
-          var scheduled = new ScheduledResource(resource);
+          var scheduled = new ScheduledResource(AWS, resource);
           console.log("");
+          console.log("---------");
+          console.log(resource.getIntroduction());
+          console.log("---------");
           scheduled.toStop((stop) => {
             if(stop) {
               resource.stop(callback);
@@ -55,14 +68,22 @@ exports.handler = function (event, context) {
                   resource.start(callback);
                 }
                 else {
-                  callback(resource);
+                  scheduled.toReboot((reboot) => {
+                    if(reboot) {
+                      resource.reboot(callback);
+                    }
+                    else {
+                      callback(resource);
+                    }
+                  })                  
                 }
               })
             }
           });
         },
         () => {
-          console.log('\nFinished processing.');
+          console.log('\nFinished processing.\n');
+          console.log('@'.repeat(100));
         });
       }
     });

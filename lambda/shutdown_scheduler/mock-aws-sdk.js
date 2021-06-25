@@ -68,8 +68,9 @@ module.exports = {
                 { Key: "Service", Value: "research-administration" },
                 { Key: "Baseline", Value: "stg" },
                 { Key: "Name", Value: mockdata.getEC2(1).id },
-                { Key: "StartupCron", Value: "0 10 ? * MON-FRI *" },
-                { Key: "ShutdownCron", Value: "15 0 ? * MON-FRI *" }
+                { Key: "StartupCron", Value: "0 10 ? * MON-FRI" },
+                { Key: "ShutdownCron", Value: "15 0 ? * MON-FRI" },
+                { Key: "LocalTimeZone", Value: "America/New_York" }
               ]
             },
             {
@@ -80,8 +81,9 @@ module.exports = {
                 { Key: "aws:cloudformation:logical-id", Value: "EC2Instance" },
                 { Key: "ShortName", Value: "jenkins" },
                 { Key: "Name", Value: "kuali-jenkins" },
-                { Key: "StartupCron", Value: "15 10 ? * MON-FRI *" },
-                { Key: "ShutdownCron", Value: "0 0 ? * MON-FRI *" }
+                { Key: "StartupCron", Value: "15 10 ? * MON-FRI" },
+                { Key: "ShutdownCron", Value: "0 0 ? * MON-FRI" },
+                { Key: "LocalTimeZone", Value: "America/New_York" }
               ]
             },
             {
@@ -92,8 +94,9 @@ module.exports = {
                 { Key: "aws:cloudformation:logical-id", Key: "EC2Instance" },
                 { Key: "ShortName", Key: "ci" },
                 { Key: "Name", Key: "buaws-kuali-app-ci001" },
-                { Key: "StartupCron", Value: "15 10 ? * MON-FRI *" },
-                { Key: "ShutdownCron", Value: "0 0 ? * MON-FRI *" }
+                { Key: "StartupCron", Value: "15 10 ? * MON-FRI" },
+                { Key: "ShutdownCron", Value: "0 0 ? * MON-FRI" },
+                { Key: "LocalTimeZone", Value: "America/New_York" }
               ]
             },
             {
@@ -103,7 +106,8 @@ module.exports = {
                 { Key: "Service", Key: "research-administration" },
                 { Key: "aws:cloudformation:logical-id", Key: "EC2Instance" },
                 { Key: "ShortName", Key: "sb" },
-                { Key: "Name", Key: "buaws-kuali-app-sb001" }
+                { Key: "Name", Key: "buaws-kuali-app-sb001" },
+                { Key: "LocalTimeZone", Value: "America/New_York" }
               ]
             }
           ]          

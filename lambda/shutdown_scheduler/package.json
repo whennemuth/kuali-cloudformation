@@ -8,6 +8,6 @@
     "cron-parser": "3.5.0"
   },
   "scripts": {
-    "pack": "sh -c 'npm install' & node node_modules/zip/zip.js shutdown_scheduler.js"
+    "pack": "sh -c 'npm install' & node node_modules/zip/zip.js type:js"
   }
 }

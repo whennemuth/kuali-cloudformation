@@ -30,7 +30,7 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
 
    ```
    git clone https://github.com/bu-ist/kuali-infrastructure.git
-   cd kuali-infrastructure/kuali_rds
+   cd kuali-infrastructure/kuali_shutdown
    ```
 
 2. **Create the stack:**
@@ -40,8 +40,80 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
    *NOTE: If creating this stack for kuali, it is recommended that you consider most of the default parameters.*
 
    ```
-   sh main.sh create-stack profile=legacy 
+   # Uses npm to build, package and upload to s3 the node application the lambda will be based on, followed by stack creation.
+   sh main.sh create-stack profile=[your profile]
+   
+   # Stack creation only (assumes the node application is already in s3 and is current)
+   sh main.sh create-stack profile=[your profile] package_javascript=false
+   
+   # Delete and replace the stack (does not prompt for choices/input at any time)
+   sh main.sh recreate-stack profile=[your profile]
    ```
+
+3. **Tag your resources:**
+   By default, a resource check is triggered by a cloudwatch event rule every 5 minutes.
+   This resource check looks for resources tagged with the following:
+
+   - **Service**: "research-administration"
+   - **Function**: "kuali"
+
+   Additionally, each resource found with these tags is checked for the following tags:
+
+   - **LocalTimeZone**:
+     The resource will be ignored without this tag set to an [IANA](https://www.iana.org/time-zones) timezone value. A valid value is any one [IANA TZ Database Timezone Name](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones).
+     For example, in Boston, our timezone name would be "America/New_York".
+
+   - **StartupCron:**
+     Following [cron-parser rules](https://www.npmjs.com/package/cron-parser), apply a cron expression to this tag that indicates when you want the resource started (if it is already running, it will be ignored.) Typically, this tag would have a "ShutdownCron" counterpart, but it is not required.
+     As an example, to indicate startup for each business day at 6:15 AM, you would use the following cron expression:
+
+     ```
+     15 6 ? * MON-FRI
+     ```
+
+   - **ShutdownCron**:
+     Following [cron-parser rules](https://www.npmjs.com/package/cron-parser), apply a cron expression to this tag that indicates when you want the resource stopped(if it is already stopped, it will be ignored.) Typically, this tag would have a "StartupCron" counterpart, but it is not required.
+     As an example, to indicate shutdown for each business day at 8:00 PM, you would use the following cron expression: 
+
+     ```
+     0 20 ? * MON-FRI
+     ```
+
+   - **RebootCron:**
+     Following [cron-parser rules](https://www.npmjs.com/package/cron-parser), apply a cron expression to this tag that indicates when you want the resource rebooted. The resource must be in a "RUNNING" state, else the reboot attempt is skipped. As an example, to indicate a reboot every Monday at 11PM use:
+
+     ```
+     0 23 ? * MON
+     ```
+
+     However, for less uniform schedules that cannot be reflected in one cron expression, this setting can have multiple entries. The first entry is made using a tag that has the standard key "RebootCron", and every additional tag would have index of 2 or above (up to 10) at the end. So, for example, if you wanted a resource to be rebooted every 2nd and 4th Saturday at 2AM, you would use the following 2 cron expressions:
+
+     ```
+     RebootCron: 0 2 ? * SAT#2
+     RebootCron2: 0 2 ? * SAT#4
+     ```
+
+   
+
+   **Supported Cron format:** *(excerpted from cron-parser [documentation](https://www.npmjs.com/package/cron-parser))*
+
+   ```
+   # Supports mixed use of ranges and range increments (L and W characters are not supported currently)
+   
+   *    *    *    *    *    *
+   ┬    ┬    ┬    ┬    ┬    ┬
+   │    │    │    │    │    |
+   │    │    │    │    │    └ day of week (0 - 7) (0 or 7 is Sun)
+   │    │    │    │    └───── month (1 - 12)
+   │    │    │    └────────── day of month (1 - 31, L)
+   │    │    └─────────────── hour (0 - 23)
+   │    └──────────────────── minute (0 - 59)
+   └───────────────────────── second (0 - 59, optional)
+   ```
+
+   Examples:
+
+   An ec2 instance running for Kuali would be shut off from 9PM to 6AM and all day on weekends with the following tags:
 
    
 

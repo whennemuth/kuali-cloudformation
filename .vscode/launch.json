@@ -71,11 +71,15 @@
       "env": {
         "DEBUG_MODE": "local_unmocked",
         "AWS_SDK_LOAD_CONFIG": "1",
-        "AWS_PROFILE": "infnprd",
+        "AWS_PROFILE": "legacy",
         "StartupCronKey": "StartupCron",
         "ShutdownCronKey": "ShutdownCron",
+        "TimeZoneKey": "LocalTimeZone",
+        "RebootCronKey": "RebootCron",
+        "LastRebootTimeKey": "LastRebootTime",
         "Service": "research-administration",
-        "Function": "kuali"
+        "Function": "kuali",
+        "DefaultTimeZone": "America/New_York"
       },
       "cwd": "${workspaceFolder}/lambda/shutdown_scheduler",
       "name": "Shutdown scheduler unmocked",
@@ -90,6 +94,9 @@
         "AWS_PROFILE": "infnprd",
         "StartupCronKey": "StartupCron",
         "ShutdownCronKey": "ShutdownCron",
+        "TimeZoneKey": "LocalTimeZone",
+        "RebootCronKey": "RebootCron",
+        "LastRebootTimeKey": "LastRebootTime",
         "Service": "research-administration",
         "Function": "kuali",
         "Tag1": "{ \"key\": \"MyTagKey1\", \"value\": \"MyTagValue1\" }",
@@ -101,6 +108,26 @@
       "type": "node",
       "request": "launch",
       "program": "debug.js"
+    },
+    {
+      "cwd": "${workspaceFolder}/lambda/shutdown_scheduler",
+      "name": "Shutdown scheduler experiment",
+      "type": "node",
+      "request": "launch",
+      "program": "debug.js",
+      "args": [
+        "{ \\\"experiment\\\": { \\\"trial1\\\": \\\"hello\\\" } }"
+      ]
+    },
+    {
+      "cwd": "${workspaceFolder}/lambda/shutdown_scheduler",
+      "name": "Shutdown scheduler create zip",
+      "type": "node",
+      "request": "launch",
+      "program": "node_modules/zip/zip.js",
+      "args": [
+        "type:js"
+      ]
     },
     {
       "cwd": "${workspaceFolder}/lambda/bucket_emptier",

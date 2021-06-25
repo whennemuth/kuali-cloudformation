@@ -34,26 +34,13 @@ run() {
 }
 
 validateParms() {
-  if [ -n "$CRON_EXPRESION" ] ; then
-    local minutes="$(echo "$CRON_EXPRESSION" | cut -d' ' -f1 | grep -oP '\d')"
-    [ -z "$minutes" ] && minutes='1'
-    local interval=$(($minutes*60));
-    local timeout=$LAMBDA_TIMEOUT
-    [ -z "$timeout" ] && timeout='60'
-    if [ $timeout -gt $interval ] ; then
-      echo "The lambda timeout cannot be greater than the interval indicated by the cron expression"
-      exit 1
-    fi
+  local interval=${MINUTE_INTERVAL:-'5'}
+  interval=$(($interval*60));
+  local timeout=${LAMBDA_TIMEOUT:-'60'}
+  if [ $timeout -gt $interval ] ; then
+    echo "The lambda timeout cannot be greater than the minute interval"
+    exit 1
   fi
-
-  for i in {1..5} ; do
-    eval 'local key=$TAG_KEY'$i
-    eval 'local val=$TAG_VAL'$i
-    if [ -n "$key" ] && [ -z "$val" ] ; then
-      echo "TAG_KEY${i}: $key has no value!"
-      exit 1
-    fi
-  done
 }
 
 stackAction() {
@@ -69,13 +56,18 @@ stackAction() {
 
     # Validate and upload the yaml file(s) to s3
     outputHeading "Validating and uploading main template(s)..."
-    uploadStack silent
+    validateTemplateAndUploadToS3 \
+      silent=true \
+      filepath=../lambda/shutdown_scheduler/shutdown.yaml \
+      s3path=$TEMPLATE_BUCKET_PATH/
     [ $? -gt 0 ] && exit 1
 
     # Upload lambda code
-    outputHeading "Building, zipping, and uploading lambda code..."
-    zipPackageAndCopyToS3 '../lambda/shutdown_scheduler' 's3://kuali-conf/cloudformation/kuali_lambda/shutdown_scheduler.zip'
-    [ $? -gt 0 ] && echo "ERROR! Could not upload shutdown_scheduler.zip to s3." && exit 1
+    if [ "$PACKAGE_JAVASCRIPT" != 'false' ] ; then
+      outputHeading "Building, zipping, and uploading lambda code..."
+      zipPackageAndCopyToS3 '../lambda/shutdown_scheduler' "s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_lambda/shutdown_scheduler.zip"
+      [ $? -gt 0 ] && echo "ERROR! Could not upload shutdown_scheduler.zip to s3." && exit 1
+    fi
 
     cat <<-EOF > $cmdfile
     aws \\
@@ -83,26 +75,17 @@ stackAction() {
       --stack-name ${STACK_NAME} \\
       $([ $task != 'create-stack' ] && echo '--no-use-previous-template') \\
       $([ "$NO_ROLLBACK" == 'true' ] && [ $task == 'create-stack' ] && echo '--on-failure DO_NOTHING') \\
-      --template-url $BUCKET_URL/main.yaml \\
+      --template-url $BUCKET_URL/shutdown.yaml \\
       --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \\
       --parameters '[
 EOF
 
-    add_parameter $cmdfile 'TagKey1' 'TAG_KEY1'
-    add_parameter $cmdfile 'TagKey2' 'TAG_KEY2'
-    add_parameter $cmdfile 'TagKey3' 'TAG_KEY3'
-    add_parameter $cmdfile 'TagKey4' 'TAG_KEY4'
-    add_parameter $cmdfile 'TagKey5' 'TAG_KEY5'
-
-    add_parameter $cmdfile 'TagVal1' 'TAG_VAL1'
-    add_parameter $cmdfile 'TagVal2' 'TAG_VAL2'
-    add_parameter $cmdfile 'TagVal3' 'TAG_VAL3'
-    add_parameter $cmdfile 'TagVal4' 'TAG_VAL4'
-    add_parameter $cmdfile 'TagVal5' 'TAG_VAL5'
-
+    add_parameter $cmdfile 'TemplateBucketName' 'TEMPLATE_BUCKET_NAME'
     add_parameter $cmdfile 'StartupCronKey' 'STARTUP_CRON_KEY'
     add_parameter $cmdfile 'ShutdownCronKey' 'SHUTDOWN_CRON_KEY'
-    add_parameter $cmdfile 'CronExpression' 'CRON_EXPRESSION'
+    add_parameter $cmdfile 'RebootCronKey' 'REBOOT_CRON_KEY'
+    add_parameter $cmdfile 'LastRebootTimeKey' 'LAST_REBOOT_TIME_KEY'
+    add_parameter $cmdfile 'MinuteInterval' 'MINUTE_INTERVAL'
     add_parameter $cmdfile 'LambdaTimeout' 'LAMBDA_TIMEOUT'
 
     echo "      ]' \\" >> $cmdfile
@@ -119,7 +102,7 @@ EOF
 runTask() {
   case "$task" in
     validate)
-      validateStack ;;
+      validateStack filepath;;
     upload)
       uploadStack ;;
     create-stack)
