@@ -6,7 +6,13 @@ Knowing what these time frames are, it makes sense to shutdown the resources whe
 This stack creates a single cloudwatch event that triggers at regular intervals a lambda function that checks for any and all resource that are tagged in such a way as to indicate a schedule for startup and shutdown.
 Once having gathered the list of resources, the lambda will analyze the schedule of each and perform any startup/shutdown action if necessary.
 
+**Entire stack diagram:**
 
+![process](../lambda/shutdown_scheduler/process.png)
+
+**Lambda diagram:**
+
+![lambda](../lambda/shutdown_scheduler/lambda.png)
 
 ### Prerequisites:
 

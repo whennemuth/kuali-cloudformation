@@ -5,6 +5,7 @@ Such resources nonetheless continue to use up compute time during these times wi
 Knowing what these time frames are, it makes sense to shutdown the resources when they begin and to start them back up when they end.
 This stack creates a single cloudwatch event that triggers at regular intervals (ie: every 5 minutes) a lambda function that checks for any and all resource that are tagged in such a way as to indicate a schedule for startup and shutdown or reboot.
 Once having gathered the list of resources, the lambda will analyze the schedule of each and perform any startup/shutdown action if necessary.
+
 ![process](./process.png)
 
 **No centralized Scheduling:** A common way to implement scheduled events like this is to create an cloudwatch rule for each one. In that scenario, the cron expression that drives the schedule is the one defined for the event rule. Targeting AWS resources is a matter of tagging them with an identifier that the lambda function would be looking for. This is a one (schedule) to many (resource) relationship.
