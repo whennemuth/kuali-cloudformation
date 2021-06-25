@@ -244,10 +244,10 @@ function RebootScheduleHierarchy(scheduledRebootsArray, resource, running) {
       else {
         var decision = 'No reboot.'
         if(running) {
-          var reason = `${rid} is running since last reboot of ${lastRebootString} but is not scheduled for another reboot until ${lastSchedString}`;
+          var reason = `${rid} is running since last reboot of ${lastRebootString} but is not scheduled for another reboot until ${rebootCron.nextToLocalTimeString()}`;
         }
         else {
-          var reason = `${rid} is NOT running and is not scheduled for reboot until ${lastSchedString} (last reboot ${lastRebootString})`;
+          var reason = `${rid} is NOT running and would not be scheduled for reboot until ${rebootCron.nextToLocalTimeString()} (last reboot ${lastRebootString})`;
         }
       }
     } 

@@ -86,7 +86,7 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
      0 23 ? * MON
      ```
 
-     However, for less uniform schedules that cannot be reflected in one cron expression, this setting can have multiple entries. The first entry is made using a tag that has the standard key "RebootCron", and every additional tag would have index of 2 or above (up to 10) at the end. So, for example, if you wanted a resource to be rebooted every 2nd and 4th Saturday at 2AM, you would use the following 2 cron expressions:
+     However, for less uniform schedules that cannot be reflected in one cron expression, this setting can have multiple entries. The first entry is can  have a key of either "RebootCron" or "RebootCron1", and every additional tag would have index of 2 or above (up to 10) at the end. So, for example, if you wanted a resource to be rebooted every 2nd and 4th Saturday at 2AM, you would use the following 2 cron expressions:
 
      ```
      RebootCron: 0 2 ? * SAT#2
@@ -111,9 +111,15 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
    └───────────────────────── second (0 - 59, optional)
    ```
 
-   Examples:
+   Example:
 
-   An ec2 instance running for Kuali would be shut off from 9PM to 6AM and all day on weekends with the following tags:
+   An ec2 instance would be shut off from 9PM to 6AM and all day on weekends with the following tags:
+
+   ```
+   LocalTimeZone: America/New_York
+   ShutdownCron: 0 21 ? * MON-FRI
+   StartupCron 0 6 ? * MON-FRI
+   ```
 
    
 
