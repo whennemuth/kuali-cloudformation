@@ -26,8 +26,9 @@ exports.load = function(AWS, tagsOfInterest, callback) {
     };
 
     if(process.env.DefaultTimeZone) {
-      console.log(`It looks like you are testing. Resources without timezone tags are not going to be filtered off
-                  as usual and will get "${process.env.DefaultTimeZone}" as a timezone.`.replace(/\s{2,}/g, ' '));
+      console.log(`It looks like you are testing. Resources without timezone tags are not going to
+                   be filtered off as usual and will be treated as if tagged with a timezone of 
+                  "${process.env.DefaultTimeZone}".`.replace(/\s{2,}/g, ' '));
     }
     else {
       params.TagFilters.push({ Key: tagsOfInterest.timezoneTag });

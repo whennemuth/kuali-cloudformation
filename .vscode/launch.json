@@ -76,10 +76,7 @@
         "ShutdownCronKey": "ShutdownCron",
         "TimeZoneKey": "LocalTimeZone",
         "RebootCronKey": "RebootCron",
-        "LastRebootTimeKey": "LastRebootTime",
-        "Service": "research-administration",
-        "Function": "kuali",
-        "DefaultTimeZone": "America/New_York"
+        "LastRebootTimeKey": "LastRebootTime"
       },
       "cwd": "${workspaceFolder}/lambda/shutdown_scheduler",
       "name": "Shutdown scheduler unmocked",
@@ -96,12 +93,7 @@
         "ShutdownCronKey": "ShutdownCron",
         "TimeZoneKey": "LocalTimeZone",
         "RebootCronKey": "RebootCron",
-        "LastRebootTimeKey": "LastRebootTime",
-        "Service": "research-administration",
-        "Function": "kuali",
-        "Tag1": "{ \"key\": \"MyTagKey1\", \"value\": \"MyTagValue1\" }",
-        "Tag2": "{ \"key\": \"MyTagKey2\", \"value\": \"MyTagValue2\" }",
-        "Tag3": "{ \"key\": \"MyTagKey3\", \"value\": \"MyTagValue3\" }"
+        "LastRebootTimeKey": "LastRebootTime"
       },
       "cwd": "${workspaceFolder}/lambda/shutdown_scheduler",
       "name": "Shutdown scheduler mocked",

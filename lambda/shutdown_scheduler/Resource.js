@@ -90,6 +90,9 @@ module.exports = function(tagsAndArn, tagsOfInterest) {
     }
     else {
       tagValue = this.getTagValue(this.tagsOfInterest.cron.rebootTag);
+      if( ! tagValue) {
+        tagValue = this.getTagValue(this.tagsOfInterest.cron.rebootTag + '1');
+      }
     }
     return tagValue;
   }
@@ -105,7 +108,7 @@ module.exports = function(tagsAndArn, tagsOfInterest) {
    * was recorded while in daylight savings time and read during standard time or vice versa. 
    */
   this.getUTCRestoredDate = (localDateString) => {
-    
+
     // Get the date for the current system
     let hereDate = new Date();
     hereDate.setMilliseconds(0);

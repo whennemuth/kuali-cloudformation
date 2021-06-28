@@ -8,14 +8,17 @@ Once having gathered the list of resources, the lambda will analyze the schedule
 
 ![process](./process.png)
 
-**No centralized Scheduling:** A common way to implement scheduled events like this is to create an cloudwatch rule for each one. In that scenario, the cron expression that drives the schedule is the one defined for the event rule. Targeting AWS resources is a matter of tagging them with an identifier that the lambda function would be looking for. This is a one (schedule) to many (resource) relationship.
+**No centralized Scheduling:** 
+A common way to implement scheduled events like this is to create an cloudwatch rule for each one. In that scenario, the cron expression that drives the schedule is the one defined for the event rule. Targeting AWS resources is a matter of tagging them with an identifier that the lambda function would be looking for. This is a one (schedule) to many (resource) relationship.
 
-**Decentralized Scheduling:** However, a polling model is used here. There is only one event rule and it runs on a regular frequent schedule. AWS resources still have to be tagged for the lambda function to consider them, but these tags have values that are themselves cron expressions. This way, each AWS resource indicates its own schedule for being started, stopped, or rebooted, and not dictated to by an exterior source.
+**Decentralized Scheduling:** 
+However, a polling model is used here. There is only one event rule and it runs on a regular frequent schedule. AWS resources still have to be tagged for the lambda function to consider them, but these tags have values that are themselves cron expressions. This way, each AWS resource indicates its own schedule for being started, stopped, or rebooted, and not dictated to by an exterior source.
 This is a one (schedule) to one (resource) relationship.
 
 ![lambda](./lambda.png)
 
-**Localized Timezone:** The lambda function evaluates the cron expressions on the each resource using the [cron-parser](https://www.npmjs.com/package/cron-parser) library. For this reason, those cron expressions do not have to follow AWS cron rules, but can follow more standard cron convention.
+**Localized Timezone:** 
+The lambda function evaluates the cron expressions on the each resource using the [cron-parser](https://www.npmjs.com/package/cron-parser) library. For this reason, those cron expressions do not have to follow AWS cron rules, but can follow more standard cron convention.
 
 ```
 # Supports mixed use of ranges and range increments (L and W characters are not supported currently)
@@ -34,7 +37,41 @@ This is a one (schedule) to one (resource) relationship.
 Also, these cron expressions do not have to be in UTC time, but can be in your own timezone.
 Therefore resources will be ignored without a "LocalTimeZone" tag set to an [IANA](https://www.iana.org/time-zones) timezone value. A valid value is any one [IANA TZ Database Timezone Name](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones). For example, in Boston, our timezone name would be "America/New_York".
 
-**Example:**
+**Disabling A Schedule:** 
+In order to disable a schedule for a resource, the easiest method is to rename/remove the "LocalTimeZone" tag":
+
+```
+LocalTimeZone_DISABLED: America/New
+```
+
+Alternatively, you can disable/remove each cron-related tag. For example, to prevent a resource from being stopped, tagging would look like this:
+
+```
+LocalTimeZone: America/New_York
+StartupCron: 30 7 ? * MON-FRI
+ShutdownCron_DISABLED 0 21 ? * MON-FRI
+RebootCron: 0 2 1 * ?
+```
+
+**Reboot window:**
+Every time a resource is rebooted, it is also tagged with the date for the most recent reboot.
+To be rebooted again, 2 criteria must be satisfied
+
+1. The cron expression must indicate it is time to reboot the resource.
+2. The last time the resource was rebooted (according to the corresponding tag) must have taken place BEFORE the two most recent scheduled reboot dates (according to the reboot cron expression).
+
+From this you can see that, If for any reason, a resource with a reboot schedule had been kept shutdown during the time it would normally have been rebooted, it would be immediately rebooted after a restart. This would be redundant and confusing to the user.
+Therefore, there is a 3rd criteria is added that requires that a reboot must also take place within a one hour time window of its schedule.
+
+The reboot window for a schedule that specifies the 1st day of every month at 2AM (0 2 1 * ?) would look like this:
+
+![reboot](./reboot.png)
+
+
+
+
+
+**EXAMPLE TAGGING:**
 An EC2 instance that needs to be running between the hours of 7:30AM and 9:00PM weekdays and rebooted on the 2nd and 4th Saturdays of the month at 2AM would be tagged as follows:
 
 ```
@@ -88,6 +125,28 @@ cd lambda/shutdown_scheduler
 
       The launch configuration starts in a "local_mocked" DEBUG_MODE that imports a mocked aws sdk that returns mocked AWS api call return objects. 
 
+      ```
+          {
+            "env": {
+              "DEBUG_MODE": "local_unmocked",
+              "AWS_SDK_LOAD_CONFIG": "1",
+              "AWS_PROFILE": "[your profile in ~/.aws/config]",
+              "StartupCronKey": "StartupCron",
+              "ShutdownCronKey": "ShutdownCron",
+              "TimeZoneKey": "LocalTimeZone",
+              "RebootCronKey": "RebootCron",
+              "LastRebootTimeKey": "LastRebootTime"
+            },
+            "cwd": "${workspaceFolder}/lambda/shutdown_scheduler",
+            "name": "Shutdown scheduler unmocked",
+            "type": "node",
+            "request": "launch",
+            "program": "debug.js"
+          }
+      ```
+
+      
+
    2. **Unmocked**:
 
       The launch configuration starts in a "local_unmocked" DEBUG_MODE that imports the actual aws sdk, which means that the AWS api calls apply to whatever cloud account your profile indicates. Use this as a trial run before deploying somewhere like a lambda function, but keep in mind that the time zones will be different (lambda functions always run in the UTC time zone).
@@ -95,40 +154,11 @@ cd lambda/shutdown_scheduler
    ```
        {
          "env": {
-           "DEBUG_MODE": "local_unmocked",
-           "AWS_SDK_LOAD_CONFIG": "1",
-           "AWS_PROFILE": "[your profile in ~/.aws/config]",
-           "StartupCronKey": "StartupCron",
-           "ShutdownCronKey": "ShutdownCron",
-           "TimeZoneKey": "LocalTimeZone",
-           "RebootCronKey": "RebootCron",
-           "LastRebootTimeKey": "LastRebootTime",
-           "DefaultTimeZone": "America/New_York"
-         },
-         "cwd": "${workspaceFolder}/lambda/shutdown_scheduler",
-         "name": "Shutdown scheduler unmocked",
-         "type": "node",
-         "request": "launch",
-         "program": "debug.js"
-       },
-       {
-         "env": {
            "DEBUG_MODE": "local_mocked",
-           "AWS_SDK_LOAD_CONFIG": "1",
-           "AWS_PROFILE": "[your profile in ~/.aws/config]",
-           "StartupCronKey": "StartupCron",
-           "ShutdownCronKey": "ShutdownCron",
-           "TimeZoneKey": "LocalTimeZone",
-           "RebootCronKey": "RebootCron",
-           "LastRebootTimeKey": "LastRebootTime"
+           [same as mocked] ...
          },
-         "cwd": "${workspaceFolder}/lambda/shutdown_scheduler",
-         "name": "Shutdown scheduler mocked",
-         "type": "node",
-         "request": "launch",
-         "program": "debug.js"
+         [same as mocked] ...
        } 
-   
    ```
 
    For the unmocked launch configuration, all resources will be ignored unless they are tagged with the following:
