@@ -129,3 +129,16 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
 
    
 
+**Reboot window:**
+Every time a resource is rebooted, it is also tagged with the date for the most recent reboot.
+To be rebooted again, 2 criteria must be satisfied
+
+1. The cron expression must indicate it is time to reboot the resource.
+2. The last time the resource was rebooted (according to the corresponding tag) must have taken place BEFORE the two most recent scheduled reboot dates (according to the reboot cron expression).
+
+From this you can see that, If for any reason, a resource with a reboot schedule had been kept shutdown during the time it would normally have been rebooted, it would be immediately rebooted after a restart. This would be redundant and confusing to the user.
+Therefore, there is a 3rd criteria is added that requires that a reboot must also take place within a one hour time window of its schedule.
+
+The reboot window for a schedule that specifies the 1st day of every month at 2AM (0 2 1 * ?) would look like this:
+
+![reboot](../lambda/shutdown_scheduler/reboot.png)
