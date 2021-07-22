@@ -487,7 +487,7 @@ Resources:
                   done
                 }
 
-                runContainer() {
+                runJobContainer() {
                   local port=$1
                   local jobClass=$2
                   local logLevel=${3:-'INFO'}
@@ -496,16 +496,40 @@ Resources:
                     -d \
                     --restart unless-stopped \
                     --name $jobClass \
-                    -p $port:8001 \
+                    -p $port:$port \
+                    -v /var/lib/jenkins/.ssh:/root/.ssh \
                     -e logging_level=$logLevel \
                     $JENKINS_IMAGE \
                     job-class=$jobClass \
                     ajax-host=$host
                 }
 
+                runParametersContainer() {
+                  local port=$1
+                  local name=$2
+                  local logLevel=${3:-'INFO'}
+                  docker run \
+                    -d \
+                    --restart unless-stopped \
+                    --name $name \
+                    -p $port:$port \
+                    -v /var/lib/jenkins/.ssh:/root/.ssh \
+                    -e logging_level=$logLevel \
+                    $JENKINS_IMAGE
+                }
+
                 runContainers() {
                   echo "Running containers..."
-                  runContainer '8001' 'org.bu.jenkins.job.kuali.StackCreateDelete' $@
+                  
+                  runJobContainer \
+                    '8001' \
+                    'org.bu.jenkins.job.kuali.StackCreateDelete' \
+                    $@
+
+                  runParametersContainer \
+                    '8002' \
+                    'org.bu.jenkins.job.parameter.CommonParameter' \
+                    $@
                 }
 
                 task="$1"
@@ -1157,6 +1181,20 @@ Resources:
               mode: "000644"
               owner: jenkins
               group: jenkins
+            /var/lib/jenkins/_cfn-config/credentials.kualico.github.token.xml:
+              content:
+                <com.cloudbees.plugins.credentials.impl.UsernamePasswordCredentialsImpl plugin="credentials@2.3.14">
+                  <scope>GLOBAL</scope>
+                  <id>credentials.kualico.github.pat</id>
+                  <description>Personal access token for user access to private kualico github repositories</description>
+                  <username>bu-ist-user</username>
+                  <password>
+                    <secret-redacted/>
+                  </password>
+                </com.cloudbees.plugins.credentials.impl.UsernamePasswordCredentialsImpl>
+              mode: "000644"
+              owner: jenkins
+              group: jenkins
             /var/lib/jenkins/_cfn-config/credentials.kualico.github.xml:
               content:
                 <com.cloudbees.plugins.credentials.impl.UsernamePasswordCredentialsImpl plugin="credentials@2.3.14">
@@ -1415,42 +1453,6 @@ Resources:
 
         08_add_groovy_helper_files:
           files:
-            /var/lib/jenkins/.groovy/lib/JobFields.gvy:
-              content: !Sub |
-                import java.lang.reflect.Method;
-                import org.codehaus.groovy.runtime.ReflectionMethodInvoker ;
-
-                def getHtml(className, methodName, parmName, parmMap) {
-                  try {
-                    URL[] urls = [new File("/var/lib/jenkins/.groovy/lib/kuali-jenkins-ui.jar").toURI().toURL()] as URL[];
-                    URLClassLoader loader = new URLClassLoader(urls, this.class.classLoader);
-
-                    Class parmObjClass = Class.forName("org.bu.jenkins.job.AbstractJob\$ParameterConfiguration", true, loader);
-                    Object parms = [parmName, parmMap] as Object[];
-                    Object[] parmObj = ReflectionMethodInvoker.invoke(parmObjClass, "forActiveChoicesFragmentInstance", parms);
-
-                    Class classToLoad = Class.forName(className, true, loader);
-                    Object instance = classToLoad.newInstance();
-                    return (String) ReflectionMethodInvoker.invoke(instance, methodName, parmObj);
-                  }
-                  catch(Exception e) {
-                    StringWriter sw = new StringWriter();
-                    PrintWriter pw = new PrintWriter(sw);
-                    if(e.getMessage() != null) {
-                      pw.write(e.getMessage());
-                    }
-                    pw.write("\n");
-                    e.printStackTrace(pw);
-                    return "<pre>" + sw.toString() + "</pre>";
-                  }
-                }
-
-                def getHtml(className, methodName, parmName) {
-                  return getHtml(className, methodName, parmName, new HashMap());
-                }
-              mode: "000775"
-              owner: jenkins
-              group: jenkins
             /var/lib/jenkins/.groovy/lib/*.jar:
               source: !Sub https://${TemplateBucketName}.s3.amazonaws.com/cloudformation/kuali_jenkins/*.jar
               mode: "000600"

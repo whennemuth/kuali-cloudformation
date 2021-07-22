@@ -55,13 +55,15 @@ RebootCron: 0 2 1 * ?
 
 **Reboot window:**
 Every time a resource is rebooted, it is also tagged with the date for the most recent reboot.
-To be rebooted again, 2 criteria must be satisfied
+To be rebooted again, 3 criteria must be satisfied. The first two are:
 
-1. The cron expression must indicate it is time to reboot the resource.
-2. The last time the resource was rebooted (according to the corresponding tag) must have taken place BEFORE the two most recent scheduled reboot dates (according to the reboot cron expression).
+- The cron expression must indicate it is time to reboot the resource.
+- The last time the resource was rebooted (according to the corresponding tag) must have taken place BEFORE the two most recent scheduled reboot dates (according to the reboot cron expression).
 
 From this you can see that, If for any reason, a resource with a reboot schedule had been kept shutdown during the time it would normally have been rebooted, it would be immediately rebooted after a restart. This would be redundant and confusing to the user.
-Therefore, there is a 3rd criteria added that requires that a reboot must also take place within a one hour time window of its schedule.
+Therefore, to mitigate this, there is a 3rd criteria added: 
+
+- A reboot must also take place within a one hour time window of its schedule.
 
 A demonstration of this with the shutdown edge case is diagramed below for a 1st of the month at 2AM reboot cron schedule (0 2 1 * ?) :
 
@@ -109,25 +111,22 @@ These instructions are for testing lambda code written in nodejs locally.
    ```
 
 2. **Install dependencies**
-   
+  
    ```
 cd lambda/shutdown_scheduler
    npm install
-```
+   ```
    
-*NOTE: You may want to remove the [package-lock.json](https://docs.npmjs.com/cli/v7/configuring-npm/package-lock-json) file first.*
+   *NOTE: You may want to remove the [package-lock.json](https://docs.npmjs.com/cli/v7/configuring-npm/package-lock-json) file first.*
    
-3. **Create a launch configuration**
-   To debug the lambda code as a local nodejs app, create a new or extend the existing .vscode [launch.json](https://code.visualstudio.com/docs/editor/debugging#_launchjson-attributes) file.
-   There are 3 configurations below:
+3. **Create a launch configuration**To debug the lambda code as a local nodejs app, create a new or extend the existing .vscode [launch.json](https://code.visualstudio.com/docs/editor/debugging#_launchjson-attributes) file.
+      There are 3 configurations below:
 
-   1. **Mocked**: 
-
-      The launch configuration starts in a "local_mocked" DEBUG_MODE that imports a mocked aws sdk that returns mocked AWS api call return objects. 
+   1. **Mocked:**
 
       ```
-          {
-            "env": {
+      {
+          "env": {
               "DEBUG_MODE": "local_unmocked",
               "AWS_SDK_LOAD_CONFIG": "1",
               "AWS_PROFILE": "[your profile in ~/.aws/config]",
@@ -136,46 +135,43 @@ cd lambda/shutdown_scheduler
               "TimeZoneKey": "LocalTimeZone",
               "RebootCronKey": "RebootCron",
               "LastRebootTimeKey": "LastRebootTime"
-            },
-            "cwd": "${workspaceFolder}/lambda/shutdown_scheduler",
-            "name": "Shutdown scheduler unmocked",
-            "type": "node",
-            "request": "launch",
-            "program": "debug.js"
-          }
+      	},
+          "cwd": "${workspaceFolder}/lambda/shutdown_scheduler",
+          "name": "Shutdown scheduler unmocked",
+          "type": "node",
+          "request": "launch",
+          "program": "debug.js"
+      }
       ```
 
-      
-
    2. **Unmocked**:
-
       The launch configuration starts in a "local_unmocked" DEBUG_MODE that imports the actual aws sdk, which means that the AWS api calls apply to whatever cloud account your profile indicates. Use this as a trial run before deploying somewhere like a lambda function, but keep in mind that the time zones will be different (lambda functions always run in the UTC time zone).
 
-   ```
-       {
-         "env": {
-           "DEBUG_MODE": "local_mocked",
-           [same as mocked] ...
-         },
-         [same as mocked] ...
-       } 
-   ```
+      ```
+      {
+          "env": {
+          	"DEBUG_MODE": "local_mocked",
+          	[same as mocked] ...
+          },
+          [same as mocked] ...
+      }
+      ```
 
    For the unmocked launch configuration, all resources will be ignored unless they are tagged with the following:
 
-   - LocalTimeZone
-   - StartupCron and/or ShutdownCron
+      - LocalTimeZone
+      - StartupCron and/or ShutdownCron
 
-   or...
+      or...
 
-   - LocalTimeZone
-   - RebootCron[1-10]
+      - LocalTimeZone
+      - RebootCron[1-10]
 
-   or a combination:
+      or a combination:
 
-   - LocalTimeZone
-   - StartupCron and/or ShutdownCron
-   - RebootCron[1-10]
+      - LocalTimeZone
+      - StartupCron and/or ShutdownCron
+      - RebootCron[1-10]
 
 4. **Debug**
    Put break points where they need to be and run one of the launch configurations following vscode [debugging documentation](https://code.visualstudio.com/docs/editor/debugging)

@@ -1,4 +1,4 @@
-package org.bu.jenkins;
+package org.bu.jenkins.util;
 
 import java.util.HashMap;
 import java.util.Map;

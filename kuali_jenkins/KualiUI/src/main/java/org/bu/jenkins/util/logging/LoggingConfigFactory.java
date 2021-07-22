@@ -1,4 +1,4 @@
-package org.bu.jenkins;
+package org.bu.jenkins.util.logging;
 
 import java.net.URI;
 

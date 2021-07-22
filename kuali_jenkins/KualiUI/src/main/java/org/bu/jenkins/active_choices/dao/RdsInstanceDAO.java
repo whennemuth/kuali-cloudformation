@@ -6,17 +6,14 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.TreeMap;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.EntryMessage;
 import org.bu.jenkins.AWSCredentials;
-import org.bu.jenkins.CaseInsensitiveEnvironment;
-import org.bu.jenkins.LoggingStarterImpl;
-import org.bu.jenkins.NamedArgs;
 import org.bu.jenkins.active_choices.dao.cache.BasicDAOCache.ProcessItem;
 import org.bu.jenkins.active_choices.dao.cache.BasicDAOCache.TestItem;
 import org.bu.jenkins.active_choices.dao.cache.RdsInstanceDAOCache;
@@ -24,12 +21,14 @@ import org.bu.jenkins.active_choices.model.AbstractAwsResource;
 import org.bu.jenkins.active_choices.model.Landscape;
 import org.bu.jenkins.active_choices.model.RdsInstance;
 import org.bu.jenkins.active_choices.model.RdsSnapshot;
+import org.bu.jenkins.util.CaseInsensitiveEnvironment;
+import org.bu.jenkins.util.NamedArgs;
+import org.bu.jenkins.util.logging.LoggingStarterImpl;
 
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
-import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.rds.RdsClient;
 import software.amazon.awssdk.services.rds.model.DBSnapshot;
 import software.amazon.awssdk.services.rds.model.DescribeDbSnapshotsRequest;
@@ -41,7 +40,7 @@ import software.amazon.awssdk.services.resourcegroupstaggingapi.model.ResourceTa
 import software.amazon.awssdk.services.resourcegroupstaggingapi.model.TagFilter;
 
 
-public class RdsInstanceDAO extends AbstractDAO {
+public class RdsInstanceDAO extends AbstractAwsDAO {
 
 	private Logger logger = LogManager.getLogger(RdsInstanceDAO.class.getName());
 	
@@ -125,7 +124,7 @@ public class RdsInstanceDAO extends AbstractDAO {
 					).build();
 			
 			ResourceGroupsTaggingApiClient client = ResourceGroupsTaggingApiClient.builder()
-					.region(Region.US_EAST_1)
+					.region(getRegion())
 					.credentialsProvider(provider)
 					.httpClient(ApacheHttpClient.builder().build())
 					.build();
@@ -226,7 +225,7 @@ public class RdsInstanceDAO extends AbstractDAO {
 						.build();
 				
 				RdsClient client = RdsClient.builder()
-						.region(Region.US_EAST_1)
+						.region(getRegion())
 						.credentialsProvider(provider)
 						.httpClient(ApacheHttpClient.builder().build())
 						.build();

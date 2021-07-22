@@ -1,0 +1,19 @@
+<!DOCTYPE html SYSTEM "http://www.thymeleaf.org/dtd/xhtml1-strict-thymeleaf-4.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:th="http://www.thymeleaf.org">
+
+  <body>
+  	<div th:if="${deactivate} ? false : ${include}" th:fragment="docker-images" >
+	  <div th:if="${RenderName}" style='padding-bottom:5px;'>[[${ParameterName}]]:</div>
+	  <div th:if="${RenderDescription}" style='padding-bottom:5px;'>All local docker repository images:</div>
+	  <select th:name="${ParameterName} ?: 'value'" style="width: 750px;">
+  		<option
+  			th:each="image : ${DockerImages}" 
+  			th:text="${image}" 
+  			th:value="${image}"
+  			th:selected="${SelectedImage==image}">		  		
+  		</option>
+	  </select>
+  	</div> 	
+  </body>
+</html>

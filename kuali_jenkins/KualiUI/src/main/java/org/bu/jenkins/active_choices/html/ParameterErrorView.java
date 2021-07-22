@@ -18,13 +18,22 @@ public class ParameterErrorView implements View {
 	private Logger logger = LogManager.getLogger(ParameterErrorView.class.getName());
 
 	private Exception exception;
+	private String error;
 	
-	public ParameterErrorView(Exception exception) {
-		this.exception = exception;
+	public ParameterErrorView(Object error) {
+		if(error instanceof Exception) {
+			this.exception = (Exception) error;
+		}
+		else {
+			this.error = error.toString();
+		}
 	}
 	
 	@Override
 	public String render() {
+		if(exception == null) {
+			return error;
+		}
 		EntryMessage m = logger.traceEntry("render()");
 		StringWriter sw = new StringWriter();
 		PrintWriter pw = new PrintWriter(sw);

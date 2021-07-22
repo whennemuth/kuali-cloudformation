@@ -11,10 +11,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.EntryMessage;
 import org.bu.jenkins.AWSCredentials;
-import org.bu.jenkins.CaseInsensitiveEnvironment;
-import org.bu.jenkins.LoggingStarterImpl;
-import org.bu.jenkins.NamedArgs;
-import org.bu.jenkins.SimpleHttpHandler;
 import org.bu.jenkins.active_choices.dao.RdsInstanceDAO;
 import org.bu.jenkins.active_choices.dao.RdsSnapshotDAO;
 import org.bu.jenkins.active_choices.dao.StackDAO;
@@ -27,10 +23,16 @@ import org.bu.jenkins.job.AbstractJob;
 import org.bu.jenkins.job.JobParameter;
 import org.bu.jenkins.job.JobParameterConfiguration;
 import org.bu.jenkins.job.JobParameterMetadata;
+import org.bu.jenkins.util.CaseInsensitiveEnvironment;
+import org.bu.jenkins.util.NamedArgs;
+import org.bu.jenkins.util.SimpleHttpHandler;
+import org.bu.jenkins.util.logging.LoggingStarterImpl;
 
 /**
  * This class is associated with the jenkins job used to create and delete application stacks for Kuali.
- * It is primarily concerned with generating the html behind any of the active choices parameters in that job.
+ * It is primarily concerned with generating the html behind all of the active choices parameters in that job.
+ * All fields are rendered at the same time and so the entire job is handed back as html in one go, instead
+ * of rendering a single parameter.
  * 
  * @author wrh
  *
@@ -468,25 +470,31 @@ public class StackCreateDelete extends AbstractJob {
 	public static void main(String[] args) {
 		NamedArgs namedArgs = new NamedArgs(new LoggingStarterImpl(new CaseInsensitiveEnvironment()), args);
 		AbstractJob job = new StackCreateDelete(AWSCredentials.getInstance(namedArgs));
+		final String parmNameKey = "parameter-name";
 		
-		if(namedArgs.has("parameter-name")) {
-			if(ParameterName.valueOf(namedArgs.get("parameter-name")) == null) {
-				System.out.println("No such parameter name!");
+		if(namedArgs.has(parmNameKey)) {
+			// Return an html rendering of a single job parameter field.
+			if(ParameterName.valueOf(namedArgs.get(parmNameKey)) == null) {
+				System.out.println(String.format("No such job parameter: %s", parmNameKey));
 				return;
 			}
 			new SimpleHttpHandler() {
 				@Override public String getHtml(Map<String, String> parameters) {
 					JobParameterConfiguration config = 
-							JobParameterConfiguration.forTestFragmentInstance(namedArgs.get("ParameterName"))
+							JobParameterConfiguration.getNestedFieldInstance(namedArgs.get(parmNameKey))
 							.setParameterMap(parameters);
 					return job.getRenderedParameter(config);
-				}}.visitWithBrowser(false);
+				}}
+			.setPort(namedArgs.getInt("port"))
+			.visitWithBrowser(false);
 		}
 		else {
 			new SimpleHttpHandler() {
 				@Override public String getHtml(Map<String, String> parameters) {
 					return job.getRenderedJob(parameters, true);
-				}}.visitWithBrowser(true);			
+				}}
+			.setPort(namedArgs.getInt("port"))
+			.visitWithBrowser(true);			
 		}
 	}
 }

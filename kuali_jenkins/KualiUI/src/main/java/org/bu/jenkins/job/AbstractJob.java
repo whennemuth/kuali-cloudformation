@@ -1,7 +1,5 @@
 package org.bu.jenkins.job;
 
-import java.io.PrintWriter;
-import java.io.StringWriter;
 import java.lang.reflect.Constructor;
 import java.util.Map;
 
@@ -9,59 +7,36 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.EntryMessage;
 import org.bu.jenkins.AWSCredentials;
-import org.bu.jenkins.CaseInsensitiveEnvironment;
-import org.bu.jenkins.LoggingStarterImpl;
-import org.bu.jenkins.NamedArgs;
-import org.bu.jenkins.SimpleHttpHandler;
 import org.bu.jenkins.active_choices.html.AbstractParameterView;
+import org.bu.jenkins.util.CaseInsensitiveEnvironment;
+import org.bu.jenkins.util.NamedArgs;
+import org.bu.jenkins.util.SimpleHttpHandler;
+import org.bu.jenkins.util.logging.LoggingStarterImpl;
 
 /**
- * This class provides for subclasses basic functionality for outputting the combined html associated with all
- * active choices driven fields of any given jenkins job. Subclasses must provide the implementation for the
- * html generation at the individual field level.
+ * A "Job" here is meant an entire jenkins job with all of its fields.
+ * This class provides subclasses with the basic functionality for rendering the combined html for all of those
+ * fields as a single active choices field. Included with the html is javascript and a hidden state field
+ * that assist in driving dynamic behavior and allow the individual fields to act as if they stood apart as 
+ * separate active choices fields. A subclass is specific to a certain jenkins job and what subclasses implement 
+ * is particular html generation of each field for that job.
  *  
  * @author wrh
  *
  */
-public abstract class AbstractJob {
+public abstract class AbstractJob extends AbstractParameterSet {
 	
-	private Logger logger = LogManager.getLogger(AbstractJob.class.getName());
-
-	protected AWSCredentials credentials = AWSCredentials.getInstance();
-	protected String ajaxHost;
+	Logger logger = LogManager.getLogger(AbstractJob.class.getName());
 
 	public AbstractJob() {
 		super();
 	}
 
-	public abstract String getRenderedParameter(JobParameterConfiguration configuration);
-	
 	public abstract String getJobName();
-	
-	public abstract JobParameterMetadata[] getJobParameterMetadata();
-	
-	public abstract void checkJobParameterConfig(JobParameterConfiguration config);
 	
 	public abstract boolean isPageRefresh(Map<String, String> parameters);
 	
 	public abstract void flushCache();
-	
-	public String getAjaxHost() {
-		return ajaxHost;
-	}
-
-	public void setAjaxHost(String ajaxHost) {
-		this.ajaxHost = ajaxHost;
-	}
-
-	public JobParameterMetadata getParameterMetadata(String parmName) {
-		for(JobParameterMetadata meta: getJobParameterMetadata()) {
-			if(meta.toString().equalsIgnoreCase(parmName)) {
-				return meta;
-			}
-		}
-		return null;
-	}
 	
 	/**
 	 * In a jenkins job, the active choices parameters will be rendered individually. However, to get a view of what the 
@@ -90,7 +65,7 @@ public abstract class AbstractJob {
 			// Add the html of each parameter to the output one by one.
 			for (JobParameterMetadata fieldMeta : getJobParameterMetadata()) {
 				String parmName = fieldMeta.toString();
-				JobParameterConfiguration config = JobParameterConfiguration.forTestFragmentInstance(parmName);
+				JobParameterConfiguration config = JobParameterConfiguration.getNestedFieldInstance(parmName);
 				config.setParameterMap(parameters);
 				checkJobParameterConfig(config);
 				html.append(getRenderedParameter(config));
@@ -137,7 +112,7 @@ public abstract class AbstractJob {
 		logger.traceExit(m, retval==null ? "null" : retval.length());
 		return retval;
 	}
-	
+
 	protected String getCssView() {
 		EntryMessage m = logger.traceEntry("getCssView()");
 		AbstractParameterView cssView = new AbstractParameterView() {
@@ -150,49 +125,7 @@ public abstract class AbstractJob {
 		logger.traceExit(m, retval==null ? "null" : retval.length());
 		return retval;
 	}
-	
-	/**
-	 * Get a parameterView with the "boilerplate" fields set.
-	 * @param config
-	 * @return
-	 */
-	protected AbstractParameterView getSparseParameterView(JobParameterConfiguration config, String resolverPrefix) throws Exception {
-		EntryMessage m = logger.traceEntry(
-				"getSparseParameterView(config.getParameterName()={}, resolverPrefix={})", 
-				config==null ? "null" : config.getParameterName(), 
-				resolverPrefix);
-		JobParameterMetadata parameter = getParameterMetadata(config.getParameterName());
-		AbstractParameterView parameterView = new AbstractParameterView() {
-			@Override public String getResolverPrefix() {
-				return resolverPrefix;
-			} 
-		}
-		.setViewName(parameter.getViewName())
-		.setTemplateSelector(parameter.getTemplateSelector())
-		.setAsFullWebPage( ! config.isFragment());
-			
-		if(config.getParameterMap().containsKey(parameter.toString())) {
-			String value = config.getParameterMap().get(parameter.toString());
-			parameterView.setContextVariable("ParameterValue", value);
-		}
-		if( ! config.isActiveChoices()) {
-			parameterView.setContextVariable("ParameterName", parameter.toString());
-		}
-		logger.traceExit(m, parameterView.getViewName());
-		return parameterView;
-	}
 
-	public static String stackTraceToHTML(Exception e) {
-        StringWriter sw = new StringWriter();
-        PrintWriter pw = new PrintWriter(sw);
-        if(e.getMessage() != null) {
-          pw.write(e.getMessage());
-        }
-        pw.write("\n");
-        e.printStackTrace(pw);
-        return "<pre>" + sw.toString() + "</pre>";
-	}
-	
 	public static void main(String[] args) throws Exception {
 		NamedArgs namedArgs = new NamedArgs(new LoggingStarterImpl(new CaseInsensitiveEnvironment()), args);
 		
@@ -201,6 +134,8 @@ public abstract class AbstractJob {
 			Constructor<?> constructor = jobclass.getConstructor(AWSCredentials.class);
 			AbstractJob job = (AbstractJob) constructor.newInstance(AWSCredentials.getInstance(namedArgs));
 			job.setAjaxHost(namedArgs.get("ajax-host", "127.0.0.1"));
+			
+			
 			new SimpleHttpHandler() {
 				@Override public String getHtml(Map<String, String> parameters) {
 					try {
@@ -215,7 +150,10 @@ public abstract class AbstractJob {
 						e.printStackTrace(System.out);
 						return stackTraceToHTML(e);
 					}
-				}}.start();
+				}}
+			.setPort(namedArgs.getInt("port"))
+			.start();
+			
 			System.out.println(namedArgs.get("job-class") + " job server started.");	
 		}
 		else {

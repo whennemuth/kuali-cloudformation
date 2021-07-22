@@ -1,4 +1,4 @@
-package org.bu.jenkins;
+package org.bu.jenkins.util;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -6,13 +6,16 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.EntryMessage;
+import org.bu.jenkins.util.logging.LoggingStarterImpl;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
@@ -31,9 +34,11 @@ import com.sun.net.httpserver.HttpServer;
 public abstract class SimpleHttpHandler implements HttpHandler {
 	
 	private Logger logger = LogManager.getLogger(SimpleHttpHandler.class.getName());
-
+	
+	private Integer port;
 	private HttpServer server;
 	private ThreadPoolExecutor threadPoolExecutor;
+	private boolean browserRoundTripCompleted;
 	private static final String CONTEXT = "/active-choices";
 	private static final int DEFAULT_PORT = 8001;
 	
@@ -44,6 +49,16 @@ public abstract class SimpleHttpHandler implements HttpHandler {
 	
 	public abstract String getHtml(Map<String, String> parameters);
 	
+	
+	
+	public Integer getPort() {
+		return port == null ? DEFAULT_PORT : port;
+	}
+	public SimpleHttpHandler setPort(Integer port) {
+		this.port = port;
+		return this;
+	}
+
 	@Override
 	public void handle(HttpExchange exchange) throws IOException {
 		EntryMessage m = logger.traceEntry("handle(exchange.getRequestURI()={}", exchange.getRequestURI().toString());
@@ -112,6 +127,7 @@ public abstract class SimpleHttpHandler implements HttpHandler {
 			outputStream.write(html.getBytes());
 			outputStream.flush();
 			outputStream.close();
+			browserRoundTripCompleted = true;
 		} 
 		catch (IOException e) {
 			e.printStackTrace(System.out);
@@ -124,13 +140,13 @@ public abstract class SimpleHttpHandler implements HttpHandler {
 		logger.info("Begin server startup...");
 		try {
 			if(isWindows()) {
-				logger.info("Creating server as 127.0.0.1 on port " + String.valueOf(DEFAULT_PORT));
+				logger.info("Creating server as 127.0.0.1 on port " + String.valueOf(getPort()));
 				// Avoids bind issues, but won't work in a docker container because it does not refer to the bridge network
-				server = HttpServer.create(new InetSocketAddress("127.0.0.1", DEFAULT_PORT), 0);
+				server = HttpServer.create(new InetSocketAddress("127.0.0.1", getPort()), 0);
 			}
 			else {
-				logger.info("Creating server on port " + String.valueOf(DEFAULT_PORT));
-				server = HttpServer.create(new InetSocketAddress(DEFAULT_PORT), 0);
+				logger.info("Creating server on port " + String.valueOf(getPort()));
+				server = HttpServer.create(new InetSocketAddress(getPort()), 0);
 			}
 			server.createContext(CONTEXT, this);
 			threadPoolExecutor = (ThreadPoolExecutor)Executors.newFixedThreadPool(10);
@@ -149,11 +165,31 @@ public abstract class SimpleHttpHandler implements HttpHandler {
 	}
 	
 	public void visitWithBrowser(boolean keepRunning) {
+		visitWithBrowser(keepRunning, new HashMap<String, String>());
+	}
+		
+	public void visitWithBrowser(boolean keepRunning, Map<String, String> requestParms) {
 		try {
 			start();
-			Runtime.getRuntime().exec(new String[]{"cmd", "/c", "start chrome http://127.0.0.1:" + String.valueOf(DEFAULT_PORT) + CONTEXT});
+			StringBuilder url = new StringBuilder("http://127.0.0.1:" + String.valueOf(getPort()) + CONTEXT);
+			if( ! requestParms.isEmpty()) {
+				url.append("?");
+				for (Iterator<Entry<String, String>> iterator = requestParms.entrySet().iterator(); iterator.hasNext();) {
+					Entry<String, String> entry = iterator.next();
+					url.append(entry.getKey()).append("=").append(entry.getValue());
+					if(iterator.hasNext()) {
+						// for cmd, "&" is a special character, so it must be escaped with "^"
+						url.append("^&");
+					}
+				}				
+			}
+			String command = String.format("start chrome %s", url.toString());
+			Runtime.getRuntime().exec(new String[]{ "cmd", "/c", command});
 			if( ! keepRunning) {
-				Thread.sleep(2000);
+				while( ! browserRoundTripCompleted) {
+					Thread.sleep(2000);
+				}
+				logger.info("Browser roundtrip complete, stopping server.");
 				server.stop(5);
 				threadPoolExecutor.shutdown();
 			}

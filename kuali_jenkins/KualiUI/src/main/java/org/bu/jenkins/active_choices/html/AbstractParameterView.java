@@ -8,7 +8,7 @@ import java.util.Map;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.EntryMessage;
-import org.bu.jenkins.SimpleHttpHandler;
+import org.bu.jenkins.util.SimpleHttpHandler;
 import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
 import org.thymeleaf.templatemode.TemplateMode;
@@ -17,7 +17,7 @@ import org.thymeleaf.templateresolver.ClassLoaderTemplateResolver;
 /**
  * An abstract parameter view containing common functionality and fields.
  * Subclasses provide custom view details like template name and location as well as names of relevant template fragments.
- * A default implemetation of the render function is provided that should accomodate most subclasses.
+ * A default implemetation of the render function is provided that should accommodate most subclasses.
  * 
  * @author wrh
  *

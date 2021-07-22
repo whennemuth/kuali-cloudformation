@@ -2,13 +2,13 @@
 
 ##############################################################################################
 # Some jenkins jobs have active choices parameters fields that get their html content from http
-# calls to a docker container running on the jenkins server. That container is running with this
+# calls to a docker container running on the jenkins host. That container is running with this
 # java maven application, including a simple Http handler.
-# In order to get a docker container running on the jenkins server, use this script to:
+# In order to get a docker container running on the jenkins host, use this script to:
 #  1) Build the docker image
 #  2) Push the docker image up to a docker registry
-#  3) Issue a command to the maven server to flush any existing containers, delete the existing
-#     image, and run the containes again (which will pull the new image from the registry)
+#  3) Issue a command to the jenkins host to flush any existing containers, delete the existing
+#     image, and run the containers again (which will pull the new image from the registry)
 ##############################################################################################
 
 source ../../scripts/common-functions.sh
@@ -50,7 +50,7 @@ run() {
     --rm \
     --name active-choices-server \
     -p 8001:8001 \
-    # -v //c/Users/wrh/.aws:/root/.aws \
+    -v //c/Users/wrh/.aws:/root/.aws \
     kuali-jenkins-http-server \
     $@
 }
@@ -97,4 +97,6 @@ case "$task" in
     ;;
 esac
 
-# Example: sh docker.sh all password=[dockerhub password] logging_level=TRACE
+# Example: 
+# export AWS_PROFILE=[profile]
+# sh docker.sh all password=[dockerhub password] logging_level=TRACE

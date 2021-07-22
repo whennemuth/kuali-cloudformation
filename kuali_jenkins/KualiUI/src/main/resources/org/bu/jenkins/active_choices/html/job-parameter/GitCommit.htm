@@ -1,0 +1,18 @@
+<!DOCTYPE html SYSTEM "http://www.thymeleaf.org/dtd/xhtml1-strict-thymeleaf-4.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:th="http://www.thymeleaf.org">
+
+  <body>
+  	<div th:if="${deactivate} ? false : ${include}" th:fragment="git-commit" >
+	  <div th:if="${RenderName}" style='padding-bottom:5px;'>[[${ParameterName}]]:</div>
+	  <div th:if="${RenderDescription}" style='padding-bottom:5px;'>This is the git commit ID that the build will be based on:</div>
+	  <input 
+	  	type=text 
+	  	th:name="${ParameterName} ?: 'value'" 
+	  	th:value="${GitCommit}" 
+	  	th:readonly="true"
+	  	style="width: 400px;" 
+	  />
+  	</div> 	
+  </body>
+</html>

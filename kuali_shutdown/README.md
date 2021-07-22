@@ -14,6 +14,13 @@ Once having gathered the list of resources, the lambda will analyze the schedule
 
 ![lambda](../lambda/shutdown_scheduler/lambda.png)
 
+
+
+### Node Application & Examples:
+
+The lambda function is based on javascript written as a small [NodeJS](https://nodejs.org/en/) application.
+SEE: [Shutdown Scheduler](../lambda/shutdown_scheduler)
+
 ### Prerequisites:
 
 - **AWS CLI:** 
@@ -25,8 +32,7 @@ Once having gathered the list of resources, the lambda will analyze the schedule
   You will need the ability to run bash scripts. Natively, you can do this on a mac, though there may be some minor syntax/version differences that will prevent the scripts from working correctly. In that event, or if running windows, you can either:
   - Clone the repo on a linux box (ie: an ec2 instance), install the other prerequisites and run there.
   - Download [gitbash](https://git-scm.com/downloads)
-
-
+       
 
 ### Steps:
 
@@ -131,13 +137,15 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
 
 **Reboot window:**
 Every time a resource is rebooted, it is also tagged with the date for the most recent reboot.
-To be rebooted again, 2 criteria must be satisfied
+To be rebooted again, 3 criteria must be satisfied. The first two are:
 
-1. The cron expression must indicate it is time to reboot the resource.
-2. The last time the resource was rebooted (according to the corresponding tag) must have taken place BEFORE the two most recent scheduled reboot dates (according to the reboot cron expression).
+- The cron expression must indicate it is time to reboot the resource.
+- The last time the resource was rebooted (according to the corresponding tag) must have taken place BEFORE the two most recent scheduled reboot dates (according to the reboot cron expression).
 
 From this you can see that, If for any reason, a resource with a reboot schedule had been kept shutdown during the time it would normally have been rebooted, it would be immediately rebooted after a restart. This would be redundant and confusing to the user.
-Therefore, there is a 3rd criteria added that requires that a reboot must also take place within a one hour time window of its schedule.
+Therefore, to mitigate this, there is a 3rd criteria added: 
+
+- A reboot must also take place within a one hour time window of its schedule.
 
 A demonstration of this with the shutdown edge case is diagramed below for a 1st of the month at 2AM reboot cron schedule (0 2 1 * ?) :
 

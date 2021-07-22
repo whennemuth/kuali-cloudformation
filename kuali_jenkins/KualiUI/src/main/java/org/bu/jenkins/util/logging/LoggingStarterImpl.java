@@ -1,10 +1,12 @@
-package org.bu.jenkins;
+package org.bu.jenkins.util.logging;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.config.ConfigurationFactory;
 import org.apache.logging.log4j.message.EntryMessage;
+import org.bu.jenkins.util.Environment;
+import org.bu.jenkins.util.NamedArgs;
 
 /**
  * Configure log4j with a custom ConfigurationFactory that sets a logging level indicated by 
@@ -36,15 +38,15 @@ public class LoggingStarterImpl implements LoggingStarter {
 		super();
 		System.out.println(String.format("LoggingStarterImpl(env=%s)", env==null ? "null" : env.hashCode()));
 		if(env.containsKey(LOGGING_LEVEL_KEY)) {
-			loggingLevel = Level.getLevel(env.get(LOGGING_LEVEL_KEY));
+			loggingLevel = Level.getLevel(env.get(LOGGING_LEVEL_KEY).toUpperCase());
 		}
 	}
-
+	
 	@Override
 	public void start(NamedArgs namedArgs) {
 		System.out.println(String.format("LoggingStarterImpl(env=%s)", namedArgs==null ? "null" : namedArgs.hashCode()));
 		if(namedArgs != null && namedArgs.has(LOGGING_LEVEL_KEY)) {
-			loggingLevel = Level.getLevel(namedArgs.get(LOGGING_LEVEL_KEY));
+			loggingLevel = Level.getLevel(namedArgs.get(LOGGING_LEVEL_KEY).toUpperCase());
 		}
 		ConfigurationFactory.setConfigurationFactory(new LoggingConfigFactory(loggingLevel));
 	}

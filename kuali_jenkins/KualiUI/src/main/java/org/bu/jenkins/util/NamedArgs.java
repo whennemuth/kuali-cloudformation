@@ -1,9 +1,11 @@
-package org.bu.jenkins;
+package org.bu.jenkins.util;
 
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+
+import org.bu.jenkins.util.logging.LoggingStarter;
 
 /**
  * Utility class for organizing java arguments into mapped name/value pairs.
@@ -36,7 +38,9 @@ public class NamedArgs {
 				unamedArgs.add(parts[0]);
 			}
 		}
-		loggingStarter.start(this);
+		if(loggingStarter != null) {
+			loggingStarter.start(this);
+		}
 	}
 	
 	public NamedArgs set(String key, String value) {
@@ -58,10 +62,38 @@ public class NamedArgs {
 		return value;
 	}
 	
+	public Map<String, String> getAllNamed() {
+		return namedArgs;
+	}
+	
+	/**
+	 * Get a reduced map from namedArgs that excludes original entries whose keys are not specified in the provided key array.
+	 * 
+	 * @param keys
+	 * @return
+	 */
+	public Map<String, String> getAllNamed(String[] keys) {
+		Map<String, String> filtered = new HashMap<String, String>();
+		if(keys == null || keys.length == 0) {
+			return filtered;
+		}
+		for(String key : keys) {
+			if(namedArgs.containsKey(key)) {
+				filtered.put(key, namedArgs.get(key));
+			}
+		}
+		return filtered;
+	}
+	
 	public Integer getInt(String key) {
 		if(key == null)
 			return null;
-		return Integer.valueOf(get(key));
+		try {
+			return Integer.valueOf(get(key));
+		} 
+		catch (NumberFormatException e) {
+			return null;
+		}
 	}
 	
 	public Boolean getBoolean(String key) {

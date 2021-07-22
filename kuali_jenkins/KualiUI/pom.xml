@@ -103,6 +103,14 @@
 	  </dependency>
 	  <dependency>
 	     <groupId>software.amazon.awssdk</groupId>
+	     <artifactId>sts</artifactId>
+	  </dependency>
+	  <dependency>
+	     <groupId>software.amazon.awssdk</groupId>
+	     <artifactId>ecr</artifactId>
+	  </dependency>
+	  <dependency>
+	     <groupId>software.amazon.awssdk</groupId>
 	     <artifactId>cloudformation</artifactId>
 	  </dependency>
 	  <dependency>

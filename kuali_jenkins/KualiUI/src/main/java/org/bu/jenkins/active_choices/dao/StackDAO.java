@@ -10,11 +10,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.EntryMessage;
 import org.bu.jenkins.AWSCredentials;
-import org.bu.jenkins.CaseInsensitiveEnvironment;
-import org.bu.jenkins.LoggingStarterImpl;
-import org.bu.jenkins.NamedArgs;
 import org.bu.jenkins.active_choices.dao.cache.BasicDAOCache;
 import org.bu.jenkins.active_choices.dao.cache.StackDAOCache;
+import org.bu.jenkins.util.CaseInsensitiveEnvironment;
+import org.bu.jenkins.util.NamedArgs;
+import org.bu.jenkins.util.logging.LoggingStarterImpl;
 
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.awscore.exception.AwsServiceException;
@@ -37,7 +37,7 @@ import software.amazon.awssdk.services.cloudformation.model.Tag;
  * @author wrh
  *
  */
-public class StackDAO extends AbstractDAO {
+public class StackDAO extends AbstractAwsDAO {
 	
 	private Logger logger = LogManager.getLogger(StackDAO.class.getName());
 	
@@ -53,7 +53,7 @@ public class StackDAO extends AbstractDAO {
 	
 	private CloudFormationClient getClient() {
 		return CloudFormationClient.builder()
-				.region(Region.US_EAST_1)
+				.region(getRegion())
 				.credentialsProvider(provider)
 				.httpClient(ApacheHttpClient.builder().build())
 				.build();
