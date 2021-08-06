@@ -1,0 +1,25 @@
+<!DOCTYPE html SYSTEM "http://www.thymeleaf.org/dtd/xhtml1-strict-thymeleaf-4.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:th="http://www.thymeleaf.org">
+
+  <body>
+  	<div th:if="${deactivate} ? false : ${include}" th:fragment="release-info" >
+		<div style="padding-left:20px">
+		Details
+		<br>
+		<pre style="width: 600px; background-color:#ebe0e0; padding:10px; border:1px solid black; margin:5px;" name="value">
+DOCKER REGISTRY:
+(deploying from the following docker registry URI): 
+
+    [[${AccountId}]].dkr.ecr.us-east-1.amazonaws.com/[[${repo}]]:[[${version}]]
+
+GIT COMMIT
+(Assumes the above docker image was built on the current HEAD  
+ of the master branch):
+
+    [[${GitCommit}]]
+		</pre>
+		</div>
+  	</div> 	
+  </body>
+</html>		

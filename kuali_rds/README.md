@@ -45,6 +45,7 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
      This allows for one stack per environment in the same account.
    - The multi_az parameter defaults to true, so you must explicitly indicate false if you only want a single rds instance.
      **Important:** *Multi-AZ deployments are not a read scaling solution, you cannot use a standby replica to serve read traffic. The standby is only there for failover.*
+   - **DNS:** If you are recreating the stack and want to avoid the hassle of having end users update the database host with the new RDS endpoint value, include a `"USING_ROUTE53=true"` parameter. The database will be reachable at `[landscape].kuali.research.bu.edu`. End users can retain that hostname in their connection string and retain access even though the RDS database is new and has a different endpoint value.
    
    You will always be presented with the final cli stack creation command so that you can look at all the parameters it contains and will have the option to abort. Saves fear of guesswork. Those parameters you don't see can be located in the yaml template for the default value.
    
@@ -55,8 +56,8 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
    # Example 2) Same as above, but specifying environment. Recommended for sb, ci and qa landscapes.
    sh main.sh create-stack profile=default landscape=ci
    
-   # Example 3) Recommended for prod (and possibly stg). Is Multi_az, and larger than default instance size.
-   sh main.sh create-stack profile=default landscape=prod db_instance_class=db.m5.xlarge multi_az=true
+   # Example 3) Recommended for prod (and possibly stg). Is Multi_az, and larger than default instance size, and DNS.
+   sh main.sh create-stack profile=default landscape=prod using_route53=true db_instance_class=db.m5.xlarge multi_az=true
    
    # Example 4) Create a new rds instance based on a snapshot of another rds instance.
    sh main.sh create-stack profile=default landscape=mylandscape rds_snapshot_arn=arn:aws:rds:us-east-1:770203350335:snapshot:rds:kuali-oracle-stg-2021-04-09-22-14

@@ -66,7 +66,7 @@ Instructions: [Kuali secrets stack creation](../../../kuali_secrets/README.md)
 
    ```
    cd kuali_rds/migration/dms
-   sh main.sh create-stack profile=default landscape=ci replication_instance_class=dms.r4.2xlarge
+   sh main.sh create-stack profile=default landscape=ci replication_instance_class=dms.r4.xlarge
    
    # Or if updating the stack to increase the instance class:
    sh main.sh update-stack profile=default landscape=ci replication_instance_class=dms.r4.2xlarge
@@ -87,7 +87,7 @@ The default migration type is "full-load", but you can override this with one of
    cd kuali_rds/migration/dms
    sh main.sh create-stack profile=default landscape=ci migration_type=full-load-and-cdc
    
-   # Or if updating the stack to increase the instance class:
+   # Or if updating the stack to change the migration_type:
    sh main.sh update-stack profile=default landscape=ci migration_type=full-load-and-cdc
    ```
    
@@ -117,7 +117,6 @@ In the case of a kuali migration, the source database is hosted on an ec2 instan
    
    Once this has been done, the Pre-Migration Assessment should pass its connectivity tests.
    
-   
 4. **Pre-Migration Assessment:**
    This step involves using helper scripts to invoke a [Premigration Assessment](https://aws.amazon.com/about-aws/whats-new/2020/07/aws-database-migration-service-now-supports-enhanced-premigration-assessments/). This will trigger:
 
@@ -132,7 +131,6 @@ In the case of a kuali migration, the source database is hosted on an ec2 instan
 
    Once triggered, you can wait for the output to indicate results and/or log into the [AWS Console for DMS tasks](https://console.aws.amazon.com/dms/v2/home?region=us-east-1#tasks) and watch the progress of the assessment.
    
-
 5. **Migrate the data:**
    You can either start a migration from the [AWS Console for DMS tasks](https://console.aws.amazon.com/dms/v2/home?region=us-east-1#tasks) by clicking on the task and selecting `"Actions > Restart/Resume"` or, use a helper script:
 
@@ -155,9 +153,11 @@ In the case of a kuali migration, the source database is hosted on an ec2 instan
 
    See: [StartReplicationTask - StartReplicationTaskType](https://docs.aws.amazon.com/dms/latest/APIReference/API_StartReplicationTask.html#DMS-StartReplicationTask-request-StartReplicationTaskType)   
    
-
 6. **Monitor stack progress:**
    Go to the stack in the [AWS Console](https://console.aws.amazon.com/cloudformation/home?region=us-east-1). Click on the new stack in the list and go to the "Events" tab.
    Watch for failures (these will show up in red).
 
-7. 
+7. ```
+   ALTER USER user_name IDENTIFIED BY new_password;
+   ```
+

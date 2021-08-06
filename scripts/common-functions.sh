@@ -2203,3 +2203,7 @@ maskString() {
   [ -z "$mask" ] && mask="[empty]"
   echo "$mask"
 }
+
+ecrGetLoginDeprecated() {
+  [ "$(aws ecr help | grep 'get-login' | grep -o 'password')" == 'password' ] && true || false
+}

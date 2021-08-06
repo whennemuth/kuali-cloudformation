@@ -32,20 +32,22 @@ run() {
   task="${1,,}"
   shift
 
-  if ! isBuCloudInfAccount ; then
-    LEGACY_ACCOUNT='true'
-    [ "$task" != 'get-password' ] && echo 'Current profile indicates legacy account.'
-    defaults['TEMPLATE_BUCKET_PATH']='s3://kuali-research-ec2-setup/cloudformation/kuali_rds/migration/dms'
+  if [ "$task" == 'get-password' ] ; then
+    # Operate silently so that only the desired content shows up without the extra console output.
+    parseArgs $@ 1> /dev/null
+
+    checkLegacyAccount 1> /dev/null
+
+    setDefaults 1> /dev/null
+
+  elif [ "$task" != "test" ] ; then
+
+    parseArgs $@
+
+    checkLegacyAccount
+
+    setDefaults
   fi
-
-  if [ "$task" == "test" ] || [ "$task" == 'get-password' ] ; then
-    SILENT='true'
-    [ -z "$PROFILE" ] && [ -z "$AWS_PROFILE" ] && PROFILE='default'
-  fi
-
-  parseArgs $@
-
-  setDefaults
 
   runTask $@
 }
@@ -137,6 +139,24 @@ EOF
     add_parameter $cmdfile 'TargetDbServerName' 'TARGET_DB_SERVER_NAME'
 
     echo "      ]'" >> $cmdfile
+
+    # The expected service roles for dms must each have a specific name. Therefore, they cannot be created specifically for the
+    # stack. They must therefore only be part of stack creation if a lookup does not find them by the specified names and also
+    # the deletion policy on the role resources must be "Retain"
+    # SEE: https://docs.aws.amazon.com/dms/latest/userguide/CHAP_Security.html
+    # and: https://docs.aws.amazon.com/dms/latest/userguide/CHAP_Tasks.AssessmentReport2.html
+    for rolename in "dms-vpc-role" "dms-cloudwatch-logs-role" "dms-access-for-tasks" ; do
+      local match="$(aws --profile=legacy iam list-roles --output text --query 'Roles[?RoleName==`'$rolename'`].RoleName')"
+      if [ "$match" == $rolename ] ; then
+        echo "Required role: \"$rolename\" already exists and will not be part of stack creation"
+      else
+        echo "Required role: \"$rolename\" does not exist and will be part of stack creation"
+        add_parameter $cmdfile 'CreateDmsVpcRole' 'true'
+        add_parameter $cmdfile 'CreateDmsCloudwatchLogsRole' 'true'
+        add_parameter $cmdfile 'CreateDmsAccessForTasksRole' 'true'
+      fi
+    done
+    # [ "$(aws --profile=legacy iam list-roles --output text --query 'Roles[?RoleName==`dms-vpc-role`].RoleName')" == 'dms-vpc-role' ] && echo 'exists' || echo 'not found'
 
     runStackActionCommand
 

@@ -5,7 +5,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import org.bu.jenkins.job.AbstractJob;
-import org.bu.jenkins.job.parameter.CommonParameter;
+import org.bu.jenkins.mvc.controller.kuali.parameter.ParameterController;
 import org.bu.jenkins.util.CaseInsensitiveEnvironment;
 import org.bu.jenkins.util.NamedArgs;
 import org.bu.jenkins.util.logging.LoggingStarterImpl;
@@ -21,7 +21,7 @@ public class EntryPoint {
 		}
 		else {
 			args = checkPort(args, 8002);
-			CommonParameter.main(args);
+			ParameterController.main(args);
 		}
 	}
 	

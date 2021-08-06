@@ -1,0 +1,192 @@
+<!DOCTYPE html SYSTEM "http://www.thymeleaf.org/dtd/xhtml1-strict-thymeleaf-4.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:th="http://www.thymeleaf.org">
+
+  <body>
+  	<div th:if="${deactivate} ? false : ${include}" th:fragment="release-info-pdf" >
+
+		<div th:if="${update} != true" style="font-size:14px;font-family:verdana;">
+			<table cellpadding="5">
+				<tbody>
+					<tr>
+						<td><b>Using docker image already in our ecr repository</b>
+							<br>
+							<ol>
+								<li>Select a research-pdf docker image by version from the picklist below<br>&nbsp;</li>
+								<li>
+									The AWS ec2 application host server(s) will be issued a command 
+									<br>
+									to pull that image from ecr whose version is selected here <br>and restart containers from it.
+								</li>
+							</ol>
+						</td>
+					</tr>
+					<tr>
+						<th align="left">BU ecr images</th>
+					</tr>
+					<tr>
+						<td>
+							<select name="value" style="width:150px;font-family:monospace;">
+						     <option 
+						     	th:each="image : ${buImages}" 
+						     	th:text="${image.imageTag()}"
+						     	th:value="${image.imageTag()}">
+						     </option>
+							</select>
+						</td>
+					</tr>
+				</tbody>
+			</table>
+		</div>
+
+		<div th:if="${update} == true" style="font-size:14px;font-family:verdana;">
+			<table cellpadding="5">
+				<tbody>
+					<tr>
+						<td colspan="2">
+							<b>You have chosen to get a new docker image from kualico</b>
+							<br>
+							<ol>
+								<li>
+									The image selected from the picklist on the right will be downloaded 
+									<br>
+									from the kualico dockerhub account<br>&nbsp;
+								</li>
+								<li>The downloaded image will be tagged and uploaded to our AWS ecr registry<br>&nbsp;</li>
+								<li>
+									The AWS ec2 application host server(s) will be issued a command 
+									<br>
+									to pull the image from ecr and restart containers from it.
+								</li>
+							</ol>
+						</td>
+					</tr>
+					<tr>
+						<th>BU ecr images</th>
+						<th>Kualico images</th>
+					</tr>
+					<tr>
+						<td>
+							<select name="value" style="width:150px;font-family:monospace;">
+						     <option 
+						     	th:each="image : ${buImages}" 
+						     	th:text="${image.imageTag()}"
+						     	th:value="${image.imageTag()}">
+						     </option>
+							</select>
+						</td>
+						<td>
+							<select name="value" style="width:400px;font-family:monospace;">
+						     <option 
+						     	th:each="image : ${kualicoImages}" 
+						     	th:text="${image}"
+						     	th:value="${image}">
+						     </option>
+							</select>
+						</td>
+					</tr>
+				</tbody>
+			</table>
+		</div>
+  	
+  	</div> 	
+  </body>
+</html>
+
+<!--
+// EQUIVALENT GROOVY SCRIPT:
+import jenkins.*
+import jenkins.model.* 
+import hudson.*
+import hudson.model.*
+def jenkinsCredentials = com.cloudbees.plugins.credentials.CredentialsProvider.lookupCredentials(
+        com.cloudbees.plugins.credentials.Credentials.class,
+        Jenkins.instance,
+        null,
+        null
+);
+
+def sb = new StringBuilder("<div style='font-size:14px;font-family:verdana;'>")
+if(UPDATE_IMAGE.length() > 1) {
+        sb.append("<table cellspadding=5><tr><td colspan=2>")
+        sb.append("<b>You have chosen to get a new docker image from kualico</b><br>")
+        sb.append("<ol>")
+        sb.append("<li>The image selected from the picklist on the right will be downloaded <br>from the kualico dockerhub account<br>&nbsp;</li>")
+        sb.append("<li>The downloaded image will be tagged and uploaded to our AWS ecr registry<br>&nbsp;</li>")
+        sb.append("<li>The AWS ec2 application host server(s) will be issued a command <br>to pull the image from ecr and restart containers from it.</li>")
+        sb.append("</ol>")
+        sb.append("</td></tr><tr>")
+        sb.append("<th>BU ecr images</th><th>Kualico images</th></tr>")
+}
+else {
+        sb.append("<table cellpadding=5><tr><td>")
+        sb.append("<b>Using docker image already in our ecr repository</b><br>")
+        sb.append("<ol>")
+        sb.append("<li>Select a research-pdf docker image by version from the picklist below<br>&nbsp;</li>")
+        sb.append("<li>The AWS ec2 application host server(s) will be issued a command <br>to pull that image from ecr whose version is selected here <br>and restart containers from it.</li>")
+        sb.append("</ol>")
+        sb.append("</td></tr><tr>")
+        sb.append("<th align='left'>BU ecr images</th></tr>")
+}
+sb.append("<tr><td>")
+
+// Create the picklist for ECR images
+sb.append("<select name='value' style='width:150px;font-family:monospace;'>")
+def ecrCmd = "aws ecr list-images --registry-id 770203350335 --repository-name kuali-research-pdf | jq '.imageIds[].imageTag' | sed 's/\"//g'"
+def ecrCmdArr = [ "sh", "-c", ecrCmd ]
+def ecrCmdProcess = new ProcessBuilder(ecrCmdArr).start()
+ecrCmdProcess.inputStream.eachLine {
+   // IMPORTANT: Make sure the value attribute is padded at the end with a space
+   sb.append("<option value='${it} '>${it}</option>")
+}
+ecrCmdProcess.waitFor()
+sb.append("</select>")
+
+// If indicated, create the picklist for kuali registry images
+if(UPDATE_IMAGE.length() > 1) {
+        sb.append("<td>")
+
+        // Get the github personal access token
+        def token = "unknown"
+        def username = "unknown"
+        def password = "unknown"
+        for (creds in jenkinsCredentials) {
+            if ( "credentials.bu.github.token".equals(creds.id)) {
+                token = creds.secret
+                break;
+            }
+            else if( "credentials.kualico.dockerhub".equals(creds.id)) {
+                username = creds.username
+                password = creds.password
+            }
+        }
+
+        // Get the raw content of the dockerhub.sh file using the token and execute it. Output will be a list of docker images.
+        def cmd = 
+              "curl" +
+              "  -H 'Authorization: token ${token}'" +
+              "  -L https://api.github.com/repos/bu-ist/kuali-research-docker/contents/dockerhub.sh" +
+              "  | jq '.content'" +
+              "  | sed 's/\\\\n//g'" + 
+              "  | sed 's/\"//g'" + 
+              "  | base64 --decode | bash -s '${username}' '${password}' 'research-pdf' 'kuali'"
+        
+        def cmdarr = [ "sh", "-c", cmd ]
+        def process = new ProcessBuilder(cmdarr).start()
+        process.waitFor();
+        
+        // Output the list of docker images to a listbox
+        sb.append("<select name='value' style='width:400px;font-family:monospace;'>")
+        process.inputStream.eachLine {
+            if( ! "${it}".endsWith(":latest")) {
+                sb.append("<option value='").append("${it}").append("'>").append("${it}").append("</option>")
+            }
+        }
+        process.waitFor();
+        sb.append("</select>")
+        sb.append("</td>")
+}
+
+sb.append("</tr></table><div>")
+return sb.toString()
+ -->	  	

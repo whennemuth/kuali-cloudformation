@@ -5,11 +5,12 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.bu.jenkins.active_choices.dao.RdsInstanceDAO;
-import org.bu.jenkins.active_choices.dao.StackDAO;
-import org.bu.jenkins.active_choices.model.AbstractAwsResource;
-import org.bu.jenkins.active_choices.model.RdsInstance;
-import org.bu.jenkins.active_choices.model.RdsSnapshot;
+import org.bu.jenkins.dao.RdsInstanceDAO;
+import org.bu.jenkins.dao.StackDAO;
+import org.bu.jenkins.mvc.controller.kuali.job.StackCreateDeleteController;
+import org.bu.jenkins.mvc.model.AbstractAwsResource;
+import org.bu.jenkins.mvc.model.RdsInstance;
+import org.bu.jenkins.mvc.model.RdsSnapshot;
 
 import software.amazon.awssdk.services.cloudformation.model.Stack;
 import software.amazon.awssdk.services.cloudformation.model.StackSummary;
@@ -103,6 +104,6 @@ public class StackCreateDeleteTest {
 		putRdsMock("stg", "stg");
 		putRdsMock("chopped-liver", "ci");
 
-		StackCreateDelete.main(args);
+		StackCreateDeleteController.main(args);
 	}
 }

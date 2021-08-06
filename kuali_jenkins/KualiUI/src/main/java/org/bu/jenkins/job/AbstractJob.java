@@ -7,7 +7,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.EntryMessage;
 import org.bu.jenkins.AWSCredentials;
-import org.bu.jenkins.active_choices.html.AbstractParameterView;
+import org.bu.jenkins.mvc.controller.kuali.parameter.QueryStringParms;
+import org.bu.jenkins.mvc.view.AbstractParameterView;
 import org.bu.jenkins.util.CaseInsensitiveEnvironment;
 import org.bu.jenkins.util.NamedArgs;
 import org.bu.jenkins.util.SimpleHttpHandler;
@@ -130,13 +131,12 @@ public abstract class AbstractJob extends AbstractParameterSet {
 		NamedArgs namedArgs = new NamedArgs(new LoggingStarterImpl(new CaseInsensitiveEnvironment()), args);
 		
 		if(namedArgs.has("job-class")) {
-			Class<?> jobclass = Class.forName(namedArgs.get("job-class"));
+			Class<?> jobclass = Jobs.getClass(namedArgs.get("job-class"));
 			Constructor<?> constructor = jobclass.getConstructor(AWSCredentials.class);
 			AbstractJob job = (AbstractJob) constructor.newInstance(AWSCredentials.getInstance(namedArgs));
-			job.setAjaxHost(namedArgs.get("ajax-host", "127.0.0.1"));
+			job.setAjaxHost(namedArgs.get("ajax-host", "127.0.0.1"));			
 			
-			
-			new SimpleHttpHandler() {
+			SimpleHttpHandler handler = new SimpleHttpHandler() {
 				@Override public String getHtml(Map<String, String> parameters) {
 					try {
 						if(parameters.containsKey("scripts-only")) {
@@ -150,11 +150,23 @@ public abstract class AbstractJob extends AbstractParameterSet {
 						e.printStackTrace(System.out);
 						return stackTraceToHTML(e);
 					}
-				}}
-			.setPort(namedArgs.getInt("port"))
-			.start();
+				}};
+				
+			handler
+				.setPort(namedArgs.getInt("port"))
+				.start();
 			
-			System.out.println(namedArgs.get("job-class") + " job server started.");	
+			System.out.println(namedArgs.get("job-class") + " job server started.");
+			
+			if(namedArgs.getBoolean("browser")) {			
+				/**
+				 * Get all of the named args except the those that have nothing to do with request parameters.
+				 * What remains will be used to construct a query string for visit with browser.
+				 */
+				Map<String, String> requestParms = namedArgs.getAllNamed(QueryStringParms.asArgArray());
+				
+				handler.visitWithBrowser(true, requestParms);				
+			}
 		}
 		else {
 			System.out.println("Required \"job-class\" argument!");

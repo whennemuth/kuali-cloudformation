@@ -2,11 +2,8 @@
 gitSSH() {
   local sshKeyPath="$1"
   local sshdir=$(dirname $sshKeyPath)
-  local cmd="$2"
-
-  # echo "refs/tags/ $sshKeyPath"
-  # echo "refs/tags/ $cmd"
-  # return 0;
+  shift
+  local cmd="$@"
 
   eval `ssh-agent -s` > /dev/null 2>&1; # Suppress output
   ssh-add <(cat $sshKeyPath) > /dev/null 2>&1; # Suppress output
@@ -33,6 +30,15 @@ checkGithubHost() {
   fi
 }
 
-gitSSH "$@"
+task="$1"
+shift
+
+case "$task" in
+  git-ssh)
+    gitSSH "$@" ;;
+  *)
+    echo "unknown task"
+    ;;
+esac
 
 exit 0

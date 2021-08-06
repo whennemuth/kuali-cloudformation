@@ -7,7 +7,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.EntryMessage;
 import org.bu.jenkins.AWSCredentials;
-import org.bu.jenkins.active_choices.html.AbstractParameterView;
+import org.bu.jenkins.mvc.view.AbstractParameterView;
 
 public abstract class AbstractParameterSet {
 

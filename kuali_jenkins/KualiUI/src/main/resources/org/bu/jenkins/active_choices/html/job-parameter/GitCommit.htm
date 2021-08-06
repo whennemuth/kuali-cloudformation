@@ -10,7 +10,7 @@
 	  	type=text 
 	  	th:name="${ParameterName} ?: 'value'" 
 	  	th:value="${GitCommit}" 
-	  	th:readonly="true"
+	  	th:readonly="${GitCommit} ? 'true' : 'false'"
 	  	style="width: 400px;" 
 	  />
   	</div> 	

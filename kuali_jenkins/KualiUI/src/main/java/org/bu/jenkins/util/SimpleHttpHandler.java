@@ -81,9 +81,10 @@ public abstract class SimpleHttpHandler implements HttpHandler {
 		if(parts.length == 2) {
 			String[] pairs = parts[1].split("&"); 
 			for(String pairStr : pairs) {
-				String[] pair = pairStr.split("=");
-				if(pair.length == 2) {
-					parameters.put(pair[0], pair[1]);
+				if(pairStr.contains("=")) {
+					parameters.put(
+						pairStr.substring(0, pairStr.indexOf("=")).trim().toLowerCase(), 
+						pairStr.substring(pairStr.indexOf("=")+1).trim());
 				}
 			}
 		}
@@ -108,7 +109,7 @@ public abstract class SimpleHttpHandler implements HttpHandler {
             }            
 		} 
 		catch (Exception e) {
-			e.printStackTrace();
+			logger.error(e.getMessage(), e);
 		}
 
 		logger.traceExit(m);
@@ -130,12 +131,12 @@ public abstract class SimpleHttpHandler implements HttpHandler {
 			browserRoundTripCompleted = true;
 		} 
 		catch (IOException e) {
-			e.printStackTrace(System.out);
+			logger.error(e.getMessage(), e);
 		}
 		logger.traceExit(m);
 	}
 	
-	public void start() {
+	public SimpleHttpHandler start() {
 		EntryMessage m = logger.traceEntry("start()");
 		logger.info("Begin server startup...");
 		try {
@@ -152,11 +153,14 @@ public abstract class SimpleHttpHandler implements HttpHandler {
 			threadPoolExecutor = (ThreadPoolExecutor)Executors.newFixedThreadPool(10);
 			server.setExecutor(threadPoolExecutor);
 			server.start();
+			logger.traceExit(m);
+			return this;
 		} 
 		catch (IOException e) {
-			e.printStackTrace(System.out);
+			logger.error(e.getMessage(), e);
+			logger.traceExit(m);
+			return this;
 		}		
-		logger.traceExit(m);
 	}
 	
 	private boolean isWindows() {
@@ -195,11 +199,12 @@ public abstract class SimpleHttpHandler implements HttpHandler {
 			}
 		} 
 		catch (IOException | InterruptedException e) {
-			e.printStackTrace(System.out);
+			logger.error(e.getMessage(), e);
 		}		
 	}
 
 	public static void main(String[] args) {
+		@SuppressWarnings("unused")
 		NamedArgs namedArgs = new NamedArgs(new LoggingStarterImpl(new CaseInsensitiveEnvironment()), args);
 		SimpleHttpHandler handler = new SimpleHttpHandler() {
 			@Override

@@ -1,0 +1,17 @@
+<!DOCTYPE html SYSTEM "http://www.thymeleaf.org/dtd/xhtml1-strict-thymeleaf-4.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:th="http://www.thymeleaf.org">
+
+  <body>
+    <div th:if="${!deactivate}" th:fragment="dockerhub-token" class="kuali-field-wrapper">
+      <div class="fieldLabel">Dockerhub token:</div>
+      <div class="field">
+        <input type="text" 
+        	th:name="value" 
+        	th:value="${token}"
+        	th:readonly="true"
+        	style="width: 400px;" />
+      </div>
+  	</div>
+  </body>
+</html>

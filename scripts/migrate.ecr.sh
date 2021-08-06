@@ -6,34 +6,62 @@
 # main function: 
 #    migrate()
 #    Args: (case insensitive)
-#       source_account_id: The numeric id of the source elastic container registry account
-#       target_account_id: The numeric id of the target elastic container registry account
 #       source_profile: The aws profile for cli access to commands against the source account
 #       target_profile: The aws profile for cli access to commands against the target account
+#       single_image: [optional] If included, limits migration to a single image (not all images)
 #       dryrun: print out each s3 cp command, but do not execute it.
 #    Example:
 #       sh migrate.ecr.sh migrate \
-#         source_account_id=730096353738 \
-#         target_account_id=770203350335 \
-#         source_profile= \ # leave empty to use default profile
+#         source_profile=legacy \
 #         target_profile=infnprd \
+#         dryrun=true
+# 
+#       sh migrate.ecr.sh migrate \
+#         source_profile=legacy \
+#         target_profile=infnprd \
+#         single_image=core:2011.0032
 #         dryrun=true
 # --------------------------------------------------------------------------------------------------------------
 
 source ./common-functions.sh
 
+AWS_REGION='us-east-1'
+
 # Transfer repositories from ecr in one account to ecr in another account
 migrate() {
   # Validate parameters
-  [ -z "$(echo "$SOURCE_ACCOUNT_ID" | grep -P '\d+')" ] && echo "Missing/invalid source account ID" && exit 1
-  [ -z "$(echo "$TARGET_ACCOUNT_ID" | grep -P '\d+')" ] && echo "Missing/invalid target account ID" && exit 1
+  [ -z "$SOURCE_PROFILE" ] && echo "Missing/invalid source profile" && exit 1
+  [ -z "$TARGET_PROFILE" ] && echo "Missing/invalid target profile" && exit 1
 
-  echo "Transferring repositories from account: $SOURCE_ACCOUNT_ID to account: $TARGET_ACCOUNT_ID"
+  local sourceAccountID="$(aws --profile=$SOURCE_PROFILE sts get-caller-identity --output text --query 'Account')"
+  local targetAccountID="$(aws --profile=$TARGET_PROFILE sts get-caller-identity --output text --query 'Account')"
+
+  [ -z "$(echo "$sourceAccountID" | grep -P '\d+')" ] && echo "Cannot determine source account ID" && exit 1
+  [ -z "$(echo "$targetAccountID" | grep -P '\d+')" ] && echo "Cannot determine target account ID" && exit 1
+
+  if [ -n "$SINGLE_IMAGE" ] ; then
+    if [ -z "$(echo $SINGLE_IMAGE | grep '.dkr.ecr.')" ] ; then
+      SINGLE_IMAGE="$sourceAccountID.dkr.ecr.$AWS_REGION.amazonaws.com/$SINGLE_IMAGE"
+    fi
+  fi
+
+  echo "Transferring repositories from account: $sourceAccountID to account: $targetAccountID"
 
   # Log into both source and target registries
-  $(aws --profile=$SOURCE_PROFILE ecr get-login --no-include-email --region us-east-1)
-  $(aws --profile=$TARGET_PROFILE ecr get-login --no-include-email --region us-east-1)
-  
+  if ecrGetLoginDeprecated ; then
+    aws --profile=$SOURCE_PROFILE ecr get-login-password \
+      | docker login --username AWS --password-stdin $sourceAccountID.dkr.ecr.$AWS_REGION.amazonaws.com
+    if ! dryrun ; then
+      aws --profile=$TARGET_PROFILE ecr get-login-password \
+        | docker login --username AWS --password-stdin $targetAccountID.dkr.ecr.$AWS_REGION.amazonaws.com
+    fi
+  else
+    $(aws --profile=$SOURCE_PROFILE ecr get-login --no-include-email --region $AWS_REGION)
+    if ! dryrun ; then
+      $(aws --profile=$TARGET_PROFILE ecr get-login --no-include-email --region $AWS_REGION)
+    fi
+  fi
+
   local pulled=0
   local pushed=0
   for sourceImg in $(listRemoteImages $SOURCE_PROFILE) ; do
@@ -42,23 +70,34 @@ migrate() {
     local targetImg="$( \
       echo "$sourceImg" | \
       sed 's/\//\/kuali-/' | \
-      sed 's/'$SOURCE_ACCOUNT_ID'/'$TARGET_ACCOUNT_ID'/g')"
+      sed 's/'$sourceAccountID'/'$targetAccountID'/g')"
 
     # Remove the source image if it exists locally already.
-    if [ -n "$(docker images $sourceImg -q)" ] ; then
-      docker rmi -f $sourceImg
-      docker rmi -f $(docker images --filter dangling=true -q) 2> /dev/null
+    if ! dryrun ; then
+      if [ -n "$(docker images $sourceImg -q)" ] ; then
+        docker rmi -f $sourceImg
+        docker rmi -f $(docker images --filter dangling=true -q) 2> /dev/null
+      fi
     fi
 
     # Pull the image from the source registry
     echo "Pulling $sourceImg..."
-    docker pull $sourceImg
+    if dryrun ; then
+      echo "DRYRUN: docker pull $sourceImg"
+    else
+      docker pull $sourceImg
+    fi
     [ $? -eq 0 ] && ((pulled++))
 
     # Push the image to the target registry
-    echo "Pushing $targetImg..."
-    docker tag $sourceImg $targetImg
-    pushImage $targetImg
+    if dryrun ; then
+      echo "DRYRUN: Pushing $targetImg..."
+      continue
+    else
+      echo "Pushing $targetImg..."
+      docker tag $sourceImg $targetImg
+      pushImage $targetImg
+    fi
     [ $? -eq 0 ] && ((pushed++))
 
     # Remove the image locally. If there are a lot of images to migrate, you could eventually use up a lot of space if you don't do this.
@@ -74,6 +113,10 @@ migrate() {
 
 # Print out all images in all repositories of the elastic container service for the account indicated by profile.
 listRemoteImages() {
+  if [ -n "$SINGLE_IMAGE" ] ; then
+    echo "$SINGLE_IMAGE"
+    return 0
+  fi
   local profile="$1"
   for repo in $(aws ecr describe-repositories \
     --profile=$profile \
@@ -82,6 +125,9 @@ listRemoteImages() {
   ) ; do
     local line=1
     local name=$(echo $repo | cut -d'/' -f2)
+    if [ -n "$SINGLE_REPO" ] && [ "${name,,}" != "${SINGLE_REPO,,}" ] ; then
+      continue;
+    fi
     for desc in $(aws ecr describe-images \
       --repository-name $name \
       --profile=$profile \
@@ -91,7 +137,8 @@ listRemoteImages() {
       if [ $line -eq 2 ] ; then
         local version="$desc"
         # Filter out certain repositories that we don't care about
-        if [ "${name:0:3}" != 'coi' ] && [ "${name,,}" != 'hello-world' ] ; then
+        # if [ "${name:0:3}" != 'coi' ] && [ "${name,,}" != 'hello-world' ] ; then
+        if [ "${name,,}" != 'hello-world' ] ; then
           # Filter out "Orphaned" images
           if [ -n "version" ] && [ "${version,,}" != "none" ] ; then
             echo "$repo:$version"
@@ -132,6 +179,10 @@ pushImage() {
   docker push $image
 }
 
+dryrun() {
+  [ "${DRYRUN,,}" == 'true' ] && true || false
+}
+
 test() {
   echo "No tests"
 }
@@ -146,7 +197,12 @@ case $task in
   migrate)
     migrate ;;
   list)
-    list ;;
+    if [ -n "$PROFILE" ] ; then
+      listRemoteImages $PROFILE
+    else
+      echo "Missing profile"
+    fi
+    ;;
   test)
     test ;;
 esac

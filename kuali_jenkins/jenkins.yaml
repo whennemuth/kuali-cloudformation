@@ -523,12 +523,12 @@ Resources:
                   
                   runJobContainer \
                     '8001' \
-                    'org.bu.jenkins.job.kuali.StackCreateDelete' \
+                    'KUALI_STACK_CONTROLLER' \
                     $@
 
                   runParametersContainer \
                     '8002' \
-                    'org.bu.jenkins.job.parameter.CommonParameter' \
+                    'KUALI_PARAMETER_CONTROLLER' \
                     $@
                 }
 

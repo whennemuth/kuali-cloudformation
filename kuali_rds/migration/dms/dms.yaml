@@ -16,6 +16,16 @@ Parameters:
     Type: String
     AllowedPattern: "[a-zA-Z\\d]{1,12}"
     ConstraintDescription: Up to 12 letters and/or numbers
+    
+  Service:
+    Description: Service catalog name
+    Type: String
+    Default: research-administration
+
+  Function:
+    Description: The Function within the Service
+    Type: String
+    Default: kuali
 
   VpcId:
     Type: AWS::EC2::VPC::Id
@@ -230,6 +240,31 @@ Parameters:
       - "false"
     Default: "true"
 
+  CreateDmsVpcRole:
+    Type: String
+    Description: Role to grant the dms service various networking privileges.
+    AllowedValues:
+      - "true"
+      - "false"
+    Default: "false"
+
+  CreateDmsCloudwatchLogsRole:
+    Type: String
+    Description: Role to grant the dms service logging privileges.
+    AllowedValues:
+      - "true"
+      - "false"
+    Default: "false"
+
+  CreateDmsAccessForTasksRole:
+    Type: String
+    Description: Role to grant the dms service privileges for data type assessment reports and their s3 storage.
+    AllowedValues:
+      - "true"
+      - "false"
+    Default: "false"
+
+
 Mappings:
 
   # For loading multiple tables in parallel. The higher the instance type, the greater the capacity to handle more parallel operations.
@@ -269,13 +304,18 @@ Conditions:
   SourceSecurityGroupProvided: !Not [!Equals [!Ref SourceSecurityGroup, empty]]
   TargetSecurityGroupProvided: !Not [!Equals [!Ref TargetSecurityGroup, empty]]
   AnySecurityGroupProvided: !Or [Condition: SourceSecurityGroupProvided, Condition: TargetSecurityGroupProvided]
+  IncludeDmsVpcRole: !Equals [!Ref CreateDmsVpcRole, 'true']
+  IncludeDmsCloudwatchLogsRole: !Equals [!Ref CreateDmsCloudwatchLogsRole, 'true']
+  IncludeDmsAccessForTasksRole: !Equals [!Ref CreateDmsAccessForTasksRole, 'true']
 
 Resources:
 
   DMSVpcRole:
     Type: AWS::IAM::Role
+    DeletionPolicy: Retain
+    Condition: IncludeDmsVpcRole
     Properties:
-      RoleName: !Sub dms-vpc-role-${Landscape}
+      RoleName: !Sub dms-vpc-role
       AssumeRolePolicyDocument:
         Statement:
           - Effect: Allow
@@ -289,8 +329,10 @@ Resources:
 
   DMSCloudwatchLogsRole:
     Type: AWS::IAM::Role
+    DeletionPolicy: Retain
+    Condition: IncludeDmsCloudwatchLogsRole
     Properties:
-      RoleName: !Sub dms-cloudwatch-logs-role-${Landscape}
+      RoleName: !Sub dms-cloudwatch-logs-role
       AssumeRolePolicyDocument:
         Statement:
           - Effect: Allow
@@ -304,8 +346,10 @@ Resources:
 
   DMSS3AccessRole: 
     Type: AWS::IAM::Role
+    DeletionPolicy: Retain
+    Condition: IncludeDmsAccessForTasksRole
     Properties:
-      RoleName: !Sub dms-access-for-tasks-${Landscape}
+      RoleName: !Sub dms-access-for-tasks
       AssumeRolePolicyDocument:
         Statement:
           - Effect: Allow
@@ -321,9 +365,27 @@ Resources:
   DMSSubnetGroup:
     Type: AWS::DMS::ReplicationSubnetGroup
     Condition: BothSubnetsProvided
-    DependsOn: DMSVpcRole
+    # NOTE: Cannot conditionally set DependsOn, so using workaround method by conditionally including DMSVpcRole.RoleId
+    #       in the ReplicationSubnetGroupDescription to force this resource to wait for DMSVpcRole creation.
+    # DependsOn: 
+    #   !If
+    #     - IncludeDmsVpcRole
+    #     - DMSVpcRole
+    #     - !Ref AWS::NoValue
     Properties:
-      ReplicationSubnetGroupDescription: !Sub ${GlobalTag}-${Landscape} DMS Subnet Group
+      ReplicationSubnetGroupDescription: 
+        !If
+          - IncludeDmsVpcRole
+          - !Sub 
+            - ${gt}-${ls} DMS Subnet Group, New role - ${nr}
+            - gt: !Ref GlobalTag
+              ls: !Ref Landscape
+              nr: !GetAtt DMSVpcRole.RoleId
+          - !Sub 
+            - ${gt}-${ls} DMS Subnet Group, New role - ${nr}
+            - gt: !Ref GlobalTag
+              ls: !Ref Landscape
+              nr: 'None - role already exists'
       ReplicationSubnetGroupIdentifier: !Sub ${GlobalTag}-${Landscape}-dms-subnet-group
       SubnetIds:
         !If 
@@ -334,6 +396,11 @@ Resources:
       Tags:
         - Key: Name
           Value: !Sub ${GlobalTag}-${Landscape}-dms-subnet-group
+        - Key: Service
+          Value: !Ref Service
+        - Key: Function
+          Value: !Ref Function
+
 
   DMSSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -344,6 +411,10 @@ Resources:
       Tags:
         - Key: Name
           Value: !Sub ${GlobalTag}-${Landscape}-dms-security-group
+        - Key: Service
+          Value: !Ref Service
+        - Key: Function
+          Value: !Ref Function
 
   # If SourceSecurityGroup is provided as a parameter, it is assumed that it was created somewhere else in the overall stack.
   # This is because we are modifying it by applying this ingress rule to it and you cannot do that for resources that are not
@@ -411,6 +482,10 @@ Resources:
           Value: !Sub ${GlobalTag}-${Landscape}-dms-source-endpoint
         - Key: Version
           Value: 1
+        - Key: Service
+          Value: !Ref Service
+        - Key: Function
+          Value: !Ref Function
 
   TargetEndpoint:
     Type: AWS::DMS::Endpoint
@@ -427,6 +502,10 @@ Resources:
           Value: !Sub ${GlobalTag}-${Landscape}-dms-target-endpoint
         - Key: Version
           Value: 1
+        - Key: Service
+          Value: !Ref Service
+        - Key: Function
+          Value: !Ref Function
 
   ReplicationTask:
     Type: AWS::DMS::ReplicationTask
@@ -439,6 +518,10 @@ Resources:
       Tags:
         - Key: Name
           Value: !Sub ${GlobalTag}-${Landscape}-dms-replication-task
+        - Key: Service
+          Value: !Ref Service
+        - Key: Function
+          Value: !Ref Function
       # https://docs.aws.amazon.com/dms/latest/userguide/CHAP_Tasks.CustomizingTasks.TableMapping.html
       TableMappings: 
         !Sub
@@ -612,7 +695,10 @@ Resources:
                 "TargetSchema": "",
                 "SupportLobs": true,
                 "FullLobMode": true,
-                "LobChunkSize": 64
+                "LobChunkSize": 64,
+                "LimitedSizeLobMode": false,
+                "LobMaxSize": 0,
+                "InlineLobMaxSize": 32
               },
               "FullLoadSettings": {
                 "TargetTablePrepMode": "${target_table_prep_mode}",
@@ -628,19 +714,19 @@ Resources:
                 "DeleteTaskLogs ": true,
                 "LogComponents": [{
                     "Id": "SOURCE_UNLOAD",
-                    "Severity": "LOGGER_SEVERITY_WARNING"
+                    "Severity": "LOGGER_SEVERITY_DEFAULT"
                   },{
                     "Id": "SOURCE_CAPTURE",
-                    "Severity": "LOGGER_SEVERITY_WARNING"
+                    "Severity": "LOGGER_SEVERITY_DEFAULT"
                   },{
                     "Id": "TARGET_LOAD",
-                    "Severity": "LOGGER_SEVERITY_WARNING"
+                    "Severity": "LOGGER_SEVERITY_DEFAULT"
                   },{
                     "Id": "TARGET_APPLY",
-                    "Severity": "LOGGER_SEVERITY_WARNING"
+                    "Severity": "LOGGER_SEVERITY_DEFAULT"
                   },{
                     "Id": "TASK_MANAGER",
-                    "Severity": "LOGGER_SEVERITY_WARNING"
+                    "Severity": "LOGGER_SEVERITY_DEFAULT"
                   }]
               },
               "ControlTablesSettings": {

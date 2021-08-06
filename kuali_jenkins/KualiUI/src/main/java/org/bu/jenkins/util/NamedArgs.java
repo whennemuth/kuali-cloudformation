@@ -30,12 +30,13 @@ public class NamedArgs {
 				loggingStarter==null ? "null" : loggingStarter.hashCode(),
 				args==null ? "null" : args.length));
 		for(String arg : args) {
-			String[] parts = arg.split("=");
-			if(parts.length > 1) {
-				namedArgs.put(parts[0].trim().toLowerCase(), parts[1].trim());
+			if(arg.contains("=")) {
+				namedArgs.put(
+					arg.substring(0, arg.indexOf("=")).trim().toLowerCase(), 
+					arg.substring(arg.indexOf("=")+1).trim());				
 			}
 			else {
-				unamedArgs.add(parts[0]);
+				unamedArgs.add(arg);
 			}
 		}
 		if(loggingStarter != null) {

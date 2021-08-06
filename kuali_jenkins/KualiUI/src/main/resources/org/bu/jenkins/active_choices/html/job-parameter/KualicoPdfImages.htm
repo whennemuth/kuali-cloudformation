@@ -1,0 +1,18 @@
+<!DOCTYPE html SYSTEM "http://www.thymeleaf.org/dtd/xhtml1-strict-thymeleaf-4.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:th="http://www.thymeleaf.org">
+
+  <body>
+  	<div th:if="${deactivate} ? false : ${include}" th:fragment="kualico-pdf-images" >
+		<div th:if="${RenderName}" style='padding-bottom:5px;'>[[${ParameterName}]]:</div>
+		<div th:if="${RenderDescription}" style='padding-bottom:5px;'>Research-pdf image versions available in our ECR repository:</div>
+		<select name="value" style="width:400px;font-family:monospace;">
+	     <option 
+	     	th:each="image : ${kualicoImages}" 
+	     	th:text="${image}"
+	     	th:value="${image}">
+	     </option>
+		</select>
+	</div>
+  </body>
+</html>		

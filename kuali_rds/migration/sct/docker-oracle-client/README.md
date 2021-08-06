@@ -69,7 +69,7 @@ You can drive what the container does with name=value parameter pairs:
 
 - **Turn off/on all constraints and triggers**
 
-  If you've run all the SCT generated SQL scripts, the last stage of that process disables all the constraints and triggers of the newly created RDS database. This is done so that data migration soon to follow will not encounter any problems inserting rows of data into tables. However, this means that once the data migration is finished, you will want to reinstate these constraints and triggers:
+  If you've run all the SCT generated SQL scripts, the last stage of that process disables all the foreign key constraints and triggers of the newly created RDS database. This is done so that data migration soon to follow will not encounter any problems inserting rows of data into tables. However, this means that once the data migration is finished, you will want to reinstate these constraints and triggers:
 
   ```
   # Disable all constraints and triggers
@@ -90,11 +90,11 @@ You can drive what the container does with name=value parameter pairs:
 
 - **Update sequences**
 A migration that continues with [Change data capture](https://docs.aws.amazon.com/dms/latest/userguide/CHAP_Task.CDC.html) replicates all table data on an ongoing basis, but not the changes to sequences used by those tables:
-   
+  
    > *"As DMS does not replicate incremental sequence numbers during CDC from source database, you will need to generate the latest sequence value from the source for all the sequences and apply it on the target Amazon RDS for Oracle database to avoid sequence value inconsistencies."*
 
    When cutting over from the source database to the target RDS database, the sequences in the target database will need to be advanced so that they reflect the changes to the sequences in the source database that occurred since the original target database sequences were created using the [schema conversion tool](../sct/README.md). Use the following script to update the sequences in the target RDS database to catch them back up with and match the corresponding source database sequences:
-   
+  
    ```
    sh dbclient.sh update-sequences \
      aws_access_key_id=[your key] \
@@ -103,11 +103,11 @@ A migration that continues with [Change data capture](https://docs.aws.amazon.co
      template_bucket_name=kuali-research-ec2-setup \
   landscape=stg
    ```
-   
+  
    The prior invocation provided the aws credentials, a landscape, and the s3 bucket name where a copy of kc-config.xml is kept.
    This will allow for source and target database connection details to be looked up, based on the landscape in s3 and secrets manager.
    Alternatively, if you know the oracle connection parameters, you can provide them explicitly:
-   
+  
    ```
    # The _db_sid and _db_port parameters will default to "Kuali" and "1521" respectively if ommitted.
    # The remaining parameters are not optional.
@@ -123,24 +123,23 @@ A migration that continues with [Change data capture](https://docs.aws.amazon.co
      rds_db_sid=Kuali \
      rds_db_password=[rds password]
    ```
+  
    
-   
-   
+  
 - **Run Table row count comparison scripts:**
 
    After the AWS migration service has run, one way to validate that all data has been migrated is to compare table row counts between the source and target schemas. The following script will print out only the names of tables whos row counts differ between source and target schemas.
    A valid migration should lead to this script outputting no tables names.
 
    ```
-   # EXAMPLE 3: Run ALL SQL script files in the input folder against the RDS database:
    sh dbclient.sh compare-table-counts \
      aws_access_key_id=[your key] \
      aws_secret_access_key=[your secret] \
      landscape=ci \
      bucket_name=kuali-research-ec2-setup
    ```
-
-      
+   
+   
 
 #### Generic use cases:
 
