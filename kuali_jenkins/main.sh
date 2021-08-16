@@ -49,11 +49,15 @@ stackAction() {
     outputHeading "Validating and uploading main template(s)..."
     # Upload the yaml files to s3
     uploadStack silent
-    [ $? -gt 0 ] && exit 1
+    if [ $? -gt 0 ] ; then      
+      echo "Errors encountered while uploading stack! Cancelling..."
+      exit 1
+    fi
 
     cat <<-EOF > $cmdfile
     aws \\
       cloudformation $action \\
+      $([ $task == 'create-change-set' ] && echo --change-set-name ${STACK_NAME}-$(date +'%s')) \\
       --stack-name ${STACK_NAME} \\
       $([ $task != 'create-stack' ] && echo '--no-use-previous-template') \\
       $([ "$NO_ROLLBACK" == 'true' ] && [ $task == 'create-stack' ] && echo '--on-failure DO_NOTHING') \\
@@ -114,6 +118,9 @@ runTask() {
       PROMPT='false'
       task='update-stack'
       stackAction "update-stack" ;;
+    create-change-set)
+      task='create-change-set'
+      stackAction "create-change-set" ;;
     delete-stack)
       stackAction "delete-stack" ;;
     test)

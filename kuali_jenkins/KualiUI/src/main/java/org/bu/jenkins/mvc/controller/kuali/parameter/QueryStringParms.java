@@ -9,7 +9,7 @@ package org.bu.jenkins.mvc.controller.kuali.parameter;
 public enum QueryStringParms {
 	PARAMETER_NAME,
 	HTML,
-	ECR_SELECTED_TAG,
+	SELECTED_ITEM,
 	DOCKER_REPOSITORY_NAME,
 	KUALICO_DOCKER_ORGANIZATION,
 	KUALICO_DOCKER_REPOSITORY_NAME,

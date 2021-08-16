@@ -161,6 +161,7 @@ validateStack() {
 
   # find . -type f -iname "*.yaml" | \
   while read line; do \
+    [ "${line:0:12}" == './.metadata/' ] && continue
     local f=$(printf "$line" | sed 's/^.\///'); \
     [ -n "$TEMPLATE" ] && [ "$TEMPLATE" != "$f" ] && continue;
     if [ "${validatedStacks[$f]}" == "$f" ] ; then
@@ -251,6 +252,7 @@ uploadStack() {
     aws s3 cp $TEMPLATE_PATH $TEMPLATE_BUCKET_PATH \\
       --exclude=* \\
       --include=*.yaml \\
+      --exclude=.metadata/* \\
       --recursive
 EOF
   fi
@@ -274,7 +276,23 @@ EOF
   # fi
   # [ "$answer" == "y" ] && sh $cmdfile || echo "Cancelled."
 
-  sh $cmdfile
+  # Write stdout and stderr to separate files AND see them both as terminal output.
+  # (NOTE: You have to swap stdout and stderr because tee can only accept stdout)
+  (sh $cmdfile | tee last-cmd-stdout.log) 3>&1 1>&2 2>&3 | tee last-cmd-stderr.log
+
+  local lastOutput=$?
+  local retval=0
+  if [ $lastOutput -gt 0 ] ; then
+    retval=$lastOutput
+    if [ -n "$(cat last-cmd-stderr.log | grep -P '^(?!warning: Skipping file )(.+?)$')" ] ; then
+      # These errors came from warnings issued by aws s3 cp due to a bug with the length of file names. Ignore it.
+      # SEE: https://github.com/aws/aws-cli/issues/3514
+      retval=0
+    fi
+  fi
+  [ -f last-cmd-stdout.log ] && rm -f last-cmd-stdout.log
+  [ -f last-cmd-stderr.log ] && rm -f last-cmd-stderr.log
+  return $retval
 }
 
 # Add on key=value parameter entry to the construction of an aws cli function call to 

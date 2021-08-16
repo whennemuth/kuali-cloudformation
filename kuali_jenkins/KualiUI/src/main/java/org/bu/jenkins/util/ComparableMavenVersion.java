@@ -37,7 +37,11 @@ public class ComparableMavenVersion implements Comparable<ComparableMavenVersion
 			parts[0] = parts[0] + "0000".substring(parts[0].length());
 			year = Integer.valueOf(parts[0].substring(0, 2));
 			month = Integer.valueOf(parts[0].substring(2, 4));
-			iteration = Integer.valueOf(parts[1]);
+			String iter = parts[1].replaceAll("\\D", "");
+			if(iter.isBlank()) {
+				iter = "0";
+			}
+			iteration = Integer.valueOf(iter);
 		}
 		else if(parts.length == 1) {
 			initialize(version + ".0000");
@@ -96,6 +100,7 @@ public class ComparableMavenVersion implements Comparable<ComparableMavenVersion
 			"1903.0032",
 			"1234.5678",
 			"1234",
+			"1234.0057-SNAPSHOT",
 			"1234.0001"
 		};
 		

@@ -37,11 +37,13 @@ public class GitRefs extends GitCommandLineAdapter {
 		final String category = String.format("refs/%s/", refType.category());
 		return new StringToList(printGitOutput(refType)) {
 			@Override public String filter(String ref) {
-				if(ref.contains(category)) {
-					return ref.split(category)[1].strip();
-				}
-				else if(cmd.hasError()) {
-					return ref;
+				if( ! ref.endsWith("^{}")) {
+					if(ref.contains(category)) {
+						return ref.split(category)[1].strip();
+					}
+					else if(cmd.hasError()) {
+						return ref;
+					}				
 				}
 				return null;
 			}

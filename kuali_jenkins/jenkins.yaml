@@ -159,8 +159,7 @@ Resources:
             # policy statement that is "flipped" (effect=deny, StringNotEqualsIfExists: "aws:ResourceTag/Service": [ !Ref Service ]).
             Condition:
               StringEqualsIfExists:
-                "aws:ResourceTag/Service":
-                  - !Ref Service
+                aws:ResourceTag/Service: !Ref Service
           - Effect: Deny
             Action: [
               ec2:Delete*, ec2:Deregister*, ec2:Detach*, ec2:Disable*, ec2:Disassociate*, ec2:Modify*, ec2:Move*, ec2:Purchase*, ec2:Reboot*, ec2:Replace*, ec2:Reset*, ec2:Revoke*, ec2:Start*, ec2:Stop*, ec2:Terminate*, ec2:Unassign*, ec2:Update*, 
@@ -196,7 +195,7 @@ Resources:
             #    non-evaluation, and results in the action NOT being denied.
             # SEE: https://docs.aws.amazon.com/IAM/latest/UserGuide/access_tags.html
             Condition:
-              Null:
+              "Null":
                 aws:ResourceTag/Service: false
               StringNotEqualsIfExists: 
                 aws:ResourceTag/Service: !Ref Service
@@ -387,6 +386,7 @@ Resources:
             - ConfigSet: ConfigureJenkins
             - ConfigSet: PullJobsFromGit
             - ConfigSet: AddGroovyHelperFiles
+            - ConfigSet: GetAwardNoticeJar
           GetHelperScripts:
             - 01_get_helper_scripts
           YumInstall:
@@ -403,6 +403,8 @@ Resources:
             - 07_pull_jobs_from_git
           AddGroovyHelperFiles:
             - 08_add_groovy_helper_files
+          GetAwardNoticeJar:
+            - 09_get_award_notice_jar
           
 
         01_get_helper_scripts:
@@ -1458,6 +1460,47 @@ Resources:
               mode: "000600"
               owner: jenkins
               group: jenkins
+
+        09_get_award_notice_jar:
+          files:
+            /var/lib/jenkins/bu-awardnotice-1.1.jar.zip:
+              source: !Sub https://${TemplateBucketName}.s3.amazonaws.com/bu-awardnotice-1.1.jar.zip
+              mode: "000644"
+              owner: jenkins
+              group: jenkins
+            /var/lib/jenkins/_cfn-scripts/09_get_award_notice_jar.sh:
+              content: |
+                local group='bu.edu'
+                local groupPath=$(echo $group | sed 's|\.|/|g')
+                local artifact='bu-awardnotice'
+                local version='1.1'
+                local packaging='jar'
+                if [ ! -f /var/lib/jenkins/.m2/repository/$groupPath/$artifact/$version/$artifact-$version.$packaging ] ; then
+                  local jar=/var/lib/jenkins/$artifact-$version.$packaging
+                  if [ ! -f $jar ] && [ -f $jar.zip ] ; then
+                    unzip $jar.zip
+                  fi
+                  if [ ! -f $jar ] ; then
+                    echo "WARNING: could not install $artifact-$version.$packaging"
+                    return 0
+                  fi
+                  mvn install:install-file \
+                    -Dfile=$jar \
+                    -DgroupId=$group \
+                    -DartifactId=$artifact \
+                    -Dversion=$version \
+                    -Dpackaging=$packaging \
+                    -DlocalRepositoryPath=/var/lib/jenkins/.m2
+                fi             
+              mode: "000775"
+              owner: root
+              group: root
+          commands:
+            Install:
+              cwd: /var/lib/jenkins
+              command: bash /var/lib/jenkins/_cfn-scripts/09_get_award_notice_jar.sh
+
+            
 
 Outputs:
 

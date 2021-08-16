@@ -129,7 +129,7 @@ public class ParameterController extends AbstractParameterSet {
 							parameterView.setContextVariable("Images", images);
 							parameterView.setContextVariable(
 									"SelectedTag", 
-									config.getParameterMap().get(QueryStringParms.ECR_SELECTED_TAG.arg()));
+									config.getParameterMap().get(QueryStringParms.SELECTED_ITEM.arg()));
 							if(images.iterator().hasNext()) {
 								parameterView.setContextVariable("SelectedTag", images.iterator().next().imageTag());
 							}
@@ -191,7 +191,9 @@ public class ParameterController extends AbstractParameterSet {
 										List<String> refs = git.getOutputList();
 										parameterView.setContextVariable("RefType", git.getRefType().name().toLowerCase());
 										parameterView.setContextVariable("GitRefs", refs);
-										parameterView.setContextVariable("SelectedRef", "none");
+										parameterView.setContextVariable(
+											"SelectedRef", 
+											config.getParameterMap().get(QueryStringParms.SELECTED_ITEM.arg()));
 									}
 									else {
 										parameterView.setContextVariable("include", "false");
@@ -211,6 +213,7 @@ public class ParameterController extends AbstractParameterSet {
 									EcrDAO ecrDAO2 = new EcrDAO(credentials).setRepositoryName(ecrRepoName);
 									Set<ImageIdentifier> images = (Set<ImageIdentifier>) ecrDAO2.getResources();
 									parameterView.setContextVariable("AccountId", AbstractAwsDAO.getInstance(credentials).getAccountId());
+									parameterView.setContextVariable("GitRef", config.getParameterMap().get(QueryStringParms.GIT_REF.arg()));
 									if(images.iterator().hasNext()) {
 										ImageIdentifier image = images.iterator().next();
 										parameterView.setContextVariable("version", image.imageTag());
