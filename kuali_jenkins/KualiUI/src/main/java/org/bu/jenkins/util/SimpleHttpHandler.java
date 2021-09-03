@@ -83,7 +83,7 @@ public abstract class SimpleHttpHandler implements HttpHandler {
 			for(String pairStr : pairs) {
 				if(pairStr.contains("=")) {
 					parameters.put(
-						pairStr.substring(0, pairStr.indexOf("=")).trim().toLowerCase(), 
+						pairStr.substring(0, pairStr.indexOf("=")).trim(), 
 						pairStr.substring(pairStr.indexOf("=")+1).trim());
 				}
 			}

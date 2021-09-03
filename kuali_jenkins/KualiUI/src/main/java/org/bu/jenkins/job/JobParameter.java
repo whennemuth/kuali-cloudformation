@@ -105,6 +105,10 @@ public class JobParameter {
 		return true;
 	}
 
+	public boolean otherParmSetWithOrBlank(Object name, String value) {
+		return otherParmSetWith(name, value) || otherParmBlank(name);
+	}
+	
 	public boolean otherParmSetButNotEqualTo(Object nameObj, String value) {
 		String name = getNameString(nameObj);
 		if(anyBlank(name, value)) {

@@ -34,6 +34,123 @@ run() {
   runTask
 }
 
+getJenkinsInstanceId() {
+  filters=(
+    'Key=Function,Values='${kualiTags['Function']}
+    'Key=Service,Values='${kualiTags['Service']}
+    "Key=Name,Values=kuali-jenkins"
+  )
+  pickEC2InstanceId ${filters[@]} > /dev/null
+  cat ec2-instance-id
+  rm -f ec2-instance-id
+}
+
+# Upload one of, or all the bash scripts the jenkins ec2 instance will need to s3.
+uploadScriptsToS3() {
+  local singleScript="$1"
+  if [ -n "$singleScript" ] ; then
+    if [ -f "$singleScript" ] ; then      
+      if [ "${singleScript:0:13}" == 'bash-scripts/' ] ; then
+        local s3SubPath=${singleScript:13:100} # Assumes var length is under 100 chars
+      else
+        local s3SubPath=$singleSript
+      fi
+      cmd="aws s3 cp $singleScript $TEMPLATE_BUCKET_PATH/scripts/$s3SubPath"
+      ([ "${DRYRUN,,}" == 'true' ] || [ "${DEBUG,,}" == 'true' ]) && cmd="$cmd --dryrun"
+      eval "$cmd"
+    else
+      if [ -f "bash-scripts/$singleScript" ] ; then
+        uploadScriptsToS3 "bash-scripts/$singleScript"
+      else
+        echo "ERROR! $singleScript cannot be found!"
+      fi
+    fi
+  else
+    for script in $(ls -1 bash-scripts/*.sh) ; do
+      uploadScriptsToS3 $script
+    done
+    for script in $(ls -1 bash-scripts/cfn/*.sh) ; do
+      uploadScriptsToS3 $script
+    done
+    for script in $(ls -1 bash-scripts/job/*.sh) ; do
+      uploadScriptsToS3 $script
+    done
+  fi
+}
+
+# Download from s3 into the jenkins ec2 instance one of, or all the bash scripts it will need.
+remotePullFromS3() {
+  local singleScript="$1"
+  local cmds=()
+  case $singleScript in
+    bash-scripts/jenkins-docker.sh | jenkins-docker.sh)
+      # This script goes to a different target location on the ec2 instance.
+      local cmd="aws s3 cp $TEMPLATE_BUCKET_PATH/scripts/jenkins-docker.sh /etc/init.d/jenkins-docker.sh"
+      ;;
+    *)
+      if [ -n "$singleScript" ] ; then
+        if [ "${singleScript:0:13}" == 'bash-scripts/' ] ; then
+          singleScript=${singleScript:13:100} # Assumes var length is under 100 chars
+        fi
+        case ${singleScript:0:4} in
+          'cfn/')
+            local subdir='_cfn-scripts'
+            local shortname=${singleScript:4:100}
+            cmds=("aws s3 cp $TEMPLATE_BUCKET_PATH/scripts/$singleScript /var/lib/jenkins/$subdir/$shortname")
+            ;;
+          'job/')
+            local subdir='_job-scripts'
+            local shortname=${singleScript:4:100}
+            cmds=("aws s3 cp $TEMPLATE_BUCKET_PATH/scripts/$singleScript /var/lib/jenkins/$subdir/$shortname")
+            ;;
+          *)
+            echo "WARNING: No known jenkins ec2 target folder for s3 file download: $singleScript"
+            ;;
+        esac
+      else
+        local cmd="aws s3 cp $TEMPLATE_BUCKET_PATH/scripts/jenkins-docker.sh /etc/init.d/jenkins-docker.sh"
+        cmds=("${cmds[@]}" "$cmd")
+        cmd="aws s3 cp $TEMPLATE_BUCKET_PATH/scripts/cfn/ /var/lib/jenkins/_cfn-scripts/ --recursive" 
+        cmds=("${cmds[@]}" "$cmd")
+        cmd="aws s3 cp $TEMPLATE_BUCKET_PATH/scripts/job/ /var/lib/jenkins/_job-scripts/ --recursive" 
+        cmds=("${cmds[@]}" "$cmd")
+      fi
+      ;;
+  esac
+
+  if [ ${#cmds[@]} -gt 0 ] ; then
+    local commands="{\"commands\":[\""
+    local counter=1
+    for cmd in "${cmds[@]}" ; do
+      if [ $counter -eq ${#cmds[@]} ] ; then
+        commands="$commands$cmd\"]}"
+      else
+        commands="$commands$cmd\", \""
+      fi
+      ((counter++))
+    done
+    if [ "${DRYRUN,,}" == 'true' ] || [ "${DEBUG,,}" == 'true' ] ; then
+      echo $commands
+    else
+      export AWS_PAGER=""
+      aws ssm send-command \
+        --instance-ids $(getJenkinsInstanceId) \
+        --document-name "AWS-RunShellScript" \
+        --comment "Download scripts from s3 to Jenkins ec2 instance" \
+        --no-paginate \
+        --parameters "$commands"
+    fi
+  fi
+}
+
+# upload to s3 a bash script and remotely trigger the jenkins ec2 to download it.
+# If SCRIPT_FILE is empty, then the process applies to ALL scripts.
+refreshScripts() {
+
+  uploadScriptsToS3 $SCRIPT_FILE
+
+  remotePullFromS3 $SCRIPT_FILE
+}
 
 # Create, update, or delete the cloudformation stack.
 stackAction() {  
@@ -53,6 +170,8 @@ stackAction() {
       echo "Errors encountered while uploading stack! Cancelling..."
       exit 1
     fi
+
+    uploadScriptsToS3
 
     cat <<-EOF > $cmdfile
     aws \\
@@ -99,6 +218,10 @@ runTask() {
       validateStack ;;
     upload)
       uploadStack ;;
+    upload-scripts)
+      uploadScriptsToS3 $SCRIPT_FILE ;;
+    refresh-scripts)
+      refreshScripts $SCRIPT_FILE ;;
     create-stack)
       stackAction "create-stack" ;;
     recreate-stack)

@@ -86,6 +86,10 @@ public enum Landscape {
 		return null;		
 	}
 	
+	public static boolean isBaseline(String landscape) {
+		return idFromAlias(landscape) != null;
+	}
+	
 	public boolean is(String landscape) {
 		if(id.equalsIgnoreCase(landscape))
 			return true;

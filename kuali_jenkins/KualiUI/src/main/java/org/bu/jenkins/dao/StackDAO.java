@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.EntryMessage;
 import org.bu.jenkins.AWSCredentials;
 import org.bu.jenkins.dao.cache.StackDAOCache;
+import org.bu.jenkins.mvc.model.CloudFormationStack;
 import org.bu.jenkins.util.CaseInsensitiveEnvironment;
 import org.bu.jenkins.util.NamedArgs;
 import org.bu.jenkins.util.logging.LoggingStarterImpl;
@@ -147,14 +148,14 @@ public class StackDAO extends AbstractAwsDAO {
 	 * running as a containerized service on ec2 instances. This will NOT include nested stacks.
 	 * @return
 	 */
-	public List<Stack> getKualiApplicationStacks() {
+	public List<CloudFormationStack> getKualiApplicationStacks() {
 		List<Stack> stacks = getKualiStacks(false);
-		List<Stack> filtered = new ArrayList<Stack>();
+		List<CloudFormationStack> filtered = new ArrayList<CloudFormationStack>();
 		for(Stack stack : stacks) {
 			if(stack.rootId() == null) {
 				for(Tag tag : stack.tags()) {
 					if(tag.key().equalsIgnoreCase("Category") && tag.value().equalsIgnoreCase("application")) {
-						filtered.add(stack);
+						filtered.add(new CloudFormationStack(stack));
 					}
 				}
 			}

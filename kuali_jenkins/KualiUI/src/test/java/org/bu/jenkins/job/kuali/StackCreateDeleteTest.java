@@ -9,6 +9,7 @@ import org.bu.jenkins.dao.RdsInstanceDAO;
 import org.bu.jenkins.dao.StackDAO;
 import org.bu.jenkins.mvc.controller.kuali.job.StackCreateDeleteController;
 import org.bu.jenkins.mvc.model.AbstractAwsResource;
+import org.bu.jenkins.mvc.model.Landscape;
 import org.bu.jenkins.mvc.model.RdsInstance;
 import org.bu.jenkins.mvc.model.RdsSnapshot;
 
@@ -16,17 +17,27 @@ import software.amazon.awssdk.services.cloudformation.model.Stack;
 import software.amazon.awssdk.services.cloudformation.model.StackSummary;
 import software.amazon.awssdk.services.cloudformation.model.Tag;
 
+/**
+ * Test harness for the stack create/update/delete jenkins job.
+ * The main feature is mocked data replaces the need for real cloud resources to exist 
+ * in order to have fields/tables/lists populate.
+ * 
+ * @author wrh
+ *
+ */
 public class StackCreateDeleteTest {
 
 	public static final long DAY = 1000 * 60 * 60 * 24;
 	
-	public static void putStackMock(int daysAgo) {
+	public static void putStackMock(int daysAgo, Landscape baseline, String landscape) {
 		
 		List<Tag> tags = new ArrayList<Tag>();
 		
 		tags.add(Tag.builder().key("Category").value("application").build());
 		tags.add(Tag.builder().key("Service").value("research-administration").build());
 		tags.add(Tag.builder().key("Function").value("kuali").build());
+		tags.add(Tag.builder().key("Baseline").value(baseline.getId()).build());
+		tags.add(Tag.builder().key("Landscape").value(landscape).build());
 		
 		String id = getTimeStr(daysAgo);
 		
@@ -54,13 +65,13 @@ public class StackCreateDeleteTest {
 		StackDAO.CACHE.setFlushable(false);
 	}
 	
-	public static void putRdsMock(String landscape, String baseline) {
+	public static void putRdsMock(Landscape baseline, String landscape) {
 				
 		RdsInstance rds = (RdsInstance) new RdsInstance("rdsArn1")
 				.putTag("Service", "research-administration")
 				.putTag("Function", "kuali")
 				.putTag("Landscape", landscape)
-				.putTag("Baseline", baseline);
+				.putTag("Baseline", baseline.getId());
 		
 		for(int i=0 ; i<3; i++) {
 			rds.putSnapshot(getSnapshot(rds, i, "manual"));
@@ -98,11 +109,11 @@ public class StackCreateDeleteTest {
 	
 	public static void main(String[] args) {
 		
-		putStackMock(0);
+		putStackMock(0, Landscape.CI, "chopped-liver");
 		
-		putRdsMock("ci", "ci");
-		putRdsMock("stg", "stg");
-		putRdsMock("chopped-liver", "ci");
+		putRdsMock(Landscape.CI, "ci");
+		putRdsMock(Landscape.STAGING, "stg");
+		putRdsMock(Landscape.CI, "chopped-liver");
 
 		StackCreateDeleteController.main(args);
 	}

@@ -3,21 +3,21 @@ package org.bu.jenkins.mvc.model;
 import software.amazon.awssdk.services.cloudformation.model.Stack;
 import software.amazon.awssdk.services.cloudformation.model.StackSummary;
 
-public class CloudformationStack extends AbstractAwsResource {
+public class CloudformationStackCacheItem extends AbstractAwsResource {
 
 	private Stack stack;
 	private StackSummary summary;
 	
-	public CloudformationStack() {
+	public CloudformationStackCacheItem() {
 		super();
 	}
-	public CloudformationStack setStack(Stack stack) {
+	public CloudformationStackCacheItem setStack(Stack stack) {
 		this.stack = stack;
 		this.arn = stack.stackId();
 		this.name = stack.stackName();
 		return this;
 	}
-	public CloudformationStack setStackSummary(StackSummary summary) {
+	public CloudformationStackCacheItem setStackSummary(StackSummary summary) {
 		this.summary = summary;
 		this.arn = summary.stackId();
 		this.name = summary.stackName();
@@ -35,7 +35,7 @@ public class CloudformationStack extends AbstractAwsResource {
 	public boolean hasStack() {
 		return this.stack != null;
 	}
-	public CloudformationStack put(Object stackObj) {
+	public CloudformationStackCacheItem put(Object stackObj) {
 		if(stackObj instanceof Stack)
 			this.stack = (Stack) stackObj;
 		else if(stackObj instanceof StackSummary)

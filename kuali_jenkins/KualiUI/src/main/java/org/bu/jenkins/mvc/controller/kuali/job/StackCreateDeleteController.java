@@ -84,6 +84,7 @@ public class StackCreateDeleteController extends AbstractJob {
 		RDS_INSTANCE_BY_LANDSCAPE("RDS", "rds-instances-by-landscape"),
 		RDS_SNAPSHOT("RDS", "rds-snapshot"),
 		RDS_SNAPSHOT_ORPHANS("RDS", "rds-snapshot-orphans"),
+		RDS_SNAPSHOT_SHARED("RDS", "rds-snapshot-shared"),
 		RDS_WARNING("RDS", "rds-warning"),
 		MONGO("Mongo", "mongo"),
 		ADVANCED("Advanced", "advanced"),
@@ -164,21 +165,23 @@ public class StackCreateDeleteController extends AbstractJob {
 		switch(parameter) {
 			case STACK:
 				logger.debug("Rendering: {}", ParameterName.STACK.name());
-				StackDAO stackList = new StackDAO(credentials);
-				parameterView.setContextVariable("stacks", stackList.getKualiApplicationStacks());
+				StackDAO stackDAO = new StackDAO(credentials);
+				parameterView.setContextVariable("stacks", stackDAO.getKualiApplicationStacks());
+				parameterView.setContextVariable("includeResetButton", true);				
 				break;
 			case STACK_ACTION:
 				logger.debug("Rendering: {}", ParameterName.STACK_ACTION.name());
 				if(stackSelected(jobParameter)) {
 					parameterView.setContextVariable("stackSelected", true);
 				}
-				else if(jobParameter.hasAnyValue("create", "recreate")) {
+				// else if(jobParameter.hasAnyValue("create", "recreate")) {
+				else if(jobParameter.hasAnyValue("delete", "recreate")) {
 					jobParameter.setValue(null);
 					parameterView.setContextVariable(ParameterName.STACK_ACTION.name(), null);
 				}
 				break;
 			default:
-				if(jobParameter.otherParmSetWith(ParameterName.STACK_ACTION, "delete")) {
+				if(jobParameter.otherParmSetWithOrBlank(ParameterName.STACK_ACTION, "delete")) {
 					parameterView.setContextVariable("deactivate", true);
 					parameterView.setContextVariable(ParameterName.STACK_ACTION.name(), null);
 				}
@@ -317,10 +320,18 @@ public class StackCreateDeleteController extends AbstractJob {
 							logger.debug("Rendering: {}", ParameterName.RDS_SNAPSHOT_ORPHANS.name());
 							if(jobParameter.otherParmNotSetWith(ParameterName.LANDSCAPE, "prod") && 
 									jobParameter.otherParmSetWith(ParameterName.RDS_SOURCE, "orphaned-snapshot")) {
-//								List<RdsSnapshot> orphaned = rdsSnapshotDAO.getAllOrphanedKualiRdsSnapshots(rdsDAO);
-//								parameterView.setContextVariable("orphanedSnapshots", orphaned);
 								Map<Landscape, List<RdsSnapshot>> orphaned = rdsSnapshotDAO.getAllOrphanedKualiRdsSnapshotssGroupedByBaseline(rdsDAO);
 								parameterView.setContextVariable("snapshotArnsByBaseline", orphaned);
+								include = true;
+							}
+							parameterView.setContextVariable("include", include);
+							break;
+						case RDS_SNAPSHOT_SHARED:
+							logger.debug("Rendering: {}", ParameterName.RDS_SNAPSHOT_SHARED.name());
+							if(jobParameter.otherParmNotSetWith(ParameterName.LANDSCAPE, "prod") && 
+									jobParameter.otherParmSetWith(ParameterName.RDS_SOURCE, "shared-snapshot")) {
+								List<RdsSnapshot> shared = rdsSnapshotDAO.getSharedSnapshots();
+								parameterView.setContextVariable("sharedSnapshots", shared);
 								include = true;
 							}
 							parameterView.setContextVariable("include", include);

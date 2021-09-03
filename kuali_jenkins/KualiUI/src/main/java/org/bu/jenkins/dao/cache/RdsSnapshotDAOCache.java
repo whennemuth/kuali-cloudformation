@@ -9,7 +9,8 @@ public class RdsSnapshotDAOCache extends BasicDAOCache {
 
 	@Override
 	protected void performCustomPreCachingAction(AbstractAwsResource resource, AbstractAwsResource cachedResource) {
-		// Not implemented		
+		// Not implemented
+		return;
 	}
 
 	@Override

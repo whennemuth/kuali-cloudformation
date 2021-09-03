@@ -58,7 +58,7 @@ public abstract class AbstractJob extends AbstractParameterSet {
 				
  		StringBuilder html = new StringBuilder();
 		try {
-			html.append(getCssView())
+			html.append(getCssView(logger))
 				.append("<form method='GET' name='kuali-parameters' id='kuali-parameters'>")
 				.append("<div id='kuali-wrapper'>")
 				.append("<fieldset id='all-fields'>")
@@ -114,7 +114,7 @@ public abstract class AbstractJob extends AbstractParameterSet {
 		return retval;
 	}
 
-	protected String getCssView() {
+	public static String getCssView(Logger logger) {
 		EntryMessage m = logger.traceEntry("getCssView()");
 		AbstractParameterView cssView = new AbstractParameterView() {
 			@Override public String getResolverPrefix() {

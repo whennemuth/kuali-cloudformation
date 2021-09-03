@@ -14,6 +14,7 @@ import org.bu.jenkins.dao.AbstractDockerDAO;
 import org.bu.jenkins.dao.AbstractGitDAO;
 import org.bu.jenkins.dao.DockerhubDAO;
 import org.bu.jenkins.dao.EcrDAO;
+import org.bu.jenkins.dao.StackDAO;
 import org.bu.jenkins.dao.cli.DockerCommandLineAdapter;
 import org.bu.jenkins.dao.cli.GitCommandLineAdapter;
 import org.bu.jenkins.dao.cli.GitCommits;
@@ -21,6 +22,7 @@ import org.bu.jenkins.dao.cli.GitRefs;
 import org.bu.jenkins.dao.cli.RuntimeCommand;
 import org.bu.jenkins.dao.dockerhub.DockerhubCredentials;
 import org.bu.jenkins.dao.dockerhub.DockerhubToken;
+import org.bu.jenkins.job.AbstractJob;
 import org.bu.jenkins.job.AbstractParameterSet;
 import org.bu.jenkins.job.JobParameterConfiguration;
 import org.bu.jenkins.job.JobParameterMetadata;
@@ -75,6 +77,7 @@ public class ParameterController extends AbstractParameterSet {
 			GitCommandLineAdapter git = null;
 			String ecrRepoName = null;
 			AbstractAwsDAO basicDAO = null;
+			String css = "";
 			
 			switch(parameter) {
 				case ECR_URL:
@@ -261,14 +264,22 @@ public class ParameterController extends AbstractParameterSet {
 						parameterView.setContextVariable("kualicoImages", dhDAO.getImages());
 					}
 					break;
+				case STACK:
+					logger.debug("Rendering: {}", ParameterName.STACK.name());
+					StackDAO stackList = new StackDAO(credentials);
+					parameterView.setContextVariable("defaultInstructions", true);
+					parameterView.setContextVariable("stacks", stackList.getKualiApplicationStacks());
+					css = AbstractJob.getCssView(logger);
+					break;
 				case INVALID:
 					break;
 				default:
 					break;			
 			}
 			
+			
 			logger.traceExit(m);
-			return parameterView.render();
+			return parameterView.render() + "\n" + css;
 		} 
 		catch (Exception e) {
 			e.printStackTrace();
@@ -313,7 +324,7 @@ public class ParameterController extends AbstractParameterSet {
 						parmName = ParameterName.INVALID.name();
 					}
 					else if(ParameterName.tryValue(parmName) == null) {
-						invalidStateMsg = String.format("No such job parameter:\" %s\"", parmName);					
+						invalidStateMsg = String.format("No such job parameter: \"%s\"", parmName);					
 						parmName = ParameterName.INVALID.name();
 					}
 					JobParameterConfiguration config = 

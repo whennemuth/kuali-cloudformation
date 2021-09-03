@@ -10,7 +10,7 @@
   	</div>
   
   	<div th:if="${!deactivate}" th:fragment="rds-source" class="kuali-field-wrapper">
- 		<div class="fieldLabel">RDS:</div>
+ 		<div class="fieldLabel">RDS INSTANCE:</div>
   		<div class="field">
 	        <input 
 	        	type="radio" 
@@ -20,24 +20,38 @@
 	       		th:checked="${ParameterValue=='instance'}">
 	        <label>EXISTING: <i>Use an existing RDS instance</i></label>
 	        <br>
-	        <input 
-	        	type="radio" 
-	        	value="owned-snapshot" 
-	        	onchange="sendData();" 
-	        	th:name="${ParameterName} ?: 'value'" 
-	         	th:disabled="${instance_only}"
-	       		th:checked="${ParameterValue=='owned-snapshot'}">
-	        <label th:attr="style=${instance_only} ? 'color:#AAAAAA' : _">SNAPSHOT: <i>The origin rds db exists</i></label>  		
-	        <br>
-	        <input 
-	        	type="radio" 
-	        	value="orphaned-snapshot" 
-	        	onchange="sendData();" 
-	        	th:name="${ParameterName} ?: 'value'" 
-	         	th:disabled="${instance_only}"
-	       		th:checked="${ParameterValue=='orphaned-snapshot'}">
-	        <label th:attr="style=${instance_only} ? 'color:#AAAAAA' : _">SNAPSHOT: <i>Orphans - the origin rds db is gone</i></label>  		
-  		</div>
+	    </div>
+	    <div class="kuali-field-wrapper">
+	 		<div class="fieldLabel">RDS SNAPSHOT:</div>
+	  		<div class="field">
+		        <input 
+		        	type="radio" 
+		        	value="owned-snapshot" 
+		        	onchange="sendData();" 
+		        	th:name="${ParameterName} ?: 'value'" 
+		         	th:disabled="${instance_only}"
+		       		th:checked="${ParameterValue=='owned-snapshot'}">
+		        <label th:attr="style=${instance_only} ? 'color:#AAAAAA' : _">RECENT: <i>The origin rds db exists</i></label>  		
+		        <br>
+		        <input 
+		        	type="radio" 
+		        	value="shared-snapshot" 
+		        	onchange="sendData();" 
+		        	th:name="${ParameterName} ?: 'value'" 
+		         	th:disabled="${instance_only}"
+		       		th:checked="${ParameterValue=='shared-snapshot'}">
+		        <label th:attr="style=${instance_only} ? 'color:#AAAAAA' : _">SHARED: <i>From a different account</i></label>  		
+		        <br>
+		        <input 
+		        	type="radio" 
+		        	value="orphaned-snapshot" 
+		        	onchange="sendData();" 
+		        	th:name="${ParameterName} ?: 'value'" 
+		         	th:disabled="${instance_only}"
+		       		th:checked="${ParameterValue=='orphaned-snapshot'}">
+		        <label th:attr="style=${instance_only} ? 'color:#AAAAAA' : _">ORPHANED: <i>The origin rds db is gone</i></label>
+			</div>		    
+	    </div>
   	</div>
 
   	<div th:if="${deactivate} ? false : ${include}" th:fragment="rds-instances-by-landscape" class="kuali-field-wrapper">
@@ -109,6 +123,23 @@
 		</div>
   	</div>
   	
+	<div th:if="${deactivate} ? false : ${include}" th:fragment="rds-snapshot-shared" class="kuali-field-wrapper" style="padding-top:0px;">
+	  	<div class="fieldLabel">&nbsp;</div>
+		<div class="field" style='padding-left:30px;'>
+		  <div style='padding-bottom:5px;'>Snapshot:</div>
+		  <select th:name="${ParameterName} ?: 'value'" id="rds-snapshot-shared" onchange="sendData();" >
+		  	<option 
+		       th:selected="${!ParameterValue}"><- Select One -></option>
+		  	<option 
+		       th:each="snapshot : ${sharedSnapshots}" 
+		       th:text="${snapshot.getName()}"
+		       th:value="${snapshot.getArn()}" 
+		       th:selected="${ParameterValue==snapshot.getArn()}">
+		    </option>	  			    	
+		  </select>
+  		</div>
+  	</div>
+  	
 	<div th:if="${deactivate} ? false : ${include}" th:fragment="rds-snapshot-orphans" class="kuali-field-wrapper" style="padding-top:0px;">
 	  	<div class="fieldLabel">&nbsp;</div>
 		<div class="field" style='padding-left:30px;'>
@@ -129,5 +160,7 @@
 		  </select>
   		</div>
   	</div>
+  	
+  	
   </body>
 </html>

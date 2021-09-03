@@ -4,37 +4,69 @@
 
   <body>
   	<div th:fragment="stack-list-table" class="kuali-field-wrapper">
+  		<div th:if="${defaultInstructions} == true or ${instructions} != null" 
+  			style="padding: 10px; padding-top: 0px; color:rgb(11, 106, 162);">
+  			<div th:if="${defaultInstructions} == true" style="width: 660px;">
+  				<b>Select an existing stack to deploy to.</b> If you need to create a new 
+  				stack, do that first, then return to this job later and the stack 
+  				you created should be available in the list for you to select.
+  				<div style="padding-top: 10px; font-style: italic;">
+	  				NOTE:
+	  				<div style="padding-left: 10px">
+	  					<ul>
+	  						<li>
+							   If "sandbox" is selected, the build will be based on the HEAD of the git master branch for kuali-research
+	  						</li>
+	  						<li>
+							   If "ci" is selected, the build will be based on the HEAD of the git bu-master branch for kuali-research
+	  						</li>
+	  						<li>
+							   If any other landscape is selected, whatever was last built for the ci is deployed to that landscape
+							   or, you can override this by selecting a specific git reference below.
+	  						</li>	  						
+	  					</ul>
+  					</div>
+  				</div>
+  			</div>
+			<i th:unless="${instructions} != null">[[${instructions}]]</i>
+  		</div>
   	    <table>
-	    <tr><th colspan=5 class=top>Current cloudformation stacks for Kuali</th></tr>
+	    <tr><th colspan=7 class=top>Current cloud-formation stacks for Kuali</th></tr>
 	    <tr>
 		    <th>Name</th>
+		    <th>Baseline</th>
+		    <th>Landscape</th>
 		    <th>Created</th>
 		    <th>Updated</th>
 		    <th>Status</th>
 		    <th valign="middle" style="padding-left: 10px;">
-		    	<div style="float:left; padding-top:3px;">
-		        	<input 
-		        		type="radio" 
-		        		onchange="sendData();"
-		        		th:value="none"  
-		        		th:name="${ParameterName} ?: 'value'" 
-		        		th:checked="${ParameterValue=='none'}">
-		    	</div>
-	        	<div style="float:left; padding-left:5px; padding-top:5px; font-style: italic; font-weight: normal;">reset</div>
+		    	<div th:if="${includeResetButton}">
+			    	<div style="float:left; padding-top:3px;">
+			        	<input 
+			        		type="radio" 
+			        		onchange="sendData();"
+			        		th:value="none"  
+			        		th:name="${ParameterName} ?: 'value'" 
+			        		th:checked="${ParameterValue=='none'}">
+			    	</div>
+		        	<div style="float:left; padding-left:5px; padding-top:5px; font-style: italic; font-weight: normal;">reset</div>
+	        	</div>
 			</th>
 	    </tr>
 	    <tr th:each="stack : ${stacks}">
-	        <td th:text="${stack.stackName}"></td>
-	        <td th:text="${stack.creationTime}"></td>
-	        <td th:text="${stack.lastUpdatedTime}"></td>
-	        <td th:text="${stack.stackStatus}"></td>
+	        <td th:text="${stack.getStack.stackName}"></td>
+	        <td th:text="${stack.getBaseline}"></td>
+	        <td th:text="${stack.getLandscape}"></td>
+	        <td th:text="${stack.getStack.creationTime}"></td>
+	        <td th:text="${stack.getStack.lastUpdatedTime}"></td>
+	        <td th:text="${stack.getStack.stackStatus}"></td>
 	        <td>
 	        	<input 
 	        		type="radio" 
 	        		onchange="sendData();"
-	        		th:value="${stack.stackName}"  
+	        		th:value="${stack.getStack.stackName} + '|' + ${stack.getBaseline} + '|' + ${stack.getLandscape}"  
 	        		th:name="${ParameterName} ?: 'value'" 
-	        		th:checked="${ParameterValue==stack.stackName}">
+	        		th:checked="${ParameterValue==stack.getStack.stackName + '|' + stack.getBaseline + '|' + stack.getLandscape}">
 	        </td>
 	    </tr>
 		</table>  	

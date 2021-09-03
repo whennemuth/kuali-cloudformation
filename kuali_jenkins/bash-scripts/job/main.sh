@@ -84,13 +84,38 @@ buildArgs() {
       args=(${args[@]} $pair)
     fi
   }
+
+  # The STACk parameter is actually 3 values: stack name, baseline, and landscape concatenated together with a pipe character
+  splitStack() {
+    local stackparts=$(echo $STACK | awk 'BEGIN {RS="|"} {print $0}')
+    local counter=1
+    while read part; do
+      case $((counter++)) in
+        1) STACK_NAME="$part" ;;
+        2) BASELINE="$part" ;;
+        3) LANDSCAPE="$part" ;;
+      esac
+    done <<< $(echo "$stackparts")
+  }
+  getStackName() {
+    [ -z "$STACK_NAME" ] && splitStack
+    echo "$STACK_NAME"
+  }
+  getBaseline() {
+    [ -z "$BASELINE" ] && splitStack
+    echo "$BASELINE"
+  }
+  getLandscape() {
+    [ -z "$LANDSCAPE" ] && splitStack
+    echo "$LANDSCAPE"
+  }
   
   for parm in $@ ; do
     case $parm in
       STACK) 
-        putArg FULL_STACK_NAME=$STACK ;;
+        putArg FULL_STACK_NAME=$(getStackName) ;;
       LANDSCAPE) 
-        putArg LANDSCAPE=$LANDSCAPE ;;
+        putArg LANDSCAPE=$(getLandscape) ;;
       AUTHENTICATION)
         local shib='false'
         [ "${AUTHENTICATION,,}" == 'shibboleth' ] && shib='true'
@@ -139,8 +164,6 @@ pullCodeFromGithub() {
   echo 'Pulling kuali-infrastructure github repository...'
   source $JENKINS_HOME/cli-credentials.sh
   java -jar $JENKINS_HOME/jenkins-cli.jar -s http://localhost:8080/ build fetch-and-reset-kuali-infrastructure -v -f
-  # source $JENKINS_HOME/kuali-infrastructure/scripts/common-functions.sh
-  # sh -a $JENKINS_HOME/kuali-infrastructure/kuali_jenkins/job-scripts/main.sh
 }
 
 
@@ -240,4 +263,3 @@ else
   echo "Job success"
   exit 0
 fi    
-

@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.EntryMessage;
 import org.bu.jenkins.AWSCredentials;
 import org.bu.jenkins.dao.cache.RdsSnapshotDAOCache;
-import org.bu.jenkins.dao.cache.BasicDAOCache.ProcessItem;
 import org.bu.jenkins.mvc.model.AbstractAwsResource;
 import org.bu.jenkins.mvc.model.Landscape;
 import org.bu.jenkins.mvc.model.RdsInstance;
@@ -26,7 +25,10 @@ import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
-import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.rds.RdsClient;
+import software.amazon.awssdk.services.rds.model.DBSnapshot;
+import software.amazon.awssdk.services.rds.model.DescribeDbSnapshotsRequest;
+import software.amazon.awssdk.services.rds.model.DescribeDbSnapshotsResponse;
 import software.amazon.awssdk.services.resourcegroupstaggingapi.ResourceGroupsTaggingApiClient;
 import software.amazon.awssdk.services.resourcegroupstaggingapi.model.GetResourcesRequest;
 import software.amazon.awssdk.services.resourcegroupstaggingapi.model.GetResourcesResponse;
@@ -37,7 +39,9 @@ public class RdsSnapshotDAO extends AbstractAwsDAO {
 
 	private Logger logger = LogManager.getLogger(RdsSnapshotDAO.class.getName());
 	
-	public static final RdsSnapshotDAOCache CACHE = new RdsSnapshotDAOCache();
+	public static final RdsSnapshotDAOCache STANDARD_SNAPSHOT_CACHE = new RdsSnapshotDAOCache();
+	
+	public static final RdsSnapshotDAOCache SHARED_SNAPSHOT_CACHE = new RdsSnapshotDAOCache();
 	
 	public RdsSnapshotDAO(AWSCredentials credentials) {
 		super(credentials);
@@ -50,7 +54,7 @@ public class RdsSnapshotDAO extends AbstractAwsDAO {
 	private void loadAllKualiRdsSnapshots(boolean reload) {
 		EntryMessage m = logger.traceEntry("loadAllKualiRdsSnapshots(reload={})", reload);
 		
-		if(CACHE.alreadyLoaded() && ! reload) {
+		if(STANDARD_SNAPSHOT_CACHE.alreadyLoaded() && ! reload) {
 			logger.info("++++++++ CACHE USE ++++++++ : Using cached resource mapping list for kuali rds snapshots");
 			logger.traceExit(m);
 			return;
@@ -79,11 +83,48 @@ public class RdsSnapshotDAO extends AbstractAwsDAO {
 					for(software.amazon.awssdk.services.resourcegroupstaggingapi.model.Tag tag : mapping.tags()) {
 						snapshot.putTag(tag.key(), tag.value());				
 					}
-					CACHE.put(snapshot);
+					STANDARD_SNAPSHOT_CACHE.put(snapshot);
 					continue;
 				}				
 			}
-			CACHE.setLoaded(true);
+			STANDARD_SNAPSHOT_CACHE.setLoaded(true);
+		} 
+		catch (AwsServiceException | SdkClientException e) {
+			e.printStackTrace();
+		}
+	
+		logger.traceExit(m);
+	}
+	
+	private void loadAllKualiRdsSharedSnapshots(boolean reload) {
+		EntryMessage m = logger.traceEntry("loadAllKualiRdsSharedSnapshots(reload={})", reload);
+		
+		if(SHARED_SNAPSHOT_CACHE.alreadyLoaded() && ! reload) {
+			logger.info("++++++++ CACHE USE ++++++++ : Using cached resource mapping list for kuali rds shared snapshots");
+			logger.traceExit(m);
+			return;
+		}
+		
+		try {
+			DescribeDbSnapshotsRequest request = DescribeDbSnapshotsRequest.builder()
+					.snapshotType("shared")
+					.includeShared(true)
+					.build();
+			
+			RdsClient client = RdsClient.builder()
+					.region(getRegion())
+					.credentialsProvider(provider)
+					.httpClient(ApacheHttpClient.builder().build())
+					.build();
+					
+			logger.info("++++++++ API CALL ++++++++ : Making api call for resource mapping list for kuali rds shared snapshots...");
+			
+			DescribeDbSnapshotsResponse response = client.describeDBSnapshots(request);
+			if(response.hasDbSnapshots()) {
+				for(DBSnapshot dbsnapshot : response.dbSnapshots()) {
+					SHARED_SNAPSHOT_CACHE.put(new RdsSnapshot(dbsnapshot));
+				}
+			}
 		} 
 		catch (AwsServiceException | SdkClientException e) {
 			e.printStackTrace();
@@ -95,7 +136,7 @@ public class RdsSnapshotDAO extends AbstractAwsDAO {
 	public List<RdsSnapshot> getAllKualiRdsSnapshots() {
 		loadAllKualiRdsSnapshots(false);
 		List<RdsSnapshot> snapshots = new ArrayList<RdsSnapshot>();
-		for(AbstractAwsResource resource : CACHE.getValues()) {
+		for(AbstractAwsResource resource : STANDARD_SNAPSHOT_CACHE.getValues()) {
 			snapshots.add((RdsSnapshot) resource);
 		}
 		return snapshots;
@@ -137,6 +178,15 @@ public class RdsSnapshotDAO extends AbstractAwsDAO {
 			rdsSnapshots.put(landscape, snapshots);
 		}
 		return rdsSnapshots;
+	}
+
+	public List<RdsSnapshot> getSharedSnapshots() {
+		loadAllKualiRdsSharedSnapshots(false);
+		List<RdsSnapshot> snapshots = new ArrayList<RdsSnapshot>();
+		for(AbstractAwsResource resource : SHARED_SNAPSHOT_CACHE.getValues()) {
+			snapshots.add((RdsSnapshot) resource);
+		}
+		return snapshots;
 	}
 	
 	

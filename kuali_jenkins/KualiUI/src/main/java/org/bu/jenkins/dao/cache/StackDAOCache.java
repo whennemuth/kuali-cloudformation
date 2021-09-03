@@ -12,7 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.EntryMessage;
 import org.bu.jenkins.mvc.model.AbstractAwsResource;
-import org.bu.jenkins.mvc.model.CloudformationStack;
+import org.bu.jenkins.mvc.model.CloudformationStackCacheItem;
 
 import software.amazon.awssdk.services.cloudformation.model.Stack;
 import software.amazon.awssdk.services.cloudformation.model.StackSummary;
@@ -27,7 +27,7 @@ import software.amazon.awssdk.services.cloudformation.model.StackSummary;
 public class StackDAOCache extends BasicDAOCache {
 	
 	private Logger logger = LogManager.getLogger(StackDAOCache.class.getName());	
-	private Map<String, CloudformationStack> cache = new HashMap<String, CloudformationStack>();	
+	private Map<String, CloudformationStackCacheItem> cache = new HashMap<String, CloudformationStackCacheItem>();	
 	private boolean flushable = true;
 
 	public boolean stacksSummariesAlreadyLoaded() {
@@ -39,7 +39,7 @@ public class StackDAOCache extends BasicDAOCache {
 	private boolean alreadyLoaded(Class<?> clazz) {
 		EntryMessage m = logger.traceEntry("alreadyLoaded(clazz={})", clazz==null ? "null" : clazz.getName());
 		boolean found = false;
-		for(Entry<String, CloudformationStack> entry : cache.entrySet()) {
+		for(Entry<String, CloudformationStackCacheItem> entry : cache.entrySet()) {
 			if(clazz.equals(Stack.class) && ! entry.getValue().hasStack()) {
 				logger.traceExit(m, "false");
 				return false;
@@ -66,7 +66,7 @@ public class StackDAOCache extends BasicDAOCache {
 	private <T> List<T> getObjects(Class<T> clazz) {
 		EntryMessage m = logger.traceEntry("getObjects(clazz={}", clazz==null ? "null" : clazz.getName());
 		List<T> objs = new ArrayList<T>();
-		for(Entry<String, CloudformationStack> entry : cache.entrySet()) {
+		for(Entry<String, CloudformationStackCacheItem> entry : cache.entrySet()) {
 			if(clazz.equals(Stack.class))
 				objs.add((T) entry.getValue().getStack());
 			if(clazz.equals(StackSummary.class))
@@ -81,10 +81,10 @@ public class StackDAOCache extends BasicDAOCache {
 			Method m = stackObj.getClass().getMethod("stackId");
 			String stackId1 = (String) m.invoke(stackObj);
 			if(cache.containsKey(stackId1)) {
-				for(Entry<String, CloudformationStack> entry : cache.entrySet()) {
+				for(Entry<String, CloudformationStackCacheItem> entry : cache.entrySet()) {
 					String stackId2 = entry.getKey();
 					if(stackId2.equals(stackId1)) {
-						CloudformationStack cfstack = entry.getValue();
+						CloudformationStackCacheItem cfstack = entry.getValue();
 						logger.trace("Refreshing cache entry [{}]: {})", stackObj.getClass().getSimpleName(), stackId1);
 						cfstack.put(stackObj);
 						cache.put(stackId1, cfstack);
@@ -93,7 +93,7 @@ public class StackDAOCache extends BasicDAOCache {
 			}
 			else {
 				logger.trace("Adding cache entry [{}]: {})", stackObj.getClass().getSimpleName(), stackId1);
-				cache.put(stackId1, new CloudformationStack().put(stackObj));
+				cache.put(stackId1, new CloudformationStackCacheItem().put(stackObj));
 			}
 		} 
 		catch (NoSuchMethodException | SecurityException | InvocationTargetException | IllegalAccessException e) {

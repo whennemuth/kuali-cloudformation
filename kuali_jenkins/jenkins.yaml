@@ -385,7 +385,6 @@ Resources:
             - ConfigSet: LoadPlugins
             - ConfigSet: ConfigureJenkins
             - ConfigSet: PullJobsFromGit
-            - ConfigSet: AddGroovyHelperFiles
             - ConfigSet: GetAwardNoticeJar
           GetHelperScripts:
             - 01_get_helper_scripts
@@ -401,10 +400,8 @@ Resources:
             - 06_configure_jenkins
           PullJobsFromGit:
             - 07_pull_jobs_from_git
-          AddGroovyHelperFiles:
-            - 08_add_groovy_helper_files
           GetAwardNoticeJar:
-            - 09_get_award_notice_jar
+            - 08_get_award_notice_jar
           
 
         01_get_helper_scripts:
@@ -463,94 +460,7 @@ Resources:
                 log_stream_name = /var/log/jenkins/jenkins.log
                 datetime_format = %Y-%m-%d %H:%M:%S
             /etc/init.d/jenkins-docker.sh:
-              content: |
-                #!/bin/bash
-
-                JENKINS_IMAGE='wrh1/kuali-jenkins-http-server'
-
-                killContainers() {
-                  echo "Removing containers..."
-                  for c in $(docker ps -a --format='{{.ID}}|{{.Image}}') ; do
-                    local id=$(echo "$c" | cut -d'|' -f1)
-                    local image=$(echo "$c" | cut -d'|' -f2)
-                    if [ $image == $JENKINS_IMAGE ] ; then
-                      echo "Removing container: $id ..."
-                      docker rm -f $id
-                    fi
-                  done
-                }
-
-                killImage() {
-                  echo "Removing image $JENKINS_IMAGE ..."
-                  docker rmi $JENKINS_IMAGE
-                  echo "Removing dangling images..."
-                  for i in $(docker images -a -q --filter dangling=true) ; do
-                    docker rmi $i
-                  done
-                }
-
-                runJobContainer() {
-                  local port=$1
-                  local jobClass=$2
-                  local logLevel=${3:-'INFO'}
-                  local host=$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4 2> /dev/null)
-                  docker run \
-                    -d \
-                    --restart unless-stopped \
-                    --name $jobClass \
-                    -p $port:$port \
-                    -v /var/lib/jenkins/.ssh:/root/.ssh \
-                    -e logging_level=$logLevel \
-                    $JENKINS_IMAGE \
-                    job-class=$jobClass \
-                    ajax-host=$host
-                }
-
-                runParametersContainer() {
-                  local port=$1
-                  local name=$2
-                  local logLevel=${3:-'INFO'}
-                  docker run \
-                    -d \
-                    --restart unless-stopped \
-                    --name $name \
-                    -p $port:$port \
-                    -v /var/lib/jenkins/.ssh:/root/.ssh \
-                    -e logging_level=$logLevel \
-                    $JENKINS_IMAGE
-                }
-
-                runContainers() {
-                  echo "Running containers..."
-                  
-                  runJobContainer \
-                    '8001' \
-                    'KUALI_STACK_CONTROLLER' \
-                    $@
-
-                  runParametersContainer \
-                    '8002' \
-                    'KUALI_PARAMETER_CONTROLLER' \
-                    $@
-                }
-
-                task="$1"
-                shift
-
-                case "$task" in
-                  start)
-                    runContainers $@
-                    ;;
-                  refresh)
-                    killContainers
-                    killImage
-                    runContainers $@
-                    ;;
-                  *)
-                    runContainers $@
-                    ;;
-                esac
-
+              source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/cloudformation/kuali_jenkins/scripts/jenkins-docker.sh
               mode: "000775"
               owner: root
               group: root
@@ -559,6 +469,7 @@ Resources:
               content: |
                 All files in this directory comprise pieces of configuration that are used during the cloud-formation init period 
                 by scripts in the cfn-scripts directory to adjust certain configurations before jenkins startup.
+                
             /var/lib/jenkins/_cfn-scripts/README.txt:
               content: |
                 All scripts in this directory perform configuration setup and adjustments of jenkins for security, plugins, jobs, restarts, 
@@ -568,292 +479,29 @@ Resources:
                 Documentation: https://www.jenkins.io/doc/
 
             /var/lib/jenkins/_cfn-scripts/utils.sh:
-              content: !Sub |
-                #!/bin/bash
+              source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/cloudformation/kuali_jenkins/scripts/cfn/utils.sh
+              mode: "000775"
+              owner: root
+              group: root
 
-                JENKINS_HOME=/var/lib/jenkins
-                JENKINS_CLI_JAR=$JENKINS_HOME/jenkins-cli.jar
-                PASSWORD_FILE=$JENKINS_HOME/secrets/initialAdminPassword
-                CRUMB_FILE=$JENKINS_HOME/_cfn-config/crumb
-                COOKIE_JAR=$JENKINS_HOME/_cfn-config/cookiejar
-                ADMIN_PASSWORD_RESET=$JENKINS_HOME/_cfn-config/LastAdminPasswordReset
+            /var/lib/jenkins/_job-scripts/README.txt:
+              content: |
+                All files in this directory comprise scripts that are typically sourced in the "execute shell" of the build stage
+                of a jenkins job. Normally you would put the code directly in the "execute shell" text area, but if it is significantly
+                large and there is a need to run it through a test harness (local debugging), this alternative helps.
 
-                jenkinsIsSecure() {
-                  local cfgxml=$JENKINS_HOME/config.xml
-                  if [ -f ${!cfgxml} ] ; then
-                    local secure=$(grep -Po '(?<=<useSecurity>)[^<]+' ${!cfgxml})
-                    if [ "${!secure}" == 'true' ] ; then
-                      local strategy=$(grep '<authorizationStrategy' ${!cfgxml} | grep -o 'Unsecured')
-                      if [ "${!strategy,,}" == 'unsecured' ] ; then
-                        secure='false'
-                      fi
-                    fi
-                  else
-                    # On first startup, jenkins is secure by default
-                    local secure='true'
-                  fi
-                  [ "${!secure}" == 'true' ] && true || false
-                }
+            /var/lib/jenkins/_job-scripts/main.sh:
+              source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/cloudformation/kuali_jenkins/scripts/job/main.sh
+              mode: "000775"
+              owner: root
+              group: root
 
-                # Use this if you don't want to have to include the "-auth username:password" parameter when making jenkins cli function calls.
-                # This will make the logged in user alway "Anonymous", even if you do pass in -auth or --user parameters to the cli or api respectively.
-                # Therefore, the /me api endpoint becomes inaccessible to curl calls, so don't forget to turn security back on.
-                turnOffSecurity() {
-                  [ ! -f $JENKINS_HOME/config.xml ] && return 0
-                  sed -i 's/\(<useSecurity>\)true/\1false/' $JENKINS_HOME/config.xml
-                  restartJenkins
-                }
+            /var/lib/jenkins/_job-scripts/kuali-research.sh:
+              source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/cloudformation/kuali_jenkins/scripts/job/kuali-research.sh
+              mode: "000775"
+              owner: root
+              group: root
 
-                getAdminPasswordFromSecretsManager() {
-                  aws secretsmanager get-secret-value \
-                    --secret-id kuali/jenkins/administrator \
-                    --output text \
-                    --query '{SecretString:SecretString}' | jq '.password' | sed 's/"//g' 2> /dev/null
-                }
-
-                # If the admin user has had its password reset, then the JENKINS_HOME/secrets/initialAdminPassword is now no good and the new one needs to be used.
-                tryAdminPassword() {
-                  if [ -f "$ADMIN_PASSWORD_RESET" ] ; then
-                    getAdminPasswordFromSecretsManager
-                    if [ $? -gt 0 ] || [ ]; then
-                      err "No admin secret in the secrets manager service (may have not been added yet or permissions to retrieve are lacking)"
-                    fi
-                  fi
-                }
-
-                getAdminPassword() {
-                  if jenkinsIsSecure ; then
-                    local passwd="$(tryAdminPassword)"
-                    if [ -n "$passwd" ] ; then
-                      echo "$passwd"
-                    elif [ -f $PASSWORD_FILE ] ; then
-                      cat $PASSWORD_FILE
-                    else
-                      err "$PASSWORD_FILE does not exist!"
-                    fi
-                  fi
-                }
-
-                getAdminUserCliParm() {
-                  if jenkinsIsSecure ; then
-                    echo "-auth admin:$(getAdminPassword)"
-                  fi
-                }
-
-                getAdminUserApiParm() {
-                  if jenkinsIsSecure ; then
-                    echo "--user admin:$(getAdminPassword)"
-                  fi
-                }
-
-                authenticateForCLI() {
-                  echo "Setting api token credential environment variables"
-                  local credfile=$JENKINS_HOME/cli-credentials.sh
-                  [ ! -f $credfile ] && createTokenFile
-                  source $credfile
-                }
-
-                # The JENKINS_HOME/secrets/initialAdminPassword file won't appear immediately after initial start up, so wait for it (it takes a couple of seconds)
-                waitUntilPasswordIsReady() {
-                  echo "Checking for $PASSWORD_FILE..."
-                  local counter=0
-                  while true ; do
-                    ((counter++))
-                    if [ -f $PASSWORD_FILE ] ; then
-                      echo "Found it!"
-                      passwd=$(cat $PASSWORD_FILE)
-                      break;
-                    fi
-                    echo "Not found! Trying again..."
-                    if [ $counter -gt 120 ] ; then
-                      echo "It's been a minute and the file has not turned up."
-                      echo "Exiting..."
-                      exit 1
-                    fi
-                    sleep .5
-                  done
-                }
-
-                # Ostensibly, if the jenkins website is ready, then most everything else is ready.
-                waitUntilServletContainerIsReady() {
-                  echo 'Checking jenkins status code...'
-                  local counter=0
-                  while true ; do
-                    ((counter++))
-                    statuscode="$(curl -I -s http://localhost:8080 $(getAdminUserApiParm) | grep HTTP | awk '{print $2}')"
-                    echo "Jenkins status code: ${!statuscode}"
-                    if [ "${!statuscode:0:2}" == '20' ] ; then
-                      echo "Status code ${!statuscode} is what we've been waiting for, Jenkins is ready!"
-                      break;
-                    fi
-                    if [ $counter -gt 60 ] ; then
-                      echo "It's been a minute and jenkins is not ready."
-                      echo "Exiting..."
-                      exit 1
-                    fi
-                    sleep 1
-                  done
-                }
-
-                # Files and state get generated as jenkins is starting up. But, it isn't immediate, so a small wait time is needed.
-                waitUntilJenkinsIsReady() {
-                  if jenkinsIsSecure ; then
-                    if [ ! -f $ADMIN_PASSWORD_RESET ] ; then
-                      waitUntilPasswordIsReady
-                    fi
-                  fi
-                  waitUntilServletContainerIsReady
-                  # Wait a little more for good measures
-                  sleep 5
-                }
-
-                startJenkins() {
-                  echo "Starting Jenkins..."
-                  sudo service jenkins start
-                    # Equivalent to:
-                    # /etc/alternatives/java \
-                    #   -Dcom.sun.akuma.Daemon=daemonized \
-                    #   -Djava.awt.headless=true \
-                    #   -DJENKINS_HOME=/var/lib/jenkins \
-                    #   -Dhudson.model.DirectoryBrowserSupport.CSP= \
-                    #   -jar /usr/lib/jenkins/jenkins.war \
-                    #   --logfile=/var/log/jenkins/jenkins.log \
-                    #   --webroot=/var/cache/jenkins/war \
-                    #   --daemon \
-                    #   --httpPort=8080 \
-                    #   --debug=5 \
-                    #   --handlerCountMax=100 \
-                    #   --handlerCountMaxIdle=20
-                  waitUntilJenkinsIsReady
-                }
-
-                restartJenkins() {
-                  echo "Restarting Jenkins..."
-                  sudo service jenkins restart
-                  waitUntilJenkinsIsReady
-                }
-
-                getCLI() {
-                  # https://www.jenkins.io/doc/book/managing/cli/
-                  # https://wiki.jenkins.io/display/JENKINS//Starting+and+Accessing+Jenkins
-
-                  echo "Getting the jenkins-cli.jar..."
-                  curl http://localhost:8080/jnlpJars/jenkins-cli.jar -o $JENKINS_CLI_JAR
-                  chown jenkins:jenkins $JENKINS_CLI_JAR
-                  chmod +x $JENKINS_CLI_JAR
-
-                  # Print cli commands
-                  # java -jar $JENKINS_CLI_JAR $(getAdminUserCliParm) -s http://localhost:8080 help
-                }
-
-                getNewCrumb() {
-                  curl -s -L \
-                  --cookie-jar $COOKIE_JAR \
-                  -X GET http://localhost:8080/crumbIssuer/api/json $(getAdminUserApiParm) \
-                  | jq '.crumb' | sed 's/"//g' > $CRUMB_FILE
-                  cat $CRUMB_FILE
-                }
-
-                # You could use the last crumb that was generated, but to do so you must use it in the same session, which means
-                # saving session (JSESSION) cookies in the curl cookie jar and resusing them (--cookie $COOKIE_JAR --cookie-jar $COOKIE_JAR).
-                getLastCrumb() {
-                  cat $CRUMB_FILE
-                }
-
-                # Create a script that can be invoked to put credentials into the environment so as to properly authenticate cli/api calls.
-                # Exposes the admin users api token by saving it in a file - ok in this setup, but would be insecure in others.
-                createTokenFile() {
-                  rm -f $COOKIE_JAR
-                  local tokenName=${!1:-'admin-api-token'}
-                  local credfile=$JENKINS_HOME/cli-credentials.sh
-                  echo "Creating $credfile..."
-                  echo "export JENKINS_USER_ID=admin" > $credfile
-                  echo "export JENKINS_API_TOKEN=$(getApiToken $tokenName)" >> $credfile
-                  # cat $credfile
-                }
-
-                getApiToken() {
-                  local tokenName="$1"
-                  curl -s -L \
-                    --cookie $COOKIE_JAR \
-                    --cookie-jar $COOKIE_JAR \
-                    -d "newTokenName=$tokenName" \
-                    -H "Jenkins-Crumb: $(getNewCrumb)" \
-                    http://localhost:8080/me/descriptorByName/jenkins.security.ApiTokenProperty/generateNewToken $(getAdminUserApiParm) \
-                    | jq '.data.tokenValue' | sed 's/"//g'
-                }
-
-                resetAdminPassword() {
-                  local cfg="$JENKINS_HOME/users/$(ls -1 $JENKINS_HOME/users | grep 'admin_')/config.xml"
-                  [ ! -f "$cfg" ] && echo "No such admin user config file: $cfg" && return 1
-                  echo "Resetting admin password configuration: $cfg"
-                  local method=${!1:-'sha256'}
-                  local password=$(getAdminPasswordFromSecretsManager) 
-                  case $method in
-                    sha256)
-                      # Use of the sha256 method does not seem to work - cloudbees may have phased it out at some point in the release history.
-                      local digest=$(echo -n "$password{admin}" | /usr/bin/sha256sum | awk '{print $1}')
-                      local phash="admin:$digest"
-                      ;;
-                    bcrypt)
-                      if [ -z "$(npm ls | grep 'bcrypt')" ] ; then
-                        echo "bcrypt not found as a package, installing..."
-                        if [ -z "$(npm ls | grep 'node-pre-gyp')" ] ; then
-                          # Without this package installed, the bcrypt install fails with a missing node_modules/bcrypt/lib directory
-                          # This does not seem to happen if you install bcrypt globally (but you have to navigate use npm link for the 
-                          # module to be visible within the current node project folder)
-                          echo "node-pre-gyp not found as a package, installing..."
-                          npm install node-pre-gyp
-                          ln -s $(find $(pwd) -type f -iname node-pre-gyp) /usr/bin/node-pre-gyp
-                          echo "node-pre-gyp version: $(node-pre-gyp --version)"
-                        fi
-                        npm install bcrypt
-                      fi
-                      javascript="$(cat <<EOF
-                        const bcrypt = require('bcrypt');
-                        bcrypt.genSalt(10, 'a', function(err, salt) {
-                          bcrypt.hash("$password", salt, function(err, hash) {
-                            if(err) {
-                              console.log(err.name + ': ' + err.message);
-                            }
-                            else {
-                              console.log('#jbcrypt:', hash);
-                            }   
-                          });
-                        });
-                EOF
-                      )"
-                      local phash=$(node -pe "$javascript" | sed 's/ //g' | tail -1)
-                      ;;
-                    esac
-                    sed -i "s|<passwordHash>.*</passwordHash>|<passwordHash>$phash</passwordHash>|" $cfg                    
-                    echo "$(grep '<passwordHash>' $cfg)"
-                    echo "$(date)" > $ADMIN_PASSWORD_RESET
-                }
-
-                login() {
-                  local username=${!1:-'admin'}
-                  # Use crumb in header, maintain the same session (using session cookie) and post a first-time login attempt
-                  curl -s -L \
-                    --cookie $COOKIE_JAR \
-                    --cookie-jar $COOKIE_JAR \
-                    -d j_username=$username \
-                    -d j_password=$(getAdminPassword) \
-                    -H "Jenkins-Crumb: $(getNewCrumb)" \
-                    http://localhost:8080/j_spring_security_check $(getAdminUserApiParm)
-                }
-
-                whoAmI() {
-                  java -jar $JENKINS_CLI_JAR $(getAdminUserCliParm) -s http://localhost:8080 who-am-i
-                }
-
-                IAmLoggedIn() {
-                  [ -z "$(whoAmI | grep -i 'anonymous')" ] && true || false
-                }
-
-                err(){
-                  echo "E: $*" >>/dev/stderr
-                }
           services:
             sysvinit:
               cfn-hup:
@@ -877,19 +525,10 @@ Resources:
         02_yum_install:
           files:
             /var/lib/jenkins/_cfn-scripts/02_yum_install.sh:
-              content: !Sub |
-                #!/bin/bash
-                yum update -y
-                yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
-                yum install -y git
-                yum install -y zip unzip
-                yum install -y sysstat
-                yum install -y jq
-                yum install -y vim
-                printf "\n\n"
+              source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/cloudformation/kuali_jenkins/scripts/cfn/02_yum_install.sh
               mode: "000775"
-              owner: root
-              group: root
+              owner: jenkins
+              group: jenkins
           commands:
             Update:
               cwd: /var/lib/jenkins/_cfn-scripts
@@ -897,80 +536,16 @@ Resources:
 
         03_install_various:
           files:
-            /var/lib/jenkins/_cfn-scripts/03_install_various.sh:
-              content: !Sub |
-                #!/bin/bash
-
-                # Install docker
-                amazon-linux-extras install -y docker
-                service docker start
-                usermod -a -G docker ec2-user
-                chkconfig docker on
-
-                # Replace version 1 of awscli with version 2
-                cliVersion=$(aws --version 2>&1 | awk '{print $1}' | cut -d'/' -f2 | cut -d'.' -f1)
-                case "$cliVersion" in
-                  1)
-                    # Upgrade to version 2
-                    curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-                    unzip awscliv2.zip
-                    ./aws/install --bin-dir /bin --install-dir /usr/local/aws-cli --update
-                    aws --version
-                    ;;
-                  2)
-                    # Update version 2
-                    aws --version
-                    ;;
-                esac
-
-                if [ "${JavaVersion}" == '8' ] ; then
-                  sudo yum install -y java-1.8.0-openjdk -y
-                  javaExe=$(namei -v $(which javac) | grep -P '^l\s+' | tail -1 | awk '{print $4}')                  
-                else
-                  echo "Installing amazon coretto 11..."
-                  sudo yum install -y java-11-amazon-corretto
-                  # javaExe=$(namei -v $(which javac) | grep -P '^l\s+' | tail -1 | awk '{print $4}')                  
-                  javaExe=$(update-alternatives --list | grep -E '^javac\s' | awk '{print $3}')
-                fi
-                JAVA_HOME=$(dirname $(dirname $javaExe))
-                echo "JAVA_HOME = ${!JAVA_HOME}"
-                echo "" >> /etc/bashrc
-                echo "JAVA_HOME=${!JAVA_HOME}" >> /etc/bashrc
-                echo "JAVA_HOME=${!JAVA_HOME}" >> ../_cfn-config/env.sh
-
-                # Install maven
-                mkdir -p /usr/share/maven \
-                && curl -fsSL http://apache.osuosl.org/maven/maven-3/3.6.3/binaries/apache-maven-3.6.3-bin.tar.gz \
-                  | tar -xzC /usr/share/maven --strip-components=1 \
-                && ln -s /usr/share/maven/bin/mvn /usr/bin/mvn
-                echo "MAVEN_HOME=/usr/share/maven" >> /etc/bashrc
-                echo "MAVEN_HOME=/usr/share/maven" >> ../_cfn-config/env.sh
-                mvn --version
-
-                # Install nginx
-                amazon-linux-extras install -y nginx1
-
-                # Install node
-                curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.34.0/install.sh | bash
-                . /.nvm/nvm.sh
-                nvm install node
-
-                # For some reason, nvm may not create symlinks to npm and/or node, so check and correct if necessary.
-                if [ -z "$(ls -1 /usr/bin | grep 'npm')" ] ; then
-                  echo "Symlink for npm wasn't created by nvm during install, creating now..."
-                  ln -s $(find /.nvm -type f -iname npm-cli.js) /usr/bin/npm
-                fi
-                if [ -z "$(ls -1 /usr/bin | grep 'node')" ] ; then
-                  echo "Symlink for node wasn't created by nvm during install, creating now..."
-                  ln -s $(find /.nvm -type f -iname node) /usr/bin/node
-                fi
-                echo "npm version: $(sh -c 'npm --version')"
-                echo "node version: $(sh -c 'node --version')"
-
-                printf "\n\n"
+            /var/lib/jenkins/_cfn-scripts/java_version.sh:
+              content: !Sub JavaVersion=${JavaVersion}
               mode: "000775"
-              owner: root
-              group: root
+              owner: jenkins
+              group: jenkins
+            /var/lib/jenkins/_cfn-scripts/03_install_various.sh:
+              source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/cloudformation/kuali_jenkins/scripts/cfn/03_install_various.sh
+              mode: "000775"
+              owner: jenkins
+              group: jenkins
           commands:
             Install:
               cwd: /var/lib/jenkins/_cfn-scripts
@@ -979,28 +554,10 @@ Resources:
         04_install_jenkins:
           files:
             /var/lib/jenkins/_cfn-scripts/04_install_jenkins.sh:
-              content: !Sub |
-                #!/bin/bash
-                
-                wget -O /etc/yum.repos.d/jenkins.repo https://pkg.jenkins.io/redhat/jenkins.repo
-                rpm --import https://pkg.jenkins.io/redhat/jenkins.io.key
-                # sudo yum --showduplicates list jenkins | expand
-                yum install jenkins -y
-                # yum install --nogpgcheck jenkins-2.150-1.1 -y
-                
-                sudo usermod -a -G docker jenkins
-                sudo usermod --shell /bin/bash jenkins
-                sudo chkconfig --add jenkins
-
-                # Turn off Jenkins Content Security Policy to allow for javascript in jobs (for better active choices reactive parameter behavior)
-                if [ -f /etc/sysconfig/jenkins ] ; then
-                  sed -i 's/JENKINS_JAVA_OPTIONS="/JENKINS_JAVA_OPTIONS="-Dhudson.model.DirectoryBrowserSupport.CSP= /' /etc/sysconfig/jenkins
-                fi
-
-                printf "\n\n"
+              source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/cloudformation/kuali_jenkins/scripts/cfn/04_install_jenkins.sh
               mode: "000775"
-              owner: root
-              group: root
+              owner: jenkins
+              group: jenkins
           commands:
             Install:
               cwd: /var/lib/jenkins/_cfn-scripts
@@ -1027,36 +584,10 @@ Resources:
               owner: jenkins
               group: jenkins
             /var/lib/jenkins/_cfn-scripts/05_load_jenkins_plugins.sh:
-              content: !Sub |
-                #!/bin/bash
-                
-                source /var/lib/jenkins/_cfn-scripts/utils.sh
-
-                startJenkins
-
-                # turnOffSecurity
-
-                getCLI
-
-                # # Download any .jpi file available directly from s3:
-                # aws s3 cp s3://${TemplateBucketName}/cloudformation/kuali_jenkins/plugin-files/dynamicparameter.jpi plugins/
-                # chown jenkins:jenkins 
-
-                # Download the rest from the download center:
-                for plugin in $(cat plugin-list | sed 's/\ \+//g') ; do
-                  if [ "${!plugin:0:1}" != '#' ] ; then
-                    java -jar $JENKINS_CLI_JAR $(getAdminUserCliParm) -s http://localhost:8080 install-plugin ${!plugin}
-                  fi
-                done
-
-                chown -R jenkins:jenkins $JENKINS_HOME
-
-                restartJenkins
-
-                printf "\n\n"
+              source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/cloudformation/kuali_jenkins/scripts/cfn/05_load_jenkins_plugins.sh
               mode: "000755"
-              owner: root
-              group: root
+              owner: jenkins
+              group: jenkins
           commands:
             Install:
               cwd: /var/lib/jenkins
@@ -1281,69 +812,10 @@ Resources:
                   </privateKeySource>
                 </com.cloudbees.jenkins.plugins.sshcredentials.impl.BasicSSHUserPrivateKey>
             /var/lib/jenkins/_cfn-scripts/06_configure_jenkins.sh:
-              content: !Sub |
-                #!/bin/bash
-                
-                cfgdir=/var/lib/jenkins/_cfn-config
-                srcdir=/var/lib/jenkins/_cfn-scripts
-
-                source $srcdir/utils.sh
-
-                # Set various parameters to be injected into above collection of config xml files.
-                cat <<EOF >> $cfgdir/env.sh
-                JAVA_SHORTNAME=$(echo "${!JAVA_HOME}" | rev | cut -d'/' -f1 | rev)
-                JENKINS_VERSION=$(java -jar $JENKINS_CLI_JAR $(getAdminUserCliParm) -s http://localhost:8080 version)
-                MAVEN_SHORTNAME=$(sudo mvn --version | grep -oP 'Maven (\d\.?)+' | sed 's/ /-/g')
-                MAVEN_PLUGIN_VERSION=$(java -jar $JENKINS_CLI_JAR $(getAdminUserCliParm) -s http://localhost:8080 list-plugins | grep -E '^maven-plugin\s' | grep -oP '(\d\.?){2,}' | head -1)
-                CREDENTIALS_PLUGIN_VERSION=$(java -jar $JENKINS_CLI_JAR $(getAdminUserCliParm) -s http://localhost:8080 list-plugins | grep -E '^credentials\s' | grep -oP '(\d\.?){2,}' | head -1)
-                PLAIN_CREDENTIALS_PLUGIN_VERSION=$(java -jar $JENKINS_CLI_JAR $(getAdminUserCliParm) -s http://localhost:8080 list-plugins | grep -E '^plain-credentials\s' | grep -oP '(\d\.?){2,}' | head -1)
-                SSH_CREDENTIALS_PLUGIN_VERSION=$(java -jar $JENKINS_CLI_JAR $(getAdminUserCliParm) -s http://localhost:8080 list-plugins | grep -E '^ssh-credentials\s' | grep -oP '(\d\.?){2,}' | head -1)
-                EOF
-
-                cat $cfgdir/env.sh
-                source $cfgdir/env.sh
-
-                # Replace placeholders in these config xml files with their values now that they're known
-                # This will also turn security for jenkins back on again.
-                echo "Modifying config.xml..."
-                sed "s|JENKINS_VERSION|$JENKINS_VERSION|" $cfgdir/config.xml | \
-                sed "s|JAVA_HOME|$JAVA_HOME|" | \
-                sed "s|JAVA_SHORTNAME|$JAVA_SHORTNAME|" > config.xml
-
-                echo "Setting MAVEN_HOME in hudson.tasks.Maven.xml..."
-                sed "s|MAVEN_HOME|$MAVEN_HOME|" $cfgdir/hudson.tasks.Maven.xml | \
-                sed "s|MAVEN_SHORTNAME|$MAVEN_SHORTNAME|" > hudson.tasks.Maven.xml
-
-                # In case any of the credentials plugins have been manually updated, correct them in files before importing.
-                echo "Ensuring correct credentials plugin version..."
-                sed -i 's/maven-plugin@[0-9\.]\+/maven-plugin@'$MAVEN_PLUGIN_VERSION'/' $cfgdir/hudson.maven.MavenModuleSet.xml
-                sed -i 's/credentials@[0-9\.]\+/credentials@'$CREDENTIALS_PLUGIN_VERSION'/' $cfgdir/credentials.kualico.github.xml
-                sed -i 's/credentials@[0-9\.]\+/credentials@'$CREDENTIALS_PLUGIN_VERSION'/' $cfgdir/credentials.kualico.dockerhub.xml
-                echo "Ensuring correct plain-credentials plugin version..."
-                sed -i 's/plain-credentials@[0-9\.]\+/plain-credentials@'$PLAIN_CREDENTIALS_PLUGIN_VERSION'/' $cfgdir/credentials.bu.github.token.xml
-                sed -i 's/plain-credentials@[0-9\.]\+/plain-credentials@'$PLAIN_CREDENTIALS_PLUGIN_VERSION'/' $cfgdir/credentials.newrelic.license.key.xml
-                echo "Ensuring correct ssh-credentials plugin version..."
-                sed -i 's/ssh-credentials@[0-9\.]\+/ssh-credentials@'$SSH_CREDENTIALS_PLUGIN_VERSION'/' $cfgdir/credentials.github.ssh.bu-ist.kc.xml
-                sed -i 's/ssh-credentials@[0-9\.]\+/ssh-credentials@'$SSH_CREDENTIALS_PLUGIN_VERSION'/' $cfgdir/credentials.github.ssh.bu-ist.rice.xml
-
-                # Create all credentials by importing their corresponding xml files.
-                for credxml in $(ls -1 $cfgdir | grep credentials.) ; do
-                  echo "Importing $credxml..."
-                  java -jar $JENKINS_CLI_JAR $(getAdminUserCliParm) -s http://localhost:8080 create-credentials-by-xml system::system::jenkins _ < $cfgdir/$credxml
-                done
-
-                createTokenFile
-
-                resetAdminPassword 'bcrypt'
-
-                chown -R jenkins:jenkins $JENKINS_HOME
-
-                restartJenkins
-
-                printf "\n\n"
+              source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/cloudformation/kuali_jenkins/scripts/cfn/06_configure_jenkins.sh
               mode: "000775"
-              owner: root
-              group: root
+              owner: jenkins
+              group: jenkins
           commands:
             Install:
               cwd: /var/lib/jenkins
@@ -1414,87 +886,27 @@ Resources:
                 #...and the config.xml backup file
                 !config.xml.bkp                
             /var/lib/jenkins/_cfn-scripts/07_pull_jobs_from_git.sh:
-              content: !Sub |
-                #!/bin/bash
-                
-                source /var/lib/jenkins/_cfn-scripts/utils.sh
-
-                # Adjust file/directory permissions
-                chmod 700 .ssh
-                ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
-                ssh-keyscan -t rsa github.com >> $JENKINS_HOME/.ssh/known_hosts
-
-                # Configure github access
-                [ ! -d jobs ] && mkdir jobs
-                cd jobs
-                [ ! -d .git ] && git init
-                git config user.email "jenkins@bu.edu"
-                git config user.name jenkins
-                git remote add github git@github.com:bu-ist/kuali-research-jenkins.git
-
-                # Pull all main/job configuration files from github
-                eval `ssh-agent -s`
-                ssh-add ../.ssh/bu_github_id_jenkins_rsa
-                echo "Fetching from upstream and performing hard reset"
-                git fetch github master
-                git reset --hard FETCH_HEAD
-                eval `ssh-agent -k`
-
-                chown -R jenkins:jenkins $JENKINS_HOME
-
-                restartJenkins
-
-                printf "\n\n"
+              source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/cloudformation/kuali_jenkins/scripts/cfn/07_pull_jobs_from_git.sh
               mode: "000775"
-              owner: root
-              group: root
+              owner: jenkins
+              group: jenkins
           commands:
             Install:
               cwd: /var/lib/jenkins
               command: bash /var/lib/jenkins/_cfn-scripts/07_pull_jobs_from_git.sh
 
-        08_add_groovy_helper_files:
-          files:
-            /var/lib/jenkins/.groovy/lib/*.jar:
-              source: !Sub https://${TemplateBucketName}.s3.amazonaws.com/cloudformation/kuali_jenkins/*.jar
-              mode: "000600"
-              owner: jenkins
-              group: jenkins
-
-        09_get_award_notice_jar:
+        08_get_award_notice_jar:
           files:
             /var/lib/jenkins/bu-awardnotice-1.1.jar.zip:
               source: !Sub https://${TemplateBucketName}.s3.amazonaws.com/bu-awardnotice-1.1.jar.zip
               mode: "000644"
               owner: jenkins
               group: jenkins
-            /var/lib/jenkins/_cfn-scripts/09_get_award_notice_jar.sh:
-              content: |
-                local group='bu.edu'
-                local groupPath=$(echo $group | sed 's|\.|/|g')
-                local artifact='bu-awardnotice'
-                local version='1.1'
-                local packaging='jar'
-                if [ ! -f /var/lib/jenkins/.m2/repository/$groupPath/$artifact/$version/$artifact-$version.$packaging ] ; then
-                  local jar=/var/lib/jenkins/$artifact-$version.$packaging
-                  if [ ! -f $jar ] && [ -f $jar.zip ] ; then
-                    unzip $jar.zip
-                  fi
-                  if [ ! -f $jar ] ; then
-                    echo "WARNING: could not install $artifact-$version.$packaging"
-                    return 0
-                  fi
-                  mvn install:install-file \
-                    -Dfile=$jar \
-                    -DgroupId=$group \
-                    -DartifactId=$artifact \
-                    -Dversion=$version \
-                    -Dpackaging=$packaging \
-                    -DlocalRepositoryPath=/var/lib/jenkins/.m2
-                fi             
+            /var/lib/jenkins/_cfn-scripts/08_get_award_notice_jar.sh:
+              source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/cloudformation/kuali_jenkins/scripts/cfn/08_get_award_notice_jar.sh
               mode: "000775"
-              owner: root
-              group: root
+              owner: jenkins
+              group: jenkins
           commands:
             Install:
               cwd: /var/lib/jenkins
