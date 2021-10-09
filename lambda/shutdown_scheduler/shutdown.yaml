@@ -14,22 +14,24 @@ Parameters:
     Description: >
       A common value that all resources in this template will have prefixed to
       their name and attached as a tag to establish a bundling through naming convention.
-    Default: kuali-shutdown
 
-  TemplateBucketName:
+  CodeBucketName:
     Type: String
-    Description: The S3 bucket kuali research cloudformation templates, config files, keys, etc. are stored
-    Default: kuali-conf
-    
+    Description: The S3 bucket where the zipped node app will be uploaded to for the lambda creation to find.
+    Default: shutdown-scheduler
+  
+  CodeBucketPath:
+    Type: String
+    Description: The path within the S3 bucket of the zipped node app for the lambda.
+    Default: shutdown-scheduler.zip
+
   Service:
     Description: Service catalog name.
     Type: String
-    Default: research-administration
 
   Function:
     Description: The Function within the Service.
     Type: String
-    Default: kuali
     
   StartupCronKey:
     Description: The name of the tag a resource uses to indicate on what schedule it should be started.
@@ -151,9 +153,9 @@ Resources:
           LastRebootTimeKey: !Ref LastRebootTimeKey
           TimeZoneKey: !Ref TimeZoneKey
       Code:
-        S3Bucket: !Ref TemplateBucketName
-        S3Key: cloudformation/kuali_lambda/shutdown_scheduler.zip
-      Description: Function that stops instances
+        S3Bucket: !Ref CodeBucketName
+        S3Key: !Ref CodeBucketPath
+      Description: Function that stops, starts, and reboots resources
 
   PermissionForEventsToInvokeLambda:
     Type: AWS::Lambda::Permission

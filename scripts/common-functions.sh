@@ -335,8 +335,8 @@ EOF
 }
 
 addStandardTags() {
-  addTag $cmdfile 'Service' ${kualiTags['Service']}
-  addTag $cmdfile 'Function' ${kualiTags['Function']}
+  addTag $cmdfile 'Service' ${SERVICE:-${kualiTags['Service']}}
+  addTag $cmdfile 'Function' ${FUNCTION:-${kualiTags['Function']}}
   if [ -n "$LANDSCAPE" ] ; then
     addTag $cmdfile 'Landscape' "$LANDSCAPE"
   fi
@@ -1582,6 +1582,8 @@ processRdsParameters() {
 isDryrun() {
   if [ "${1,,}" == 'dryrun' ] || [ "${1,,}" == 'true' ] ; then
     local dryrun="$1"
+  elif [ "${DRYRUN,,}" == 'true' ] ; then
+    local dryrun="true"
   fi
   [ -n "$dryrun" ] && true || false
 }
@@ -1906,7 +1908,7 @@ jqInstalled() {
 # Prompt the user and/or run it according to certain flags.
 runStackActionCommand() {
   
-  if [ "$DEBUG" ] ; then
+  if [ "$DEBUG" ] || isDryrun ; then
     outputHeading "DEBUG: Would execute the following to trigger cloudformation..."
     cat $cmdfile
     exit 0

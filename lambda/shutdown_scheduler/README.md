@@ -41,7 +41,7 @@ Therefore resources will be ignored without a "LocalTimeZone" tag set to an [IAN
 In order to disable a schedule for a resource, the easiest method is to rename/remove the "LocalTimeZone" tag":
 
 ```
-LocalTimeZone_DISABLED: America/New
+LocalTimeZone_DISABLED: America/New_York
 ```
 
 Alternatively, you can disable/remove each cron-related tag. For example, to prevent a resource from being stopped, tagging would look like this:
@@ -53,12 +53,30 @@ ShutdownCron_DISABLED 0 21 ? * MON-FRI
 RebootCron: 0 2 1 * ?
 ```
 
+**RDS Tagging Restrictions:**
+
+RDS instances have an irritating extra restrictiveness to the set of characters that you can use in tag values:
+
+> *Tag values may only contain unicode letters, digits, whitespace, or one of these symbols: _ . : / = + - @*
+
+So, a cron expression to shut down an ec2 instance at 9PM Monday through Friday:
+
+```
+0 21 ? * MON-FRI
+```
+
+Would have to be modified  for an RDS instance, resorting to ranges instead of wildcard characters, to meet the narrower character set:
+
+```
+0 21 1-31 1-12 MON-FRI
+```
+
 **Reboot window:**
 Every time a resource is rebooted, it is also tagged with the date for the most recent reboot.
 To be rebooted again, 3 criteria must be satisfied. The first two are:
 
 - The cron expression must indicate it is time to reboot the resource.
-- The last time the resource was rebooted (according to the corresponding tag) must have taken place BEFORE the two most recent scheduled reboot dates (according to the reboot cron expression).
+- The last time the resource was rebooted (according to the corresponding tag) must have taken place BEFORE the two most recent of the scheduled reboot dates (according to the reboot cron expression).
 
 From this you can see that, If for any reason, a resource with a reboot schedule had been kept shutdown during the time it would normally have been rebooted, it would be immediately rebooted after a restart. This would be redundant and confusing to the user.
 Therefore, to mitigate this, there is a 3rd criteria added: 
@@ -113,7 +131,7 @@ These instructions are for testing lambda code written in nodejs locally.
 2. **Install dependencies**
   
    ```
-cd lambda/shutdown_scheduler
+   cd lambda/shutdown_scheduler
    npm install
    ```
    

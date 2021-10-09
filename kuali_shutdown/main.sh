@@ -1,6 +1,9 @@
 declare -A defaults=(
   [STACK_NAME]='kuali-shutdown'
-  [TEMPLATE_BUCKET_PATH]='s3://kuali-conf/cloudformation/kuali_shutdown'
+  [CODE_BUCKET_NAME]='shutdown-scheduler'
+  [CODE_BUCKET_PATH]='shutdown-scheduler.zip'
+  [SERVICE]='research-administration'
+  [FUNCTION]='kuali'
   [TEMPLATE_PATH]='.'
   [NO_ROLLBACK]='true'
   # ----- All other parameters have defaults set in the yaml file itself
@@ -41,6 +44,7 @@ validateParms() {
     echo "The lambda timeout cannot be greater than the minute interval"
     exit 1
   fi
+  GLOBAL_TAG=${GLOBAL_TAG:-$STACK_NAME}
 }
 
 stackAction() {
@@ -54,19 +58,28 @@ stackAction() {
     fi
   else
 
-    # Validate and upload the yaml file(s) to s3
-    outputHeading "Validating and uploading main template(s)..."
-    validateTemplateAndUploadToS3 \
-      silent=true \
-      filepath=../lambda/shutdown_scheduler/shutdown.yaml \
-      s3path=$TEMPLATE_BUCKET_PATH/
+    # Validate the yaml file(s)
+    outputHeading "Validating main template(s)..."
+    validateStack silent=true filepath=../lambda/shutdown_scheduler/shutdown.yaml
     [ $? -gt 0 ] && exit 1
 
     # Upload lambda code
     if [ "$PACKAGE_JAVASCRIPT" != 'false' ] ; then
       outputHeading "Building, zipping, and uploading lambda code..."
-      zipPackageAndCopyToS3 '../lambda/shutdown_scheduler' "s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_lambda/shutdown_scheduler.zip"
-      [ $? -gt 0 ] && echo "ERROR! Could not upload shutdown_scheduler.zip to s3." && exit 1
+      if ! bucketExists "$CODE_BUCKET_NAME" ; then
+        if askYesNo "The bucket $CODE_BUCKET_NAME does not exist create it?" ; then
+          aws s3 mb s3://$CODE_BUCKET_NAME
+          [ $? -gt 0 ] && echo "ERROR! Could not create bucket s3://$CODE_BUCKET_NAME, Cancelling..." && exit 1
+        else
+          echo "Cancelling..."
+          exit 0
+        fi
+      fi
+      local zipfile=s3://$CODE_BUCKET_NAME/$CODE_BUCKET_PATH
+      if [ "${SKIP_BUILD,,}" != 'true' ] ; then
+        zipPackageAndCopyToS3 '../lambda/shutdown_scheduler' "$zipfile"
+        [ $? -gt 0 ] && echo "ERROR! Could not upload shutdown_scheduler.zip to s3 at $zipfile" && exit 1
+      fi
     fi
 
     cat <<-EOF > $cmdfile
@@ -75,12 +88,16 @@ stackAction() {
       --stack-name ${STACK_NAME} \\
       $([ $task != 'create-stack' ] && echo '--no-use-previous-template') \\
       $([ "$NO_ROLLBACK" == 'true' ] && [ $task == 'create-stack' ] && echo '--on-failure DO_NOTHING') \\
-      --template-url $BUCKET_URL/shutdown.yaml \\
+      --template-body "file://../lambda/shutdown_scheduler/shutdown.yaml" \\
       --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \\
       --parameters '[
 EOF
 
-    add_parameter $cmdfile 'TemplateBucketName' 'TEMPLATE_BUCKET_NAME'
+    add_parameter $cmdfile 'GlobalTag' 'GLOBAL_TAG'
+    add_parameter $cmdfile 'Service' 'SERVICE'
+    add_parameter $cmdfile 'Function' 'FUNCTION'
+    add_parameter $cmdfile 'CodeBucketName' 'CODE_BUCKET_NAME'
+    add_parameter $cmdfile 'CodeBucketPath' 'CODE_BUCKET_PATH'
     add_parameter $cmdfile 'StartupCronKey' 'STARTUP_CRON_KEY'
     add_parameter $cmdfile 'ShutdownCronKey' 'SHUTDOWN_CRON_KEY'
     add_parameter $cmdfile 'RebootCronKey' 'REBOOT_CRON_KEY'
