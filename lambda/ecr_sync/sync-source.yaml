@@ -1,0 +1,538 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+
+Description: >
+  This stack comprises a lambda function triggered by an cloudwatch event rule that is activated on pushes to "coeus" and "coeus-feature"
+  repositories in the CSS ecr. The lambda function pushes these images to the "kuali-coeus" and "kuali-coeus-feature" repositories of the
+  "legacy" ecr respectively. This is a workaround for the private image replication service which operates on an identity between repo names.
+
+Parameters:
+
+  Service:
+    Description: Service catalog name.
+    Type: String
+    Default: research-administration
+
+  Function:
+    Description: The Function within the Service.
+    Type: String
+    Default: kuali
+  
+  TrustingRoleName:
+    Type: String
+    Description: The name of the role in the trusting account that the role created here will be allowed to assume. 
+    Default: kuali-ecr-sync-trusting-role
+
+  TrustingAccount:
+    Type: String
+    Description: The trusting target account
+    Default: 730096353738
+
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: The id of the vpc to deploy to.
+
+  CampusSubnet:
+    Type: AWS::EC2::Subnet::Id
+    Description: Id of the private application subnet that admits access from bu vpns through transit gateway attachment.
+
+  # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/retrieve-ecs-optimized_AMI.html
+  EC2AMI:
+    Description: AMI ID
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2
+
+  EC2InstanceType:
+    Type: String
+    Description: What type of EC2 instance should be used for hosting?
+    AllowedValues:
+    - t3.micro
+    - t3.small
+    - t3.medium
+    ConstraintDescription: Specified instance type is not within selection list.
+    Default: t3.small
+
+
+Resources:
+
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: kuali-ecr-sync-lambda-role
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Path: /
+      Policies:
+        - PolicyName: kuali-ecr-sync-ssm-policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action: 
+                  - logs:*
+                Resource: 
+                  - !GetAtt LambdaLogsGroup.Arn
+                  - !GetAtt EC2LogsGroup.Arn
+              - Effect: Allow
+                Action: 
+                - ssm:CancelCommand
+                - ssm:SendCommand
+                Resource: 
+                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/${EC2Instance}
+                  - !Sub arn:aws:ssm:${AWS::Region}::document/AWS-RunShellScript
+
+  EC2Role:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub kuali-ecr-sync-trusted-role
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Action: sts:AssumeRole
+          Principal:
+            Service:
+            - ec2.amazonaws.com
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+        - !Ref CrossAccountTrustPolicy
+      Policies:
+        - PolicyName: kuali-ecr-sync-trusted-policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action: 
+                  - logs:*
+                Resource: 
+                  - !GetAtt EC2LogsGroup.Arn
+                  - !GetAtt LambdaLogsGroup.Arn
+              - Effect: Allow
+                Action: 
+                  - ecr:*
+                Resource:
+                  - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/kuali-coeus
+                  - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/kuali-coeus-feature
+              - Effect: Allow
+                Action:
+                  - ecr:GetAuthorizationToken
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - iam:CreateServiceLinkedRole
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    iam:AWSServiceName:
+                      - replication.ecr.amazonaws.com
+
+  EC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: !Sub kuali-ecr-sync-trusted-profile
+      Path: "/"
+      Roles:
+      - !Ref EC2Role
+
+  CrossAccountTrustPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action: sts:AssumeRole
+            Resource: !Sub arn:aws:iam::${TrustingAccount}:role/${TrustingRoleName}
+
+  # https://docs.aws.amazon.com/AmazonECR/latest/userguide/ecr-eventbridge.html
+  AmazonCloudWatchEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      EventPattern:
+        detail:
+          action-type: [PUSH]
+          # image-tag: [latest]
+          repository-name: 
+            - kuali-coeus
+            - kuali-coeus-feature
+          result: [SUCCESS]
+        detail-type: [ECR Image Action]
+        source: [aws.ecr]
+      Targets:
+        - Arn: !GetAtt SyncReposFunction.Arn
+          Id: kuali-repository-sync
+
+  PermissionForEventsToInvokeLambda:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt SyncReposFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn : !GetAtt AmazonCloudWatchEventRule.Arn
+
+  LambdaLogsGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${Service}-${Function}-ecr-sync
+      RetentionInDays: 90
+
+  # Create a log group that anticipates the default name that lambda will log to.
+  # This way it can be deleted by cloudformation and not get orphaned.
+  EC2LogsGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    Properties:
+      LogGroupName: !Sub /aws/ec2/${Service}-${Function}-ecr-sync
+      RetentionInDays: 90
+
+  SyncReposFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: LambdaLogsGroup 
+    Properties:
+      FunctionName: !Sub ${Service}-${Function}-ecr-sync
+      Description: Function that repeats image pushes to an ecr in another account
+      Runtime: nodejs12.x
+      Role: !GetAtt LambdaRole.Arn
+      Handler: index.PushImage
+      Environment:
+        Variables:
+          Repo: coeus
+          FeatureRepo: coeus-feature
+      Code:
+        ZipFile: !Sub |
+          var AWS = require('aws-sdk');
+          exports.PushImage = function (event, context) {
+            // https://docs.aws.amazon.com/AmazonECR/latest/userguide/ecr-eventbridge.html
+            try {
+              const ssm = new AWS.SSM();
+              console.log("-------------------- EVENT --------------------");
+              console.log(JSON.stringify(event, null, 2));
+              console.log("-------------------- CONTEXT --------------------");
+              console.log(JSON.stringify(context, null, 2));
+
+              var args = {
+                source: event,
+                target: {
+                  account: "${TrustingAccount}",
+                  region: "${AWS::Region}",
+                  role: "arn:aws:iam::${TrustingAccount}:role/${TrustingRoleName}"
+                },
+                dryrun: "false"
+              }
+
+              ssm.sendCommand(
+                {
+                  DocumentName: "AWS-RunShellScript",
+                  InstanceIds: [ "${EC2Instance}" ],
+                  TimeoutSeconds: 600,
+                  Parameters: {
+                    commands: [
+                      "sh /opt/kuali/sync.sh '" + JSON.stringify(args) + "' >> /var/log/ecr-sync.log 2>&1",
+                    ]
+                  },
+                  CloudWatchOutputConfig: {
+                    CloudWatchLogGroupName: "${LambdaLogsGroup}",
+                    CloudWatchOutputEnabled: true
+                  }
+                }, 
+                function(err, data) {
+                  if (err) {
+                    console.log(err, err.stack)
+                  }
+                  else {
+                    console.log(data)
+                  }
+                }
+              )
+            }
+            catch(e) {
+              console.log('OOPS!');
+              console.log(e, e.stack);
+            }
+          }
+
+  EC2InstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub Defines access for the ${Service}-${Function}-ecr-sync ec2 instance.
+      GroupName: !Sub ${Service}-${Function}-ecr-sync-sg
+      VpcId: !Ref VpcId
+      Tags:
+      - Key: Name
+        Value: !Sub ${Service}-${Function}-ecr-sync-sg
+
+  EC2Instance:
+    Type: AWS::EC2::Instance
+    DependsOn: EC2LogsGroup
+    Description: >
+      This ec2 instance contains a script to be invoked by SSM send command issued from a lambda that was
+      invoked by an events rule triggered by a docker image push to our ecr for kuali. It downloads that 
+      image and pushes it to the ecr in the old account, with a different name. 
+    CreationPolicy:
+      ResourceSignal:
+        Count: 1
+        Timeout: PT5M
+    Properties:
+      ImageId: 
+        !Ref EC2AMI
+      InstanceType:
+        !Ref EC2InstanceType
+      IamInstanceProfile:
+        !Ref EC2InstanceProfile
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: 32
+            DeleteOnTermination: true
+      SubnetId: !Ref CampusSubnet
+      SecurityGroupIds:
+      - !GetAtt EC2InstanceSecurityGroup.GroupId
+      Tags:
+      - Key: Name
+        Value: !Sub ${Service}-${Function}-ecr-sync
+      - Key: Service
+        Value: !Ref Service
+      - Key: Function
+        Value: !Ref Function
+      UserData: 
+        "Fn::Base64": !Sub |
+          #!/bin/bash
+
+          bootstrap() {
+            # Bootstrap for aws cloudformation utilities.
+            # yum install -y aws-cfn-bootstrap
+
+            # Install the ssm agent for session connections
+            # yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
+
+            # Install a tool for handling json
+            yum install -y jq
+            
+            # Install and run docker
+            amazon-linux-extras install -y docker
+            service docker start
+            usermod -a -G docker ec2-user
+            chkconfig docker on
+            
+            # Implement all the metadata in AWS::CloudFormation::Init
+            /opt/aws/bin/cfn-init \
+              -v \
+              --configsets Setup \
+              --region ${AWS::Region} \
+              --stack ${AWS::StackName} \
+              --resource EC2Instance
+              
+            # Now that all initialization is done signal success
+            /opt/aws/bin/cfn-signal \
+              -e $? \
+              --region ${AWS::Region} \
+              --stack ${AWS::StackName} \
+              --resource EC2Instance
+          }
+
+          bootstrap > /var/log/user-data.log 2>&1
+    Metadata:
+      AWS::CloudFormation::Init:
+        configSets:
+          Setup:
+            - Install
+        Install:
+          packages:
+            yum:
+              awslogs: []
+          files:
+            /opt/kuali/sync.sh:
+              mode: "000755"
+              owner: root
+              group: root
+              content: |
+                #!/bin/bash
+
+                pull() {
+                  REGION=$(echo "$args" | jq -r '.source.region')
+                  SOURCE_ACCOUNT=$(echo "$args" | jq -r '.source.account')
+                  SOURCE_REPO=$(echo "$args" | jq -r '.source.detail["repository-name"]')
+                  TAG=$(echo "$args" | jq -r '.source.detail["image-tag"]')
+                  SOURCE_IMAGE="${SOURCE_ACCOUNT}.dkr.ecr.${REGION}.amazonaws.com/${SOURCE_REPO}:${TAG}"
+                  local cmd1="aws ecr get-login-password --region ${REGION} | docker login --username AWS --password-stdin ${SOURCE_ACCOUNT}.dkr.ecr.${REGION}.amazonaws.com"
+                  local cmd2="docker pull ${SOURCE_IMAGE}"
+                  if runCommand "$cmd1" ; then
+                    if runCommand "$cmd2" ; then
+                      local success='true'
+                    fi
+                  fi
+                  [ "$success" == 'true' ] && true || false
+                }
+
+                push() {
+                  TARGET_ACCOUNT=$(echo $args | jq -r '.target.account')
+                  case "$SOURCE_REPO" in
+                    kuali-coeus) local targetRepo='coeus' ;;
+                    kuali-coeus-feature) local targetRepo='coeus-feature' ;;
+                  esac
+                  if [ -n "$targetRepo" ] ; then
+                    local targetImage="${TARGET_ACCOUNT}.dkr.ecr.${REGION}.amazonaws.com/${targetRepo}:${TAG}"
+                    cmd1="aws --profile=$ASSUMED_ROLE_PROFILE ecr get-login-password --region ${REGION} | docker login --username AWS --password-stdin ${TARGET_ACCOUNT}.dkr.ecr.${REGION}.amazonaws.com"
+                    cmd2="docker tag ${SOURCE_IMAGE} ${targetImage}"
+                    cmd3="docker push ${targetImage}"
+
+                    if assumeRole ; then
+                      if runCommand "$cmd1" ; then
+                        if runCommand "$cmd2" ; then
+                          runCommand "$cmd3"
+                        fi
+                      fi
+                    fi
+                  else
+                    echo "ERROR! Unknown source ecr repository: $SOURCE_REPO"
+                  fi
+                }
+
+                assumeRole() {
+                  ROLE_ARN=$(echo $args | jq -r '.target.role')
+                  local retval=$?
+                  if [ -n "$ROLE_ARN" ] && [ $retval -eq 0 ]; then
+                    echo "Assuming role $ROLE_ARN"
+                    ASSUMED_ROLE_PROFILE='CROSS_ACCOUNT_SYNC'
+                    set -x
+                    local sts=$(aws sts assume-role \
+                      --role-arn "$ROLE_ARN" \
+                      --role-session-name "$ASSUMED_ROLE_PROFILE" \
+                      --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' \
+                      --output text)
+                    set +x
+                    if [ -n "$sts" ] ; then
+                      sts=($sts)
+                      aws configure set aws_access_key_id ${sts[0]} --profile $ASSUMED_ROLE_PROFILE && \
+                      aws configure set aws_secret_access_key ${sts[1]} --profile $ASSUMED_ROLE_PROFILE && \
+                      aws configure set aws_session_token ${sts[2]} --profile $ASSUMED_ROLE_PROFILE && \
+                      export AWS_PROFILE=$ASSUMED_ROLE_PROFILE
+                      [ $? -eq 0 ] && local success='true'
+                    fi
+                  else
+                    echo "ERROR! Problem getting role arn ssm send-command call."
+                    [ -n "$ROLE_ARN" ] && echo "Result: $ROLE_ARN"
+                  fi
+                  [ "$success" == 'true' ] && true || false
+                }
+
+                isDryrun() {
+                  dryrun="${dryrun:-"$(echo $args | jq -r '.dryrun' 2> /dev/null)"}"
+                  [ "${dryrun,,}" == 'true' ] && true || false
+                }
+
+                runCommand() {
+                  local cmd="$1"
+                  echo "$cmd"
+                  if ! isDryrun ; then
+                    eval "$cmd"
+                  fi
+                  [ $? -eq 0 ] && true || false
+                }
+
+                sync() {
+                  if [ -n "$args" ] ; then
+                    echo ' '
+                    echo '--------------------- BEGIN ECR SYNC ---------------------'
+                    echo "$args" | jq '.'
+                    local result="$(echo "$args" | jq -r '.source.detail.result')"
+                    if [ "${result^^}" == 'SUCCESS' ] ; then
+                      if pull ; then
+                        push
+                      fi
+                    else
+                      echo "Original push result was $result. Cancelling sync..."
+                    fi
+                    echo '--------------------- END ECR SYNC ---------------------'
+                  else
+                    echo "ERROR: No args received from send-command"
+                  fi
+                }
+
+                args="$1"
+                sync >> /var/log/ecr-sync.log 2>&1
+
+            /etc/cfn/cfn-hup.conf:
+              mode: "000400"
+              owner: root
+              group: root
+              content: !Sub |
+                [main]
+                stack=${AWS::StackId}
+                region=${AWS::Region}
+                # Change interval from default 15 minutes to 5
+                interval=5
+            /etc/cfn/hooks.d/cfn-auto-reloader.conf:
+              content: !Sub |
+                [cfn-auto-reloader-hook]
+                triggers=post.update
+                path=Resources.EC2Instance.Metadata.AWS::CloudFormation::Init
+                action=/opt/aws/bin/cfn-init -v --region ${AWS::Region} --stack ${AWS::StackName} --resource EC2Instance --configsets Setup
+            /etc/awslogs/awscli.conf:
+              content: !Sub |
+                [plugins]
+                cwlogs = cwlogs
+                [default]
+                region = ${AWS::Region}
+            /etc/awslogs/awslogs.conf:
+              content: !Sub |
+                [general]
+                state_file = /var/lib/awslogs/agent-state
+                
+                [/var/log/docker]
+                file = /var/log/docker
+                log_group_name = ${EC2LogsGroup}
+                log_stream_name = /var/log/docker
+                datetime_format = %Y-%m-%dT%H:%M:%S.%f
+                
+                [/var/log/cfn-init]
+                file = /var/log/cfn-init.log
+                log_group_name = ${EC2LogsGroup}
+                log_stream_name = /var/log/cfn-init
+                datetime_format = %Y-%m-%d %H:%M:%S,
+                # multi_line_start_pattern = \d{4}\-\d{2}\-\d{2} \d{2}:\d{2}:\d{2},\d{3}
+                
+                [/var/log/user-data]
+                file = /var/log/user-data.log
+                log_group_name = ${EC2LogsGroup}
+                log_stream_name = /var/log/user-data
+                datetime_format = %Y-%m-%d %H:%M:%S,
+                # multi_line_start_pattern = \d{4}\-\d{2}\-\d{2} \d{2}:\d{2}:\d{2},\d{3}
+
+                [/var/log/ecr-sync]
+                file = /var/log/ecr-sync.log
+                log_group_name = ${EC2LogsGroup}
+                log_stream_name = /var/log/ecr-sync
+                datetime_format = %Y-%m-%d %H:%M:%S,
+                # multi_line_start_pattern = \d{4}\-\d{2}\-\d{2} \d{2}:\d{2}:\d{2},\d{3}
+
+          services:
+            sysvinit:
+              cfn-hup:
+                enabled: true
+                ensureRunning: true
+                files:
+                - /etc/cfn/cfn-hup.conf
+                - /etc/cfn/hooks.d/cfn-auto-reloader.conf
+              awslogsd:
+                enabled: true
+                ensureRunning: true
+                files:
+                - /etc/awslogs/awslogs.conf
+                - /etc/awslogs/awscli.conf
+
+Outputs:
+
+  EC2RoleArn:
+    Description: > 
+      The arn of the trusted ec2 role created here in the source account. 
+      Reference this arn in the AssumeRolePolicyDocument.Statement.Principal 
+      value of the role created for the ec2 in the source account.
+    Value:
+      !GetAtt EC2Role.Arn

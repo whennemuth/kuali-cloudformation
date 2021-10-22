@@ -1,0 +1,81 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+
+Description: >
+  This stack comprises a role set up for access by a lambda function in another account to 
+  assume so as to push docker images from the ecr in that account to the ecr in this account.
+  Create the stack in the trusting (target) account.
+  
+Parameters:
+
+  Service:
+    Description: Service catalog name.
+    Type: String
+    Default: research-administration
+
+  Function:
+    Description: The Function within the Service.
+    Type: String
+    Default: kuali
+  
+  TrustedAccount:
+    Type: String
+    Description: The id of the trusted account
+    Default: 770203350335
+  
+  TrustedRoleName:
+    Type: String
+    Description: The name of the trusted role from the trusted account
+    Default: kuali-ecr-sync-trusted-role
+
+
+Resources:
+
+  CrossAccountAssumableRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: kuali-ecr-sync-trusting-role
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: 
+                - !Sub arn:aws:iam::${TrustedAccount}:role/${TrustedRoleName}
+                - !Sub arn:aws:iam::${TrustedAccount}:root
+            Action: sts:AssumeRole
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess
+      Policies:
+        - PolicyName: kuali-ecr-sync-trusting-policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecr:*
+                Resource:
+                  - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/coeus
+                  - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/coeus-feature
+              - Effect: Allow
+                Action:
+                  - ecr:GetAuthorizationToken
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - iam:CreateServiceLinkedRole
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    iam:AWSServiceName:
+                      - replication.ecr.amazonaws.com
+
+Outputs:
+
+  RoleArn:
+    Description: > 
+      The arn of the role created here in the target account. 
+      Reference this arn in the trust policy for the ec2 instance in the source account.
+    Value:
+      !GetAtt CrossAccountAssumableRole.Arn

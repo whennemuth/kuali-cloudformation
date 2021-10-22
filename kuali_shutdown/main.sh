@@ -14,7 +14,7 @@ run() {
 
   if ! isCurrentDir "kuali_shutdown" ; then
     echo "Current directory: $(pwd)"
-    echo "You must run this script from the kuali_ecs subdirectory!."
+    echo "You must run this script from the kuali_shutdown subdirectory!."
     exit 1
   fi
 
