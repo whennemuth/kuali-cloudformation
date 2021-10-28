@@ -150,6 +150,21 @@ checkAwsCredentials() {
   fi
 }
 
+# Run all numbered sql files in directory indicated by the landscape, starting from the indicated numeric prefix.
+# Example: In running all scripts, an error occurred on the 6th one. Correct error and rerun with start_at=6 added.
+runFrom() {
+  echo "Running meta data creation scripts starting at number $START_AT..."
+  local files_to_run=""
+  for (( n=$START_AT; n<=20; n++ )) ; do
+    local x=$([ $n -lt 10 ] && echo "0$n" || echo $n)
+    local file="$(ls -1 $(getPwdForSctScriptMount) | grep -P '^'$x'\..+\.sql$')";
+    if [ -n "$file" ] ; then
+      [ -n "$files_to_run" ] && files_to_run="$files_to_run,$file" || files_to_run=$file
+    fi
+  done
+  run $@ files_to_run=$files_to_run
+}
+
 task="$1"
 
 case "$task" in
@@ -177,8 +192,12 @@ case "$task" in
     checkLandscape
     checkAwsCredentials
     INPUT_MOUNT="$(getPwdForSctScriptMount)"
-    echo 'Running all meta data creation scripts...'
-    run $@ files_to_run=all
+    if [ -n "$(echo "$START_AT" | grep -P '^\d+$')" ] ; then
+      runFrom $@
+    else
+      echo 'Running all meta data creation scripts...'
+      run $@ files_to_run=all
+    fi
     [ $? -gt 0 ] && echo "Error code: $?, Cancelling..." && exit 1
     echo 'Creating constraint and trigger toggling procedures...' 
     run $@ files_to_run=create_toggle_constraints.sql,create_toggle_triggers.sql log_path=create_toggling.log

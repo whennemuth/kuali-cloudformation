@@ -45,7 +45,7 @@ The solution makes modified use of the `ssm start-session` command.
 You execute this same command to get to the jumbox, but you use the session to tunnel SSH through to the RDS instance. 
 The ssh command includes parameters to set up the jump box up as a forwarder (proxy) for stdin and stdout from you computer over a port you designate to the rds instance.
 
-But again, the jump box is in the private subnet to with no ports to anything but the database itself, so how is this ssh connection possible?
+But again, the jump box is in the private subnet with no ports to anything but the database itself, so how is this ssh connection possible?
 This is handled as follows *(See: [Set up EC2 Instance Connect](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-connect-set-up.html))*:
 
    - The jump server has [EC2 Instance Connect](https://aws.amazon.com/blogs/compute/new-using-amazon-ec2-instance-connect-for-ssh-access-to-your-ec2-instances/) installed on it.

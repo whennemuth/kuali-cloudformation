@@ -43,28 +43,25 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
      These subnets are tagged to identify which is which.
    - The stack_name parameter and the landscape parameter will be combined to form the actual stack name.
      This allows for one stack per environment in the same account.
-   - The multi_az parameter defaults to true, so you must explicitly indicate false if you only want a single rds instance.
+   - The `multi_az` parameter defaults to false, so you must explicitly indicate true if want a standby replica and not just a single rds instance.
      **Important:** *Multi-AZ deployments are not a read scaling solution, you cannot use a standby replica to serve read traffic. The standby is only there for failover.*
    - **DNS:** If you are recreating the stack and want to avoid the hassle of having end users update the database host with the new RDS endpoint value, include a `"USING_ROUTE53=true"` parameter. The database will be reachable at `[landscape].kuali.research.bu.edu`. End users can retain that hostname in their connection string and retain access even though the RDS database is new and has a different endpoint value.
    
    You will always be presented with the final cli stack creation command so that you can look at all the parameters it contains and will have the option to abort. Saves fear of guesswork. Those parameters you don't see can be located in the yaml template for the default value.
    
    ```
-   # Example 1) All defaults, among which is "sb" for the environment. Creates single rds instance in one availability zone
-   sh main.sh create-stack profile=default
-   
-   # Example 2) Same as above, but specifying environment. Recommended for sb, ci and qa landscapes.
+   # Example 1) Same as above, but specifying environment. Recommended for sb, ci and qa landscapes.
    sh main.sh create-stack profile=default landscape=ci
    
-   # Example 3) Recommended for prod (and possibly stg). Is Multi_az, and larger than default instance size, and DNS.
+   # Example 2) Recommended for prod (and possibly stg). Is Multi_az, and larger than default instance size, and DNS.
    sh main.sh create-stack profile=default landscape=prod using_route53=true db_instance_class=db.m5.xlarge multi_az=true
    
-   # Example 4) Create a new rds instance based on a snapshot of another rds instance.
+   # Example 3) Create a new rds instance based on a snapshot of another rds instance.
    sh main.sh create-stack profile=default landscape=mylandscape rds_snapshot_arn=arn:aws:rds:us-east-1:770203350335:snapshot:rds:kuali-oracle-stg-2021-04-09-22-14
-      or create a new snapshot from the rds instance that services the specified landscape...
+      # or create a new snapshot from the rds instance that services the specified landscape...
    sh main.sh create-stack profile=default landscape=mylandscape rds_landscape_to_clone=stg
    
-   # Example 5) You would probably never need to override ALL parameters, but if you did, it would look like this:
+   # Example 4) You would probably never need to override ALL parameters, but if you did, it would look like this:
    sh main.sh create-stack profile=myprofile landscape=ci stack_name=my-kuali-rds global_tag=my-kuali-rds no_rollback=true template_bucket_path=s3://kuali-conf/cloudformation/kuali_rds db_instance_class=db.r4.xlarge engine=oracle-ee engine_version=12.1.0.2.v20  db_name=Kuali port=1521 license_model=license-included multi_az=false allocated_storage=400 rds_snapshot_arn=[some arn] auto_version_minor_upgrade=false backup_retention_period=10 characterset_name=US7ASCII iops=4000 campus_subnet1=subnet-06edbf07b7e07d73c campus_subnet1_cidr=10.58.34.0/24 campus_subnet2=subnet-0032f03a478ee868b campus_subnet2_cidr=10.58.35.0/24 private_subnet1=subnet-0d4acd358fba71d20 private_subnet1_cidr=10.58.33.0/25 private_subnet2=subnet-08afdf870ee85d511 private_subnet2_cidr=10.58.33.128/25 public_subnet1=subnet-07afd7c2e54376dd0 public_subnet1_cidr=10.58.32.0/25 public_subnet2=subnet-03034a40da92d6d08 public_subnet2_cidr=10.58.32.128/25 jumpbox_instance_type=t3.small
    
    ```
@@ -87,9 +84,9 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
    ```
    
 5. **[Optional] Test connect to the new rds instance**
-   At this point, the RDS database is empty and has no schemas, but you should be able to connect to it from your computer.
+   At this point, If you did not use the `"db_snapshot_arn"` parameter, the RDS database is empty and has no schemas, but you should be able to connect to it from your computer.
    [Instructions...](jumpbox/README.md)
    
-6. **Perform data migration**
+6. **[Optional] Perform data migration**
    If you used the `"db_snapshot_arn"` parameter for stack creation, you are finished. Otherwise, creating and populating schemas is next.
    [Instructions...](migration/README.md)

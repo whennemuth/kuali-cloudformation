@@ -51,7 +51,7 @@ The [AWS Schema Conversion tool](https://docs.aws.amazon.com/SchemaConversionToo
 2. #### Start a tunnel to the RDS Instance on port 5432:
   
    Do this in a separate command line window. Allows you to connect to the RDS instance as localhost on port 5432.
-*Full explanation at [Connect to the RDS instance (from your computer)](../../jumpbox/README.md)*
+   *Full explanation at [Connect to the RDS instance (from your computer)](../../jumpbox/README.md)*
    
    ```
    # Example:
@@ -78,7 +78,7 @@ The [AWS Schema Conversion tool](https://docs.aws.amazon.com/SchemaConversionToo
   
    ![diagram1](./images/sct1.png)    
    Next, set the project environment with the profile: `Settings --> Project settings --> Project environment`
-![diagram8](images/sct8.png)
+   ![diagram8](images/sct8.png)
    
       
    
@@ -86,7 +86,7 @@ The [AWS Schema Conversion tool](https://docs.aws.amazon.com/SchemaConversionToo
   
    *NOTE: "AWS_SCHEMA_CONV" is a user created by our DBA with the required privilege to select from sys.users$.*
    *Without this the tool will fail with: `ORA-01031: insufficient privileges`*
-![diagram2](images/sct2.png)
+   ![diagram2](images/sct2.png)
    
       
    
@@ -283,11 +283,31 @@ The [AWS Schema Conversion tool](https://docs.aws.amazon.com/SchemaConversionToo
        /
        GRANT WRITE ON SYS.TARGETDBDIR TO DBYAM WITH GRANT OPTION
        /
+       GRANT READ ON SYS.SQLT$STAGE TO SQLT_USER_ROLE
+       /
+       GRANT WRITE ON SYS.SQLT$STAGE TO SQLT_USER_ROLE
+       /
        ```
        
          
        
-14. #### Clean up the generated SQL:
+   14. **Create DMS logs schema:**
+    If the database is to be involved later with the aws data migration service, prepare a schema for the logging the service does.
+    Copy the following file:
+
+    ```
+    kuali_rds/migration/sct/sql/create.dmslogs.schema.sql
+    ```
+
+    with the following name in the same directory you are putting all of the generated sql files:
+
+    ```
+    14.create.dmslogs.schema.sql
+    ```
+
+    
+
+15. #### Clean up the generated SQL:
 
     The SQL that was generated will cause errors if run as is. The issues are as follows:
 
@@ -338,7 +358,7 @@ The [AWS Schema Conversion tool](https://docs.aws.amazon.com/SchemaConversionToo
 
     
 
-15. ####  Run the generated SQL:
+16. ####  Run the generated SQL:
 
     With the tunnel to the RDS instance still running, you can open each output script in sql developer and run them one at a time in order.
 

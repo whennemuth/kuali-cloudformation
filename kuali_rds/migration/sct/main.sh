@@ -142,6 +142,19 @@ ALTER TABLESPACE SYSTEM AUTOEXTEND ON MAXSIZE UNLIMITED;
 EOF
 }
 
+backupSqlFiles() {
+  if [ "${PROMPT,,}" == 'true' ] ; then
+    if ! askYesNo "Backup the sql files before cleaning them?" ; then
+      return 0
+    fi
+  fi
+  if [ -d sql/$LANDSCAPE.raw ] ; then
+    cp -r sql/$LANDSCAPE/* sql/$LANDSCAPE.raw/
+  else
+    cp -r sql/$LANDSCAPE sql/$LANDSCAPE.raw
+  fi
+}
+
 cleanSqlFile() {
 
   clean() {
@@ -193,6 +206,9 @@ cleanSqlFile() {
 
 
 cleanSqlFiles() {
+
+  backupSqlFiles
+
   sqlfiles=()
   # Collect up all parameters that are not assignments (do not contain "=") and that are verified as the 
   # names of existing files. These should be sql files
@@ -219,6 +235,8 @@ runTask() {
   case "$task" in
     clean-sql)
       cleanSqlFiles $@ ;;
+    backup-sql)
+      backupSqlFiles $@ ;;
     get-password)
       # Must include PROFILE and LANDSCAPE
       local landscape="$BASELINE"
