@@ -61,7 +61,7 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
    # Example 1): Certificate will be uploaded to "s3://kuali-conf/cloudformation/kuali_ecs"
    sh main.sh cert
    
-   # Example 2): Upload certificate to another bucket path (bucke will be created if it does not already exist).
+   # Example 2): Upload certificate to another bucket path (bucket will be created if it does not already exist).
    sh main.sh cert template_bucket_path=s3://my_bucket/some/directory
    ```
 

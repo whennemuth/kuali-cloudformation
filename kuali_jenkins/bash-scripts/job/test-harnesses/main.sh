@@ -19,6 +19,20 @@ ADVANCED_KEEP_LAMBDA_LOGS=true&
 ADVANCED_MANUAL_ENTRIES=one%3D1%0Atwo%3D2%0Athree%3D3
 ' | tr -d '\n')
 
+PARAMETERS=$(echo '
+DRYRUN=true&
+STACK_ACTION=create&
+STACK_TYPE=ec2&
+AUTHENTICATION=cor-main&
+DNS=none&
+RDS_SOURCE=shared-snapshot&
+RDS_SNAPSHOT_SHARED=arn%3Aaws%3Ards%3Aus-east-1%3A730096353738%3Asnapshot%3Akuali-stg-10-27-2021&LANDSCAPE=dev&
+WAF=false&
+ALB=false&
+MONGO=false&
+ADVANCED=false
+' | tr -d '\n')
+
 # This test harness must be run from the root of the entire project 
 
 source $(pwd)/kuali_jenkins/bash-scripts/job/test-harnesses/util.sh

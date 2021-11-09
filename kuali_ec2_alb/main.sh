@@ -102,42 +102,42 @@ stackAction() {
       if [ "${CREATE_MONGO,,}" == 'true' ] ; then
         validateStack silent=true filepath=../kuali_mongo/mongo.yaml
         [ $? -gt 0 ] && exit 1
-        aws s3 cp ../kuali_mongo/mongo.yaml s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_mongo/
-        aws s3 cp ../scripts/ec2/initialize-mongo-database.sh s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/
+        copyToBucket '../kuali_mongo/mongo.yaml' "s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_mongo/"
+        copyToBucket '../scripts/ec2/initialize-mongo-database.sh' "s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/"
       fi
       if [ "${ENABLE_ALB_LOGGING,,}" != 'false' ] || [ "${CREATE_WAF,,}" == 'true' ] ; then
         validateStack silent=true filepath=../kuali_alb/logs.yaml
         [ $? -gt 0 ] && exit 1
-        aws s3 cp ../kuali_alb/logs.yaml s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_alb/
+        copyToBucket '../kuali_alb/logs.yaml' "s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_alb/"
 
         validateStack silent=true filepath=../kuali_waf/waf.yaml
         [ $? -gt 0 ] && exit 1
-        aws s3 cp ../kuali_waf/waf.yaml s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_waf/
+        copyToBucket '../kuali_waf/waf.yaml' "s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_waf/"
 
         validateStack silent=true filepath=../kuali_waf/aws-waf-security-automations-custom.yaml
         [ $? -gt 0 ] && exit 1
-        aws s3 cp ../kuali_waf/aws-waf-security-automations-custom.yaml s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_waf/
+        copyToBucket '../kuali_waf/aws-waf-security-automations-custom.yaml' "s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_waf/"
 
         validateStack silent=true filepath=../kuali_waf/aws-waf-security-automations-webacl-custom.yaml
         [ $? -gt 0 ] && exit 1
-        aws s3 cp ../kuali_waf/aws-waf-security-automations-webacl-custom.yaml s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_waf/
+        copyToBucket '../kuali_waf/aws-waf-security-automations-webacl-custom.yaml' "s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_waf/"
 
         validateStack silent=true filepath=../lambda/toggle_alb_logging/toggle_alb_logging.yaml
         [ $? -gt 0 ] && exit 1
-        aws s3 cp ../lambda/toggle_alb_logging/toggle_alb_logging.yaml s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_lambda/
+        copyToBucket '../lambda/toggle_alb_logging/toggle_alb_logging.yaml' "s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_lambda/"
 
         validateStack silent=true filepath=../lambda/toggle_waf_logging/toggle_waf_logging.yaml
         [ $? -gt 0 ] && exit 1
-        aws s3 cp ../lambda/toggle_waf_logging/toggle_waf_logging.yaml s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_lambda/
+        copyToBucket '../lambda/toggle_waf_logging/toggle_waf_logging.yaml' "s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_lambda/"
       fi
 
       validateStack silent=true filepath=../kuali_alb/alb.yaml
       [ $? -gt 0 ] && exit 1
-      aws s3 cp ../kuali_alb/alb.yaml s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_alb/
+      copyToBucket '../kuali_alb/alb.yaml' "s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_alb/"
 
       validateStack silent=true filepath=../lambda/bucket_emptier/bucket_emptier.yaml
       [ $? -gt 0 ] && exit 1
-      aws s3 cp ../lambda/bucket_emptier/bucket_emptier.yaml s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_lambda/
+      copyToBucket '../lambda/bucket_emptier/bucket_emptier.yaml' "s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_lambda/"
 
       # Upload lambda code used by custom resources
       outputHeading "Building, zipping, and uploading lambda code behind custom resources..."
@@ -154,9 +154,9 @@ stackAction() {
 
     # Upload scripts that will be run as part of AWS::CloudFormation::Init
     outputHeading "Uploading bash scripts involved in AWS::CloudFormation::Init..."
-    aws s3 cp ../scripts/ec2/process-configs.sh s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/
-    aws s3 cp ../scripts/ec2/stop-instance.sh s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/
-    aws s3 cp ../scripts/ec2/cloudwatch-metrics.sh s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/
+    copyToBucket '../scripts/ec2/process-configs.sh' "s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/"
+    copyToBucket '../scripts/ec2/stop-instance.sh' "s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/"
+    copyToBucket '../scripts/ec2/cloudwatch-metrics.sh' "s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/"
 
     cat <<-EOF > $cmdfile
     aws \\
@@ -217,7 +217,7 @@ EOF
     if [ -n "$RDS_SNAPSHOT_ARN" ]; then
       validateStack silent=true filepath=../kuali_rds/rds-oracle.yaml
       [ $? -gt 0 ] && exit 1
-      aws s3 cp ../kuali_rds/rds-oracle.yaml s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_rds/
+      copyToBucket '../kuali_rds/rds-oracle.yaml' "s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_rds/"
       processRdsParameters $cmdfile $LANDSCAPE "$RDS_SNAPSHOT_ARN" "$RDS_ARN_TO_CLONE"
     else
       echo "No RDS snapshotting indicated. Will use existing RDS database directly."
@@ -226,7 +226,7 @@ EOF
     if [ -n "$JUMPBOX_INSTANCE_TYPE" ] ; then
       validateStack silent=true filepath=../kuali_rds/jumpbox/jumpbox.yaml
       [ $? -gt 0 ] && exit 1
-      aws s3 cp ../kuali_rds/jumpbox/jumpbox.yaml s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_rds/jumpbox/
+      copyToBucket '../kuali_rds/jumpbox/jumpbox.yaml' "s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_rds/jumpbox/"
     fi
 
     echo "      ]' \\" >> $cmdfile

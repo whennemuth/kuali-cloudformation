@@ -209,7 +209,7 @@ validateTemplateAndUploadToS3() {
   if [ "${uploadedTemplates[$s3path]}" == "$s3path" ] ; then
     echo "$s3path already uploaded to s3 - skipping..."
   else
-    aws s3 cp $filepath $s3path
+    copyToBucket $filepath $s3path
     [ $? -gt 0 ] && exit 1
     uploadedTemplates["$s3path"]="$s3path"
   fi
@@ -248,16 +248,23 @@ uploadStack() {
       exit 1
     fi
   else
-    cat <<-EOF > $cmdfile
-    aws s3 cp $TEMPLATE_PATH $TEMPLATE_BUCKET_PATH \\
-      --exclude=* \\
-      --include=*.yaml \\
-      --exclude=.metadata/* \\
-      --recursive
-EOF
+    printf "" > $cmdfile
+    find . \
+      -type f \
+      -name "*.yaml" \
+      -not -path './.metadata/*' \
+      -exec echo 'aws s3 cp {} '$TEMPLATE_BUCKET_PATH >> $cmdfile \;
+      
+#     cat <<-EOF > $cmdfile
+#     aws s3 cp $TEMPLATE_PATH $TEMPLATE_BUCKET_PATH \\
+#       --exclude=* \\
+#       --include=*.yaml \\
+#       --exclude=.metadata/* \\
+#       --recursive
+# EOF
   fi
 
-  if [ "$DEBUG" ] ; then
+  if [ "$DEBUG" ] || isDryrun ; then
     cat $cmdfile
     return 0
   fi
@@ -1419,7 +1426,7 @@ checkRDSParameters() {
   validateBaseline() {
     local msg="$1"
     if [ -z "$BASELINE" ] ; then
-      if [ -n "msg" ] ; then
+      if [ -n "$msg" ] ; then
         echo "ERROR! Could not establish a BASELINE using $msg"
         exit 1
       elif isABaselineLandscape "$LANDSCAPE" ; then
@@ -1446,6 +1453,7 @@ checkRDSParameters() {
     fi  
   }
 
+set -x
   if [ -n "$RDS_SNAPSHOT_ARN" ] ; then
     local original="$BASELINE"
     BASELINE="$(getRdsSnapshotBaseline $RDS_SNAPSHOT_ARN)"
@@ -1462,7 +1470,7 @@ checkRDSParameters() {
     BASELINE="$(getRdsBaseline $RDS_ARN_TO_CLONE)"
     validateBaseline "rds ARN"
     RDS_SNAPSHOT_ARN='new'
-  elif [ -n "BASELINE" ] ; then
+  elif [ -n "$BASELINE" ] ; then
     if ! isABaselineLandscape ; then
       local original="$BASELINE"
       BASELINE="$(getStackBaselineByLandscape $BASELINE)"
@@ -1471,8 +1479,8 @@ checkRDSParameters() {
   fi
 
   validateBaseline
-
-  echo "Ok"
+set +x
+  echo "Ok" && echo " "
 }
 
 createRdsSnapshot() {
@@ -1794,8 +1802,8 @@ getOracleEngineVersion() {
 }
 
 getLatestOracleEngineVersion() {
-  local engine="${1:-'oracle-se2'}"
-  local majorVersion="${2:-'19'}"
+  local engine=${1:-'oracle-se2'}
+  local majorVersion=${2:-'19'}
   
   aws rds describe-db-engine-versions \
     --engine $engine \
@@ -1968,6 +1976,16 @@ checkLegacyAccount() {
         defaults['HOSTED_ZONE']="kuali-research-$BASELINE.bu.edu"
       fi
     fi
+  fi
+}
+
+copyToBucket() {
+  local src="$1"
+  local tar="$2"
+  if isDryrun ; then
+    echo "Dryrun: aws s3 cp $src $tar"
+  else
+    eval "aws s3 cp $src $tar"
   fi
 }
 

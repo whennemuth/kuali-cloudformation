@@ -86,12 +86,12 @@ stackAction() {
 
     # Upload scripts that will be run as part of AWS::CloudFormation::Init
     outputHeading "Uploading bash scripts involved in AWS::CloudFormation::Init..."
-    aws s3 cp ../scripts/ec2/process-configs.sh s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/
-    aws s3 cp ../scripts/ec2/stop-instance.sh s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/
-    aws s3 cp ../scripts/ec2/cloudwatch-metrics.sh s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/
+    copyToBucket '../scripts/ec2/process-configs.sh' "s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/"
+    copyToBucket '../scripts/ec2/stop-instance.sh' "s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/"
+    copyToBucket '../scripts/ec2/cloudwatch-metrics.sh' "s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/"
     if [ "${CREATE_MONGO,,}" == 'true' ] ; then
-      aws s3 cp ../kuali_mongo/mongo.yaml s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_mongo/
-      aws s3 cp ../scripts/ec2/initialize-mongo-database.sh s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/
+      copyToBucket '../kuali_mongo/mongo.yaml' "s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_mongo/"
+      copyToBucket '../scripts/ec2/initialize-mongo-database.sh' "s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/"
     fi
 
     checkKeyPair
@@ -140,7 +140,7 @@ EOF
     if [ -n "$RDS_SNAPSHOT_ARN" ]; then
       validateStack silent=true filepath=../kuali_rds/rds-oracle.yaml
       [ $? -gt 0 ] && exit 1
-      aws s3 cp ../kuali_rds/rds-oracle.yaml s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_rds/
+      copyToBucket '../kuali_rds/rds-oracle.yaml' "s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_rds/"
       processRdsParameters $cmdfile $LANDSCAPE "$RDS_SNAPSHOT_ARN" "$RDS_ARN_TO_CLONE"
     else
       echo "No RDS snapshotting indicated. Will use existing RDS database directly."
@@ -149,7 +149,7 @@ EOF
     if [ -n "$JUMPBOX_INSTANCE_TYPE" ] ; then
       validateStack silent=true filepath=../kuali_rds/jumpbox/jumpbox.yaml
       [ $? -gt 0 ] && exit 1
-      aws s3 cp ../kuali_rds/jumpbox/jumpbox.yaml s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_rds/jumpbox/
+      copyToBucket '../kuali_rds/jumpbox/jumpbox.yaml' "s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_rds/jumpbox/"
     fi
 
     echo "      ]' \\" >> $cmdfile

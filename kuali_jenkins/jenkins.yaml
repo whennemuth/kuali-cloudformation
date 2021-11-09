@@ -76,6 +76,11 @@ Parameters:
     NoEcho: true
     Default: empty
 
+  LegacyAccountId:
+    Type: String
+    Description: The ID of the old kuali aws account.
+    Default: '730096353738'
+
 Conditions:
   CreateAdminSecret: !Not [!Equals [!Ref JenkinsAdminPassword, empty]]
 
@@ -276,6 +281,38 @@ Resources:
               - sts:DecodeAuthorizationMessage              
             Resource: "*"
 
+  EC2CrossAccountRdsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${GlobalTag}-cross-account-rds-role
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Action: sts:AssumeRole
+          Principal:
+            Service:
+            - ec2.amazonaws.com
+      Path: /
+      Policies:
+      - PolicyName:
+          !Sub ${GlobalTag}-cross-account-rds-read
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Resource:
+            - arn:aws:rds::${LegacyAccountId}:db:*
+            Action: [ rds:DescribeDBInstances ]
+            Condition:
+              StringEqualsIfExists:
+                aws:ResourceTag/Service: !Ref Service
+          - Effect: Allow
+            Resource:
+            - arn:aws:rds::${LegacyAccountId}:snapshot:*
+            Action: [ rds:DescribeDBSnapshots ]
+            Condition:
+              StringEqualsIfExists:
+                aws:ResourceTag/Service: !Ref Service
+
 
   JenkinsAdministrator:
     Type: AWS::SecretsManager::Secret
@@ -314,6 +351,7 @@ Resources:
       Path: "/"
       Roles:
       - !Ref EC2Role
+      - !Ref EC2CrossAccountRdsRole
 
   EC2Instance:
     Type: AWS::EC2::Instance

@@ -75,7 +75,7 @@ defaultGitRef() { [ "${GIT_REF_TYPE,,}" == "default" ] && true || false ; }
 lastWar() { ls -1 /var/lib/jenkins/backup/kuali-research/war/$BRANCH/*.war 2> /dev/null ; }
 sandbox() { [ "${LANDSCAPE,,}" == "sandbox" ] && true || false ; }
 ci() { [ "${LANDSCAPE,,}" == "ci" ] && true || false ; }
-staging() { ([ "${LANDSCAPE,,}" == "stage" ] || [ "${LANDSCAPE,,}" == "staging" ]) && true || false ; }
+staging() { ([ "${LANDSCAPE,,}" == "stg" ] || [ "${LANDSCAPE,,}" == "stage" ] || [ "${LANDSCAPE,,}" == "staging" ]) && true || false ; }
 prod() { ([ "${LANDSCAPE,,}" == "prod" ] || [ "${LANDSCAPE,,}" == "production" ]) && true || false ; }
 newrelic() { staging || prod ; }
 # Print out the calls this job would make to other jobs, but do not execute those calls.
@@ -221,7 +221,7 @@ makeJobCalls() {
 
 validParameters() {
   local msg=''
-  [ -z "$LANDSCAPE" ] && msg="no stack selection"
+  [ -z "$LANDSCAPE" ] && msg="no landscape selection"
   if [ -n "$msg" ] ; then
     echo "Invalid/missing parameters: $msg"
   fi

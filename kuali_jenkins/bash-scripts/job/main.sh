@@ -136,6 +136,8 @@ buildArgs() {
         putArg RDS_ARN_TO_CLONE=$(urldecode $RDS_INSTANCE_BY_LANDSCAPE) 'false'
         putArg RDS_ARN_TO_CLONE=$(urldecode $RDS_INSTANCE_BY_BASELINE) 'false'
         putArg RDS_SNAPSHOT_ARN=$(urldecode $RDS_SNAPSHOT) 'false'
+        [ -z "$RDS_SNAPSHOT_ARN" ] && putArg RDS_SNAPSHOT_ARN=$(urldecode $RDS_SNAPSHOT_ORPHANS) 'false'
+        [ -z "$RDS_SNAPSHOT_ARN" ] && putArg RDS_SNAPSHOT_ARN=$(urldecode $RDS_SNAPSHOT_SHARED) 'false'
         ;;
       ADVANCED)
         putArg RETAIN_LAMBDA_CLEANUP_LOGS=$ADVANCED_KEEP_LAMBDA_LOGS 'false'
@@ -156,7 +158,8 @@ buildArgs() {
   
   [ -z "$DEEP_VALIDATION" ] && putArg DEEP_VALIDATION=false
   [ -z "$PROMPT" ] && putArg PROMPT=false
-  [ "$DRYRUN" == true ] && putArg DEBUG=true
+  [ "$DEBUG" == true ] && putArg DEBUG=true
+  [ "$DRYRUN" == true ] && putArg DEBUG=true && putArg DRYRUN=true
 }
 
 
@@ -249,7 +252,7 @@ run() {
   [ ${#parms[@]} -gt 0 ] && run $@
 }
 
-checkTestHarness $@ 2> /dev/null
+checkTestHarness $@ || true
 
 run $@
 

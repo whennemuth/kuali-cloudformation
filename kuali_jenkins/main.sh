@@ -170,7 +170,7 @@ stackAction() {
       echo "Errors encountered while uploading stack! Cancelling..."
       exit 1
     fi
-
+echo "UPLOADING SCRIPTS TO S3..."
     uploadScriptsToS3
 
     cat <<-EOF > $cmdfile

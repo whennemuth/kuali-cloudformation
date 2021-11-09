@@ -21,7 +21,7 @@ checkTestHarness() {
     if [ -z "$DRYRUN" ] ; then
       DRYRUN='true'
     fi
-    if [ -z "$PARAMETERS" ] && [ "$DUMMY_PARAMETERS" != 'true' ]; then
+    if [ -z "$PARAMETERS" ] && [ "$DUMMY_PARAMETERS" != 'true' ] ; then
       if [ -n "$PARAMETERS_FILE" ] ; then
         source "$PARAMETERS_FILE"
       else

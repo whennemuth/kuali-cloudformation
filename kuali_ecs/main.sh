@@ -135,7 +135,7 @@ stackAction() {
           filepath=../kuali_mongo/mongo.yaml \
           s3path=s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_mongo/
 
-        aws s3 cp ../scripts/ec2/initialize-mongo-database.sh s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/
+        copyToBucket '../scripts/ec2/initialize-mongo-database.sh' "s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/"
 
         validateTemplateAndUploadToS3 \
           silent=true \
@@ -199,8 +199,8 @@ stackAction() {
 
     # Upload scripts that will be run as part of AWS::CloudFormation::Init
     outputHeading "Uploading bash scripts involved in AWS::CloudFormation::Init..."
-    aws s3 cp ../scripts/ec2/process-configs.sh s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/
-    aws s3 cp ../scripts/ec2/cloudwatch-metrics.sh s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/
+    copyToBucket '../scripts/ec2/process-configs.sh' "s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/"
+    copyToBucket '../scripts/ec2/cloudwatch-metrics.sh' "s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/"
 
     cat <<-EOF > $cmdfile
     aws \\
