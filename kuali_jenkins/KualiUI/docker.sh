@@ -109,7 +109,7 @@ run() {
   stop
   docker run \
     -d -t \
-    --restart-unless-stopped \
+    --restart=unless-stopped \
     --rm \
     --name active-choices-server \
     -p 8001:8001 \

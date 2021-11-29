@@ -6,6 +6,7 @@ declare -A defaults=(
   [TEMPLATE_BUCKET_PATH]='s3://kuali-conf/cloudformation/kuali_jenkins'
   [TEMPLATE_PATH]='.'
   [NO_ROLLBACK]='true'
+  [S3_REFRESH]='true'
   # [PROFILE]='???'
   # [ADMIN_PASSWORD]='???'
   # [CAMPUS_SUBNET1]='???'
@@ -56,7 +57,7 @@ uploadScriptsToS3() {
         local s3SubPath=$singleSript
       fi
       cmd="aws s3 cp $singleScript $TEMPLATE_BUCKET_PATH/scripts/$s3SubPath"
-      ([ "${DRYRUN,,}" == 'true' ] || [ "${DEBUG,,}" == 'true' ]) && cmd="$cmd --dryrun"
+      (isDryrun || isDebug || ! isS3Refresh) && cmd="$cmd --dryrun"
       eval "$cmd"
     else
       if [ -f "bash-scripts/$singleScript" ] ; then
@@ -170,7 +171,7 @@ stackAction() {
       echo "Errors encountered while uploading stack! Cancelling..."
       exit 1
     fi
-echo "UPLOADING SCRIPTS TO S3..."
+
     uploadScriptsToS3
 
     cat <<-EOF > $cmdfile

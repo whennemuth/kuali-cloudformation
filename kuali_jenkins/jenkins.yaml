@@ -260,7 +260,7 @@ Resources:
           - Effect: Allow
             Action: ecr:*
             Resource:
-              - arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/kuali*
+              - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/kuali*
           - Effect: Deny
             Action:
               - ecr:Delete*
@@ -270,7 +270,7 @@ Resources:
               - ecr:Start*
               - ecr:TagResource
               - ecr:UntagResource
-            NotResource: arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/kuali*
+            NotResource: !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/kuali*
 
       - PolicyName:
           !Sub ${GlobalTag}-error-handling
@@ -281,33 +281,20 @@ Resources:
               - sts:DecodeAuthorizationMessage              
             Resource: "*"
 
-  EC2CrossAccountRdsRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: !Sub ${GlobalTag}-cross-account-rds-role
-      AssumeRolePolicyDocument:
-        Statement:
-        - Effect: Allow
-          Action: sts:AssumeRole
-          Principal:
-            Service:
-            - ec2.amazonaws.com
-      Path: /
-      Policies:
       - PolicyName:
           !Sub ${GlobalTag}-cross-account-rds-read
         PolicyDocument:
           Statement:
           - Effect: Allow
             Resource:
-            - arn:aws:rds::${LegacyAccountId}:db:*
+            - !Sub arn:aws:rds::${LegacyAccountId}:db:*
             Action: [ rds:DescribeDBInstances ]
             Condition:
               StringEqualsIfExists:
                 aws:ResourceTag/Service: !Ref Service
           - Effect: Allow
             Resource:
-            - arn:aws:rds::${LegacyAccountId}:snapshot:*
+            - !Sub arn:aws:rds::${LegacyAccountId}:snapshot:*
             Action: [ rds:DescribeDBSnapshots ]
             Condition:
               StringEqualsIfExists:
@@ -351,7 +338,6 @@ Resources:
       Path: "/"
       Roles:
       - !Ref EC2Role
-      - !Ref EC2CrossAccountRdsRole
 
   EC2Instance:
     Type: AWS::EC2::Instance
@@ -462,7 +448,7 @@ Resources:
                 [cfn-auto-reloader-hook]
                 triggers=post.update
                 path=Resources.EC2Instance.Metadata.AWS::CloudFormation::Init
-                action=/opt/aws/bin/cfn-init -v --region ${AWS::Region} --stack ${AWS::StackName} --resource EC2Instance --configsets AllConfigs
+                action=/opt/aws/bin/cfn-init -v --region ${AWS::Region} --stack ${AWS::StackName} --resource EC2Instance --configsets GetHelperScripts
             /etc/awslogs/awscli.conf:
               content: !Sub |
                 [plugins]
@@ -565,8 +551,8 @@ Resources:
             /var/lib/jenkins/_cfn-scripts/02_yum_install.sh:
               source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/cloudformation/kuali_jenkins/scripts/cfn/02_yum_install.sh
               mode: "000775"
-              owner: jenkins
-              group: jenkins
+              owner: root
+              group: root
           commands:
             Update:
               cwd: /var/lib/jenkins/_cfn-scripts
@@ -577,13 +563,13 @@ Resources:
             /var/lib/jenkins/_cfn-scripts/java_version.sh:
               content: !Sub JavaVersion=${JavaVersion}
               mode: "000775"
-              owner: jenkins
-              group: jenkins
+              owner: root
+              group: root
             /var/lib/jenkins/_cfn-scripts/03_install_various.sh:
               source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/cloudformation/kuali_jenkins/scripts/cfn/03_install_various.sh
               mode: "000775"
-              owner: jenkins
-              group: jenkins
+              owner: root
+              group: root
           commands:
             Install:
               cwd: /var/lib/jenkins/_cfn-scripts
@@ -594,8 +580,8 @@ Resources:
             /var/lib/jenkins/_cfn-scripts/04_install_jenkins.sh:
               source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/cloudformation/kuali_jenkins/scripts/cfn/04_install_jenkins.sh
               mode: "000775"
-              owner: jenkins
-              group: jenkins
+              owner: root
+              group: root
           commands:
             Install:
               cwd: /var/lib/jenkins/_cfn-scripts
@@ -948,7 +934,7 @@ Resources:
           commands:
             Install:
               cwd: /var/lib/jenkins
-              command: bash /var/lib/jenkins/_cfn-scripts/09_get_award_notice_jar.sh
+              command: bash /var/lib/jenkins/_cfn-scripts/08_get_award_notice_jar.sh
 
             
 

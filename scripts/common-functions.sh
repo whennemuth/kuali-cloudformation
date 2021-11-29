@@ -248,13 +248,22 @@ uploadStack() {
       exit 1
     fi
   else
+    cache() {
+      echo "aws s3 cp $1 $TEMPLATE_BUCKET_PATH/" >> $cmdfile
+    }
     printf "" > $cmdfile
     find . \
       -type f \
       -name "*.yaml" \
       -not -path './.metadata/*' \
-      -exec echo 'aws s3 cp {} '$TEMPLATE_BUCKET_PATH >> $cmdfile \;
-      
+      | while read file; do cache "$file"; done
+
+    # find . \
+    #   -type f \
+    #   -name "*.yaml" \
+    #   -not -path './.metadata/*' \
+    #   -exec echo 'aws s3 cp {} '$TEMPLATE_BUCKET_PATH/ >> $cmdfile \;
+
 #     cat <<-EOF > $cmdfile
 #     aws s3 cp $TEMPLATE_PATH $TEMPLATE_BUCKET_PATH \\
 #       --exclude=* \\
@@ -264,7 +273,7 @@ uploadStack() {
 # EOF
   fi
 
-  if [ "$DEBUG" ] || isDryrun ; then
+  if isDebug || isDryrun ; then
     cat $cmdfile
     return 0
   fi
@@ -385,7 +394,7 @@ metaRefresh() {
 		'{"commands":["/opt/aws/bin/cfn-init -v --configsets '"$configset"' --region \"us-east-1\" --stack \"$FULL_STACK_NAME\" --resource $LOGICAL_RESOURCE_ID"]}'
 	EOF
 
-  if [ "$DEBUG" ] ; then
+  if isDebug ; then
     cat $cmdfile
     exit 0
   fi
@@ -1001,7 +1010,7 @@ checkSubnets() {
     fi
     # If we still don't have a total of 6 subnets then exit with an error code
   fi
-  [ $subnets -lt 6 ] && echo "ERROR! Must have 6 subnets (2 public, 2 campus, 2 private)\n1 or more are missing and could not be found with cli."
+  [ $subnets -lt 6 ] && echo "ERROR! Must have 6 subnets (2 public, 2 campus, 2 private)" && echo "1 or more are missing and could not be found with cli."
   [ $subnets -lt 6 ] && false || true
 }
 
@@ -1596,6 +1605,24 @@ isDryrun() {
   [ -n "$dryrun" ] && true || false
 }
 
+isDebug() {
+  if [ "${1,,}" == 'debug' ] || [ "${1,,}" == 'true' ] ; then
+    local debug="$1"
+  elif [ "${DEBUG,,}" == 'true' ] ; then
+    local debug="true"
+  fi
+  [ -n "$debug" ] && true || false
+}
+
+isS3Refresh() {
+  if [ "${1,,}" == 'true' ] ; then
+    local refresh="$1"
+  elif [ "${S3_REFRESH,,}" == 'true' ] ; then
+    local refresh="true"
+  fi
+  [ -n "$refresh" ] && true || false
+}
+
 nameFromARN() {
   local arn="$1"
   case $(echo "$arn" | grep -o ':' | wc -l) in
@@ -1916,7 +1943,7 @@ jqInstalled() {
 # Prompt the user and/or run it according to certain flags.
 runStackActionCommand() {
   
-  if [ "$DEBUG" ] || isDryrun ; then
+  if isDebug || isDryrun ; then
     outputHeading "DEBUG: Would execute the following to trigger cloudformation..."
     cat $cmdfile
     exit 0

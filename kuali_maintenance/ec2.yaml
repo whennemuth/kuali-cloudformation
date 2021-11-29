@@ -1,0 +1,422 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+
+Description: >
+  This stack comprises a single ec2 instance that will be attached to the kuali load balanncer to 
+  return a single html page notifying users that kuali research has moved and provides the new link.
+
+Parameters:
+
+  Service:
+    Description: Service catalog name.
+    Type: String
+    Default: research-administration
+
+  Function:
+    Description: The Function within the Service.
+    Type: String
+    Default: kuali
+
+  Category:
+    Description: A subdivision of function
+    Type: String
+    Default: maintenance
+
+  Landscape:
+    Description: Specify a name for your landscape
+    Type: String
+    AllowedPattern: "[a-zA-Z\\d]{1,12}"
+    ConstraintDescription: Up to 12 letters and/or numbers
+
+  SSLBucket:
+    Description: The s3 bucket for ssl certificate and private key
+    Type: String
+    Default: kuali-research-ec2-setup
+
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: The id of the vpc to deploy to.
+
+  CampusSubnet:
+    Type: AWS::EC2::Subnet::Id
+    Description: Id of the private application subnet that admits access from bu vpns through transit gateway attachment.
+
+  EC2AMI:
+    Description: AMI ID
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2
+
+  EC2InstanceType:
+    Type: String
+    Description: What type of EC2 instance should be used for hosting?
+    AllowedValues:
+    - t3.micro
+    - t3.small
+    - t3.medium
+    ConstraintDescription: Specified instance type is not within selection list.
+    Default: t3.micro
+
+  ELBSecurityGroupId:
+    Type: String
+    Description: The id of the load balancer that must be granted ingress on the ec2
+
+Resources:
+
+  EC2LogsGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    Properties:
+      LogGroupName: !Sub /aws/ec2/${Service}-${Function}-${Category}
+      RetentionInDays: 90
+
+  EC2Role:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${Function}-${Category}-role
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Action: sts:AssumeRole
+          Principal:
+            Service:
+            - ec2.amazonaws.com
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        - PolicyName: !Sub ${Function}-${Category}-log-policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action: 
+                  - logs:*
+                Resource: 
+                  - !GetAtt EC2LogsGroup.Arn
+        - PolicyName: !Sub ${Function}-${Category}-ecr-policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecr:GetAuthorizationToken
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - ecr:*
+                Resource:
+                  - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/kuali-maintenance
+        - PolicyName: !Sub ${Function}-${Category}-s3-policy
+          PolicyDocument:
+            Statement:
+            - Effect: Allow
+              Resource: "*"
+              Action: "*"
+
+  EC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: !Sub ${Function}-${Category}-ec2-profile
+      Path: "/"
+      Roles:
+      - !Ref EC2Role
+
+  EC2InstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub Defines access for the ${Service}-${Function}-${Category} ec2 instance. Must originate from the kuali ELB only.
+      GroupName: !Sub ${Service}-${Function}-${Category}-sg
+      VpcId: !Ref VpcId
+      Tags:
+        - Key: Name
+          Value: !Sub ${Service}-${Function}-${Category}-sg
+        - Key: Service
+          Value: !Ref Service
+        - Key: Function
+          Value: !Ref Function
+      SecurityGroupIngress:
+        - Description: "HTTP ingress to the EC2 instance from the ELB only"
+          SourceSecurityGroupId: !Ref ELBSecurityGroupId
+          IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+        - Description: "HTTPS ingress to the EC2 instance from the ELB only"
+          SourceSecurityGroupId: !Ref ELBSecurityGroupId
+          IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+
+  EC2Instance:
+    Type: AWS::EC2::Instance
+    DependsOn: EC2LogsGroup
+    Description: This ec2 instance will be attached to the kuali load balancer to replace the app with a notification to users that kuali research has moved and provides the new link.
+    CreationPolicy:
+      ResourceSignal:
+        Count: 1
+        Timeout: PT5M
+    Properties:
+      ImageId: 
+        !Ref EC2AMI
+      InstanceType:
+        !Ref EC2InstanceType
+      IamInstanceProfile:
+        !Ref EC2InstanceProfile
+      SubnetId: !Ref CampusSubnet
+      SecurityGroupIds:
+      - !GetAtt EC2InstanceSecurityGroup.GroupId
+      Tags:
+      - Key: Name
+        Value: !Sub ${Function}-${Category}-${Landscape}
+      - Key: Service
+        Value: !Ref Service
+      - Key: Function
+        Value: !Ref Function
+      UserData: 
+        "Fn::Base64": !Sub |
+          #!/bin/bash
+
+          startLogging() {
+            /opt/aws/bin/cfn-init \
+              -v \
+              --configsets LoggingConfigSet \
+              --region ${AWS::Region} \
+              --stack ${AWS::StackName} \
+              --resource EC2Instance
+          }
+
+          bootstrap() {
+            yum update -y
+            yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
+            yum install -y aws-cfn-bootstrap
+
+            # Install and run docker
+            amazon-linux-extras install -y docker
+            service docker start
+            usermod -a -G docker ec2-user
+            chkconfig docker on
+            
+            # Implement all the metadata in AWS::CloudFormation::Init
+            /opt/aws/bin/cfn-init \
+              -v \
+              --configsets BootstrapConfigSet \
+              --region ${AWS::Region} \
+              --stack ${AWS::StackName} \
+              --resource EC2Instance
+              
+            # Now that all initialization is done signal success
+            /opt/aws/bin/cfn-signal \
+              -e $? \
+              --region ${AWS::Region} \
+              --stack ${AWS::StackName} \
+              --resource EC2Instance
+          }
+
+          startLogging > /var/log/user-data.log 2>&1
+
+          bootstrap >> /var/log/user-data.log 2>&1
+    Metadata:
+      AWS::CloudFormation::Init:
+        configSets:
+          LoggingConfigSet:
+            - Logging
+          BootstrapConfigSet:
+            - Bootstrap
+          AllConfigs:
+            - Logging
+            - Bootstrap
+
+        # Install logging first ()    
+        Logging:
+          packages:
+            yum:
+              awslogs: []
+          files:
+            /etc/awslogs/awscli.conf:
+              content: !Sub |
+                [plugins]
+                cwlogs = cwlogs
+                [default]
+                region = ${AWS::Region}
+            /etc/awslogs/awslogs.conf:
+              content: !Sub |
+                [general]
+                state_file = /var/lib/awslogs/agent-state
+                
+                [/var/log/docker]
+                file = /var/log/docker
+                log_group_name = ${EC2LogsGroup}
+                log_stream_name = /var/log/docker
+                datetime_format = %Y-%m-%dT%H:%M:%S.%f
+                
+                [/var/log/cfn-init]
+                file = /var/log/cfn-init.log
+                log_group_name = ${EC2LogsGroup}
+                log_stream_name = /var/log/cfn-init
+                datetime_format = %Y-%m-%d %H:%M:%S,
+                # multi_line_start_pattern = \d{4}\-\d{2}\-\d{2} \d{2}:\d{2}:\d{2},\d{3}
+                
+                [/var/log/user-data]
+                file = /var/log/user-data.log
+                log_group_name = ${EC2LogsGroup}
+                log_stream_name = /var/log/user-data
+                datetime_format = %Y-%m-%d %H:%M:%S,
+                # multi_line_start_pattern = \d{4}\-\d{2}\-\d{2} \d{2}:\d{2}:\d{2},\d{3}
+          services:
+            sysvinit:
+              awslogsd:
+                enabled: true
+                ensureRunning: true
+                files:
+                - /etc/awslogs/awslogs.conf
+                - /etc/awslogs/awscli.conf
+
+        Bootstrap:
+          files:
+            /etc/cfn/cfn-hup.conf:
+              mode: "000400"
+              owner: root
+              group: root
+              content: !Sub |
+                [main]
+                stack=${AWS::StackId}
+                region=${AWS::Region}
+                # Change interval from default 15 minutes to 5
+                interval=5
+            /etc/cfn/hooks.d/cfn-auto-reloader.conf:
+              content: !Sub |
+                [cfn-auto-reloader-hook]
+                triggers=post.update
+                path=Resources.EC2Instance.Metadata.AWS::CloudFormation::Init
+                action=/opt/aws/bin/cfn-init -v --region ${AWS::Region} --stack ${AWS::StackName} --resource EC2Instance --configsets AllConfigs
+            /check-certificates.sh:
+              content: |
+                #!/bin/bash
+
+                landscape=$1
+                s3bucket=$2
+
+                isACert() {
+                  local certfile="$1"
+                  if [ -f $certfile ] ; then
+                    local hasBeginCert="$(head -n 1 $certfile | grep -xE '\-+BEGIN CERTIFICATE\-+')"
+                    if [ "$hasBeginCert" ] ; then
+                      local hasEndCert="$(tail -n 1 $certfile | grep -xE '\-+END CERTIFICATE\-+')"
+                    fi
+                  fi
+                  ([ "$hasBeginCert" ] && [ "$hasEndCert" ]) && true || false
+                }
+
+                isACertFile() {
+                  local file=$1
+                  (isACert $file && ! isAChainFile $file) && true || false
+                }
+
+                isAKeyFile() {
+                  local keyfile="$1"
+                  if [ -f $keyfile ] ; then
+                    local hasBeginKey="$(head -n 1 $keyfile | grep -xE '\-+BEGIN RSA PRIVATE KEY\-+')"
+                    if [ "$hasBeginKey" ] ; then
+                      local hasEndKey="$(tail -n 1 $keyfile | grep -xE '\-+END RSA PRIVATE KEY\-+')"
+                    fi
+                  fi
+                  ([ "$hasBeginKey" ] && [ "$hasEndKey" ]) && true || false
+                }
+
+                isAChainFile() {
+                  local chainfile="$1"
+                  local beginMarkers=0
+                  local endMarkers=0
+                  if isACert $chainfile ; then
+                    beginMarkers=$(grep -irxE '\-+BEGIN CERTIFICATE\-+' $chainfile | wc -l)
+                    endMarkers=$(grep -irxE '\-+END CERTIFICATE\-+' $chainfile | wc -l)
+                  fi
+                  ([ $beginMarkers -eq 3 ] && [ $endMarkers -eq 3 ]) && true || false
+                }
+
+                cd /
+                [ ! -d certs ] && mkdir certs
+                cd certs
+                
+                if [ $(ls -1 | wc -l) -lt 3 ] ; then
+                  aws s3 sync s3://$s3bucket/$landscape/certs/ .
+                fi
+
+                printf "" > certs.sh
+                for f in $(ls -1) ; do
+                  if isACertFile $f ; then
+                    echo "CERT_FILE=$(pwd)/$f" >> certs.sh
+                  elif isAKeyFile $f ; then
+                    echo "KEY_FILE=$(pwd)/$f" >> certs.sh
+                  fi
+                done
+
+              mode: "000775"
+              owner: root
+              group: root
+            /docker-startup.sh:
+              content: !Sub |
+                #!/bin/bash
+
+                registry="${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com"
+                imageName="${!registry}/kuali-maintenance"
+
+                pull() {
+                  local pswd="$(aws ecr get-login-password --region ${AWS::Region})"
+                  echo ${!pswd} | docker login -u AWS --password-stdin ${!registry}
+                  docker pull ${!imageName}
+                }
+
+                clear() {
+                  docker rm -f kuali-maint 2> /dev/null || true
+                  docker rmi ${!imageName} 2> /dev/null || true
+                }
+
+                run() {
+                  clear
+
+                  sh /check-certificates.sh ${Landscape} ${SSLBucket} && source certs/certs.sh
+
+                  docker run \
+                    -d \
+                    --restart=unless-stopped \
+                    --name=kuali-maint \
+                    -e landscape=${Landscape} \
+                    -p 80:80 \
+                    -p 443:443 \
+                    -v $CERT_FILE:/etc/nginx/nginx.crt \
+                    -v $KEY_FILE:/etc/nginx/nginx.key \
+                    ${!imageName}
+                }
+
+                case "${!1}" in
+                  clear) clear ;;
+                  pull) pull ;;
+                  run) run ;;
+                  *) clear && pull && run ;;
+                esac
+
+              mode: "000775"
+              owner: root
+              group: root
+          commands:
+            start_docker:
+              cwd: /
+              command: !Sub bash docker-startup.sh
+          services:
+            sysvinit:
+              cfn-hup:
+                enabled: true
+                ensureRunning: true
+                files:
+                - /etc/cfn/cfn-hup.conf
+                - /etc/cfn/hooks.d/cfn-auto-reloader.conf
+
+Outputs:
+
+  PrivateIP:
+    Value:
+      !GetAtt EC2Instance.PrivateIp
+
+  InstanceId:
+    Value:
+      !Ref EC2Instance

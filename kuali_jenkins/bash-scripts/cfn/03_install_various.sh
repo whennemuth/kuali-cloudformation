@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# daemonize was not required by jenkins.noarch 0:2.276-1.1, but is for jenkins.noarch 0:2.320-1.1
+amazon-linux-extras install epel -y
+yum install daemonize -y
+
 # Install docker
 amazon-linux-extras install -y docker
 service docker start

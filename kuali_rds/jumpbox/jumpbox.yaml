@@ -120,7 +120,7 @@ Resources:
             - arn:aws:ssm:*:*:document/AWS-StartSSHSession
             Condition:
               StringLike:
-                ssm:resourceTag/Name:
+                ssm:ResourceTag/Name:
                 - "kuali*"
           - Effect: Allow
             Action: ssm:TerminateSession
