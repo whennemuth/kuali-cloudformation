@@ -1395,6 +1395,15 @@ getRdsBaseline() {
   fi
 }
 
+getRdsSnapshotType() {
+  local snapshotArn="$1"
+  aws rds describe-db-snapshots \
+    --db-snapshot-identifier $snapshotArn \
+    --output text \
+    --query 'DBSnapshots[].{SnapshotType:SnapshotType}' 2> /dev/null
+}
+
+
 getRdsSnapshotBaseline() {
   local snapshotArn="$1"
   if [ -n "$snapshotArn" ] ; then
@@ -1418,14 +1427,40 @@ getRdsSnapshotBaseline() {
         --output text \
         --query 'DBSnapshots[].{DBInstanceIdentifier:DBInstanceIdentifier}' 2> /dev/null
     )
-    local rdsArn=$(
-      aws rds describe-db-instances \
-        --db-instance-identifier $rdsRN \
-        --output text \
-        --query 'DBInstances[].{DBInstanceArn:DBInstanceArn}' 2> /dev/null
-    )
-    getRdsBaseline $rdsArn
+    if isSharedSnapshot $snapshotArn ; then
+      # A shared snapshot won't have a parent database that we can access. Also, it won't have any tags.
+      # Therefore the only choice left is to search it's arn for a baseline landscape fragment.
+      getBaselineFromString $snapshotArn
+    else
+      local rdsArn=$(
+        aws rds describe-db-instances \
+          --db-instance-identifier $rdsRN \
+          --output text \
+          --query 'DBInstances[].{DBInstanceArn:DBInstanceArn}' 2> /dev/null
+      )
+      getRdsBaseline $rdsArn
+    fi
   fi
+}
+
+isSharedSnapshot() {
+  [ "$(getRdsSnapshotType $1)" == 'shared' ] && true || false
+}
+
+getBaselineFromString() {
+  local string="$1"
+  local order=(stg prod sb ci qa)
+  declare -A regexes=(
+    [stg]='(?<![a-zA-Z])((stg)|(stage)|(staging))(?![a-zA-Z]+)'
+    [prod]='(?<![a-zA-Z])((prod)|(production))(?![a-zA-Z]+)'
+    [sb]='(?<![a-zA-Z])((sb)|(sandbox))(?![a-zA-Z]+)'
+    [ci]='(?<![a-zA-Z])(ci)(?![a-zA-Z]+)'
+    [qa]='(?<![a-zA-Z])(qa)(?![a-zA-Z]+)'
+  )
+  # for landscape in ${!regexes[@]} ; do
+  for landscape in ${order[@]} ; do
+    [ -n "$(echo "$string" | grep -oP ${regexes[$landscape]} 2> /dev/null)" ] && echo $landscape && return 0
+  done
 }
 
 checkRDSParameters() {
