@@ -1627,7 +1627,7 @@ processRdsParameters() {
     echo "ERROR! Cannot determine rds engine version"
     exit 1
   fi
-  addParameter $cmdfile 'EngineVersion' $engineVersion
+  addParameter $cmdfile 'RdsEngineVersion' $engineVersion
 }
 
 isDryrun() {
