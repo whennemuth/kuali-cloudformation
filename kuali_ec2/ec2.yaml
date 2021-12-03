@@ -216,8 +216,8 @@ Resources:
         Function: !Ref Function
         VpcId: !Ref VpcId
         DBInstanceClass: !If [ IsProd, db.m5.xlarge, !Ref AWS::NoValue ]
-        DBSnapshotARN: !Ref RdsSnapshotARN
-        EngineVersion: !Ref RdsEngineVersion
+        RdsSnapshotARN: !Ref RdsSnapshotARN
+        RdsEngineVersion: !Ref RdsEngineVersion
         RdsDbSubnet1: !Ref RdsDbSubnet1
         RdsDbSubnet2: !Ref RdsDbSubnet2
         RdsSubnetCIDR1: !Ref RdsSubnetCIDR1

@@ -96,7 +96,7 @@ Parameters:
     ConstraintDescription: Specified instance type is not within selection list.
     Default: none
 
-  DBSnapshotARN:
+  RdsSnapshotARN:
     Type: String
     Description: By specifying this property, you can create a DB instance from the specified DB snapshot identified by its ARN
     Default: none
@@ -139,7 +139,7 @@ Parameters:
   #     --query 'DBEngineVersions[?DBParameterGroupFamily==`oracle-ee-19`].{EngineVersion:EngineVersion}' | tail -n -1
   # Familys:
   #   [engine]-19, [engine]-18, [engine]-12.2, [engine]-12.1, [engine]-11.2
-  EngineVersion:
+  RdsEngineVersion:
     Type: String
     Description: The version number of the database engine to use.
     # Default: 19.0.0.0.ru-2020-04.rur-2020-04.r1
@@ -261,7 +261,7 @@ Parameters:
 
 Conditions:
   SingleDBAvailabilityZone: !Equals [!Ref MultiAZ, 'false']
-  CreateFromSnapshot: !Not [!Equals [!Ref DBSnapshotARN, none]]
+  CreateFromSnapshot: !Not [!Equals [!Ref RdsSnapshotARN, none]]
   IsProd: !Equals [!Ref Landscape, prod]
   IopsSpecified: !Not [!Equals [!Ref Iops, 0]]
   CreateJumpboxInstance: !Not [!Equals [!Ref JumpboxInstanceType, none]]
@@ -407,7 +407,7 @@ Resources:
       DBSnapshotIdentifier: 
         !If
         - CreateFromSnapshot
-        - !Ref DBSnapshotARN
+        - !Ref RdsSnapshotARN
         - !Ref AWS::NoValue
       DBSubnetGroupName: !Ref DBSubnetGroup
       DeletionProtection:
@@ -431,7 +431,7 @@ Resources:
         - true
         - !Ref AWS::NoValue
       Engine: !Ref Engine
-      EngineVersion: !Ref EngineVersion
+      EngineVersion: !Ref RdsEngineVersion
       Iops:
         !If
         - IopsSpecified

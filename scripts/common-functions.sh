@@ -1618,7 +1618,7 @@ processRdsParameters() {
     [ $? -gt 0 ] && err "Problem with snapshot attempt!" && exit 1
   fi
 
-  addParameter $cmdfile 'DBSnapshotARN' "$rdsSnapshotARN"
+  addParameter $cmdfile 'RdsSnapshotARN' "$rdsSnapshotARN"
 
   local engineVersion="$ENGINE_VERSION"
   [ -z "$engineVersion" ] && engineVersion="$(getOracleEngineVersion $rdsSnapshotARN)"
