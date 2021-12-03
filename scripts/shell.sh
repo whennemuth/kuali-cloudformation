@@ -18,7 +18,9 @@ visitEC2() {
   if [ -n "$instanceId" ] && [ "${instanceId,,}" != 'cancel' ] ; then
     local cmd="aws ssm start-session --target $instanceId"
     [ -n "$(winpty --version 2> /dev/null)" ] && cmd="winpty $cmd"
-    echo "$cmd" && eval "$cmd"
+    echo "$cmd"
+    isDryrun && return 0
+    eval "$cmd"
   else
     echo "Could not find running ec2 instance(s) that match!"
     [ -z "$AWS_PROFILE" ] && ([ "$PROFILE" == 'default' ] || [ -z "$PROFILE" ]) && "Did you forget to pass in an aws profile argument?"
@@ -37,7 +39,7 @@ filters=(
 
 case "${task,,}" in
   jenkins)
-    filters=(${filters[@]} "Key=Name,Values=kuali-jenkins")
+    filters=(${filters[@]} "Key=ShortName,Values=jenkins")
     ;;
   app)
     filters=('nameFragment=ec2' ${filters[@]})

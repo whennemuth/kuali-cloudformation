@@ -2,25 +2,46 @@
 
 source /var/lib/jenkins/_cfn-scripts/utils.sh
 
-startJenkins
+# Install specific versions of plugins from jpi files stored in s3 bucket.
+# (NOTE: Alternatively, most plugin jpi files will be available from here: https://updates.jenkins.io/download/plugins/)
+installPluginsFromS3Bucket() {
+  local plugins=$JENKINS_HOME/plugins
+  [ ! -d $plugins ] && mkdir -p $plugins
+  cd $plugins
+  aws s3 sync s3://kuali-conf/cloudformation/kuali_jenkins/plugin-files/jenkins-2.322-1.1/ . --exclude "*" --include "*.jpi"
+  chown -R jenkins:jenkins $JENKINS_HOME
+  startJenkins
+  getCLI
+  printf "\n\n"
+}
 
-# turnOffSecurity
+# Get the latest version of all plugins listed in the specified file from the jenkins download center, using the jenkins cli.
+installLatestPluginsFromList() {  
+  startJenkins
+  # turnOffSecurity
+  getCLI
 
-getCLI
+  local list=${1:-'plugin-list'}
+  for plugin in $(cat $list | sed 's/\ \+//g') ; do
+    if [ "${plugin:0:1}" != '#' ] ; then
+      java -jar $JENKINS_CLI_JAR $(getAdminUserCliParm) -s http://localhost:8080 install-plugin $plugin
+    fi
+  done
+  chown -R jenkins:jenkins $JENKINS_HOME
+  restartJenkins
+  printf "\n\n"
+}
 
-# # Download any .jpi file available directly from s3:
-# aws s3 cp s3://${TemplateBucketName}/cloudformation/kuali_jenkins/plugin-files/dynamicparameter.jpi plugins/
-# chown jenkins:jenkins 
+pluginsAvailableInS3() {
+  local alternate="s3://kuali-conf/cloudformation/kuali_jenkins/plugin-files/${JENKINS_VERSION}/"
+  local s3dir=${JENKINS_PLUGINS_S3_LOCATION:-$alternate}
+  local pluginCount=$(aws s3 ls $s3dir | wc -l)
+  [ $pluginCount -gt 0 ] && true || false
+}
 
-# Download the rest from the download center:
-for plugin in $(cat plugin-list | sed 's/\ \+//g') ; do
-  if [ "${plugin:0:1}" != '#' ] ; then
-    java -jar $JENKINS_CLI_JAR $(getAdminUserCliParm) -s http://localhost:8080 install-plugin $plugin
-  fi
-done
+if pluginsAvailableInS3 ; then
+  installPluginsFromS3Bucket
+else
+  installLatestPluginsFromList
+fi
 
-chown -R jenkins:jenkins $JENKINS_HOME
-
-restartJenkins
-
-printf "\n\n"

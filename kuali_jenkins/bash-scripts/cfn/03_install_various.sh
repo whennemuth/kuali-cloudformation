@@ -26,6 +26,9 @@ case "$cliVersion" in
     ;;
 esac
 
+# Make ssm-user a sudoer
+sudo usermod -a -G sudo ssm-user 2> /dev/null
+
 source /var/lib/jenkins/_cfn-scripts/java_version.sh
 if [ "${JavaVersion}" == '8' ] ; then
   sudo yum install -y java-1.8.0-openjdk -y

@@ -1,5 +1,15 @@
 #!/bin/bash
 
+#########################################################################################################
+# This script is intended to run in 2 scenarios:
+#   1) During bootstrapping of a jenkins ec2 instance.
+#      Its task is to download a docker image from the elastic container registry and run a container from
+#      it. The docker container hosts a mini web service that serves up html content for jenkins jobs to
+#      obtain and embed into their UI via the active choices plugin to render dynamic query-based content.
+#   2) As the target of a systems manager send command to reresh the docker image and container.
+#      Currently, kuali_jenkins\KualiUI\docker.sh has functionality to issue such send commands.
+#########################################################################################################
+
 killContainers() {
   echo "Removing containers..."
   for c in $(docker ps -a --format='{{.ID}}|{{.Image}}') ; do

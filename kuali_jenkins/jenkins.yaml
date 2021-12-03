@@ -33,6 +33,18 @@ Parameters:
     Type: AWS::EC2::VPC::Id
     Description: The id of the vpc to deploy to.
 
+  JenkinsVersion:
+    Type: String
+    Description: > 
+      The version of jenkins to install.
+      If a specific version is selected, it should have already been tested with latest possible plugins, all of which uploaded to s3 for download during jenkins installation.
+      If the latest version is selected, plugins will be installed by the jenkins cli and testing will be required. 
+      
+    AllowedValues:
+      - 'jenkins-2.322-1.1'
+      - 'latest'
+    Default: 'jenkins-2.322-1.1'
+
   JenkinsSubnet:
     Type: AWS::EC2::Subnet::Id
     Description: Id of the private subnet that the jenkins ec2 instance is deployed to.
@@ -407,9 +419,10 @@ Resources:
             - ConfigSet: InstallVarious
             - ConfigSet: InstallJenkins
             - ConfigSet: LoadPlugins
-            - ConfigSet: ConfigureJenkins
             - ConfigSet: PullJobsFromGit
+            - ConfigSet: ConfigureJenkins
             - ConfigSet: GetAwardNoticeJar
+            - ConfigSet: StartActiveChoicesDockerService
           GetHelperScripts:
             - 01_get_helper_scripts
           YumInstall:
@@ -420,12 +433,14 @@ Resources:
             - 04_install_jenkins
           LoadPlugins:
             - 05_load_jenkins_plugins
-          ConfigureJenkins:
-            - 06_configure_jenkins
           PullJobsFromGit:
-            - 07_pull_jobs_from_git
+            - 06_pull_jobs_from_git
+          ConfigureJenkins:
+            - 07_configure_jenkins
           GetAwardNoticeJar:
             - 08_get_award_notice_jar
+          StartActiveChoicesDockerService:
+            - 09_start_active_choices_docker_service
           
 
         01_get_helper_scripts:
@@ -586,6 +601,8 @@ Resources:
             Install:
               cwd: /var/lib/jenkins/_cfn-scripts
               command: bash 04_install_jenkins.sh
+              env:
+                JENKINS_VERSION: !Ref JenkinsVersion
 
         05_load_jenkins_plugins:
           files:
@@ -616,8 +633,85 @@ Resources:
             Install:
               cwd: /var/lib/jenkins
               command: bash /var/lib/jenkins/_cfn-scripts/05_load_jenkins_plugins.sh
+              env:
+                JENKINS_PLUGINS_S3_LOCATION: !Sub s3://${TemplateBucketName}/cloudformation/kuali_jenkins/plugin-files/${JenkinsVersion}/
+                JENKINS_VERSION: !Ref JenkinsVersion
 
-        06_configure_jenkins:
+        06_pull_jobs_from_git:
+          files:
+            /var/lib/jenkins/.ssh/bu_github_id_coi_rsa:
+              source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/bu_github_id_coi_rsa
+              mode: "000600"
+              owner: jenkins
+              group: jenkins
+            /var/lib/jenkins/.ssh/bu_github_id_core_common_rsa:
+              source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/bu_github_id_core_common_rsa
+              mode: "000600"
+              owner: jenkins
+              group: jenkins
+            /var/lib/jenkins/.ssh/bu_github_id_core_rsa:
+              source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/bu_github_id_core_rsa
+              mode: "000600"
+              owner: jenkins
+              group: jenkins
+            /var/lib/jenkins/.ssh/bu_github_id_docker_rsa:
+              source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/bu_github_id_docker_rsa
+              mode: "000600"
+              owner: jenkins
+              group: jenkins
+            /var/lib/jenkins/.ssh/bu_github_id_jenkins_rsa:
+              source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/bu_github_id_jenkins_rsa
+              mode: "000600"
+              owner: jenkins
+              group: jenkins
+            /var/lib/jenkins/.ssh/bu_github_id_kc_rsa:
+              source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/bu_github_id_kc_rsa
+              mode: "000600"
+              owner: jenkins
+              group: jenkins
+            /var/lib/jenkins/.ssh/bu_github_id_research_portal_rsa:
+              source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/bu_github_id_research_portal_rsa
+              mode: "000600"
+              owner: jenkins
+              group: jenkins
+            /var/lib/jenkins/.ssh/bu_github_id_rice_rsa:
+              source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/bu_github_id_rice_rsa
+              mode: "000600"
+              owner: jenkins
+              group: jenkins
+            /var/lib/jenkins/.ssh/bu_kuali_id_jenkins_rsa:
+              source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/bu_kuali_id_jenkins_rsa
+              mode: "000600"
+              owner: jenkins
+              group: jenkins
+            /var/lib/jenkins/.ssh/bu_github_id_kuali_cloudformation_rsa:
+              source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/bu_github_id_kuali_cloudformation_rsa
+              mode: "000600"
+              owner: jenkins
+              group: jenkins
+            /var/lib/jenkins/jobs/.gitignore:
+              content: |
+                # Ignore everything in subdirectories
+                /*/*
+                # ...except the config.xml file in those subdirectories
+                !/**/config.xml
+                #...and this file
+                !.gitignore
+                #...and javajobs
+                !/javajobs/ContinuousIntegration/
+                #...and the config.xml backup file
+                !config.xml.bkp                
+            /var/lib/jenkins/_cfn-scripts/06_pull_jobs_from_git.sh:
+              source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/cloudformation/kuali_jenkins/scripts/cfn/06_pull_jobs_from_git.sh
+              mode: "000775"
+              owner: jenkins
+              group: jenkins
+          commands:
+            Install:
+              cwd: /var/lib/jenkins
+              command: bash /var/lib/jenkins/_cfn-scripts/06_pull_jobs_from_git.sh
+
+        07_configure_jenkins:
           files:
             /var/lib/jenkins/_cfn-config/config.xml:
               content: |
@@ -835,89 +929,35 @@ Resources:
                     </privateKey>
                   </privateKeySource>
                 </com.cloudbees.jenkins.plugins.sshcredentials.impl.BasicSSHUserPrivateKey>
-            /var/lib/jenkins/_cfn-scripts/06_configure_jenkins.sh:
-              source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/cloudformation/kuali_jenkins/scripts/cfn/06_configure_jenkins.sh
+            /var/lib/jenkins/_cfn-scripts/07_configure_jenkins.sh:
+              source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/cloudformation/kuali_jenkins/scripts/cfn/07_configure_jenkins.sh
               mode: "000775"
               owner: jenkins
               group: jenkins
-          commands:
-            Install:
-              cwd: /var/lib/jenkins
-              command: bash /var/lib/jenkins/_cfn-scripts/06_configure_jenkins.sh
-
-        07_pull_jobs_from_git:
-          files:
-            /var/lib/jenkins/.ssh/bu_github_id_coi_rsa:
-              source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/bu_github_id_coi_rsa
-              mode: "000600"
-              owner: jenkins
-              group: jenkins
-            /var/lib/jenkins/.ssh/bu_github_id_core_common_rsa:
-              source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/bu_github_id_core_common_rsa
-              mode: "000600"
-              owner: jenkins
-              group: jenkins
-            /var/lib/jenkins/.ssh/bu_github_id_core_rsa:
-              source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/bu_github_id_core_rsa
-              mode: "000600"
-              owner: jenkins
-              group: jenkins
-            /var/lib/jenkins/.ssh/bu_github_id_docker_rsa:
-              source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/bu_github_id_docker_rsa
-              mode: "000600"
-              owner: jenkins
-              group: jenkins
-            /var/lib/jenkins/.ssh/bu_github_id_jenkins_rsa:
-              source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/bu_github_id_jenkins_rsa
-              mode: "000600"
-              owner: jenkins
-              group: jenkins
-            /var/lib/jenkins/.ssh/bu_github_id_kc_rsa:
-              source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/bu_github_id_kc_rsa
-              mode: "000600"
-              owner: jenkins
-              group: jenkins
-            /var/lib/jenkins/.ssh/bu_github_id_research_portal_rsa:
-              source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/bu_github_id_research_portal_rsa
-              mode: "000600"
-              owner: jenkins
-              group: jenkins
-            /var/lib/jenkins/.ssh/bu_github_id_rice_rsa:
-              source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/bu_github_id_rice_rsa
-              mode: "000600"
-              owner: jenkins
-              group: jenkins
-            /var/lib/jenkins/.ssh/bu_kuali_id_jenkins_rsa:
-              source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/bu_kuali_id_jenkins_rsa
-              mode: "000600"
-              owner: jenkins
-              group: jenkins
-            /var/lib/jenkins/.ssh/bu_github_id_kuali_cloudformation_rsa:
-              source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/bu_github_id_kuali_cloudformation_rsa
-              mode: "000600"
-              owner: jenkins
-              group: jenkins
-            /var/lib/jenkins/jobs/.gitignore:
+            /var/lib/jenkins/init.groovy.d/auto-approve-scripts.groovy:
               content: |
-                # Ignore everything in subdirectories
-                /*/*
-                # ...except the config.xml file in those subdirectories
-                !/**/config.xml
-                #...and this file
-                !.gitignore
-                #...and javajobs
-                !/javajobs/ContinuousIntegration/
-                #...and the config.xml backup file
-                !config.xml.bkp                
-            /var/lib/jenkins/_cfn-scripts/07_pull_jobs_from_git.sh:
-              source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/cloudformation/kuali_jenkins/scripts/cfn/07_pull_jobs_from_git.sh
+                import org.jenkinsci.plugins.scriptsecurity.scripts.ScriptApproval
+
+                ScriptApproval scriptApproval = ScriptApproval.get()
+                def hashesToApprove = []
+                scriptApproval.pendingScripts.each {
+                  /**
+                  * Don't approve script here - you get concurrency issues if done in an each iteration.
+                  * So, create an array and loop over that instead for approval
+                  */
+                  hashesToApprove.add(it.hash)
+                }
+
+                for (String hash : hashesToApprove) {
+                  scriptApproval.approveScript(hash)
+                }
               mode: "000775"
               owner: jenkins
               group: jenkins
           commands:
             Install:
               cwd: /var/lib/jenkins
-              command: bash /var/lib/jenkins/_cfn-scripts/07_pull_jobs_from_git.sh
+              command: bash /var/lib/jenkins/_cfn-scripts/07_configure_jenkins.sh
 
         08_get_award_notice_jar:
           files:
@@ -936,7 +976,21 @@ Resources:
               cwd: /var/lib/jenkins
               command: bash /var/lib/jenkins/_cfn-scripts/08_get_award_notice_jar.sh
 
-            
+        09_start_active_choices_docker_service: 
+          files:
+            /var/lib/jenkins/_cfn-scripts/09_start_active_choices_docker_service.sh:
+              source: !Sub https://${TemplateBucketName}.s3.amazonaws.com/cloudformation/kuali_jenkins/scripts/jenkins-docker.sh
+              mode: "000775"
+              owner: jenkins
+              group: jenkins
+          commands: 
+            StartDocker:
+              cwd: /var/lib/jenkins
+              command: !Sub
+                - bash ${scriptFile} ${taskArg} ${imageArg}
+                - scriptFile: /var/lib/jenkins/_cfn-scripts/09_start_active_choices_docker_service.sh
+                  taskArg: deploy
+                  imageArg: !Sub KUALI_UI_IMAGE=${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/kuali-jenkins-http-server
 
 Outputs:
 

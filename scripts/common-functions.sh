@@ -1462,7 +1462,6 @@ checkRDSParameters() {
     fi  
   }
 
-set -x
   if [ -n "$RDS_SNAPSHOT_ARN" ] ; then
     local original="$BASELINE"
     BASELINE="$(getRdsSnapshotBaseline $RDS_SNAPSHOT_ARN)"
@@ -1488,7 +1487,7 @@ set -x
   fi
 
   validateBaseline
-set +x
+
   echo "Ok" && echo " "
 }
 
@@ -2148,10 +2147,11 @@ pickEC2InstanceId() {
       instanceState=$(echo "$details" | awk '{print $2}')
       systemStatus=$(echo "$details" | awk '{print $3}')
       # echo "$instanceId: instanceState:$instanceState, instanceStatus:$instanceStatus, systemStatus:$systemStatus"
-      if ([ "$instanceState" == 'running' ] && [ "$instanceStatus" == 'ok' ] && [ "$systemStatus" == 'ok' ]) ; then
+      # if ([ "$instanceState" == 'running' ] && [ "$instanceStatus" == 'ok' ] && [ "$systemStatus" == 'ok' ]) ; then
+      if ([ "$instanceState" == 'running' ]) ; then
         local instanceName=$(getEc2InstanceName $instanceId)
         if [ -n "$(echo $instanceName | grep -i "$nameFragment")" ] ; then
-          ids=(${ids[@]} $instanceId:$instanceName)
+          ids=(${ids[@]} $instanceId:$instanceName:instanceState=$instanceState,instanceStatus=$instanceStatus,systemStatus=$systemStatus)
         fi
       fi
     fi

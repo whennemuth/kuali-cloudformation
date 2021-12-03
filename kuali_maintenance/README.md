@@ -1,6 +1,6 @@
 ## Kuali Maintence
 
-This cloudformation stack creates a small EC2 instance that can replace the kuali service with an nginx server running in a docker container that issues a single web page for all links to the domain displaying a generic message like "Down for maintenance". Currently the default message indicates that the research administration service has moved to a new location and provides the link (T.
+This cloudformation stack creates a small EC2 instance that can replace the kuali service with an nginx server running in a docker container that issues a single web page for all links to the domain displaying a generic message like "Down for maintenance". Currently the default message indicates that the research administration service has moved to a new location and provides the link.
 
 ### Prerequisites:
 

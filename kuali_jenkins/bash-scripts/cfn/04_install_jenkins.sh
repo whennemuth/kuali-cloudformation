@@ -3,8 +3,12 @@
 wget -O /etc/yum.repos.d/jenkins.repo https://pkg.jenkins.io/redhat/jenkins.repo
 rpm --import https://pkg.jenkins.io/redhat/jenkins.io.key
 # sudo yum --showduplicates list jenkins | expand
-yum install jenkins -y
-# yum install --nogpgcheck jenkins-2.150-1.1 -y
+jenkinsVersion=${JENKINS_VERSION:-'jenkins-2.322-1.1'}
+if [ "${jenkinsVersion,,}" == 'latest' ] ; then
+  yum install jenkins -y
+else
+  yum install --nogpgcheck $jenkinsVersion -y
+fi
 
 sudo usermod -a -G docker jenkins
 sudo usermod --shell /bin/bash jenkins

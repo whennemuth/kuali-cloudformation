@@ -1,7 +1,9 @@
 #!/bin/bash
 
-cfgdir=/var/lib/jenkins/_cfn-config
-srcdir=/var/lib/jenkins/_cfn-scripts
+JENKINS_HOME=/var/lib/jenkins
+cfgdir=$JENKINS_HOME/_cfn-config
+srcdir=$JENKINS_HOME/_cfn-scripts
+jobdir=$JENKINS_HOME/jobs
 
 source $srcdir/utils.sh
 
@@ -22,9 +24,15 @@ source $cfgdir/env.sh
 # Replace placeholders in these config xml files with their values now that they're known
 # This will also turn security for jenkins back on again.
 echo "Modifying config.xml..."
-sed "s|JENKINS_VERSION|$JENKINS_VERSION|" $cfgdir/config.xml | \
-sed "s|JAVA_HOME|$JAVA_HOME|" | \
-sed "s|JAVA_SHORTNAME|$JAVA_SHORTNAME|" > config.xml
+if [ -f $jobdir/config.xml.bkp ] ; then
+  echo "Replacing $JENKINS_HOME/config.xml with backup config file from git repository..."
+  cat $jobdir/config.xml.bkp > $JENKINS_HOME/config.xml
+  sed -i "s|<version>.*</version>|<version>$JENKINS_VERSION</version>|" $JENKINS_HOME/config.xml
+else
+  sed "s|JENKINS_VERSION|$JENKINS_VERSION|" $cfgdir/config.xml | \
+  sed "s|JAVA_HOME|$JAVA_HOME|" | \
+  sed "s|JAVA_SHORTNAME|$JAVA_SHORTNAME|" > config.xml
+fi
 
 echo "Setting MAVEN_HOME in hudson.tasks.Maven.xml..."
 sed "s|MAVEN_HOME|$MAVEN_HOME|" $cfgdir/hudson.tasks.Maven.xml | \
@@ -51,6 +59,10 @@ done
 createTokenFile
 
 resetAdminPassword 'bcrypt'
+
+# Gets you to the dashboard directly on first time login (bypasses initial setup screen(s))
+printf "$JENKINS_VERSION" > $JENKINS_HOME/jenkins.install.InstallUtil.lastExecVersion
+printf "$JENKINS_VERSION" > $JENKINS_HOME/jenkins.install.UpgradeWizard.state
 
 chown -R jenkins:jenkins $JENKINS_HOME
 
