@@ -576,19 +576,16 @@ Resources:
                 # multi_line_start_pattern = \d{4}\-\d{2}\-\d{2} \d{2}:\d{2}:\d{2},\d{3}
             /opt/kuali/scripts/process-configs.sh:
               source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/cloudformation/scripts/ec2/process-configs.sh
-              content: !Sub |
               mode: "000775"
               owner: root
               group: root
             /opt/kuali/scripts/initialize-mongo-database.sh:
               source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/cloudformation/scripts/ec2/initialize-mongo-database.sh
-              content: !Sub |
               mode: "000775"
               owner: root
               group: root
             /opt/kuali/scripts/stop-instance.sh:
               source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/cloudformation/scripts/ec2/stop-instance.sh
-              content: !Sub |
               mode: "000775"
               owner: root
               group: root
