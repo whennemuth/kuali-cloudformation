@@ -167,247 +167,254 @@ public class StackCreateDeleteController extends AbstractJob {
 				logger.debug("Rendering: {}", ParameterName.STACK.name());
 				StackDAO stackDAO = new StackDAO(credentials);
 				parameterView.setContextVariable("stacks", stackDAO.getKualiApplicationStacks());
-				parameterView.setContextVariable("includeResetButton", true);				
+				parameterView.setContextVariable("includeResetButton", true);			
 				break;
 			case STACK_ACTION:
 				logger.debug("Rendering: {}", ParameterName.STACK_ACTION.name());
-				if(stackSelected(jobParameter)) {
-					parameterView.setContextVariable("stackSelected", true);
+				if(jobParameter.hasValue("delete")) {					
+					if(stackSelected(jobParameter)) {
+						config.setLastParameter(true);
+					}
+					else {
+						parameterView.setContextVariable("ParameterValue", "create");
+					}
 				}
-				// else if(jobParameter.hasAnyValue("create", "recreate")) {
-				else if(jobParameter.hasAnyValue("delete", "recreate")) {
-					jobParameter.setValue(null);
+				else if(jobParameter.isBlank()) {
+					config.setLastParameter(true);
+				}
+				else if(stackSelected(jobParameter)) {
+					parameterView.setContextVariable("stackSelected", true);
+					if(jobParameter.hasValue("create")) {
+						parameterView.setContextVariable("ParameterValue", "recreate");
+					}
+				}
+				else if(jobParameter.hasValue("recreate")) {
 					parameterView.setContextVariable(ParameterName.STACK_ACTION.name(), null);
+					parameterView.setContextVariable("ParameterValue", "create");
 				}
 				break;
 			default:
-				if(jobParameter.otherParmSetWithOrBlank(ParameterName.STACK_ACTION, "delete")) {
-					parameterView.setContextVariable("deactivate", true);
-					parameterView.setContextVariable(ParameterName.STACK_ACTION.name(), null);
-				}
-				else {
-					RdsInstanceDAO rdsDAO = new RdsInstanceDAO(credentials);
-					RdsSnapshotDAO rdsSnapshotDAO = new RdsSnapshotDAO(credentials);
-					boolean include = false;
-					switch(parameter) {
-						case LANDSCAPE:
-							break;
-						case STACK_TYPE:
-							logger.debug("Rendering: {}", ParameterName.STACK_TYPE.name());
-							if(jobParameter.otherParmSetWith(ParameterName.LANDSCAPE, "prod")) {
-								parameterView.setContextVariable("ParameterValue", "ecs");
-								parameterView.setContextVariable("ecs_only", true);
-							}
-							break;
-						case BASELINE: 
-						case ADVANCED_KEEP_LAMBDA_LOGS: 
-						case ADVANCED_MANUAL_ENTRIES:
-							// These views are to be rendered as a sub view of other views view, so deactivate it here.
-							logger.debug("Skipping rendering: {}", parameter.name());
-							parameterView.setContextVariable("deactivate", true);
-							break;
-						case AUTHENTICATION:
-							logger.debug("Rendering: {}", ParameterName.AUTHENTICATION.name());
-							if(jobParameter.otherParmSetWith(ParameterName.LANDSCAPE, "prod")) {
-								parameterView.setContextVariable("ParameterValue", "shibboleth");
-								parameterView.setContextVariable("deactivate_cor_main", true);
-							}
-							else if(jobParameter.otherParmSetWith(ParameterName.STACK_TYPE, "ec2") || 
-									jobParameter.otherParmSetWith(ParameterName.LANDSCAPE, "sb")) {
-								parameterView.setContextVariable("ParameterValue", "cor-main");
-								parameterView.setContextVariable("deactivate_shibboleth", true);
-							}
-							break;
-						case DNS:							
-							logger.debug("Rendering: {}", ParameterName.DNS.name());
-							if(jobParameter.otherParmSetWith(ParameterName.LANDSCAPE, "prod")) {
-								parameterView.setContextVariable("ParameterValue", "route53");
+				RdsInstanceDAO rdsDAO = new RdsInstanceDAO(credentials);
+				RdsSnapshotDAO rdsSnapshotDAO = new RdsSnapshotDAO(credentials);
+				boolean include = false;
+				switch(parameter) {
+					case LANDSCAPE:
+						break;
+					case STACK_TYPE:
+						logger.debug("Rendering: {}", ParameterName.STACK_TYPE.name());
+						if(jobParameter.otherParmSetWith(ParameterName.LANDSCAPE, "prod")) {
+							parameterView.setContextVariable("ParameterValue", "ecs");
+							parameterView.setContextVariable("ecs_only", true);
+						}
+						break;
+					case BASELINE: 
+					case ADVANCED_KEEP_LAMBDA_LOGS: 
+					case ADVANCED_MANUAL_ENTRIES:
+						// These views are to be rendered as a sub view of other views view, so deactivate it here.
+						logger.debug("Skipping rendering: {}", parameter.name());
+						parameterView.setContextVariable("deactivate", true);
+						break;
+					case AUTHENTICATION:
+						logger.debug("Rendering: {}", ParameterName.AUTHENTICATION.name());
+						if(jobParameter.otherParmSetWith(ParameterName.LANDSCAPE, "prod")) {
+							parameterView.setContextVariable("ParameterValue", "shibboleth");
+							parameterView.setContextVariable("deactivate_cor_main", true);
+						}
+						else if(jobParameter.otherParmSetWith(ParameterName.STACK_TYPE, "ec2") || 
+								jobParameter.otherParmSetWith(ParameterName.LANDSCAPE, "sb")) {
+							parameterView.setContextVariable("ParameterValue", "cor-main");
+							parameterView.setContextVariable("deactivate_shibboleth", true);
+						}
+						break;
+					case DNS:							
+						logger.debug("Rendering: {}", ParameterName.DNS.name());
+						if(jobParameter.otherParmSetWith(ParameterName.LANDSCAPE, "prod")) {
+							parameterView.setContextVariable("ParameterValue", "route53");
+							parameterView.setContextVariable("deactivate_none", true);
+						}							
+						else if(jobParameter.otherParmSetWith(ParameterName.STACK_TYPE, "ec2")) {
+							parameterView.setContextVariable("ParameterValue", "none");
+							parameterView.setContextVariable("deactivate_route53", true);
+						}
+						else if(jobParameter.otherParmSetWith(ParameterName.AUTHENTICATION, "shibboleth")) {
+							parameterView.setContextVariable("ParameterValue", "route53");
+							if( ! jobParameter.otherParmSetWith(ParameterName.LANDSCAPE, "sb")) {
 								parameterView.setContextVariable("deactivate_none", true);
-							}							
-							else if(jobParameter.otherParmSetWith(ParameterName.STACK_TYPE, "ec2")) {
-								parameterView.setContextVariable("ParameterValue", "none");
-								parameterView.setContextVariable("deactivate_route53", true);
 							}
-							else if(jobParameter.otherParmSetWith(ParameterName.AUTHENTICATION, "shibboleth")) {
-								parameterView.setContextVariable("ParameterValue", "route53");
-								if( ! jobParameter.otherParmSetWith(ParameterName.LANDSCAPE, "sb")) {
-									parameterView.setContextVariable("deactivate_none", true);
-								}
-							}							
-							break;
-						case WAF:
-							logger.debug("Rendering: {}", ParameterName.WAF.name());
-							if(jobParameter.otherParmSetWith(ParameterName.LANDSCAPE, "prod")) {
-								parameterView.setContextVariable("deactivate_waf", true);
-								parameterView.setContextVariable("ParameterValue", "enabled");
+						}							
+						break;
+					case WAF:
+						logger.debug("Rendering: {}", ParameterName.WAF.name());
+						if(jobParameter.otherParmSetWith(ParameterName.LANDSCAPE, "prod")) {
+							parameterView.setContextVariable("deactivate_waf", true);
+							parameterView.setContextVariable("ParameterValue", "enabled");
+						}
+						else if(jobParameter.otherParmSetWith(ParameterName.STACK_TYPE, "ec2")) {
+							parameterView.setContextVariable("deactivate_waf", true);
+							parameterView.setContextVariable("ParameterValue", "disabled");
+						}
+						else {
+							parameterView.setContextVariable("ParameterValue", jobParameter.isChecked() ? "enabled" : "disabled");
+						}
+						break;
+					case ALB:
+						logger.debug("Rendering: {}", ParameterName.ALB.name());
+						if(jobParameter.otherParmSetWith(ParameterName.LANDSCAPE, "prod")) {
+							parameterView.setContextVariable("deactivate_alb", true);
+							parameterView.setContextVariable("ParameterValue", "enabled");
+						}
+						else if(jobParameter.otherParmSetWith(ParameterName.STACK_TYPE, "ec2")) {
+							parameterView.setContextVariable("deactivate_alb", true);
+							parameterView.setContextVariable("ParameterValue", "disabled");
+						}
+						else if(jobParameter.otherParmSetWith(ParameterName.WAF, "enabled")) {
+							parameterView.setContextVariable("deactivate_alb", true);
+							parameterView.setContextVariable("ParameterValue", "enabled");
+						}
+						else {
+							parameterView.setContextVariable("ParameterValue", jobParameter.isChecked() ? "enabled" : "disabled");
+						}
+						break;
+					case RDS_SOURCE:							
+						logger.debug("Rendering: {}", ParameterName.RDS_SOURCE.name());
+						if(jobParameter.otherParmSetWith(ParameterName.LANDSCAPE, "prod")) {
+							parameterView.setContextVariable("deactivate_landscape", true);
+							parameterView.setContextVariable("ParameterValue", "instance");
+							parameterView.setContextVariable("instance_only", true);
+						}
+						else {
+							parameterView.setContextVariable("rdsInstances", rdsDAO.getDeployedKualiRdsInstances());
+							String urlEncodedValue = config.getParameterMap().get(parameter.name());
+							if(urlEncodedValue != null) {
+								String urlDecodedValue = URLDecoder.decode(urlEncodedValue, Charset.defaultCharset());
+								parameterView.setContextVariable("ParameterValue", urlDecodedValue);
+							}								
+						}
+						break;
+					case RDS_INSTANCE_BY_LANDSCAPE:
+						logger.debug("Rendering: {}", ParameterName.RDS_INSTANCE_BY_LANDSCAPE.name());
+						if(jobParameter.otherParmSetWith(ParameterName.RDS_SOURCE, "instance")) {
+							List<RdsInstance> rdsInstances = new ArrayList<RdsInstance>(rdsDAO.getDeployedKualiRdsInstances());
+							parameterView.setContextVariable("rdsInstances", rdsInstances);								
+							parameterView.setContextVariable("ParameterValue", getRdsArnForLandscape(jobParameter));
+							include = true;								
+						}
+						parameterView.setContextVariable("include", include);
+						break;
+					case RDS_INSTANCE_BY_BASELINE:
+						logger.debug("Rendering: {}", ParameterName.RDS_INSTANCE_BY_BASELINE.name());
+						if(jobParameter.otherParmSetWith(ParameterName.RDS_SOURCE, "owned-snapshot")) {
+							Map<Landscape, List<RdsInstance>> map = rdsDAO.getDeployedKualiRdsInstancesGroupedByBaseline();
+							parameterView.setContextVariable("rdsArnsByBaseline", map);
+							parameterView.setContextVariable("ParameterValue",  getRdsArnForBaseline(jobParameter));
+							include = true;								
+						}
+						parameterView.setContextVariable("include", include);
+						break;
+					case RDS_SNAPSHOT:	
+						logger.debug("Rendering: {}", ParameterName.RDS_SNAPSHOT.name());
+						if(jobParameter.otherParmNotSetWith(ParameterName.LANDSCAPE, "prod") && 
+								jobParameter.otherParmSetWith(ParameterName.RDS_SOURCE, "owned-snapshot")) {
+							String rdsArn = getRdsArnForBaseline(jobParameter);
+							if(rdsArn != null) {
+								AbstractAwsResource rdsInstance = rdsDAO.getRdsInstanceByArn(rdsArn);
+								parameterView.setContextVariable("rdsInstance", rdsInstance);
+								include = true;									
 							}
-							else if(jobParameter.otherParmSetWith(ParameterName.STACK_TYPE, "ec2")) {
-								parameterView.setContextVariable("deactivate_waf", true);
-								parameterView.setContextVariable("ParameterValue", "disabled");
-							}
-							else {
-								parameterView.setContextVariable("ParameterValue", jobParameter.isChecked() ? "enabled" : "disabled");
-							}
-							break;
-						case ALB:
-							logger.debug("Rendering: {}", ParameterName.ALB.name());
-							if(jobParameter.otherParmSetWith(ParameterName.LANDSCAPE, "prod")) {
-								parameterView.setContextVariable("deactivate_alb", true);
-								parameterView.setContextVariable("ParameterValue", "enabled");
-							}
-							else if(jobParameter.otherParmSetWith(ParameterName.STACK_TYPE, "ec2")) {
-								parameterView.setContextVariable("deactivate_alb", true);
-								parameterView.setContextVariable("ParameterValue", "disabled");
-							}
-							else if(jobParameter.otherParmSetWith(ParameterName.WAF, "enabled")) {
-								parameterView.setContextVariable("deactivate_alb", true);
-								parameterView.setContextVariable("ParameterValue", "enabled");
-							}
-							else {
-								parameterView.setContextVariable("ParameterValue", jobParameter.isChecked() ? "enabled" : "disabled");
-							}
-							break;
-						case RDS_SOURCE:							
-							logger.debug("Rendering: {}", ParameterName.RDS_SOURCE.name());
-							if(jobParameter.otherParmSetWith(ParameterName.LANDSCAPE, "prod")) {
-								parameterView.setContextVariable("deactivate_landscape", true);
-								parameterView.setContextVariable("ParameterValue", "instance");
-								parameterView.setContextVariable("instance_only", true);
-							}
-							else {
-								parameterView.setContextVariable("rdsInstances", rdsDAO.getDeployedKualiRdsInstances());
-								String urlEncodedValue = config.getParameterMap().get(parameter.name());
-								if(urlEncodedValue != null) {
-									String urlDecodedValue = URLDecoder.decode(urlEncodedValue, Charset.defaultCharset());
-									parameterView.setContextVariable("ParameterValue", urlDecodedValue);
-								}								
-							}
-							break;
-						case RDS_INSTANCE_BY_LANDSCAPE:
-							logger.debug("Rendering: {}", ParameterName.RDS_INSTANCE_BY_LANDSCAPE.name());
+						}
+						parameterView.setContextVariable("include", include);
+						break;
+					case RDS_SNAPSHOT_ORPHANS:
+						logger.debug("Rendering: {}", ParameterName.RDS_SNAPSHOT_ORPHANS.name());
+						if(jobParameter.otherParmNotSetWith(ParameterName.LANDSCAPE, "prod") && 
+								jobParameter.otherParmSetWith(ParameterName.RDS_SOURCE, "orphaned-snapshot")) {
+							Map<Landscape, List<RdsSnapshot>> orphaned = rdsSnapshotDAO.getAllOrphanedKualiRdsSnapshotssGroupedByBaseline(rdsDAO);
+							parameterView.setContextVariable("snapshotArnsByBaseline", orphaned);
+							include = true;
+						}
+						parameterView.setContextVariable("include", include);
+						break;
+					case RDS_SNAPSHOT_SHARED:
+						logger.debug("Rendering: {}", ParameterName.RDS_SNAPSHOT_SHARED.name());
+						if(jobParameter.otherParmNotSetWith(ParameterName.LANDSCAPE, "prod") && 
+								jobParameter.otherParmSetWith(ParameterName.RDS_SOURCE, "shared-snapshot")) {
+							List<RdsSnapshot> shared = rdsSnapshotDAO.getSharedSnapshots();
+							parameterView.setContextVariable("sharedSnapshots", shared);
+							include = true;
+						}
+						parameterView.setContextVariable("include", include);
+						break;
+					case RDS_WARNING:
+						logger.debug("Rendering: {}", ParameterName.RDS_WARNING.name());
+						String landscape = jobParameter.getOtherParmValue(ParameterName.LANDSCAPE);
+						String warning = null;
+						if(Landscape.fromAlias(landscape) != null) {
+							String template = "You seem to have selected a baseline landscape for the entire stack (\"%s\"). "
+									+ "However, you have also opted to %s based "
+									+ "on a different baseline landscape (\"%s\"). "
+									+ "Among other potential incompatibilities, kc-config.xml will contain a password "
+									+ "for the KCOEUS user that won't work until you perform an update to the KCOEUS user, "
+									+ "changing the password to the one that secrets manager has for \"%s\". Recommend selecting an "
+									+ "rds instance with a matching baseline landscape instead.";
+
 							if(jobParameter.otherParmSetWith(ParameterName.RDS_SOURCE, "instance")) {
-								List<RdsInstance> rdsInstances = new ArrayList<RdsInstance>(rdsDAO.getDeployedKualiRdsInstances());
-								parameterView.setContextVariable("rdsInstances", rdsInstances);								
-								parameterView.setContextVariable("ParameterValue", getRdsArnForLandscape(jobParameter));
-								include = true;								
+								String rdsArn = getRdsArnForLandscape(jobParameter);
+								if(rdsArn != null) {
+									AbstractAwsResource rdsInstance = rdsDAO.getRdsInstanceByArn(rdsArn);
+									if( ! landscape.equalsIgnoreCase(rdsInstance.getBaseline())) {
+										warning = String.format(
+												template, 
+												landscape,
+												"use an existing rds instance",
+												rdsInstance.getBaseline(),
+												rdsInstance.getBaseline());
+									}
+								}
 							}
-							parameterView.setContextVariable("include", include);
-							break;
-						case RDS_INSTANCE_BY_BASELINE:
-							logger.debug("Rendering: {}", ParameterName.RDS_INSTANCE_BY_BASELINE.name());
-							if(jobParameter.otherParmSetWith(ParameterName.RDS_SOURCE, "owned-snapshot")) {
-								Map<Landscape, List<RdsInstance>> map = rdsDAO.getDeployedKualiRdsInstancesGroupedByBaseline();
-								parameterView.setContextVariable("rdsArnsByBaseline", map);
-								parameterView.setContextVariable("ParameterValue",  getRdsArnForBaseline(jobParameter));
-								include = true;								
-							}
-							parameterView.setContextVariable("include", include);
-							break;
-						case RDS_SNAPSHOT:	
-							logger.debug("Rendering: {}", ParameterName.RDS_SNAPSHOT.name());
-							if(jobParameter.otherParmNotSetWith(ParameterName.LANDSCAPE, "prod") && 
-									jobParameter.otherParmSetWith(ParameterName.RDS_SOURCE, "owned-snapshot")) {
+							else if(jobParameter.otherParmSetWith(ParameterName.RDS_SOURCE, "owned-snapshot")) {
 								String rdsArn = getRdsArnForBaseline(jobParameter);
 								if(rdsArn != null) {
 									AbstractAwsResource rdsInstance = rdsDAO.getRdsInstanceByArn(rdsArn);
-									parameterView.setContextVariable("rdsInstance", rdsInstance);
-									include = true;									
-								}
-							}
-							parameterView.setContextVariable("include", include);
-							break;
-						case RDS_SNAPSHOT_ORPHANS:
-							logger.debug("Rendering: {}", ParameterName.RDS_SNAPSHOT_ORPHANS.name());
-							if(jobParameter.otherParmNotSetWith(ParameterName.LANDSCAPE, "prod") && 
-									jobParameter.otherParmSetWith(ParameterName.RDS_SOURCE, "orphaned-snapshot")) {
-								Map<Landscape, List<RdsSnapshot>> orphaned = rdsSnapshotDAO.getAllOrphanedKualiRdsSnapshotssGroupedByBaseline(rdsDAO);
-								parameterView.setContextVariable("snapshotArnsByBaseline", orphaned);
-								include = true;
-							}
-							parameterView.setContextVariable("include", include);
-							break;
-						case RDS_SNAPSHOT_SHARED:
-							logger.debug("Rendering: {}", ParameterName.RDS_SNAPSHOT_SHARED.name());
-							if(jobParameter.otherParmNotSetWith(ParameterName.LANDSCAPE, "prod") && 
-									jobParameter.otherParmSetWith(ParameterName.RDS_SOURCE, "shared-snapshot")) {
-								List<RdsSnapshot> shared = rdsSnapshotDAO.getSharedSnapshots();
-								parameterView.setContextVariable("sharedSnapshots", shared);
-								include = true;
-							}
-							parameterView.setContextVariable("include", include);
-							break;
-						case RDS_WARNING:
-							logger.debug("Rendering: {}", ParameterName.RDS_WARNING.name());
-							String landscape = jobParameter.getOtherParmValue(ParameterName.LANDSCAPE);
-							String warning = null;
-							if(Landscape.fromAlias(landscape) != null) {
-								String template = "You seem to have selected a baseline landscape for the entire stack (\"%s\"). "
-										+ "However, you have also opted to %s based "
-										+ "on a different baseline landscape (\"%s\"). "
-										+ "Among other potential incompatibilities, kc-config.xml will contain a password "
-										+ "for the KCOEUS user that won't work until you perform an update to the KCOEUS user, "
-										+ "changing the password to the one that secrets manager has for \"%s\". Recommend selecting an "
-										+ "rds instance with a matching baseline landscape instead.";
-
-								if(jobParameter.otherParmSetWith(ParameterName.RDS_SOURCE, "instance")) {
-									String rdsArn = getRdsArnForLandscape(jobParameter);
-									if(rdsArn != null) {
-										AbstractAwsResource rdsInstance = rdsDAO.getRdsInstanceByArn(rdsArn);
-										if( ! landscape.equalsIgnoreCase(rdsInstance.getBaseline())) {
-											warning = String.format(
-													template, 
-													landscape,
-													"use an existing rds instance",
-													rdsInstance.getBaseline(),
-													rdsInstance.getBaseline());
-										}
+									if( ! landscape.equalsIgnoreCase(rdsInstance.getBaseline())) {
+										warning = String.format(
+												template, 
+												landscape,
+												"create an rds instance from a snapshot",
+												rdsInstance.getBaseline(),
+												rdsInstance.getBaseline());
 									}
 								}
-								else if(jobParameter.otherParmSetWith(ParameterName.RDS_SOURCE, "owned-snapshot")) {
-									String rdsArn = getRdsArnForBaseline(jobParameter);
-									if(rdsArn != null) {
-										AbstractAwsResource rdsInstance = rdsDAO.getRdsInstanceByArn(rdsArn);
-										if( ! landscape.equalsIgnoreCase(rdsInstance.getBaseline())) {
-											warning = String.format(
-													template, 
-													landscape,
-													"create an rds instance from a snapshot",
-													rdsInstance.getBaseline(),
-													rdsInstance.getBaseline());
-										}
-									}
-								}
-								else if(jobParameter.otherParmSetWith(ParameterName.RDS_SOURCE, "orphaned-snapshot")) {
-									
-								}
 							}
-							parameterView.setContextVariable("rdsWarning", warning);
-							parameterView.setContextVariable("include", warning != null);
-							break;
-						case MONGO:
-							logger.debug("Rendering: {}", ParameterName.MONGO.name());
-							if(jobParameter.otherParmSetWith(ParameterName.LANDSCAPE, "prod")) {
-								parameterView.setContextVariable("deactivate_mongo", true);
-								parameterView.setContextVariable("ParameterValue", "disabled");
-							}							
-							else {
-								parameterView.setContextVariable("ParameterValue", jobParameter.isChecked() ? "enabled" : "disabled");
+							else if(jobParameter.otherParmSetWith(ParameterName.RDS_SOURCE, "orphaned-snapshot")) {
+								
 							}
-							break;
-						case ADVANCED:
-							logger.debug("Rendering: {}", ParameterName.ADVANCED.name());
+						}
+						parameterView.setContextVariable("rdsWarning", warning);
+						parameterView.setContextVariable("include", warning != null);
+						break;
+					case MONGO:
+						logger.debug("Rendering: {}", ParameterName.MONGO.name());
+						if(jobParameter.otherParmSetWith(ParameterName.LANDSCAPE, "prod")) {
+							parameterView.setContextVariable("deactivate_mongo", true);
+							parameterView.setContextVariable("ParameterValue", "disabled");
+						}							
+						else {
 							parameterView.setContextVariable("ParameterValue", jobParameter.isChecked() ? "enabled" : "disabled");
-							parameterView.setContextVariable("ksbrlEnum", ParameterName.ADVANCED_KEEP_LAMBDA_LOGS);
-							parameterView.setContextVariable("ksbrlValue", jobParameter.isChecked(ParameterName.ADVANCED_KEEP_LAMBDA_LOGS) ? "enabled" : "disabled");
-							parameterView.setContextVariable("manualEnum", ParameterName.ADVANCED_MANUAL_ENTRIES);
-							String urlEncodedValue = config.getParameterMap().get(ParameterName.ADVANCED_MANUAL_ENTRIES.name());
-							if(urlEncodedValue != null) {
-								String urlDecodedValue = URLDecoder.decode(urlEncodedValue, Charset.defaultCharset());
-								parameterView.setContextVariable("manualValue", urlDecodedValue);
-							}
-							break;
-					}					
-				}
+						}
+						break;
+					case ADVANCED:
+						logger.debug("Rendering: {}", ParameterName.ADVANCED.name());
+						parameterView.setContextVariable("ParameterValue", jobParameter.isChecked() ? "enabled" : "disabled");
+						parameterView.setContextVariable("ksbrlEnum", ParameterName.ADVANCED_KEEP_LAMBDA_LOGS);
+						parameterView.setContextVariable("ksbrlValue", jobParameter.isChecked(ParameterName.ADVANCED_KEEP_LAMBDA_LOGS) ? "enabled" : "disabled");
+						parameterView.setContextVariable("manualEnum", ParameterName.ADVANCED_MANUAL_ENTRIES);
+						String urlEncodedValue = config.getParameterMap().get(ParameterName.ADVANCED_MANUAL_ENTRIES.name());
+						if(urlEncodedValue != null) {
+							String urlDecodedValue = URLDecoder.decode(urlEncodedValue, Charset.defaultCharset());
+							parameterView.setContextVariable("manualValue", urlDecodedValue);
+						}
+						break;
+				}					
 		}
 		logger.traceExit(m);
 	}

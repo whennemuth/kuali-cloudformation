@@ -11,8 +11,9 @@
         	value="create" 
 	        onchange="sendData();"
         	th:name="${ParameterName} ?: 'value'" 
+        	th:disabled="${stackSelected}"
         	th:checked="${ParameterValue=='create'}" >
-        <label>Create stack</label><br>
+        <label th:attr="style=${stackSelected} ? 'color:#AAAAAA' : _">Create stack</label><br>
         <div>
 	        <input 
 	        	type="radio"

@@ -73,6 +73,10 @@ public abstract class AbstractParameterView implements ParameterView {
 		return this;
 	}
 	
+	public Object getContextVariable(String name) {
+		return context.getVariable(name);
+	}
+	
 	public String getTemplateSelector() {
 		return templateSelector;
 	}

@@ -18,8 +18,9 @@ public class JobParameterConfiguration {
 	private boolean activeChoices;
 	private boolean html = true;
 	private boolean renderName = true;
-	private boolean renderDescription = false;
+	private boolean renderDescription;
 	private boolean developmentMode;
+	private boolean lastParameter;
 	
 	private JobParameterConfiguration() { super(); }
 	
@@ -86,6 +87,12 @@ public class JobParameterConfiguration {
 			return false;
 		}
 		return renderDescription;
+	}
+	public boolean isLastParameter() {
+		return lastParameter;
+	}
+	public void setLastParameter(boolean lastParameter) {
+		this.lastParameter = lastParameter;
 	}
 	public JobParameterConfiguration setRenderDescription(boolean renderDescription) {
 		this.renderDescription = renderDescription;

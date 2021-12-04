@@ -70,6 +70,9 @@ public abstract class AbstractJob extends AbstractParameterSet {
 				config.setParameterMap(parameters);
 				checkJobParameterConfig(config);
 				html.append(getRenderedParameter(config));
+				if(config.isLastParameter()) {
+					break;
+				}
 			}
 			html
 				.append("</fieldset>")
