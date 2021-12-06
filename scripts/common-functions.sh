@@ -1993,7 +1993,12 @@ runStackActionCommand() {
 
   [ "$answer" == "y" ] && sh $cmdfile || echo "Cancelled."
 
-  [ $? -gt 0 ] && echo "Cancelling..." && exit 1
+  if [ $? -gt 0 ] ; then
+    echo "Cancelling..."
+    exit 1
+  else
+    echo "Stack command issued. Done."
+  fi
 }
 
 awsVersion() {
