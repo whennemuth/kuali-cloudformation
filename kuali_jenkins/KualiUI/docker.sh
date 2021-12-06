@@ -125,8 +125,10 @@ getJenkinsInstanceId() {
     "Key=Name,Values=kuali-jenkins"
   )
   pickEC2InstanceId ${filters[@]} > /dev/null
-  cat ec2-instance-id
-  rm -f ec2-instance-id
+  (
+    cat ec2-instance-id
+    rm -f ec2-instance-id
+  ) 2> /dev/null
 }
 
 jenkinsPull() {
@@ -172,10 +174,10 @@ case "$task" in
     push ;;
   deploy)
     jenkinsPull $@ ;;
+  test)
+    getJenkinsInstanceId ;;
   all)
-    build
-    push
-    jenkinsPull
+    build && push && jenkinsPull
     ;;
 esac
 

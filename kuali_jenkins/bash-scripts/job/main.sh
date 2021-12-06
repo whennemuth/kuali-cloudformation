@@ -42,7 +42,7 @@ processParametersQueryString() {
     local name="$(echo "$pair" | cut -d'=' -f1)"
     local value="$(echo "$pair" | cut -d'=' -f2)"
     value="$(urldecode "$value")"
-    local cmd="${name^^}="$value""
+    local cmd="${name^^}=\"$value\""
     echo "$cmd"
     eval "$cmd"
   done

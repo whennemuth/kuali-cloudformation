@@ -2174,6 +2174,7 @@ pickEC2InstanceId() {
       details="$(
         aws ec2 describe-instance-status \
           --instance-ids $instanceId \
+          --include-all-instances \
           --output text \
           --query 'InstanceStatuses[].{state:InstanceState.Name,sysStatus:SystemStatus.Status,instStatus:InstanceStatus.Status}' 2> /dev/null
       )"
