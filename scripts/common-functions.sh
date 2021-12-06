@@ -1990,6 +1990,7 @@ runStackActionCommand() {
     printf "\nExecute the following command:\n\n$(cat $cmdfile)\n\n(y/n): "
     read answer
   fi
+set -x  
   [ "$answer" == "y" ] && sh $cmdfile || echo "Cancelled."
 
   [ $? -gt 0 ] && echo "Cancelling..." && exit 1
