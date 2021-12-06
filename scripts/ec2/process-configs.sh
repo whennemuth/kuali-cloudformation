@@ -111,19 +111,19 @@ processEnvironmentVariableFiles() {
           setNewValue $envfile 'NODE_TLS_REJECT_UNAUTHORIZED' '0'
         fi
         if [ -n "$CORE_AUTH_BASE_URL" ] ; then
-          setNewValue 'CORE_AUTH_BASE_URL' "$CORE_AUTH_BASE_URL"
+          setNewValue $envfile 'CORE_AUTH_BASE_URL' "$CORE_AUTH_BASE_URL"
         else
-          setNewValue 'CORE_AUTH_BASE_URL' "https://${common_name}"
+          setNewValue $envfile 'CORE_AUTH_BASE_URL' "https://${common_name}"
         fi
         if [ -n "$RESEARCH_URL" ] ; then
-          setNewValue 'RESEARCH_URL' "$RESEARCH_URL"
+          setNewValue $envfile 'RESEARCH_URL' "$RESEARCH_URL"
         else
-          setNewValue 'RESEARCH_URL' "https://${common_name}/kc"
+          setNewValue $envfile 'RESEARCH_URL' "https://${common_name}/kc"
         fi
         if [ -n "$PORTAL_HOST" ] ; then
-          setNewValue 'PORTAL_HOST' "$PORTAL_HOST"
+          setNewValue $envfile 'PORTAL_HOST' "$PORTAL_HOST"
         else
-          setNewValue 'PORTAL_HOST' "https://${common_name}/kc"
+          setNewValue $envfile 'PORTAL_HOST' "https://${common_name}/kc"
         fi
         checkValue $envfile 'MONGODB_USERNAME'
         checkValue $envfile 'MONGODB_PASSWORD'

@@ -156,6 +156,7 @@ buildArgs() {
     esac
   done
   
+  [ -z "$SKIP_S3_UPLOAD" ] && putArg SKIP_S3_UPLOAD=true
   [ -z "$DEEP_VALIDATION" ] && putArg DEEP_VALIDATION=false
   [ -z "$PROMPT" ] && putArg PROMPT=false
   [ "$DEBUG" == true ] && putArg DEBUG=true

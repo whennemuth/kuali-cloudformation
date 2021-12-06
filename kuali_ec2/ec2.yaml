@@ -287,7 +287,7 @@ Resources:
             - secretsmanager:DescribeSecret
             - secretsmanager:ListSecretVersionIds
             Resource:
-            - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:kuali/${Landscape}/*
+            - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:kuali/${Baseline}/*
       - PolicyName:
           !Sub "${GlobalTag}-${Landscape}-read-rds-metadata"
         PolicyDocument:
@@ -554,24 +554,30 @@ Resources:
                 [/var/log/dmesg]
                 file = /var/log/dmesg
                 log_group_name = ${GlobalTag}-${Landscape}
-                log_stream_name = /var/log/dmesg
+                log_stream_name = {instance_id}/var/log/dmesg
                 
                 [/var/log/messages]
                 file = /var/log/messages
                 log_group_name = ${GlobalTag}-${Landscape}
-                log_stream_name = /var/log/messages
+                log_stream_name = {instance_id}/var/log/messages
                 datetime_format = %b %d %H:%M:%S
                 
                 [/var/log/docker]
                 file = /var/log/docker
                 log_group_name = ${GlobalTag}-${Landscape}
-                log_stream_name = /var/log/docker
+                log_stream_name = {instance_id}/var/log/docker
+                datetime_format = %Y-%m-%dT%H:%M:%S.%f
+                
+                [/var/log/localhost]
+                file = /opt/kuali/kc_tomcat_logs/localhost.log
+                log_group_name = ${GlobalTag}-${Landscape}
+                log_stream_name = {instance_id}/var/log/localhost
                 datetime_format = %Y-%m-%dT%H:%M:%S.%f
                 
                 [/var/log/cfn-init]
                 file = /var/log/cfn-init.log
                 log_group_name = ${GlobalTag}-${Landscape}
-                log_stream_name = /var/log/cfn-init
+                log_stream_name = {instance_id}/var/log/cfn-init
                 datetime_format = %Y-%m-%d %H:%M:%S,
                 # multi_line_start_pattern = \d{4}\-\d{2}\-\d{2} \d{2}:\d{2}:\d{2},\d{3}
             /opt/kuali/scripts/process-configs.sh:

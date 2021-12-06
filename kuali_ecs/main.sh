@@ -122,85 +122,89 @@ stackAction() {
 
     checkKeyPair
 
-    # Validate and upload the yaml file(s) to s3
-    outputHeading "Validating and uploading main template(s)..."
-    uploadStack silent
-    [ $? -gt 0 ] && exit 1
+    if [ "${SKIP_S3_UPLOAD,,}" == 'true' ] ; then
+      echo "Skipping upload of templates and scripts to s3."
+    else
+      # Validate and upload the yaml file(s) to s3
+      outputHeading "Validating and uploading main template(s)..."
+      uploadStack silent
+      [ $? -gt 0 ] && exit 1
 
-    if [ "$DEEP_VALIDATION" == 'true' ] ; then
-      outputHeading "Validating and uploading nested templates..."
-      if [ "${CREATE_MONGO,,}" == 'true' ] ; then
+      if [ "$DEEP_VALIDATION" == 'true' ] ; then
+        outputHeading "Validating and uploading nested templates..."
+        if [ "${CREATE_MONGO,,}" == 'true' ] ; then
+          validateTemplateAndUploadToS3 \
+            silent=true \
+            filepath=../kuali_mongo/mongo.yaml \
+            s3path=s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_mongo/
+
+          copyToBucket '../scripts/ec2/initialize-mongo-database.sh' "s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/"
+
+          validateTemplateAndUploadToS3 \
+            silent=true \
+            filepath=../kuali_campus_security/main.yaml \
+            s3path=s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_campus_security/
+        fi
+        if [ "${ENABLE_ALB_LOGGING,,}" != 'false' ] || [ "${CREATE_WAF,,}" == 'true' ] ; then
+          validateTemplateAndUploadToS3 \
+            silent=true \
+            filepath=../kuali_alb/logs.yaml \
+            s3path=s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_alb/
+
+          validateTemplateAndUploadToS3 \
+            silent=true \
+            filepath=../kuali_waf/waf.yaml \
+            s3path=s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_waf/
+
+          validateTemplateAndUploadToS3 \
+            silent=true \
+            filepath=../kuali_waf/aws-waf-security-automations-custom.yaml \
+            s3path=s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_waf/
+
+          validateTemplateAndUploadToS3 \
+            silent=true \
+            filepath=../kuali_waf/aws-waf-security-automations-webacl-custom.yaml \
+            s3path=s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_waf/
+
+          validateTemplateAndUploadToS3 \
+            silent=true \
+            filepath=../lambda/toggle_alb_logging/toggle_alb_logging.yaml \
+            s3path=s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_lambda/
+
+          validateTemplateAndUploadToS3 \
+            silent=true \
+            filepath=../lambda/toggle_waf_logging/toggle_waf_logging.yaml \
+            s3path=s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_lambda/
+        fi
+
         validateTemplateAndUploadToS3 \
           silent=true \
-          filepath=../kuali_mongo/mongo.yaml \
-          s3path=s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_mongo/
-
-        copyToBucket '../scripts/ec2/initialize-mongo-database.sh' "s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/"
-
-        validateTemplateAndUploadToS3 \
-          silent=true \
-          filepath=../kuali_campus_security/main.yaml \
-          s3path=s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_campus_security/
-      fi
-      if [ "${ENABLE_ALB_LOGGING,,}" != 'false' ] || [ "${CREATE_WAF,,}" == 'true' ] ; then
-        validateTemplateAndUploadToS3 \
-          silent=true \
-          filepath=../kuali_alb/logs.yaml \
+          filepath=../kuali_alb/alb.yaml \
           s3path=s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_alb/
 
         validateTemplateAndUploadToS3 \
           silent=true \
-          filepath=../kuali_waf/waf.yaml \
-          s3path=s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_waf/
-
-        validateTemplateAndUploadToS3 \
-          silent=true \
-          filepath=../kuali_waf/aws-waf-security-automations-custom.yaml \
-          s3path=s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_waf/
-
-        validateTemplateAndUploadToS3 \
-          silent=true \
-          filepath=../kuali_waf/aws-waf-security-automations-webacl-custom.yaml \
-          s3path=s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_waf/
-
-        validateTemplateAndUploadToS3 \
-          silent=true \
-          filepath=../lambda/toggle_alb_logging/toggle_alb_logging.yaml \
+          filepath=../lambda/bucket_emptier/bucket_emptier.yaml \
           s3path=s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_lambda/
 
-        validateTemplateAndUploadToS3 \
-          silent=true \
-          filepath=../lambda/toggle_waf_logging/toggle_waf_logging.yaml \
-          s3path=s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_lambda/
+        # Upload lambda code used by custom resources
+        outputHeading "Building, zipping, and uploading lambda code behind custom resources..."
+        zipPackageAndCopyToS3 '../lambda/bucket_emptier' 's3://kuali-conf/cloudformation/kuali_lambda/bucket_emptier.zip'
+        [ $? -gt 0 ] && echo "ERROR! Could not upload bucket_emptier.zip to s3." && exit 1
+        if [ "${ENABLE_ALB_LOGGING,,}" != 'false' ] || [ "${CREATE_WAF,,}" == 'true' ] ; then
+          zipPackageAndCopyToS3 '../lambda/toggle_alb_logging' 's3://kuali-conf/cloudformation/kuali_lambda/toggle_alb_logging.zip'
+          [ $? -gt 0 ] && echo "ERROR! Could not upload toggle_alb_logging.zip to s3." && exit 1
+          
+          zipPackageAndCopyToS3 '../lambda/toggle_waf_logging' 's3://kuali-conf/cloudformation/kuali_lambda/toggle_waf_logging.zip'
+          [ $? -gt 0 ] && echo "ERROR! Could not upload toggle_waf_logging.zip to s3." && exit 1
+        fi
       fi
 
-      validateTemplateAndUploadToS3 \
-        silent=true \
-        filepath=../kuali_alb/alb.yaml \
-        s3path=s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_alb/
-
-      validateTemplateAndUploadToS3 \
-        silent=true \
-        filepath=../lambda/bucket_emptier/bucket_emptier.yaml \
-        s3path=s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_lambda/
-
-      # Upload lambda code used by custom resources
-      outputHeading "Building, zipping, and uploading lambda code behind custom resources..."
-      zipPackageAndCopyToS3 '../lambda/bucket_emptier' 's3://kuali-conf/cloudformation/kuali_lambda/bucket_emptier.zip'
-      [ $? -gt 0 ] && echo "ERROR! Could not upload bucket_emptier.zip to s3." && exit 1
-      if [ "${ENABLE_ALB_LOGGING,,}" != 'false' ] || [ "${CREATE_WAF,,}" == 'true' ] ; then
-        zipPackageAndCopyToS3 '../lambda/toggle_alb_logging' 's3://kuali-conf/cloudformation/kuali_lambda/toggle_alb_logging.zip'
-        [ $? -gt 0 ] && echo "ERROR! Could not upload toggle_alb_logging.zip to s3." && exit 1
-        
-        zipPackageAndCopyToS3 '../lambda/toggle_waf_logging' 's3://kuali-conf/cloudformation/kuali_lambda/toggle_waf_logging.zip'
-        [ $? -gt 0 ] && echo "ERROR! Could not upload toggle_waf_logging.zip to s3." && exit 1
-      fi
+      # Upload scripts that will be run as part of AWS::CloudFormation::Init
+      outputHeading "Uploading bash scripts involved in AWS::CloudFormation::Init..."
+      copyToBucket '../scripts/ec2/process-configs.sh' "s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/"
+      copyToBucket '../scripts/ec2/cloudwatch-metrics.sh' "s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/"
     fi
-
-    # Upload scripts that will be run as part of AWS::CloudFormation::Init
-    outputHeading "Uploading bash scripts involved in AWS::CloudFormation::Init..."
-    copyToBucket '../scripts/ec2/process-configs.sh' "s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/"
-    copyToBucket '../scripts/ec2/cloudwatch-metrics.sh' "s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/"
 
     cat <<-EOF > $cmdfile
     aws \\

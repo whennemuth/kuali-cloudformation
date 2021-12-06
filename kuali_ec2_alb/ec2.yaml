@@ -256,7 +256,7 @@ Resources:
             - secretsmanager:DescribeSecret
             - secretsmanager:ListSecretVersionIds
             Resource:
-            - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:kuali/${Landscape}/*
+            - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:kuali/${Baseline}/*
       - PolicyName:
           !Sub "${GlobalTag}-${Landscape}-read-rds-metadata"
         PolicyDocument:
@@ -502,6 +502,12 @@ Resources:
                 file = /var/log/docker
                 log_group_name = ${GlobalTag}-${Landscape}
                 log_stream_name = {instance_id}/var/log/docker
+                datetime_format = %Y-%m-%dT%H:%M:%S.%f
+                
+                [/var/log/localhost]
+                file = /opt/kuali/kc_tomcat_logs/localhost.log
+                log_group_name = ${GlobalTag}-${Landscape}
+                log_stream_name = {instance_id}/var/log/localhost
                 datetime_format = %Y-%m-%dT%H:%M:%S.%f
                 
                 [/var/log/cfn-init]
