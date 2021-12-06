@@ -190,7 +190,7 @@ createStack() {
 
   echo "$cmd"
   eval "$cmd"
-  true
+  return $?
 }
 
 recreateStack() {
@@ -214,7 +214,7 @@ deleteStack() {
   fi
   echo "$cmd"
   [ "$DRYRUN" == false ] && eval "$cmd"
-  true
+  return $?
 }
 
 runStackAction() {
