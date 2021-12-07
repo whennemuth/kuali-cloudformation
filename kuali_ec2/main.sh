@@ -68,7 +68,7 @@ stackAction() {
     
     [ $? -gt 0 ] && echo "Cancelling..." && return 1
 
-    aws cloudformation $action --stack-name $FULL_STACK_NAME
+    aws cloudformation delete-stack --stack-name $(getStackToDelete)
     if ! waitForStackToDelete ; then
       echo "Problem deleting stack!"
       exit 1

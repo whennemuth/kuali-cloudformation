@@ -1888,12 +1888,17 @@ getLatestImage() {
   echo "$accountNbr.dkr.ecr.us-east-1.amazonaws.com/$reponame:$version"
 }
 
+getStackToDelete() {
+  [ -n "$STACK_TO_DELETE" ] && echo "$STACK_TO_DELETE" && return 0
+  [ -n "$FULL_STACK_NAME" ] && echo "$FULL_STACK_NAME" && return 0
+}
+
 waitForStackToDelete() {
   echo ""
   outputHeading "Deleting existing stack..."
   local counter=1
   local status="unknown"
-  local stackname="$FULL_STACK_NAME"
+  local stackname="$(getStackToDelete)"
   if [ -z "$stackname" ] ; then
     stackname=$STACK_NAME
     [ -n "$LANDSCAPE" ] && stackname="$stackname-$LANDSCAPE"

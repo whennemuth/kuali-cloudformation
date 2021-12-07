@@ -103,7 +103,7 @@ stackAction() {
 
   [ -z "$FULL_STACK_NAME" ] && FULL_STACK_NAME=${STACK_NAME}-${LANDSCAPE}
   if [ "$action" == 'delete-stack' ] ; then
-    aws cloudformation $action --stack-name $FULL_STACK_NAME
+    aws cloudformation $action --stack-name $(getStackToDelete)
     if ! waitForStackToDelete ; then
       echo "Problem deleting stack!"
       exit 1
