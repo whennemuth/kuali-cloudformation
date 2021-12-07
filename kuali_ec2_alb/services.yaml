@@ -63,7 +63,7 @@ Resources:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
       Name:
-        !Sub "${GlobalTag}-${Landscape}-dashboard-TG"
+        !Sub "${GlobalTag}-${Landscape}-db-TG"
       VpcId: !Ref VpcId
       Port: 3005
       Protocol: HTTP
@@ -93,7 +93,7 @@ Resources:
       Tags:
       - Key: Name
         Value: 
-          !Sub "${GlobalTag}-${Landscape}-dashboard-TG"
+          !Sub "${GlobalTag}-${Landscape}-db-TG"
 
   ListenerRuleDashboardCommonTasks:
     Type: AWS::ElasticLoadBalancingV2::ListenerRule
