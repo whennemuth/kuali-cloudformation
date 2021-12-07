@@ -268,7 +268,7 @@ Conditions:
   CreateAlbLogsBuckets: !Or [!Equals [!Ref EnableALBLogging, 'true' ], Condition: CreateWAF]
   UseKeypair: !Not [!Equals [!Ref EC2KeypairName, empty]]
   IsProd: !Equals [!Ref Landscape, prod]
-  CreateRdsClone: !Not [!Equals [!Ref RdsSnapshotARN, empty]]
+  CreateFromRdsClone: !Not [!Equals [!Ref RdsSnapshotARN, empty]]
 
 
 Resources:
@@ -288,7 +288,7 @@ Resources:
 
   RdsInstance:
     Type: AWS::CloudFormation::Stack
-    Condition: CreateRdsClone
+    Condition: CreateFromRdsClone
     Properties:
       TemplateURL:
         !Sub https://s3.amazonaws.com/${TemplateBucketName}/cloudformation/kuali_rds/rds-oracle.yaml
@@ -453,6 +453,10 @@ Resources:
     
   Instance1:
     Type: AWS::CloudFormation::Stack
+    DependsOn: !If 
+      - CreateFromRdsClone
+      - RdsInstance
+      - !If [ CreateMongoEc2Instance, MongoDbInstance, !Ref AWS::NoValue ]
     Properties:
       TemplateURL: 
         !Sub https://s3.amazonaws.com/${TemplateBucketName}/cloudformation/kuali_ec2_alb/ec2.yaml

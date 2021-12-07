@@ -36,7 +36,7 @@ Parameters:
   DBDomainName:
     Description: The domain name for the private hosted zone designated for rds host endpoints
     Type: String
-    Default: kuali.db.nonprod.css.edu
+    Default: db.kuali.research.bu.edu
 
   CreateHostedZoneLogGroup:
     Description: Log activity for the app hosted zone to cloudwatch?

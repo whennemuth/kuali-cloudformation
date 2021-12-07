@@ -95,6 +95,7 @@ EOF
 
     add_parameter $cmdfile 'GlobalTag' 'GLOBAL_TAG'
     add_parameter $cmdfile 'DomainName' 'DOMAIN_NAME'
+    add_parameter $cmdfile 'DBDomainName' 'DB_DOMAIN_NAME'
 
     echo "      ]'" >> $cmdfile
 

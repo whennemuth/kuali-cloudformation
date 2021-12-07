@@ -183,7 +183,7 @@ Conditions:
   IsTest: !Not [!And [!Equals [!Ref Landscape, prod], !Equals [!Ref Landscape, stg]]]
   IsProd: !Equals [!Ref Landscape, prod]
   NewrelicLicsenseKeyProvided: !Equals [!Ref NewrelicLicsenseKey, empty]
-  CreateRdsClone: !Not [!Equals [!Ref RdsSnapshotARN, empty]]
+  CreateFromRdsClone: !Not [!Equals [!Ref RdsSnapshotARN, empty]]
 
 Mappings:
   2faCidrs:
@@ -205,7 +205,7 @@ Resources:
 
   RdsInstance:
     Type: AWS::CloudFormation::Stack
-    Condition: CreateRdsClone
+    Condition: CreateFromRdsClone
     Properties:
       TemplateURL:
         !Sub https://s3.amazonaws.com/${TemplateBucketName}/cloudformation/kuali_rds/rds-oracle.yaml
@@ -334,6 +334,10 @@ Resources:
   EC2InstanceLogsGroup:
     Type: AWS::Logs::LogGroup
     DeletionPolicy: Delete
+    DependsOn: !If 
+      - CreateFromRdsClone
+      - RdsInstance
+      - !If [ CreateMongoEc2Instance, MongoDbInstance, !Ref AWS::NoValue ]
     Properties:
       LogGroupName: !Sub ${GlobalTag}-${Landscape}
       RetentionInDays: !If [ IsProd, 365, 30 ]
