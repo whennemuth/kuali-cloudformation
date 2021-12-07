@@ -162,7 +162,7 @@ buildArgs() {
   [ "$DEBUG" == true ] && putArg DEBUG=true
   [ "$DRYRUN" == true ] && putArg DEBUG=true && putArg DRYRUN=true
   # Since the user can pick a different stack type (ec2, ec2-alb, ecs), the name of the stack to delete may not be the name of the stack it gets recreated as.
-  [ "$STACK_ACTION" == 'recreate' ] && [ -n "$STACK" ] && putArg STACK_TO_DELETE=$STACK
+  [ "$STACK_ACTION" == 'recreate' ] && [ -n "$STACK" ] && putArg STACK_TO_DELETE=$(getStackName)
 } 
 
 
