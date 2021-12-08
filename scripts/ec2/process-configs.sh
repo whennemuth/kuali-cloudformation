@@ -1,8 +1,39 @@
 #!/bin/bash
 
+isABaselineLandscape() {
+  ([ "$1" == 'sb'] || [ "$1" == 'ci' ] || [ "$1" == 'qa' ] || [ "$1" == 'stg'] || [ "$1" == 'prod' ]) && true || false
+}
+
+isATestBaselineLandscape() {
+  ([ "$1" == 'sb'] || [ "$1" == 'ci' ] || [ "$1" == 'qa' ]) && true || false
+}
+
+isANonTestBaselineLandscape() {
+  ([ "$1" == 'stg'] || [ "$1" == 'prod' ]) && true || false
+}
+
+getS3BaselineSubdirectory() {
+  case "$SHIB_HOST" in
+    'shib-test.bu.edu')
+      isATestBaselineLandscape "$BASELINE" && echo "$BASELINE" && return 0
+      isATestBaselineLandscape "$LANDSCAPE" && echo "$LANDSCAPE" && return 0
+      ;;
+    'shib.bu.edu')
+      isANonTestBaselineLandscape "$BASELINE" && echo "$BASELINE" && return 0
+      isANonTestBaselineLandscape "$LANDSCAPE" && echo "$LANDSCAPE" && return 0
+      ;;
+  esac
+}
+
 # Acquire the kc-config.xml file, name=value pair files for docker container environment variables, etc from s3
 downloadConfigsFromS3() {
-  echo "Downloading all configurations for containers from the s3 bucket, baseline landscape ${BASELINE}"
+  local baselineDir="$(getS3BaselineSubdirectory)"
+
+  if [ -z "$baselineDir" ] ; then
+    echo "ERROR! Cannot determine baseline, defaulting to \"ci\" baseline"
+    baselineDir='ci'
+  fi
+  echo "Downloading all configurations for containers from the s3 bucket, baseline landscape $baselineDir"
   
   [ ! -d /opt/kuali/s3 ] && mkdir -p /opt/kuali/s3
   cd /opt/kuali/s3
@@ -12,7 +43,7 @@ downloadConfigsFromS3() {
     --include "portal/*" \
     --include "pdf/*" \
     --include "kc/kc-config.xml" \
-    s3://${TEMPLATE_BUCKET_NAME}/${BASELINE}/ .
+    s3://${TEMPLATE_BUCKET_NAME}/$baselineDir/ .
   aws s3 cp s3://${TEMPLATE_BUCKET_NAME}/rice.cer /opt/kuali/s3/kc/
   aws s3 cp s3://${TEMPLATE_BUCKET_NAME}/rice.keystore /opt/kuali/s3/kc/
 }

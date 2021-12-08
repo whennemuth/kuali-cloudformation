@@ -62,6 +62,9 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
    cd kuali-infrastructure/kuali_jenkins
    ```
 
+2. **Build docker image:**
+   Many jenkins jobs use the [Active Choices Plugin](https://plugins.jenkins.io/uno-choice/) to add more dynamic behavior to fields in a job. Field values/choices can be dynamically populated based on selections/entries in other fields. The code to drive this dynamic behavior must be entered by the job author as groovy scripting in special text areas connected to the associated field(s). This can quickly become cumbersome and difficult to maintain the more involved the dynamic behavior becomes. To solve this, the logic behind the dynamic behavior is moved out into a docker container acts as a simple website that returns html for rendering in the job. The groovy scripting of each job field is reduced down to an http call to this container over localhost providing the its current value and all other field values. The returned html is used to re-render a single field (html fragment) or many fields at once.
+   
 2. **Create the stack:**
    Use the main.sh helper script to create the jenkins cloudformation stack.
    Examples:
