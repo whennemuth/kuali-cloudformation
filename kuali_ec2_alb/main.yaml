@@ -453,9 +453,12 @@ Resources:
     
   Instance1:
     Type: AWS::CloudFormation::Stack
-    DependsOn: 
-      - RdsInstance
-      - MongoDbInstance
+    # For now, the rds and mongo instances have always been ready by the time the ec2 instances need them.
+    # However, this is not guaranteed, and if you want to avoid that trouble, uncomment the DependsOn below.
+    # Otherwise, these resources are created in parallel, which is faster.
+    # DependsOn: 
+    #   - RdsInstance
+    #   - MongoDbInstance
     Properties:
       TemplateURL: 
         !Sub https://s3.amazonaws.com/${TemplateBucketName}/cloudformation/kuali_ec2_alb/ec2.yaml
