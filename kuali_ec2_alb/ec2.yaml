@@ -676,13 +676,13 @@ Resources:
               cwd: /opt/kuali/scripts
               env:
                 TASK: process_env_files
-                DNS_NAME: !Sub "${DNSName}"
+                DNS_NAME: !Ref DNSName
                 USING_ROUTE53: !Ref UsingRoute53
                 ENV_FILE_FROM_S3_CORE: /opt/kuali/s3/core/environment.variables.s3
                 ENV_FILE_FROM_S3_PORTAL: /opt/kuali/s3/portal/environment.variables.s3
                 ENV_FILE_FROM_S3_PDF: /opt/kuali/s3/pdf/environment.variables.s3
                 MONGO_EC2_IP: !If [ UseMongoEc2Instance, !Ref MongoEc2Ip, '' ]
-                PDF_BUCKET_NAME: !Sub "${PdfS3BucketName}"
+                PDF_BUCKET_NAME: !Ref PdfS3BucketName
                 AWS_DEFAULT_REGION: !Ref AWS::Region
                 SHIB_HOST: 
                   !If
@@ -696,8 +696,8 @@ Resources:
               cwd: /opt/kuali/scripts
               env:
                 TASK: process_kc-config_file
-                DNS_NAME: !Sub "${DNSName}"
-                LANDSCAPE: !Sub "${Landscape}"
+                DNS_NAME: !Ref DNSName
+                LANDSCAPE: !Ref Landscape
                 BASELINE: !Ref Baseline
                 AWS_DEFAULT_REGION: !Ref AWS::Region
               command: bash process-configs.sh
@@ -706,17 +706,17 @@ Resources:
             docker_run_containers:
               cwd: /opt/kuali/scripts
               env:
-                LANDSCAPE: !Sub "${Landscape}"
-                JAVA_ENV: !Sub "${Landscape}"
+                LANDSCAPE: !Ref Landscape
+                JAVA_ENV: !Ref Landscape
                 NEW_RELIC_ENVIRONMENT: !Ref Landscape
                 NEW_RELIC_LICENSE_KEY: !If [ NewrelicLicsenseKeyProvided, !Ref NewrelicLicsenseKey, !Ref AWS::NoValue ]
                 NEW_RELIC_AGENT_ENABLED: !If [ NewrelicLicsenseKeyProvided, !Ref EnableNewRelicAPM, 'false' ] 
                 NEW_RELIC_INFRASTRUCTURE_ENABLED: !If [ NewrelicLicsenseKeyProvided, !Ref EnableNewRelicInfrastructure, 'false' ]
-                KC_IMAGE: !Sub "${KcImage}"
-                CORE_IMAGE: !Sub "${CoreImage}"
-                PORTAL_IMAGE: !Sub "${PortalImage}"
-                PDF_IMAGE: !Sub "${PdfImage}"
-                DNS_NAME: !Sub "${DNSName}"
+                KC_IMAGE: !Ref KcImage
+                CORE_IMAGE: !Ref CoreImage
+                PORTAL_IMAGE: !Ref PortalImage
+                PDF_IMAGE: !Ref PdfImage
+                DNS_NAME: !Ref DNSName
                 AWS_DEFAULT_REGION: !Ref AWS::Region
               command: bash start.docker.containers.sh
           services:

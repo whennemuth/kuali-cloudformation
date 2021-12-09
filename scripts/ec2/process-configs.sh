@@ -1,39 +1,10 @@
 #!/bin/bash
 
-isABaselineLandscape() {
-  ([ "$1" == 'sb'] || [ "$1" == 'ci' ] || [ "$1" == 'qa' ] || [ "$1" == 'stg'] || [ "$1" == 'prod' ]) && true || false
-}
-
-isATestBaselineLandscape() {
-  ([ "$1" == 'sb'] || [ "$1" == 'ci' ] || [ "$1" == 'qa' ]) && true || false
-}
-
-isANonTestBaselineLandscape() {
-  ([ "$1" == 'stg'] || [ "$1" == 'prod' ]) && true || false
-}
-
-getS3BaselineSubdirectory() {
-  case "$SHIB_HOST" in
-    'shib-test.bu.edu')
-      isATestBaselineLandscape "$BASELINE" && echo "$BASELINE" && return 0
-      isATestBaselineLandscape "$LANDSCAPE" && echo "$LANDSCAPE" && return 0
-      ;;
-    'shib.bu.edu')
-      isANonTestBaselineLandscape "$BASELINE" && echo "$BASELINE" && return 0
-      isANonTestBaselineLandscape "$LANDSCAPE" && echo "$LANDSCAPE" && return 0
-      ;;
-  esac
-}
-
 # Acquire the kc-config.xml file, name=value pair files for docker container environment variables, etc from s3
 downloadConfigsFromS3() {
-  local baselineDir="$(getS3BaselineSubdirectory)"
+  printEnvironment
 
-  if [ -z "$baselineDir" ] ; then
-    echo "ERROR! Cannot determine baseline, defaulting to \"ci\" baseline"
-    baselineDir='ci'
-  fi
-  echo "Downloading all configurations for containers from the s3 bucket, baseline landscape $baselineDir"
+  echo "Downloading all configurations for containers from the s3 bucket, baseline landscape $BASELINE"
   
   [ ! -d /opt/kuali/s3 ] && mkdir -p /opt/kuali/s3
   cd /opt/kuali/s3
@@ -43,7 +14,7 @@ downloadConfigsFromS3() {
     --include "portal/*" \
     --include "pdf/*" \
     --include "kc/kc-config.xml" \
-    s3://${TEMPLATE_BUCKET_NAME}/$baselineDir/ .
+    s3://${TEMPLATE_BUCKET_NAME}/$BASELINE/ .
   aws s3 cp s3://${TEMPLATE_BUCKET_NAME}/rice.cer /opt/kuali/s3/kc/
   aws s3 cp s3://${TEMPLATE_BUCKET_NAME}/rice.keystore /opt/kuali/s3/kc/
 }
@@ -51,6 +22,7 @@ downloadConfigsFromS3() {
 # The name=value pair files acquired from s3 will have some default entries whose actual values could 
 # not have been known ahead of time, but can be looked up now and copied over the defaults here.
 processEnvironmentVariableFiles() {
+  printEnvironment
   local common_name="$(getCommonName)"
 
   # Loop over the collection of environment.variables.s3 files.
@@ -230,6 +202,7 @@ createExportFile() {
 #   <param name="datasource.username">KUALI_DB_USERNAME</param>
 #   <param name="datasource.password">KUALI_DB_PASSWORD</param>
 processKcConfigFile() {
+  printEnvironment
   sed -i "s/APPLICATION_HOST/$(getCommonName)/"         /opt/kuali/s3/kc/kc-config.xml
   sed -i "s/KUALI_DB_HOST/$(getRdsHostname)/"           /opt/kuali/s3/kc/kc-config.xml
   sed -i "s/KUALI_DB_USERNAME/$(getRdsAppUsername)/"    /opt/kuali/s3/kc/kc-config.xml
@@ -239,6 +212,7 @@ processKcConfigFile() {
 # There is no environment variables file downloaded from s3 for the kc docker container to mount to.
 # Instead, these variables were put into the environment of this running script, so put them as name=value pairs into a file for mounting.
 createKcEnvironmentVariableFile() {
+  printEnvironment
   echo "LANDSCAPE=$LANDSCAPE" > $TARGET_FILE
   echo "NEW_RELIC_LICENSE_KEY=$NEW_RELIC_LICENSE_KEY" >> $TARGET_FILE
   echo "NEW_RELIC_AGENT_ENABLED=$NEW_RELIC_AGENT_ENABLED" >> $TARGET_FILE
@@ -338,6 +312,15 @@ getRdsAppPassword() {
   RDS_PASSWORD=$(getRdsSecret 'app' | jq '.password' | sed 's/"//g')
   echo $RDS_PASSWORD
 }
+
+printEnvironment() {
+  echo " "
+  echo "Environment:"
+  env
+  echo " "
+}
+
+printEnvironment
 
 DNS_NAME=$(echo "$DNS_NAME" | sed -E 's/\.$//') # Strip off trailing dot (if exists).
 

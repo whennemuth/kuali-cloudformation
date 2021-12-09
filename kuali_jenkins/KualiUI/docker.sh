@@ -159,6 +159,11 @@ jenkinsPull() {
     --parameters commands="$cmd"
 }
 
+isNameValuePair() {
+  local parts=$(echo "hello=goodbye" | sed 's/=/\n/g' | wc -l)
+  [ $parts -eq 2 ] && true || false
+}
+
 task="$1"
 
 shift
@@ -178,6 +183,15 @@ case "$task" in
     getJenkinsInstanceId ;;
   all)
     build && push && jenkinsPull
+    ;;
+  *)
+    if isNameValuePair "$task" ; then
+      task='all'
+      echo "No task provided - assuming build, push, and jenkins remote pull."
+      build && push && jenkinsPull
+    else
+      echo "Invalid task: $task"
+    fi
     ;;
 esac
 

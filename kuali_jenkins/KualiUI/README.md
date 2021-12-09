@@ -27,9 +27,87 @@
   
 - **Bash:**
   You will need the ability to run bash scripts. Natively, you can do this on a mac, though there may be some minor syntax/version differences that will prevent the scripts from working correctly. In that event, or if running windows, you can either:
+  
   - Clone the repo on a linux box (ie: an ec2 instance), install the other prerequisites and run there.
   - Download [gitbash](https://git-scm.com/downloads)
 
 ### Steps:
 
 Build the application into a docker image and deploy to a docker registry:
+
+1. **Clone this repository**:
+
+   ```
+   git clone https://github.com/bu-ist/kuali-infrastructure.git
+   cd kuali-infrastructure/kuali_jenkins/KualiUI
+   ```
+
+2. **Test in local development environment:**
+   TODO...
+
+3. **Build, push, and deploy:**
+
+   - **Build:**
+     To build the app into a docker image.
+
+     ```
+     sh docker.sh build
+     ```
+
+     The image name will be `"kuali-jenkins-http-server"`
+     To change the logging level of the app:
+
+     ```
+     sh docker.sh logging_level=debug
+     ```
+
+   - **Push:**
+
+     - **Elastic Container Registry:**
+
+       This will be the default push target. Only a profile is needed to identify the account and one that has a sufficient role to push.
+
+       ```
+       sh docker.sh push profile=[my profile]
+       ```
+
+     - **Dockerhub:**
+       Provide a user and password for the dockerhub account
+
+       ```
+       sh docker.sh push user=[dockerhub user] password=[dockerhub password]
+       ```
+
+       or to be prompted for the password:
+
+       ```
+       sh docker.sh push user=[dockerhub user]
+       ```
+
+   - **Deploy:**
+     A [Systems Manager send command](https://docs.aws.amazon.com/cli/latest/reference/ssm/send-command.html) is issued to any ec2 instance identified as a kuali jenkins server. The command instructs the instance to refresh its docker image from the registry and restart its containers. 
+
+     ```
+     sh docker.sh deploy profile=[my profile]
+     ```
+
+   - **All-in-one:**
+     Omit any of the terms "build", "push", or "deploy" and it is assumed that you want each of them performed in order. Use any of the parameters already covered.
+
+
+     EXAMPLES:
+
+     - Accept all defaults (ECR, "INFO" logging level)
+
+       ```
+       sh docker.sh profile=[my profile]
+       ```
+
+     - Use dockerhub and up the logging level:
+
+       ```
+       sh docker.sh user=[dockerhub user] password=[dockerhub password] logging_level=debug
+       ```
+
+       
+
