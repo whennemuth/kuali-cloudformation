@@ -711,14 +711,15 @@ Resources:
               cwd: /opt/kuali/scripts
               env:
                 TASK: process_env_files
+                LANDSCAPE: !Ref Landscape
                 CREATE_EXPORT_FILE: 'true'
-                DNS_NAME: !Sub "${DNSName}"
+                DNS_NAME: !Ref DNSName
                 USING_ROUTE53: !Ref UsingRoute53
                 ENV_FILE_FROM_S3_CORE: /opt/kuali/s3/core/environment.variables.s3
                 ENV_FILE_FROM_S3_PORTAL: /opt/kuali/s3/portal/environment.variables.s3
                 ENV_FILE_FROM_S3_PDF: /opt/kuali/s3/pdf/environment.variables.s3
                 MONGO_EC2_IP: !If [ UseMongoEc2Instance, !Ref MongoEc2Ip, '' ]
-                PDF_BUCKET_NAME: !Sub "${PdfS3BucketName}"
+                PDF_BUCKET_NAME: !Ref PdfS3BucketName
                 AWS_DEFAULT_REGION: !Ref AWS::Region
                 SHIB_HOST: 
                   !If
@@ -808,7 +809,7 @@ Resources:
             start_cron_for_custom_cloudwatch_metrics:
               command: crontab -u root /opt/kuali/scripts/crontab
               env:
-                LANDSCAPE: !Sub "${Landscape}"
+                LANDSCAPE: !Ref Landscape
                 AWS_DEFAULT_REGION: !Ref AWS::Region
 
 Outputs:

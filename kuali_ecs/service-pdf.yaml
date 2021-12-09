@@ -144,9 +144,9 @@ Resources:
         DeploymentCircuitBreaker:
           Enable: true
           Rollback: true
-      PlacementStrategy:
-        Field: instanceId
-        Type: spread
+      PlacementStrategies:
+        - Field: instanceId
+          Type: spread
       Role:
         !Ref ServiceRole
       DesiredCount:

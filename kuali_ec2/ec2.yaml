@@ -862,10 +862,10 @@ Resources:
               cwd: /opt/kuali/scripts
               env:
                 TASK: get_configs_from_s3             
-                LANDSCAPE: !Sub "${Landscape}"
+                LANDSCAPE: !Ref Landscape
                 BASELINE: !Ref Baseline
-                TEMPLATE_BUCKET_NAME: !Sub "${TemplateBucketName}"
-                AWS_DEFAULT_REGION: !Sub "${AWS::Region}"
+                TEMPLATE_BUCKET_NAME: !Ref TemplateBucketName
+                AWS_DEFAULT_REGION: !Ref AWS::Region
               command: bash process-configs.sh
         02_process_env_files:
           commands:
@@ -873,14 +873,15 @@ Resources:
               cwd: /opt/kuali/scripts
               env:
                 TASK: process_env_files
+                LANDSCAPE: !Ref Landscape
                 DNS_NAME: local
                 USING_ROUTE53: 'false'
                 ENV_FILE_FROM_S3_CORE: /opt/kuali/s3/core/environment.variables.s3
                 ENV_FILE_FROM_S3_PORTAL: /opt/kuali/s3/portal/environment.variables.s3
                 ENV_FILE_FROM_S3_PDF: /opt/kuali/s3/pdf/environment.variables.s3
                 MONGO_EC2_IP: !If [ CreateMongoEc2Instance, !GetAtt MongoDbInstance.Outputs.PrivateIP, '' ]
-                PDF_BUCKET_NAME: !Sub "${PdfS3BucketName}"
-                AWS_DEFAULT_REGION: !Sub "${AWS::Region}"
+                PDF_BUCKET_NAME: !Ref PdfS3BucketName
+                AWS_DEFAULT_REGION: !Ref AWS::Region
               command: bash process-configs.sh
         03_process_kc-config_file:
           commands:
@@ -889,26 +890,26 @@ Resources:
               env:
                 TASK: process_kc-config_file
                 DNS_NAME: local
-                LANDSCAPE: !Sub "${Landscape}"
+                LANDSCAPE: !Ref Landscape
                 BASELINE: !Ref Baseline
-                AWS_DEFAULT_REGION: !Sub "${AWS::Region}"
+                AWS_DEFAULT_REGION: !Ref AWS::Region
               command: bash process-configs.sh
         04_docker_run_containers:
           commands:
             docker_run_containers:
               cwd: /opt/kuali/scripts
               env:
-                LANDSCAPE: !Sub "${Landscape}"
-                JAVA_ENV: !Sub "${Landscape}"
+                LANDSCAPE: !Ref Landscape
+                JAVA_ENV: !Ref Landscape
                 NEW_RELIC_ENVIRONMENT: !Ref Landscape
                 NEW_RELIC_LICENSE_KEY: !If [ NewrelicLicsenseKeyProvided, !Ref NewrelicLicsenseKey, !Ref AWS::NoValue ]
                 NEW_RELIC_AGENT_ENABLED: !If [ NewrelicLicsenseKeyProvided, !Ref EnableNewRelicAPM, 'false' ] 
                 NEW_RELIC_INFRASTRUCTURE_ENABLED: !If [ NewrelicLicsenseKeyProvided, !Ref EnableNewRelicInfrastructure, 'false' ]
-                KC_IMAGE: !Sub "${KcImage}"
-                CORE_IMAGE: !Sub "${CoreImage}"
-                PORTAL_IMAGE: !Sub "${PortalImage}"
-                PDF_IMAGE: !Sub "${PdfImage}"
-                AWS_DEFAULT_REGION: !Sub "${AWS::Region}"
+                KC_IMAGE: !Ref KcImage
+                CORE_IMAGE: !Ref CoreImage
+                PORTAL_IMAGE: !Ref PortalImage
+                PDF_IMAGE: !Ref PdfImage
+                AWS_DEFAULT_REGION: !Ref AWS::Region
               command: bash start.docker.containers.sh
           services:
             sysvinit:
@@ -936,9 +937,9 @@ Resources:
                 USING_ROUTE53: 'false'
                 DEBUG: 'false'
                 COLLECTIONS: 'incommons institutions users'
-                LANDSCAPE: !Sub "${Landscape}"
+                LANDSCAPE: !Ref Landscape
                 SHIB_HOST: !If [ IsTest, 'shib-test.bu.edu', 'shib.bu.edu' ]
-                AWS_DEFAULT_REGION: !Sub "${AWS::Region}"
+                AWS_DEFAULT_REGION: !Ref AWS::Region
                 MONGO_URI:
                   !If
                   - CreateMongoEc2Instance
@@ -956,8 +957,8 @@ Resources:
             start_cron_for_custom_cloudwatch_metrics:
               command: crontab -u root /opt/kuali/scripts/crontab
               env:
-                LANDSCAPE: !Sub "${Landscape}"
-                AWS_DEFAULT_REGION: !Sub "${AWS::Region}"
+                LANDSCAPE: !Ref Landscape
+                AWS_DEFAULT_REGION: !Ref AWS::Region
 
       
   EC2InstanceSecurityGroup:

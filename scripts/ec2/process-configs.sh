@@ -2,7 +2,6 @@
 
 # Acquire the kc-config.xml file, name=value pair files for docker container environment variables, etc from s3
 downloadConfigsFromS3() {
-  printEnvironment
 
   echo "Downloading all configurations for containers from the s3 bucket, baseline landscape $BASELINE"
   
@@ -22,7 +21,6 @@ downloadConfigsFromS3() {
 # The name=value pair files acquired from s3 will have some default entries whose actual values could 
 # not have been known ahead of time, but can be looked up now and copied over the defaults here.
 processEnvironmentVariableFiles() {
-  printEnvironment
   local common_name="$(getCommonName)"
 
   # Loop over the collection of environment.variables.s3 files.
@@ -202,7 +200,6 @@ createExportFile() {
 #   <param name="datasource.username">KUALI_DB_USERNAME</param>
 #   <param name="datasource.password">KUALI_DB_PASSWORD</param>
 processKcConfigFile() {
-  printEnvironment
   sed -i "s/APPLICATION_HOST/$(getCommonName)/"         /opt/kuali/s3/kc/kc-config.xml
   sed -i "s/KUALI_DB_HOST/$(getRdsHostname)/"           /opt/kuali/s3/kc/kc-config.xml
   sed -i "s/KUALI_DB_USERNAME/$(getRdsAppUsername)/"    /opt/kuali/s3/kc/kc-config.xml
@@ -212,7 +209,6 @@ processKcConfigFile() {
 # There is no environment variables file downloaded from s3 for the kc docker container to mount to.
 # Instead, these variables were put into the environment of this running script, so put them as name=value pairs into a file for mounting.
 createKcEnvironmentVariableFile() {
-  printEnvironment
   echo "LANDSCAPE=$LANDSCAPE" > $TARGET_FILE
   echo "NEW_RELIC_LICENSE_KEY=$NEW_RELIC_LICENSE_KEY" >> $TARGET_FILE
   echo "NEW_RELIC_AGENT_ENABLED=$NEW_RELIC_AGENT_ENABLED" >> $TARGET_FILE

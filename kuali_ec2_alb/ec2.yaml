@@ -676,6 +676,7 @@ Resources:
               cwd: /opt/kuali/scripts
               env:
                 TASK: process_env_files
+                LANDSCAPE: !Ref Landscape
                 DNS_NAME: !Ref DNSName
                 USING_ROUTE53: !Ref UsingRoute53
                 ENV_FILE_FROM_S3_CORE: /opt/kuali/s3/core/environment.variables.s3
@@ -770,7 +771,7 @@ Resources:
             start_cron_for_custom_cloudwatch_metrics:
               command: crontab -u root /opt/kuali/scripts/crontab
               env:
-                LANDSCAPE: !Sub "${Landscape}"
+                LANDSCAPE: !Ref Landscape
                 AWS_DEFAULT_REGION: !Ref AWS::Region
 
 
