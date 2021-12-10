@@ -14,8 +14,9 @@ downloadConfigsFromS3() {
     --include "pdf/*" \
     --include "kc/kc-config.xml" \
     s3://${TEMPLATE_BUCKET_NAME}/$BASELINE/ .
-  aws s3 cp s3://${TEMPLATE_BUCKET_NAME}/rice.cer /opt/kuali/s3/kc/
-  aws s3 cp s3://${TEMPLATE_BUCKET_NAME}/rice.keystore /opt/kuali/s3/kc/
+  # aws s3 cp s3://${TEMPLATE_BUCKET_NAME}/samlMeta.xml ./core/
+  aws s3 cp s3://${TEMPLATE_BUCKET_NAME}/rice.cer ./kc/
+  aws s3 cp s3://${TEMPLATE_BUCKET_NAME}/rice.keystore ./kc/
 }
 
 # The name=value pair files acquired from s3 will have some default entries whose actual values could 

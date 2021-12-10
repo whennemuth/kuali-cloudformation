@@ -1,6 +1,8 @@
+
+
 ## Active choices plugin helper application
 
-<img align="left" src="../jenkins1.png" alt="jenkins1" style="margin-right:15px;" />Many jenkins jobs use the [Active Choices Plugin](https://plugins.jenkins.io/uno-choice/) to add more dynamic behavior to fields in a job. With this plugin, field values/choices can be dynamically populated based on selections/entries in other fields. The code to drive this dynamic behavior must be entered by the job author as groovy scripting in special text areas connected to the associated field(s). This can quickly become cumbersome and difficult to maintain as dynamic behavior increases in complexity. To solve this, the logic behind the dynamic behavior is moved out into a docker container that acts as a simple website that returns html for rendering in the job. The groovy scripting of each job field is reduced down to an http call to this container over localhost providing its current value and all other field values. The returned html is used to re-render a single field (*html fragment)* or many fields at once.
+<img align="left" src="../jenkins1.png" alt="jenkins1" style="margin-right:15px;" />Many jenkins jobs use the [Active Choices Plugin](https://plugins.jenkins.io/uno-choice/) to add more dynamic behavior to fields in a job. With this plugin, field values/choices can be dynamically populated based on selections/entries in other fields. The code to drive this dynamic behavior would normally be entered by the job author as groovy scripting in special text areas of associated field(s). This can quickly become cumbersome and difficult to maintain as dynamic behavior increases in complexity. To solve this, the logic behind the dynamic behavior is moved out to an object-oriented java app running in a docker container that acts as a simple website that returns html for rendering in the job. The groovy scripting of any particular field is reduced down to an http call to this container over localhost providing its current value and that of all other fields in the job. The returned html is used to re-render a single field (*html fragment)* or many fields at once.
 
 ### Prerequisites:
 
@@ -35,19 +37,64 @@
 
 Build the application into a docker image and deploy to a docker registry:
 
-1. **Clone this repository**:
+1. #### Clone this repository:
 
    ```
    git clone https://github.com/bu-ist/kuali-infrastructure.git
    cd kuali-infrastructure/kuali_jenkins/KualiUI
    ```
 
-2. **Test in local development environment:**
-   TODO...
+      
 
-3. **Build, push, and deploy:**
+2. ------
 
-   - **Build:**
+   #### Test in local development environment:
+
+   The application is a basic web server that populates its html responses from lookups to the aws account using a java aws api library.
+   There are 2 basic request scenarios:
+
+   1. **Simple field:**
+      In this scenario, you would be making an http request to obtain the html for a single field in the jenkins job.
+      A class central to this scenario is `org.bu.jenkins.EntryPoint`. The following example will launch a new browser screen that renders a tabular view of all the cloudformation stacks created for kuali-research *(assumes eclipse IDE)*:
+      - **Main class:** `"org.bu.jenkins.EntryPoint"`
+      - **Arguments:**
+        profile=[your aws profile]
+        parameter-name=stack
+        logging_level=debug
+        browser=true
+        keep-running=true
+        *(SEE: [Amazon documentation for profiles](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-profiles.html) - your profile should be connected to an IAM role that, at a minimum, allows you to list cloudformation entities)*
+      - **JRE:** "Project execution environment"
+      - **Dependencies:**
+        - Classpath Entries: "JRE System Library"
+        - Classpath Entries: [Current Project]
+        - Classpath Entries: "Maven Dependencies"
+      - **Source:** "Default"
+      - **Environment:**
+   2. **Compound field:**
+      In this scenario, you would be making an http request to obtain the html for a group of fields in the jenkins job. You are still dealing with one active choices job field, but the html that is returned for it to render comprises a group of nested fields. Typically you might place an entire job in one active choices field. One such field is used in the jenkins job for creating the cloudformation stack for an entire kuali landscape. To render a mock representation of this job in your browser over localhost, run the following debug configuration *(assumes eclipse IDE)*:
+      - **Main class:** 
+        - Mocked: A mock entry is placed in the html table of existing stacks as part of the output.
+          `"org.bu.jenkins.job.kuali.StackCreateDeleteTest"`
+        - Unmocked: The html table of existing stacks will be empty.
+          `"org.bu.jenkins.mvc.controller.kuali.job.StackCreateDeleteController"`
+      - **Arguments:**
+        profile=[your aws profile]
+        logging_level=debug
+        *(SEE: [Amazon documentation for profiles](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-profiles.html) your profile should be connected to an IAM role that is permissive enough to query the different aws resources involved)*
+      - **JRE:** "Project execution environment"
+      - **Dependencies:**
+        - Classpath Entries: "JRE System Library"
+        - Classpath Entries: [Current Project]
+        - Classpath Entries: "Maven Dependencies"
+      - **Source:** "Default"
+      - **Environment:** "logging_level=DEBUG"
+
+3. ------
+
+   #### Build, push, and deploy:
+
+   - Build:
      To build the app into a docker image.
 
      ```
