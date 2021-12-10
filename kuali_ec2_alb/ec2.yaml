@@ -677,6 +677,7 @@ Resources:
               env:
                 TASK: process_env_files
                 LANDSCAPE: !Ref Landscape
+                ENTITY_ID: !Ref EntityId
                 DNS_NAME: !Ref DNSName
                 USING_ROUTE53: !Ref UsingRoute53
                 ENV_FILE_FROM_S3_CORE: /opt/kuali/s3/core/environment.variables.s3

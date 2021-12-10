@@ -216,6 +216,7 @@ updateInstitutions() {
     provider="saml"
     issuer="$ENTITY_ID"
   fi
+  # NOTE: samlIssuerUrl is looked for here first, and the fallback value would be what you set for auth.samlIssuerUrl in local.js
 	local cmd=$(cat << EOF
 	$(getMongoParameters) \
     --quiet \
@@ -225,7 +226,7 @@ updateInstitutions() {
         {
           \$set: {
             "provider": "$provider",
-            "issuer": "$issuer",
+            "samlIssuerUrl": "$issuer",
             "signInExpiresIn" : 1209600000,
             "features.impersonation": true,
             "features.apps": {

@@ -62,6 +62,9 @@ processEnvironmentVariableFiles() {
           # Unless explicit values are provided, shibboleth is out of the picture and core will be its own IDP, and logout url will default to "/apps"
           checkValue $envfile 'SHIB_HOST'
           checkValue $envfile 'BU_LOGOUT_URL'
+          # NOTE: The local.js file uses this environment variable set the auth.samlIssuerUrl value, 
+          # which is the fallback if it is not found in the mongo instiutions document first.
+          checkValue $envfile 'ENTITY_ID'
         fi
 
         checkValue $envfile 'CORE_HOST' "$common_name"

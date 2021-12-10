@@ -46,13 +46,11 @@ Build the application into a docker image and deploy to a docker registry:
 
       
 
-2. ------
-
-   #### Test in local development environment:
+2. #### Test in local development environment:
 
    The application is a basic web server that populates its html responses from lookups to the aws account using a java aws api library.
    There are 2 basic request scenarios:
-
+   
    1. **Simple field:**
       In this scenario, you would be making an http request to obtain the html for a single field in the jenkins job.
       A class central to this scenario is `org.bu.jenkins.EntryPoint`. The following example will launch a new browser screen that renders a tabular view of all the cloudformation stacks created for kuali-research *(assumes eclipse IDE)*:
@@ -89,25 +87,24 @@ Build the application into a docker image and deploy to a docker registry:
         - Classpath Entries: "Maven Dependencies"
       - **Source:** "Default"
       - **Environment:** "logging_level=DEBUG"
-
-3. ------
-
-   #### Build, push, and deploy:
+           
+   
+3. #### Build, push, and deploy:
 
    - Build:
      To build the app into a docker image.
-
+   
      ```
      sh docker.sh build
      ```
-
+   
      The image name will be `"kuali-jenkins-http-server"`
      To change the logging level of the app:
-
+   
      ```
      sh docker.sh logging_level=debug
      ```
-
+   
    - **Push:**
 
      - **Elastic Container Registry:**
@@ -117,44 +114,45 @@ Build the application into a docker image and deploy to a docker registry:
        ```
        sh docker.sh push profile=[my profile]
        ```
-
+   
      - **Dockerhub:**
        Provide a user and password for the dockerhub account
-
+   
        ```
        sh docker.sh push user=[dockerhub user] password=[dockerhub password]
        ```
-
+   
        or to be prompted for the password:
 
        ```
        sh docker.sh push user=[dockerhub user]
        ```
-
+   
    - **Deploy:**
      A [Systems Manager send command](https://docs.aws.amazon.com/cli/latest/reference/ssm/send-command.html) is issued to any ec2 instance identified as a kuali jenkins server. The command instructs the instance to refresh its docker image from the registry and restart its containers. 
-
+   
      ```
      sh docker.sh deploy profile=[my profile]
      ```
-
+   
    - **All-in-one:**
      Omit any of the terms "build", "push", or "deploy" and it is assumed that you want each of them performed in order. Use any of the parameters already covered.
-
-
      EXAMPLES:
-
+     
      - Accept all defaults (ECR, "INFO" logging level)
-
+     
        ```
        sh docker.sh profile=[my profile]
        ```
-
+     
      - Use dockerhub and up the logging level:
-
+     
        ```
        sh docker.sh user=[dockerhub user] password=[dockerhub password] logging_level=debug
        ```
-
+     
        
+
+
+​       
 
