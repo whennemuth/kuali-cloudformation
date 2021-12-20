@@ -196,7 +196,8 @@ createTokenFile() {
   local tokenName=${1:-'admin-api-token'}
   local credfile=$JENKINS_HOME/cli-credentials.sh
   echo "Creating $credfile..."
-  echo "export JENKINS_USER_ID=admin" > $credfile
+  echo "set +x" > $credfile
+  echo "export JENKINS_USER_ID=admin" >> $credfile
   echo "export JENKINS_API_TOKEN=$(getApiToken $tokenName)" >> $credfile
   # cat $credfile
 }

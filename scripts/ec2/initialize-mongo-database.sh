@@ -343,7 +343,11 @@ updateCore() {
 initialize() {
   task="${1,,}"
   [ -z "$task" ] && task="${TASK,,}"
-  [ -z "$MONGO_URI" ] && [ "${task,,}" != 'test' ] && echo "ERROR! MONGO_DBNAME parameter missing, mongodb initialization cancelled." && exit 1
+  if [ -z "$MONGO_URI" ] && [ "${task,,}" != 'test' ] ; then
+    echo "MONGO_URI parameter missing. This indicates the mongodb is already configured and populated."
+    echo "Mongodb initialization/configuration cancelled."
+    exit 0
+  fi
   if [ "${DNS_NAME,,}" == 'local' ] || [ -z "$DNS_NAME" ] ; then
     # There is no route53 or public load balancer name - a single ec2 is all alone and can only be reached if 
     # the private subnet it is sitting in is linked to a bu network through a transit gateway attachment

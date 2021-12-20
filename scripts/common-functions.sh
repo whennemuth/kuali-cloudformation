@@ -1893,15 +1893,18 @@ getStackToDelete() {
   [ -n "$FULL_STACK_NAME" ] && echo "$FULL_STACK_NAME" && return 0
 }
 
-waitForStackToDelete() {
-  echo ""
-  outputHeading "Deleting existing stack..."
-  local counter=1
-  local status="unknown"
-  local stackname="$(getStackToDelete)"
+waitForStack() {
+  local task="$1"
+  local stackname="$2"
+  local interval=${3:-5}
   if [ -z "$stackname" ] ; then
-    stackname=$STACK_NAME
-    [ -n "$LANDSCAPE" ] && stackname="$stackname-$LANDSCAPE"
+    stackname="$STACK_NAME"
+    [ -n "$stackname" ] && stackname="$stackname-$LANDSCAPE"
+  fi
+  if [ -z "$stackname" ] ; then
+    echo "This feature has been improperly called: Missing the name of the stack to monitor."
+    echo "You will need to use the aws management console or the cli to acertain stack status."
+    exit 0
   fi
   while true ; do
     status="$(
@@ -1910,13 +1913,31 @@ waitForStackToDelete() {
         --output text \
         --query 'Stacks[].{status:StackStatus}' 2> /dev/null
     )"
-    [ -z "$status" ] && status="DELETED"
+    case "${task,,}" in
+      create) successStatus="CREATE_COMPLETE" ;;
+      update) successStatus="UPDATE_COMPLETE" ;;
+      delete) successStatus="DELETED" ;;
+      *) echo "ERROR! Unknown stack operation: $task" && return 1
+    esac
+    [ -z "$status" ] && status="$successStatus"
     echo "$stackname stack status check $counter: $status"
-    ([ "$status" == 'DELETED' ] || [ "$status" == 'DELETE_FAILED' ]) && break
+    ([ -n "$(echo $status | grep -Pi '_COMPLETE$')" ] || [ $status == "$successStatus" ] || [ -n "$(echo $status | grep -Pi '_FAILED$')" ]) && break
     ((counter++))
-    sleep 5
+    sleep $interval
   done
-  [ "$status" == 'DELETED' ] && true || false
+  [ "$status" == $successStatus ] && true || false
+}
+
+waitForStackToDelete() {
+  waitForStack 'delete' "${1:-$(getStackToDelete)}" && true || false
+}
+
+waitForStackToCreate() {
+  waitForStack 'create' "${1:-$FULL_STACK_NAME}" 10 && true || false
+}
+
+waitForStackToUpdate() {
+  waitForStack 'update' "${1:-$FULL_STACK_NAME}" && true || false
 }
 
 waitForEc2InstanceToFinishStarting() {
@@ -2002,7 +2023,19 @@ runStackActionCommand() {
     echo "Cancelling..."
     exit 1
   else
-    echo "Stack command issued. Done."
+    echo "Stack command issued."
+    case "${task:0:6}" in
+      create)
+        if ! waitForStackToCreate ; then
+          exit 1
+        fi
+        ;;
+      update)
+        if ! waitForStackToUpdate ; then
+          exit 1
+        fi
+        ;;
+    esac
   fi
 }
 
