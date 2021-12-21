@@ -57,7 +57,11 @@ uploadScriptsToS3() {
         local s3SubPath=$singleSript
       fi
       cmd="aws s3 cp $singleScript $TEMPLATE_BUCKET_PATH/scripts/$s3SubPath"
-      (isDryrun || isDebug || ! isS3Refresh) && cmd="$cmd --dryrun"
+      if ! isS3Refresh ; then
+        echo "Skipping s3 refresh of $TEMPLATE_BUCKET_PATH/scripts/$s3SubPath"
+        return 0
+      fi
+      (isDryrun || isDebug) && cmd="$cmd --dryrun"
       eval "$cmd"
     else
       if [ -f "bash-scripts/$singleScript" ] ; then

@@ -228,6 +228,7 @@ Resources:
           - Effect: Deny
             NotResource:
             - arn:aws:s3:::kuali-*
+            - arn:aws:s3:::solutions-*
             Action: [ s3:Move*, s3:Remove*, s3:Delete*, s3:GetObject ]
 
 

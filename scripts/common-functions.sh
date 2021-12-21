@@ -1925,7 +1925,25 @@ waitForStack() {
     ((counter++))
     sleep $interval
   done
-  [ "$status" == $successStatus ] && true || false
+  if [ "$status" == $successStatus ] ; then
+    outputHeading "Stack outputs:"
+    for p in $(
+      aws cloudformation describe-stacks \
+      --stack-name=$stackname \
+      --query 'Stacks[].{Outputs:Outputs}' \
+      | jq -c '.[0].Outputs' \
+      | jq -c '.[]'
+    ) ; do
+      local key="$(echo ''$p'' | jq '.OutputKey')"
+      local val="$(echo ''$p'' | jq '.OutputValue')"
+      echo "$key: $val"
+    done
+    true
+  else
+    outputHeading "STACK CREATION FAILED ($stackname)"
+    aws cloudformation describe-stack-events --stack-name=$stackname
+    false
+  fi
 }
 
 waitForStackToDelete() {
