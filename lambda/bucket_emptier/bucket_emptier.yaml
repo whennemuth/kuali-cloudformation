@@ -148,4 +148,7 @@ Outputs:
 
   LambdaArn:
     Value:
-      !GetAtt EmptyBucketLoggingLambda.Arn
+      !If
+        - deleteLogs
+        - !GetAtt EmptyBucketLoggingLambdaB.Arn
+        - !GetAtt EmptyBucketLoggingLambdaA.Arn

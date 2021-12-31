@@ -163,4 +163,7 @@ Outputs:
 
   LambdaArn:
     Value:
-      !GetAtt ToggleWafLoggingLambda.Arn
+      !If
+        - deleteLogs
+        - !GetAtt ToggleWafLoggingLambdaB.Arn
+        - !GetAtt ToggleWafLoggingLambdaA.Arn

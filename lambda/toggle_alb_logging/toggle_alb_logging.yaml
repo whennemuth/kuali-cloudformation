@@ -159,4 +159,8 @@ Outputs:
 
   LambdaArn:
     Value:
-      !GetAtt ToggleAlbLoggingLambda.Arn
+      !If 
+        - deleteLogs
+        - !GetAtt ToggleAlbLoggingLambdaB.Arn
+        - !GetAtt ToggleAlbLoggingLambdaA.Arn
+        
