@@ -103,34 +103,53 @@ Resources:
       # ManagedPolicyArns:
       # - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
 
-  LambdaLogsGroupTemp:
-    Type: AWS::Logs::LogGroup
-    Condition: deleteLogs
-    DeletionPolicy: Delete
-    Properties:
-      LogGroupName: !Sub /aws/lambda/${GlobalTag}-${Landscape}-waf-logging-toggler
-      RetentionInDays: 30
-  LambdaLogsGroup:
+
+  # DeletionPolicy & DependsOn cannot use conditions - must be a raw string. Therefore you have to move the conditional
+  # up to the resource Condition attribute and create one of two resource sets depending on your deletion policy preference.
+
+  # A) Retain logs after lambda that created them is deleted.
+  LambdaLogsGroupRetain:
     Type: AWS::Logs::LogGroup
     Condition: retainLogs
     DeletionPolicy: Retain
     Properties:
       LogGroupName: !Sub /aws/lambda/${GlobalTag}-${Landscape}-waf-logging-toggler
       RetentionInDays: 30
-
-  # Should get called during stack delete, see: 
-  # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/crpg-ref-requesttypes-delete.html
-  ToggleWafLoggingLambda:
+  ToggleWafLoggingLambdaA:
     Type: AWS::Lambda::Function
-    # DependsOn: LambdaLogsGroup
-    # DependsOn can't take a conditional expresssion. The use of GetAtt below is functionally equivalent.
+    Condition: retainLogs
+    DependsOn: LambdaLogsGroupRetain
     Properties:
       Description: !Sub 
       - Empty all contents from a specified s3 bucket (LogGroup - ${loggroup}).
-      - loggroup: !If 
-        - deleteLogs
-        - !GetAtt LambdaLogsGroupTemp.Arn
-        - !GetAtt LambdaLogsGroup.Arn
+      - loggroup: !GetAtt LambdaLogsGroupRetain.Arn
+      Handler: toggle_waf_logging.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Runtime: nodejs12.x
+      Timeout: 15  # 15 seconds
+      FunctionName: !Sub ${GlobalTag}-${Landscape}-waf-logging-toggler
+      Code:
+        S3Bucket: !Ref TemplateBucketName
+        S3Key: cloudformation/kuali_lambda/toggle_waf_logging.zip
+
+  # Or...
+
+  # B) Delete logs along with the lambda that created them.
+  LambdaLogsGroupDelete:
+    Type: AWS::Logs::LogGroup
+    Condition: deleteLogs
+    DeletionPolicy: Delete
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${GlobalTag}-${Landscape}-waf-logging-toggler
+      RetentionInDays: 30
+  ToggleWafLoggingLambdaB:
+    Type: AWS::Lambda::Function
+    Condition: deleteLogs
+    DependsOn: LambdaLogsGroupDelete
+    Properties:
+      Description: !Sub 
+      - Empty all contents from a specified s3 bucket (LogGroup - ${loggroup}).
+      - loggroup: !GetAtt LambdaLogsGroupDelete.Arn
       Handler: toggle_waf_logging.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Runtime: nodejs12.x
