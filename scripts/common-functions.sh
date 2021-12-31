@@ -2180,7 +2180,7 @@ zipPackageAndCopyToS3() {
   ls -la
 
   npm run pack
-  [ $? -gt 0 ] && "Error using npm!" && exit 1
+  [ $? -gt 0 ] && echo "Error using npm!" && exit 1
 
   # BUG in node when accessed from gitbash or cygwin: "stdout is not a tty"
   # Workaround seems to be to call node.exe instead of just node.

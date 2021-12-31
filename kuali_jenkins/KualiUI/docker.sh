@@ -122,9 +122,8 @@ getJenkinsInstanceId() {
   filters=(
     'Key=Function,Values='${kualiTags['Function']}
     'Key=Service,Values='${kualiTags['Service']}
-    "Key=Name,Values=kuali-jenkins"
   )
-  pickEC2InstanceId ${filters[@]} > /dev/null
+  pickEC2InstanceId 'nameFragment=kuali-jenkins' ${filters[@]} > /dev/null
   (
     cat ec2-instance-id
     rm -f ec2-instance-id
@@ -140,13 +139,14 @@ jenkinsPull() {
   fi
 
   local S3Script='s3://kuali-conf/cloudformation/kuali_jenkins/scripts/jenkins-docker.sh'
+  local targetScript='/etc/init.d/jenkins-docker.sh'
 
   aws s3 cp ../bash-scripts/jenkins-docker.sh $S3Script 
   
   export AWS_PAGER=""
 
-  cmd="aws s3 cp $S3Script /etc/init.d/jenkins-docker.sh"
-  cmd="$cmd refresh"
+  cmd="aws s3 cp $S3Script $targetScript"
+  cmd="$cmd && sh $targetScript refresh"
   cmd="$cmd kuali_ui_image=$kualiUIImage"
   cmd="$cmd log_level=$loggingLevel"
   cmd="$cmd 2>&1 > /tmp/jenkins-docker-refresh.log"

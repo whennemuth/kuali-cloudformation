@@ -8,6 +8,7 @@
     "cron-parser": "3.5.0"
   },
   "scripts": {
-    "pack": "sh -c 'npm install' & node node_modules/zip/zip.js type:js"
+    "pack-old": "sh -c 'npm install' & node node_modules/zip/zip.js type:js",
+    "pack": "npm install && node node_modules/zip/zip.js type:js"
   }
 }

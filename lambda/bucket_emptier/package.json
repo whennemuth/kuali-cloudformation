@@ -8,6 +8,7 @@
     "zip": "file:../zip"
   },
   "scripts": {
-    "pack": "sh -c 'npm install' & node node_modules/zip/zip.js bucket_emptier.js"
+    "pack-old": "sh -c 'npm install' & node node_modules/zip/zip.js bucket_emptier.js",
+    "pack": "npm install && node node_modules/zip/zip.js bucket_emptier.js"
   }
 }

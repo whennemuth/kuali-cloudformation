@@ -8,6 +8,7 @@
     "zip": "file:../zip"
   },
   "scripts": {
+    "pack-old": "sh -c 'npm install' & node node_modules/zip/zip.js toggle_waf_logging.js",
     "pack": "sh -c 'npm install' & node node_modules/zip/zip.js toggle_waf_logging.js"
   }
 }
