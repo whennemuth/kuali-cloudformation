@@ -6,6 +6,7 @@
   	<div th:if="${!deactivate}" th:fragment="advancedKeepLambdaLogs (ParameterName, ParameterValue)" >  	
 	   	<input
 	   		type="checkbox"
+	   		onclick="sendData();"
 	   		th:name="${ParameterName}"
 	   		th:checked="${ParameterValue=='enabled'}" >
 	   	<label>Keep s3 bucket removal logs <i>(for troubleshooting)</i></label>

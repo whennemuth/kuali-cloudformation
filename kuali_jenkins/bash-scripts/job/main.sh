@@ -26,7 +26,11 @@ isCurrentDir() {
 # Parameters are all combined into a single querystring. Split them up into separate shell variables.
 processParametersQueryString() {
   outputHeading 'Breaking down parameter querystring...'
+  # Get rid of commas
   PARAMETERS="$(echo "$PARAMETERS" | sed 's/,//g')"
+  # Replace url encoded newlines with special placeholders
+  newline='<-newline->'
+  PARAMETERS="$(echo "$PARAMETERS" | sed 's/%0A/'$newline'/g')"
   if [ -z "$PARAMETERS" ] ; then
     echo "No Parameters!"
     exit 1
@@ -38,13 +42,32 @@ processParametersQueryString() {
   # Load the querystring into variables.
   echo "Parsing...
   "
-  for pair in $(echo "$PARAMETERS" | awk 'BEGIN {RS="&"} {print $1}') ; do
-    local name="$(echo "$pair" | cut -d'=' -f1)"
-    local value="$(echo "$pair" | cut -d'=' -f2)"
+  processPair() {
+    local name="$1"
+    local value="$2"
     value="$(urldecode "$value")"
     local cmd="${name^^}=\"$value\""
     echo "$cmd"
     eval "$cmd"
+  }
+  valueIsMultiLine() {
+     [ -n "$(echo "$1" | grep "$newline")" ] && true || false
+  }
+  for pair in $(echo "$PARAMETERS" | awk 'BEGIN {RS="&"} {print $1}') ; do
+    local name="$(echo "$pair" | cut -d'=' -f1)"
+    local value="$(echo "$pair" | cut -d'=' -f2)"
+    if valueIsMultiLine "$value" ; then
+      value="$(urldecode "$value")"
+      local origValue="$(echo "$value" | sed 's/'$newline'/%0A/g')"
+      processPair "$name" "$origValue"
+      for subpair in $(echo "$value" | awk 'BEGIN {RS="'$newline'"} {print $1}') ; do
+        local subname="$(echo "$subpair" | cut -d'=' -f1)"
+        local subvalue="$(echo "$subpair" | cut -d'=' -f2)"
+        processPair "$subname" "$subvalue"
+      done
+    else
+      processPair "$name" "$value"
+    fi
   done
 }
 

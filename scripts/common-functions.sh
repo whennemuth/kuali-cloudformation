@@ -2190,6 +2190,12 @@ zipPackageAndCopyToS3() {
   [ -z "$s3path" ] && echo "Target path in s3 was ommitted!" && cd - && return 1
   ls -la
 
+  if isDryrun ; then
+    echo "Dryrun: npm run pack"
+    cd -
+    return 0
+  fi
+
   npm run pack
   [ $? -gt 0 ] && echo "Error using npm!" && exit 1
 
