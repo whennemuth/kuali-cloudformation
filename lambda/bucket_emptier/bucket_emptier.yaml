@@ -130,6 +130,7 @@ Resources:
       RetentionInDays: 30
   EmptyBucketLoggingLambdaB:
     Type: AWS::Lambda::Function
+    Condition: deleteLogs
     DependsOn: LambdaLogsGroupDelete
     Properties:
       Description: !Sub 
