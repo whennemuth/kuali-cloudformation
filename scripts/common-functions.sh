@@ -44,6 +44,12 @@ std_err() {
   echo "$*" >>/dev/stderr
 }
 
+endsWith() {
+  local string="$1"
+  local chars="$2"
+  [ -n "$(echo "$string" | grep -oP $chars'$')" ] && true || false
+}
+
 getCurrentDir() {
   local thisdir=$(pwd | awk 'BEGIN {RS="/"} {print $1}' | tail -1)
   if [ -z "$thisdir" ] ; then
@@ -206,6 +212,11 @@ validateTemplateAndUploadToS3() {
     validatedStacks["$filepath"]="$filepath"
   fi
 
+  if endsWith "$s3path" '/' ; then
+    # The target path indicates an s3 "directory", so the file being copied will retain the same name
+    # by default. However, in order to keep track of it, it's necessary to extend the path to include the file name.
+    s3path="$s3path$(echo $filepath | awk 'BEGIN {RS="/"} {print $1}' | tail -1)"
+  fi
   if [ "${uploadedTemplates[$s3path]}" == "$s3path" ] ; then
     echo "$s3path already uploaded to s3 - skipping..."
   else

@@ -102,7 +102,6 @@ stackAction() {
 
       if [ "$DEEP_VALIDATION" == 'true' ] ; then
         outputHeading "Validating and uploading nested templates..."
-        outputHeading "Validating and uploading nested templates..."
         if [ "${CREATE_MONGO,,}" == 'true' ] ; then
           validateTemplateAndUploadToS3 \
             silent=true \
