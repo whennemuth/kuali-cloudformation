@@ -70,9 +70,9 @@ Resources:
       Matcher:
         HttpCode: 200-299
       HealthCheckIntervalSeconds: 10
-      HealthCheckPath: "/dashboard/"
-      HealthCheckProtocol: HTTPS
-      HealthCheckTimeoutSeconds: 5
+      HealthCheckPath: "/dashboard/health"
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 10
       HealthyThresholdCount: 2
       TargetGroupAttributes:
       - Key: stickiness.enabled
@@ -149,11 +149,11 @@ Resources:
       Protocol: HTTP
       Matcher:
         HttpCode: 200-299
-      HealthCheckIntervalSeconds: 10
-      HealthCheckPath: "/kc/"
-      HealthCheckProtocol: HTTPS
-      HealthCheckTimeoutSeconds: 5
-      HealthyThresholdCount: 2
+      HealthCheckIntervalSeconds: 60
+      HealthCheckPath: "/kc/healthCheck/"
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 10
+      HealthyThresholdCount: 3
       TargetGroupAttributes:
       - Key: stickiness.enabled
         Value: true
@@ -226,8 +226,8 @@ Resources:
       Matcher:
         HttpCode: 200-299
       HealthCheckIntervalSeconds: 10
-      HealthCheckPath: "/pdf/"
-      HealthCheckProtocol: HTTPS
+      HealthCheckPath: "/pdf/health"
+      HealthCheckProtocol: HTTP
       HealthCheckTimeoutSeconds: 5
       HealthyThresholdCount: 2
       TargetGroupAttributes:
@@ -311,8 +311,8 @@ Resources:
       Matcher:
         HttpCode: 200-299
       HealthCheckIntervalSeconds: 10
-      HealthCheckPath: "/apps/"
-      HealthCheckProtocol: HTTPS
+      HealthCheckPath: "/cor/main/#/apps/"
+      HealthCheckProtocol: HTTP
       HealthCheckTimeoutSeconds: 5
       HealthyThresholdCount: 2
       TargetGroupAttributes:

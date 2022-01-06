@@ -157,7 +157,7 @@ public class RdsSnapshotDAO extends AbstractAwsDAO {
 	}
 	
 	
-	public Map<Landscape, List<RdsSnapshot>> getAllOrphanedKualiRdsSnapshotssGroupedByBaseline(RdsInstanceDAO instanceDAO) {
+	public Map<Landscape, List<RdsSnapshot>> getAllOrphanedKualiRdsSnapshotsGroupedByBaseline(RdsInstanceDAO instanceDAO) {
 		Map<Landscape, List<RdsSnapshot>> rdsSnapshots = new TreeMap<Landscape, List<RdsSnapshot>>(new Comparator<Landscape>() {
 			@Override public int compare(Landscape key1, Landscape key2) {
 				return key1.getOrder() - key2.getOrder();

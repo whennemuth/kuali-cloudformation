@@ -1910,7 +1910,9 @@ waitForStack() {
   local interval=${3:-5}
   if [ -z "$stackname" ] ; then
     stackname="$STACK_NAME"
-    [ -n "$stackname" ] && stackname="$stackname-$LANDSCAPE"
+    if [ -n "$stackname" ] ; then
+      [ - n "$LANDSCAPE" ] && stackname="$stackname-$LANDSCAPE"
+    fi
   fi
   if [ -z "$stackname" ] ; then
     echo "This feature has been improperly called: Missing the name of the stack to monitor."
