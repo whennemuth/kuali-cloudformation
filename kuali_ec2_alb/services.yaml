@@ -72,7 +72,7 @@ Resources:
       HealthCheckIntervalSeconds: 10
       HealthCheckPath: "/dashboard/health"
       HealthCheckProtocol: HTTP
-      HealthCheckTimeoutSeconds: 10
+      HealthCheckTimeoutSeconds: 5
       HealthyThresholdCount: 2
       TargetGroupAttributes:
       - Key: stickiness.enabled
