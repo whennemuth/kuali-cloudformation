@@ -296,7 +296,7 @@ run() {
 
 checkTestHarness $@ || true
 
-# run $@
+run $@
 
 retval=$?
 echo "Return code: $retval"
