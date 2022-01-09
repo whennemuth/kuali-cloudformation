@@ -156,14 +156,14 @@ buildArgs() {
       MONGO)
         putArg CREATE_MONGO=$MONGO ;;
       RDS_SOURCE)
-        case "${RDS_SOURCE,,}"
+        case "${RDS_SOURCE,,}" in
           instance)
             putArg RDS_ARN=$(urldecode $RDS_INSTANCE_BY_LANDSCAPE) 'false'
             ;;
           owned-snapshot)
             local snapshotArn="$(urldecode $RDS_SNAPSHOT)"
             if [ -n "$snapshotArn" ] && [ ${#snapshotArn} -gt 10 ] ; then
-              # If greater than 10m then it must be an arn, not a word like 'none' or 'new'
+              # If greater than 10 characters then it must be an arn, not a word like 'none' or 'new'
               putArg RDS_SNAPSHOT_ARN="$snapshotArn" 'false'
             else
               putArg RDS_ARN_TO_CLONE="$(urldecode $RDS_INSTANCE_BY_BASELINE)" 'false'
@@ -296,7 +296,7 @@ run() {
 
 checkTestHarness $@ || true
 
-run $@
+# run $@
 
 retval=$?
 echo "Return code: $retval"
