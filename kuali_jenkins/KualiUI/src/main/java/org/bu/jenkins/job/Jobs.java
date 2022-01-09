@@ -2,7 +2,7 @@ package org.bu.jenkins.job;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.bu.jenkins.mvc.controller.kuali.job.StackCreateDeleteController;
+import org.bu.jenkins.mvc.controller.job.kuali.StackCreateDeleteController;
 
 /**
  * There is one member of this enum for each Jenkins job there is whose fields are controlled by this service.

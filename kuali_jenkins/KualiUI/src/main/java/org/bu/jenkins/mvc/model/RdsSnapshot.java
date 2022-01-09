@@ -75,6 +75,12 @@ public class RdsSnapshot extends AbstractAwsResource implements Comparable<RdsSn
 		}
 		return name;
 	}
+	public boolean hasBaselineInName() {
+		return getBaselineFromName() != null;
+	}
+	public Landscape getBaselineFromName() {
+		return Landscape.baselineRecognizedInString(getName());
+	}
 	public String getRdsInstanceName() {
 		if(rdsInstance == null)
 			return null;

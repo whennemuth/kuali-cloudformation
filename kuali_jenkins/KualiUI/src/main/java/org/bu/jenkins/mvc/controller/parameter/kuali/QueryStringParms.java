@@ -1,4 +1,4 @@
-package org.bu.jenkins.mvc.controller.kuali.parameter;
+package org.bu.jenkins.mvc.controller.parameter.kuali;
 
 /**
  * Enum for possible querystring arguments made in an http request for getting a parameter rendering or value

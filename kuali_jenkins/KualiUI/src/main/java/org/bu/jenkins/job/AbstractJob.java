@@ -7,7 +7,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.EntryMessage;
 import org.bu.jenkins.AWSCredentials;
-import org.bu.jenkins.mvc.controller.kuali.parameter.QueryStringParms;
+import org.bu.jenkins.mvc.controller.parameter.kuali.QueryStringParms;
 import org.bu.jenkins.mvc.view.AbstractParameterView;
 import org.bu.jenkins.util.CaseInsensitiveEnvironment;
 import org.bu.jenkins.util.NamedArgs;

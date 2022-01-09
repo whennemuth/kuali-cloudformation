@@ -1,4 +1,4 @@
-package org.bu.jenkins.mvc.controller.kuali.parameter;
+package org.bu.jenkins.mvc.controller.parameter.kuali;
 
 import org.bu.jenkins.job.JobParameterMetadata;
 

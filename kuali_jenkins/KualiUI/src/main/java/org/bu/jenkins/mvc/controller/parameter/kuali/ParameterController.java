@@ -1,4 +1,4 @@
-package org.bu.jenkins.mvc.controller.kuali.parameter;
+package org.bu.jenkins.mvc.controller.parameter.kuali;
 
 import java.util.List;
 import java.util.Map;

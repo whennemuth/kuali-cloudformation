@@ -189,6 +189,23 @@ public class RdsSnapshotDAO extends AbstractAwsDAO {
 		return snapshots;
 	}
 	
+	public RdsSnapshot getOrphanedSnapshot(String snapshotArn) {
+		return findSnapshotByArn(snapshotArn, getAllOrphanedKualiRdsSnapshots());
+	}
+	
+	public RdsSnapshot getSharedSnapshot(String snapshotArn) {
+		return findSnapshotByArn(snapshotArn, getSharedSnapshots());
+	}
+	
+	private RdsSnapshot findSnapshotByArn(String snapshotArn, List<RdsSnapshot> snapshots) {
+		for(RdsSnapshot snapshot : snapshots) {
+			if(snapshotArn.equals(snapshot.getArn())) {
+				return snapshot;
+			}
+		}
+		return null;
+	}
+	
 	
 	/**
 	 * Return a list of kuali rds snapshots filtered according to what matches can be determined against fields set in 

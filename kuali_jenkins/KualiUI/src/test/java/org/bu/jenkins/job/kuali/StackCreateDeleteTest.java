@@ -6,8 +6,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.bu.jenkins.dao.RdsInstanceDAO;
+import org.bu.jenkins.dao.RdsSnapshotDAO;
 import org.bu.jenkins.dao.StackDAO;
-import org.bu.jenkins.mvc.controller.kuali.job.StackCreateDeleteController;
+import org.bu.jenkins.mvc.controller.job.kuali.StackCreateDeleteController;
 import org.bu.jenkins.mvc.model.AbstractAwsResource;
 import org.bu.jenkins.mvc.model.Landscape;
 import org.bu.jenkins.mvc.model.RdsInstance;
@@ -28,6 +29,8 @@ import software.amazon.awssdk.services.cloudformation.model.Tag;
 public class StackCreateDeleteTest {
 
 	public static final long DAY = 1000 * 60 * 60 * 24;
+	
+	public static int counter = 1;
 	
 	public static void putStackMock(int daysAgo, Landscape baseline, String landscape) {
 		
@@ -73,12 +76,16 @@ public class StackCreateDeleteTest {
 				.putTag("Landscape", landscape)
 				.putTag("Baseline", baseline.getId());
 		
-		for(int i=0 ; i<3; i++) {
-			rds.putSnapshot(getSnapshot(rds, i, "manual"));
+		for(int i=1 ; i<=3; i++) {
+			RdsSnapshot snapshot = getSnapshot(rds, counter++, "manual", null, null);
+			rds.putSnapshot(snapshot);
+			RdsSnapshotDAO.STANDARD_SNAPSHOT_CACHE.put(snapshot);
 		}
 		
-		for(int i=4 ; i<14; i++) {
-			rds.putSnapshot(getSnapshot(rds, i, "automated"));
+		for(int i=1 ; i<=10; i++) {
+			RdsSnapshot snapshot = getSnapshot(rds, counter++, "automated", null, null);
+			rds.putSnapshot(snapshot);
+			RdsSnapshotDAO.STANDARD_SNAPSHOT_CACHE.put(snapshot);
 		}
 		
 		RdsInstanceDAO.CACHE.put(rds);
@@ -86,16 +93,40 @@ public class StackCreateDeleteTest {
 		RdsInstanceDAO.CACHE.setFlushable(false);
 	}
 	
+	public static void putOrphanedSnapshotMock(Landscape baseline, String landscape) {
+		RdsSnapshot snapshot = getSnapshot(null, counter++, "orphaned", baseline, landscape);
+		RdsSnapshotDAO.STANDARD_SNAPSHOT_CACHE.put(snapshot);
+		RdsSnapshotDAO.STANDARD_SNAPSHOT_CACHE.setFlushable(false);
+	}
+	
+	public static void putSharedSnapshotMock(String landscape) {
+		RdsSnapshot snapshot = getSnapshot(null, counter++, "shared", null, landscape);
+		RdsSnapshotDAO.SHARED_SNAPSHOT_CACHE.put(snapshot);
+		RdsSnapshotDAO.SHARED_SNAPSHOT_CACHE.setFlushable(false);		
+	}
+	
 	private static String getTimeStr(int daysAgo) {
 		Long time = getTime(daysAgo);
 		return new SimpleDateFormat("yyyy-MM-EEE-kk-mm-ss-SSS").format(time);
 	}
 	
-	private static RdsSnapshot getSnapshot(AbstractAwsResource rds, int daysAgo, String type) {
+	private static RdsSnapshot getSnapshot(AbstractAwsResource rds, int daysAgo, String type, Landscape baseline, String landscape) {
 		Long time = getTime(daysAgo);
-		Instant instant = Instant.ofEpochMilli(time);		
-		String arn = String.format("rdsSnapshotArn_%s", getTimeStr(daysAgo));
-		return new RdsSnapshot(rds, instant, arn, type);		
+		Instant instant = Instant.ofEpochMilli(time);
+		String landscapeInjection = "";
+		String typeInjection = "automated".equalsIgnoreCase(type) ? "rds:" : "";
+		if("shared".equalsIgnoreCase(type) && landscape != null) {
+			landscapeInjection = String.format("-%s", landscape.toLowerCase());
+		}
+		String name = String.format("%srdsSnapshotArn%s_%s", typeInjection, landscapeInjection, getTimeStr(daysAgo));
+		String arn = String.format(
+			"arn:aws:rds:%s>:%s:snapshot:%s", 
+			"us-east-1",
+			"770203350335",
+			name);
+		RdsSnapshot snapshot = new RdsSnapshot(rds, instant, arn, type);
+		String baselineStr = baseline == null ? null : baseline.getId();
+		return (RdsSnapshot) snapshot.setBaseline(baselineStr).setLandscape(landscape);
 	}
 
 	private static Long getTime(int daysAgo) {
@@ -115,6 +146,16 @@ public class StackCreateDeleteTest {
 		putRdsMock(Landscape.STAGING, "stg");
 		putRdsMock(Landscape.CI, "chopped-liver");
 
+		putOrphanedSnapshotMock(Landscape.CI, "ci");
+		putOrphanedSnapshotMock(Landscape.CI, "chopped-liver2");
+		putOrphanedSnapshotMock(Landscape.STAGING, "stg");
+		putOrphanedSnapshotMock(Landscape.STAGING, "chopped-liver3");
+		
+		putSharedSnapshotMock("ci");
+		putSharedSnapshotMock("chopped-liver4");
+		putSharedSnapshotMock("stg");
+		putSharedSnapshotMock("chopped-liver5");
+		
 		StackCreateDeleteController.main(args);
 	}
 }

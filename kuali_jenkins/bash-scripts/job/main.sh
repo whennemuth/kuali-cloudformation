@@ -156,11 +156,26 @@ buildArgs() {
       MONGO)
         putArg CREATE_MONGO=$MONGO ;;
       RDS_SOURCE)
-        putArg RDS_ARN_TO_CLONE=$(urldecode $RDS_INSTANCE_BY_LANDSCAPE) 'false'
-        putArg RDS_ARN_TO_CLONE=$(urldecode $RDS_INSTANCE_BY_BASELINE) 'false'
-        putArg RDS_SNAPSHOT_ARN=$(urldecode $RDS_SNAPSHOT) 'false'
-        [ -z "$RDS_SNAPSHOT_ARN" ] && putArg RDS_SNAPSHOT_ARN=$(urldecode $RDS_SNAPSHOT_ORPHANS) 'false'
-        [ -z "$RDS_SNAPSHOT_ARN" ] && putArg RDS_SNAPSHOT_ARN=$(urldecode $RDS_SNAPSHOT_SHARED) 'false'
+        case "${RDS_SOURCE,,}"
+          instance)
+            putArg RDS_ARN=$(urldecode $RDS_INSTANCE_BY_LANDSCAPE) 'false'
+            ;;
+          owned-snapshot)
+            local snapshotArn="$(urldecode $RDS_SNAPSHOT)"
+            if [ -n "$snapshotArn" ] && [ ${#snapshotArn} -gt 10 ] ; then
+              # If greater than 10m then it must be an arn, not a word like 'none' or 'new'
+              putArg RDS_SNAPSHOT_ARN="$snapshotArn" 'false'
+            else
+              putArg RDS_ARN_TO_CLONE="$(urldecode $RDS_INSTANCE_BY_BASELINE)" 'false'
+            fi
+            ;;
+          orphaned-snapshot)
+            putArg RDS_SNAPSHOT_ARN=$(urldecode $RDS_SNAPSHOT_ORPHANS) 'false'
+            ;;
+          shared-snapshot)
+            putArg RDS_SNAPSHOT_ARN=$(urldecode $RDS_SNAPSHOT_SHARED) 'false'
+            ;;
+        esac
         ;;
       ADVANCED)
         putArg RETAIN_LAMBDA_CLEANUP_LOGS=$ADVANCED_KEEP_LAMBDA_LOGS 'false'

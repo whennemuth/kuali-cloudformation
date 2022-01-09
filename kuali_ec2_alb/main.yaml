@@ -522,6 +522,22 @@ Resources:
           !Ref EnableNewRelicAPM
         EnableNewRelicInfrastructure:
           !Ref EnableNewRelicInfrastructure
+        Tags:
+          - Key: DnsJdbc
+            Value:
+              !If
+                - CreateFromRdsClone
+                - !If
+                    - CreateDnsRecord
+                    - !GetAtt RdsInstance.Outputs.KualiOracleJDBCConnectionString
+                    - 'No DNS'
+                - 'Exists'
+          - Key: RdsJdbc
+            Value:
+              !If
+                - CreateFromRdsClone
+                - !GetAtt RdsInstance.Outputs.RdsOracleJDBCConnectionString
+                - 'Exists'
 
   Instance2:
     Type: AWS::CloudFormation::Stack

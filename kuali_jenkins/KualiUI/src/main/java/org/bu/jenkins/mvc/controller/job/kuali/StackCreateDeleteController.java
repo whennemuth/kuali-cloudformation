@@ -1,4 +1,4 @@
-package org.bu.jenkins.mvc.controller.kuali.job;
+package org.bu.jenkins.mvc.controller.job.kuali;
 
 import java.net.URLDecoder;
 import java.nio.charset.Charset;
@@ -18,6 +18,7 @@ import org.bu.jenkins.job.AbstractJob;
 import org.bu.jenkins.job.JobParameter;
 import org.bu.jenkins.job.JobParameterConfiguration;
 import org.bu.jenkins.job.JobParameterMetadata;
+import org.bu.jenkins.job.kuali.RdsUtilities;
 import org.bu.jenkins.mvc.model.AbstractAwsResource;
 import org.bu.jenkins.mvc.model.Landscape;
 import org.bu.jenkins.mvc.model.RdsInstance;
@@ -196,6 +197,7 @@ public class StackCreateDeleteController extends AbstractJob {
 			default:
 				RdsInstanceDAO rdsDAO = new RdsInstanceDAO(credentials);
 				RdsSnapshotDAO rdsSnapshotDAO = new RdsSnapshotDAO(credentials);
+				RdsUtilities rdsUtils =  new RdsUtilities(credentials, jobParameter);
 				boolean include = false;
 				switch(parameter) {
 					case LANDSCAPE:
@@ -295,8 +297,11 @@ public class StackCreateDeleteController extends AbstractJob {
 						logger.debug("Rendering: {}", ParameterName.RDS_INSTANCE_BY_LANDSCAPE.name());
 						if(jobParameter.otherParmSetWith(ParameterName.RDS_SOURCE, "instance")) {
 							List<RdsInstance> rdsInstances = new ArrayList<RdsInstance>(rdsDAO.getDeployedKualiRdsInstances());
-							parameterView.setContextVariable("rdsInstances", rdsInstances);								
-							parameterView.setContextVariable("ParameterValue", getRdsArnForLandscape(jobParameter));
+							parameterView.setContextVariable("rdsInstances", rdsInstances);	
+							String rdsArn = rdsUtils.getRdsArn(
+									ParameterName.RDS_INSTANCE_BY_LANDSCAPE, 
+									RdsUtilities.RdsInstanceCollectionType.LIST_OF_RDS_INSTANCES);
+							parameterView.setContextVariable("ParameterValue", rdsArn);
 							include = true;								
 						}
 						parameterView.setContextVariable("include", include);
@@ -305,8 +310,11 @@ public class StackCreateDeleteController extends AbstractJob {
 						logger.debug("Rendering: {}", ParameterName.RDS_INSTANCE_BY_BASELINE.name());
 						if(jobParameter.otherParmSetWith(ParameterName.RDS_SOURCE, "owned-snapshot")) {
 							Map<Landscape, List<RdsInstance>> map = rdsDAO.getDeployedKualiRdsInstancesGroupedByBaseline();
+							String rdsArn = rdsUtils.getRdsArn(
+									ParameterName.RDS_INSTANCE_BY_BASELINE, 
+									RdsUtilities.RdsInstanceCollectionType.MAP_OF_RDS_INSTANCES_BY_BASELINE);
 							parameterView.setContextVariable("rdsArnsByBaseline", map);
-							parameterView.setContextVariable("ParameterValue",  getRdsArnForBaseline(jobParameter));
+							parameterView.setContextVariable("ParameterValue",  rdsArn);
 							include = true;								
 						}
 						parameterView.setContextVariable("include", include);
@@ -315,7 +323,9 @@ public class StackCreateDeleteController extends AbstractJob {
 						logger.debug("Rendering: {}", ParameterName.RDS_SNAPSHOT.name());
 						if(jobParameter.otherParmNotSetWith(ParameterName.LANDSCAPE, "prod") && 
 								jobParameter.otherParmSetWith(ParameterName.RDS_SOURCE, "owned-snapshot")) {
-							String rdsArn = getRdsArnForBaseline(jobParameter);
+							String rdsArn = rdsUtils.getRdsArn(
+									ParameterName.RDS_INSTANCE_BY_BASELINE, 
+									RdsUtilities.RdsInstanceCollectionType.MAP_OF_RDS_INSTANCES_BY_BASELINE);
 							if(rdsArn != null) {
 								AbstractAwsResource rdsInstance = rdsDAO.getRdsInstanceByArn(rdsArn);
 								parameterView.setContextVariable("rdsInstance", rdsInstance);
@@ -358,7 +368,9 @@ public class StackCreateDeleteController extends AbstractJob {
 									+ "rds instance with a matching baseline landscape instead.";
 
 							if(jobParameter.otherParmSetWith(ParameterName.RDS_SOURCE, "instance")) {
-								String rdsArn = getRdsArnForLandscape(jobParameter);
+								String rdsArn = rdsUtils.getRdsArn(
+										ParameterName.RDS_INSTANCE_BY_LANDSCAPE, 
+										RdsUtilities.RdsInstanceCollectionType.LIST_OF_RDS_INSTANCES);
 								if(rdsArn != null) {
 									AbstractAwsResource rdsInstance = rdsDAO.getRdsInstanceByArn(rdsArn);
 									if( ! landscape.equalsIgnoreCase(rdsInstance.getBaseline())) {
@@ -371,8 +383,10 @@ public class StackCreateDeleteController extends AbstractJob {
 									}
 								}
 							}
-							else if(jobParameter.otherParmSetWithAny(ParameterName.RDS_SOURCE, "owned-snapshot", "orphaned-snapshot")) {
-								String rdsArn = getRdsArnForBaseline(jobParameter);
+							else if(jobParameter.otherParmSetWith(ParameterName.RDS_SOURCE, "owned-snapshot")) {
+								String rdsArn = rdsUtils.getRdsArn(
+										ParameterName.RDS_INSTANCE_BY_BASELINE, 
+										RdsUtilities.RdsInstanceCollectionType.MAP_OF_RDS_INSTANCES_BY_BASELINE);
 								if(rdsArn != null) {
 									AbstractAwsResource rdsInstance = rdsDAO.getRdsInstanceByArn(rdsArn);
 									if( ! landscape.equalsIgnoreCase(rdsInstance.getBaseline())) {
@@ -382,6 +396,35 @@ public class StackCreateDeleteController extends AbstractJob {
 												"create an rds instance from a snapshot",
 												rdsInstance.getBaseline(),
 												rdsInstance.getBaseline());
+									}
+								}
+							}
+							else if(jobParameter.otherParmSetWith(ParameterName.RDS_SOURCE, "orphaned-snapshot")) {
+								if( ! jobParameter.otherParmBlank(ParameterName.RDS_SNAPSHOT_ORPHANS)) {
+									RdsSnapshot orphanedSnapshot = rdsSnapshotDAO.getOrphanedSnapshot(jobParameter.getOtherParmValue(ParameterName.RDS_SNAPSHOT_ORPHANS));
+									if(orphanedSnapshot != null && ! landscape.equalsIgnoreCase(orphanedSnapshot.getBaseline())) {
+										warning = String.format(
+												template, 
+												landscape,
+												"create an rds instance from a snapshot",
+												orphanedSnapshot.getBaseline(),
+												orphanedSnapshot.getBaseline());										
+									}
+								}
+							}
+							else if(jobParameter.otherParmSetWith(ParameterName.RDS_SOURCE, "shared-snapshot")) {
+								if( ! jobParameter.otherParmBlank(ParameterName.RDS_SNAPSHOT_SHARED)) {
+									RdsSnapshot sharedSnapshot = rdsSnapshotDAO.getSharedSnapshot(jobParameter.getOtherParmValue(ParameterName.RDS_SNAPSHOT_SHARED));
+									if(sharedSnapshot != null) {
+										Landscape baseline = sharedSnapshot.getBaselineFromName();
+										if(baseline != null && ! baseline.is(landscape)) {
+											warning = String.format(
+													template, 
+													landscape,
+													"create an rds instance from a snapshot",
+													sharedSnapshot.getBaseline(),
+													sharedSnapshot.getBaseline());										
+										}										
 									}
 								}
 							}
@@ -414,67 +457,6 @@ public class StackCreateDeleteController extends AbstractJob {
 				}					
 		}
 		logger.traceExit(m);
-	}
-	
-	/**
-	 * Get the value RDS_INSTANCE_BY_LANDSCAPE, which if null, find a default value for, selecting one 
-	 * compatible with LANDSCAPE, else the first value found.
-	 */
-	private String getRdsArnForLandscape(JobParameter jobParameter) {
-		EntryMessage m = logger.traceEntry("getRdsArnForLandscape(jobParameter.getName()={})", jobParameter.getName());
-		
-		String rdsArn = jobParameter.getOtherParmValue(ParameterName.RDS_INSTANCE_BY_LANDSCAPE);
-		if(rdsArn != null) {
-			logger.traceExit(m);
-			return rdsArn;
-		}
-		
-		List<RdsInstance> rdsInstances = new ArrayList<RdsInstance>(
-				new RdsInstanceDAO(credentials).getDeployedKualiRdsInstances());
-		
-		if(jobParameter.isBlank() && rdsInstances.isEmpty() == false) {
-			String landscape = jobParameter.getOtherParmValue(ParameterName.LANDSCAPE);
-			rdsArn = rdsInstances.get(0).getArn();
-			for(AbstractAwsResource rdsInstance : rdsInstances) {
-				if(landscape != null && landscape.equalsIgnoreCase(rdsInstance.getBaseline())) {
-					rdsArn = rdsInstance.getArn();
-				}
-			}
-		}
-		
-		logger.traceExit(m);
-		return rdsArn;
-	}
-	
-	private String getRdsArnForBaseline(JobParameter jobParameter) {
-		EntryMessage m = logger.traceEntry("getRdsArnForBaseline(jobParameter.getName()={})", jobParameter.getName());
-		
-		String rdsArn = jobParameter.getOtherParmValue(ParameterName.RDS_INSTANCE_BY_BASELINE);
-		if(rdsArn != null) {
-			logger.traceExit(m);
-			return rdsArn;
-		}
-		
-		Map<Landscape, List<RdsInstance>> map = new RdsInstanceDAO(credentials).getDeployedKualiRdsInstancesGroupedByBaseline();
-		
-		if(jobParameter.isBlank() && map.isEmpty() == false) {
-			String landscape = jobParameter.getOtherParmValue(ParameterName.LANDSCAPE);
-			for(Landscape baseline : map.keySet()) {
-				List<RdsInstance> rdsInstances = map.get(baseline);
-				if( ! rdsInstances.isEmpty()) {
-					if(rdsArn == null) {
-						rdsArn = rdsInstances.get(0).getArn();
-					}
-					if(baseline.is(landscape)) {
-						rdsArn = rdsInstances.get(0).getArn();
-						break;
-					}
-				}
-			}
-		}
-		
-		logger.traceExit(m);
-		return rdsArn;
 	}
 	
 	private boolean stackSelected(JobParameter jobParameter) {

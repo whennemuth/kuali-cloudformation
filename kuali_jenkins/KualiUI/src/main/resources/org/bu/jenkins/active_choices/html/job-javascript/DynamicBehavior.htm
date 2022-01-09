@@ -85,10 +85,38 @@
 		/**
 		 * Triggered when a form field has changed (onchange, onblur, etc.)
 		 */
-		function sendData() {
+		function sendData(recall) {
 			try {
 				var FD = getFormData();				
 				var querystring = getQuerystring(FD);
+				var fld = new function() {
+					if(event.srcElement.getAttribute) {
+						this.name = event.srcElement.getAttribute("name");
+					}
+					else {
+						this.name = 'xhttp';
+					}
+					this.value = event.srcElement.value;
+				};
+				
+				function callback(event) {
+					document.getElementById("kuali-wrapper").innerHTML = event.target.responseText;
+					if(recall) {
+						/**
+						 * recall means we have just done the second of two back-to-back round trips to the server.
+						 * Usually only one server call is made, but in this case, the second was necessary because 
+						 * the first call returned a "_PARAMETERS" field in the html content with a value that 
+						 * did not contain one or more brand new fields that appeared for the first time in the html
+						 * content. So, sendData must be called again to re-construct the querystring, resend it, 
+						 * (with new field(s)) in order to get it back again without any missing pieces in the 
+						 * "_PARAMETERS field value".
+						 */ 
+						return;
+					}
+					else if(fld.name == 'RDS_SOURCE') {
+						sendData(true);
+					}
+				}
 				
 				if("undefined" !== typeof UnoChoice) {
 					/** Jenkins is the host and UnoChoice indicates the presense of the active choices plugin */
@@ -98,12 +126,13 @@
 					cascader.update();
 				}
 				else {
+					
 					/** Must be testing (localhost is host, not jenkins) */
 					var xhttp = new XMLHttpRequest();
 					if(querystring) querystring=`?${querystring}`;
 					
 					xhttp.addEventListener("load", function(event) {
-				    	document.getElementById("kuali-wrapper").innerHTML = event.target.responseText;
+						callback(event);
 				    });
 					
 					xhttp.addEventListener("error", function(event) {

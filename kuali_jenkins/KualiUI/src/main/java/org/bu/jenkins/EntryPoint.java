@@ -5,7 +5,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import org.bu.jenkins.job.AbstractJob;
-import org.bu.jenkins.mvc.controller.kuali.parameter.ParameterController;
+import org.bu.jenkins.mvc.controller.parameter.kuali.ParameterController;
 import org.bu.jenkins.util.CaseInsensitiveEnvironment;
 import org.bu.jenkins.util.NamedArgs;
 import org.bu.jenkins.util.logging.LoggingStarterImpl;
