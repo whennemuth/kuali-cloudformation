@@ -438,6 +438,10 @@ public class StackCreateDeleteController extends AbstractJob {
 							parameterView.setContextVariable("deactivate_mongo", true);
 							parameterView.setContextVariable("ParameterValue", "disabled");
 						}							
+						else if(jobParameter.otherParmSetWith(ParameterName.STACK_TYPE, "ec2")) {
+							parameterView.setContextVariable("deactivate_mongo", true);
+							parameterView.setContextVariable("ParameterValue", "enabled");
+						}
 						else {
 							parameterView.setContextVariable("ParameterValue", jobParameter.isChecked() ? "enabled" : "disabled");
 						}

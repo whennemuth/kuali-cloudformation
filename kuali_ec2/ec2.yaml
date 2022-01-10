@@ -199,6 +199,15 @@ Mappings:
       cidr: "168.122.69.0/24"
     sixth:
       cidr: "10.1.0.0/21"
+  # Typically, the dbreport subnet should be for database access, but anyone with a vpn connection as
+  # dbreport should also be able to access the app through the browser, so it is also included here.
+  DbReportCidrs:
+    # dbreport vpn: offcampus
+    first:
+      cidr: "168.122.78.128/28"
+    # dbreport vpn: oncampus
+    second:
+      cidr: "168.122.84.240/28"
 
       
 Resources:
@@ -1001,6 +1010,17 @@ Resources:
         FromPort: 22
         ToPort: 22
         CidrIp: !FindInMap [ 2faCidrs, "sixth", "cidr" ]
+      - Description: "SSH: vpn.bu.edu/dbreport Off Campus"
+        IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: !FindInMap [ DbReportCidrs, "first", "cidr" ]
+      - Description: "SSH: vpn.bu.edu/dbreport On Campus"
+        IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: !FindInMap [ DbReportCidrs, "second", "cidr" ]
+
       
       - Description: "HTTP: vpn.bu.edu/2fa On Campus, Group 1"
         IpProtocol: tcp
@@ -1032,6 +1052,16 @@ Resources:
         FromPort: 80
         ToPort: 80
         CidrIp: !FindInMap [ 2faCidrs, "sixth", "cidr" ]
+      - Description: "HTTP: vpn.bu.edu/dbreport Off Campus"
+        IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: !FindInMap [ DbReportCidrs, "first", "cidr" ]
+      - Description: "HTTP: vpn.bu.edu/dbreport On Campus"
+        IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: !FindInMap [ DbReportCidrs, "second", "cidr" ]
         
       - Description: "HTTPS: vpn.bu.edu/2fa On Campus, Group 1"
         IpProtocol: tcp
@@ -1063,6 +1093,16 @@ Resources:
         FromPort: 443
         ToPort: 443
         CidrIp: !FindInMap [ 2faCidrs, "sixth", "cidr" ]
+      - Description: "HTTPS: vpn.bu.edu/dbreport Off Campus"
+        IpProtocol: tcp
+        FromPort: 443
+        ToPort: 443
+        CidrIp: !FindInMap [ DbReportCidrs, "first", "cidr" ]
+      - Description: "HTTPS: vpn.bu.edu/dbreport On Campus"
+        IpProtocol: tcp
+        FromPort: 443
+        ToPort: 443
+        CidrIp: !FindInMap [ DbReportCidrs, "second", "cidr" ]
         
       - Description: "UDP: vpn.bu.edu/2fa On Campus, Group 1"
         IpProtocol: udp
@@ -1094,6 +1134,16 @@ Resources:
         FromPort: 1043
         ToPort: 1043
         CidrIp: !FindInMap [ 2faCidrs, "sixth", "cidr" ]
+      - Description: "UDP: vpn.bu.edu/dbreport Off Campus"
+        IpProtocol: udp
+        FromPort: 1043
+        ToPort: 1043
+        CidrIp: !FindInMap [ DbReportCidrs, "first", "cidr" ]
+      - Description: "UDP: vpn.bu.edu/dbreport On Campus"
+        IpProtocol: udp
+        FromPort: 1043
+        ToPort: 1043
+        CidrIp: !FindInMap [ DbReportCidrs, "second", "cidr" ]
 
 Outputs:
 

@@ -113,7 +113,8 @@
 						 */ 
 						return;
 					}
-					else if(fld.name == 'RDS_SOURCE') {
+					else if(fld.name == 'RDS_SOURCE' || fld.name == 'STACK_TYPE' || fld.name == 'AUTHENTICATION') {
+						// Upon return, send again (see comments above)
 						sendData(true);
 					}
 				}
