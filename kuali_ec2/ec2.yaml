@@ -693,7 +693,7 @@ Resources:
                       - 443:443
 
                   cor-main:
-                    image: $CoreImage
+                    image: ${CoreImage}
                     container_name: cor-main
                     restart: unless-stopped
                     env_file: /opt/kuali/s3/core/environment.variables.s3
@@ -710,7 +710,7 @@ Resources:
                       - "3000"
 
                   kuali-research:
-                    image: $KcImage
+                    image: ${KcImage}
                     container_name: kuali-research
                     restart: unless-stopped
                     volumes:
@@ -740,7 +740,7 @@ Resources:
                     #   - 8009:8009
 
                   research-portal:
-                    image: $PortalImage
+                    image: ${PortalImage}
                     container_name: research-portal
                     restart: unless-stopped
                     volumes:
@@ -757,7 +757,7 @@ Resources:
                     - "3005"
 
                   research-pdf:
-                    image: $PdfImage
+                    image: ${PdfImage}
                     container_name: research-pdf
                     restart: unless-stopped
                     env_file: /opt/kuali/s3/pdf/environment.variables.s3

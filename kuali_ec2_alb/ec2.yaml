@@ -584,7 +584,7 @@ Resources:
                 services:
 
                   cor-main:
-                    image: $CoreImage
+                    image: ${CoreImage}
                     container_name: cor-main
                     restart: unless-stopped
                     env_file: /opt/kuali/s3/core/environment.variables.s3
@@ -601,7 +601,7 @@ Resources:
                     - 3000:3000
 
                   kuali-research:
-                    image: $KcImage
+                    image: ${KcImage}
                     container_name: kuali-research
                     restart: unless-stopped
                     volumes:
@@ -615,7 +615,7 @@ Resources:
                       - NEW_RELIC_LICENSE_KEY=${!NEW_RELIC_LICENSE_KEY}
                       - NEW_RELIC_AGENT_ENABLED=${!NEW_RELIC_AGENT_ENABLED}
                       - JAVA_ENV=${!NEW_RELIC_ENVIRONMENT}
-                      - DNS_NAME=$DNSName
+                      - DNS_NAME=${DNSName}
                     logging:
                       driver: awslogs
                       options:
@@ -627,7 +627,7 @@ Resources:
                     - 8080:8080
 
                   research-portal:
-                    image: $PortalImage
+                    image: ${PortalImage}
                     container_name: research-portal
                     restart: unless-stopped
                     volumes:
@@ -644,7 +644,7 @@ Resources:
                     - 3005:3005
 
                   research-pdf:
-                    image: $PdfImage
+                    image: ${PdfImage}
                     container_name: research-pdf
                     restart: unless-stopped
                     env_file: /opt/kuali/s3/pdf/environment.variables.s3
