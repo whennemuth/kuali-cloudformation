@@ -726,7 +726,7 @@ Resources:
                       - NEW_RELIC_INFRASTRUCTURE_ENABLED=${!NEW_RELIC_INFRASTRUCTURE_ENABLED}
                       - JAVA_ENV=${!NEW_RELIC_ENVIRONMENT}
                       - EC2_HOSTNAME=${!EC2_HOST}
-                     logging:
+                    logging:
                       driver: awslogs
                       options:
                         awslogs-region: ${AWS::Region}
