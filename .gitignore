@@ -8,3 +8,5 @@ s3/*
 **/last-cmd-*
 ec2-instance-id
 secrets/*
+kuali-research-docker
+kuali-research-docker/*

@@ -39,20 +39,20 @@ Parameters:
     - "false"
 
 
-Mappings:
-  2faCidrs:
-    first:
-      cidr: "168.122.81.0/24"
-    second:
-      cidr: "168.122.82.0/23"
-    third:
-      cidr: "168.122.76.0/24"
-    fourth:
-      cidr: "168.122.68.0/24"
-    fifth:
-      cidr: "168.122.69.0/24"
-    sixth:
-      cidr: "10.1.0.0/21"
+# Mappings:
+#   2faCidrs:
+#     first:
+#       cidr: "168.122.81.0/24"
+#     second:
+#       cidr: "168.122.82.0/23"
+#     third:
+#       cidr: "168.122.76.0/24"
+#     fourth:
+#       cidr: "168.122.68.0/24"
+#     fifth:
+#       cidr: "168.122.69.0/24"
+#     sixth:
+#       cidr: "10.1.0.0/21"
     
 
 Resources:

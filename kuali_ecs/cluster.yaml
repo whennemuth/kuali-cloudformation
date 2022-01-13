@@ -476,6 +476,9 @@ Resources:
             -o /var/lib/CloudWatchMonitoringScripts-1.2.2.zip
           unzip -d /var/lib/CloudWatchMonitoringScripts-1.2.2.zip
           rm -f /var/lib/CloudWatchMonitoringScripts-1.2.2.zip
+
+          # Create a log directory for any output of ssm commands sent by a jenkins server
+          [ ! -d /var/log/jenkins ] && mkdir -p /var/log/jenkins
           
           # Implement all the metadata in AWS::CloudFormation::Init
           /opt/aws/bin/cfn-init \

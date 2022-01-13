@@ -662,3 +662,10 @@ Outputs:
           - !Sub ${Landscape}.${HostedZoneName}
         - !GetAtt ALB.Outputs.DNSName
     
+  InstanceId1:
+    Value:
+      !Ref Instance1
+
+  InstanceId2:
+    Value:
+      !Ref Instance2

@@ -31,5 +31,13 @@ checkTestHarness() {
     fi
   fi
 
+  if [ -f ./scripts/common-functions.sh ] ; then
+    echo "Sourcing common-functions.sh"
+    source ./scripts/common-functions.sh
+  else
+    echo "Cannot find common-functions.sh"
+    exit 1
+  fi
+
   checkAwsProfile
 }

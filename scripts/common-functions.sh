@@ -20,12 +20,24 @@ declare -A migrationSecrets=(
 declare -A validatedStacks=()
 declare -A uploadedTemplates=()
 
+inDebugMode() {
+  [[ "$-" == *x* ]] && true || false
+}
+
 outputHeading() {
-  local border='*******************************************************************************'
+  inDebugMode && set +x && returnToDebugMode='true'
+  local msg="$1"
+  [ -n "outputHeadingCounter" ] && msg="$outputHeadingCounter) $msg" && ((outputHeadingCounter++))
+  local border='###############################################################################'
   echo ""
   echo "$border"
-  echo "       $1"
+  echo "       $msg"
   echo "$border"
+  [ "$returnToDebugMode" == 'true' ] && set -x
+}
+
+obfuscate() {
+  eval "for x in {1..${#1}} ; do printf '*'; done"
 }
 
 windows() {

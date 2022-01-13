@@ -241,8 +241,7 @@ Resources:
             - ec2:DescribeTags
           - Effect: Allow
             Resource:
-            - arn:aws:s3:::kuali-conf*
-            - arn:aws:s3:::kuali-docker-run-stdout*
+            - arn:aws:s3:::kuali-*
             - !Sub arn:aws:s3:::${PdfS3BucketName}*
             Action: "*"
       - PolicyName:
@@ -371,6 +370,9 @@ Resources:
             -o /var/lib/CloudWatchMonitoringScripts-1.2.2.zip
           unzip -d /var/lib/CloudWatchMonitoringScripts-1.2.2.zip
           rm -f /var/lib/CloudWatchMonitoringScripts-1.2.2.zip
+
+          # Create a log directory for the output of ssm commands sent by a jenkins server
+          [ ! -d /var/log/jenkins ] && mkdir -p /var/log/jenkins
           
           # Implement all the metadata in AWS::CloudFormation::Init
           /opt/aws/bin/cfn-init \
@@ -582,7 +584,7 @@ Resources:
                 services:
 
                   cor-main:
-                    image: ${!CORE_IMAGE}
+                    image: $CoreImage
                     container_name: cor-main
                     restart: unless-stopped
                     env_file: /opt/kuali/s3/core/environment.variables.s3
@@ -599,7 +601,7 @@ Resources:
                     - 3000:3000
 
                   kuali-research:
-                    image: ${!KC_IMAGE}
+                    image: $KcImage
                     container_name: kuali-research
                     restart: unless-stopped
                     volumes:
@@ -613,7 +615,7 @@ Resources:
                       - NEW_RELIC_LICENSE_KEY=${!NEW_RELIC_LICENSE_KEY}
                       - NEW_RELIC_AGENT_ENABLED=${!NEW_RELIC_AGENT_ENABLED}
                       - JAVA_ENV=${!NEW_RELIC_ENVIRONMENT}
-                      - DNS_NAME=${!DNS_NAME}
+                      - DNS_NAME=$DNSName
                     logging:
                       driver: awslogs
                       options:
@@ -625,7 +627,7 @@ Resources:
                     - 8080:8080
 
                   research-portal:
-                    image: ${!PORTAL_IMAGE}
+                    image: $PortalImage
                     container_name: research-portal
                     restart: unless-stopped
                     volumes:
@@ -642,7 +644,7 @@ Resources:
                     - 3005:3005
 
                   research-pdf:
-                    image: ${!PDF_IMAGE}
+                    image: $PdfImage
                     container_name: research-pdf
                     restart: unless-stopped
                     env_file: /opt/kuali/s3/pdf/environment.variables.s3
@@ -714,11 +716,6 @@ Resources:
                 NEW_RELIC_LICENSE_KEY: !If [ NewrelicLicsenseKeyProvided, !Ref NewrelicLicsenseKey, !Ref AWS::NoValue ]
                 NEW_RELIC_AGENT_ENABLED: !If [ NewrelicLicsenseKeyProvided, !Ref EnableNewRelicAPM, 'false' ] 
                 NEW_RELIC_INFRASTRUCTURE_ENABLED: !If [ NewrelicLicsenseKeyProvided, !Ref EnableNewRelicInfrastructure, 'false' ]
-                KC_IMAGE: !Ref KcImage
-                CORE_IMAGE: !Ref CoreImage
-                PORTAL_IMAGE: !Ref PortalImage
-                PDF_IMAGE: !Ref PdfImage
-                DNS_NAME: !Ref DNSName
                 AWS_DEFAULT_REGION: !Ref AWS::Region
               command: bash start.docker.containers.sh
           services:
