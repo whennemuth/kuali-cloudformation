@@ -5,7 +5,7 @@ DUMMY_PARAMETERS='true'
 # Use some random dummy entries for testing...
 
 # DRYRUN will not omit the send command, but a harmless command will be sent to the ec2 (write out a file with the date)
-DRYRUN='true'
+DRYRUN='false'
 # DEBUG will cause set -x to be invoked
 DEBUG='false'
 STACK_NAME='kuali-ec2-warren'

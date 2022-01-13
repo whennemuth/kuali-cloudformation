@@ -52,9 +52,8 @@ usingNewRelic() {
 }
 
 getStackType() {
-  local stackname="$1"
   aws cloudformation describe-stacks \
-    --stack-name $stackname \
+    --stack-name $STACK_NAME \
     | jq -r '.Stacks[0].Tags[] | select(.Key == "Subcategory").Value' 2> /dev/null
 }
 
@@ -84,6 +83,8 @@ getBase64EncodedCommand() {
       docker rmi -f \${EXISTING_IMAGE_ID};
     fi
     
+    ec2Host=\$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4)
+
     # Create an override file for the kc service (this file \"extends\" the baseline docker-compose config file)
     f='/opt/kuali/scripts/docker-compose-override-kc.yaml'
     echo \"version: '3'\" > \$f
@@ -91,23 +92,31 @@ getBase64EncodedCommand() {
     echo \"  kuali-research:\" >> \$f
     echo \"    image: $NEW_IMAGE\" >> \$f
     echo \"    environment:\" >> \$f
-    echo \"      - NEW_RELIC_LICENSE_KEY=$NEW_RELIC_LICENSE_KEY\" >> \$f
+    echo \"      - EC2_HOSTNAME=\$ec2Host\" >> \$f
     echo \"      - NEW_RELIC_LICENSE_KEY=$NEW_RELIC_LICENSE_KEY\" >> \$f
     echo \"      - NEW_RELIC_AGENT_ENABLED=$NEW_RELIC_AGENT_ENABLED\" >> \$f
     echo \"      - NEW_RELIC_INFRASTRUCTURE_ENABLED=$NEW_RELIC_INFRASTRUCTURE_ENABLED\" >> \$f
+    echo \"      - LOGJ2_CATALINA_LEVEL=$LOGJ2_CATALINA_LEVEL\" >> \$f
+    echo \"      - LOGJ2_LOCALHOST_LEVEL=$LOGJ2_LOCALHOST_LEVEL\" >> \$f
     echo \"      - JAVA_ENV=$LANDSCAPE\" >> \$f
     
-    \$(aws ecr get-login --no-include-email)
+    region=\$(curl -s http://169.254.169.254/latest/dynamic/instance-identity/document | jq .region -r)
+    \$(aws ecr get-login --no-include-email --region \$region)
 
     # Build the up command so as to include all potential override files
     cmd='docker-compose -f docker-compose.yaml -f docker-compose-override-kc.yaml'
     [ -f docker-compose-override-core.yaml ] && cmd=\"\$cmd -f docker-compose-override-core.yaml\"
     [ -f docker-compose-override-portal.yaml ] && cmd=\"\$cmd -f docker-compose-override-portal.yaml\"
     [ -f docker-compose-override-pdf.yaml ] && cmd=\"\$cmd -f docker-compose-override-pdf.yaml\"
-    cmd=\"\$cmd up --detach > $output_dir/last-coeus-run-cmd 2>&1\"
+    cmd=\"\$cmd up --detach kuali-research 2>&1 | tee $output_dir/last-coeus-run-cmd\"
 
     # Already running containers should not be affected by the up command as long as their configurations have not changed (ie: via an override file)
-    eval \"\$cmd\"" | base64 -w 0
+    echo \"\$cmd\"
+    eval \"\$cmd\"
+    sleep 3
+    echo ''
+    echo \"kuali-research container environment:\"
+    docker exec kuali-research env 2> /dev/null" | base64 -w 0
 }
 
 # Get a simple bash command to write out a file to be sent to the target ec2 instance as a base64 encoded string.
@@ -122,6 +131,8 @@ getHarmlessBase64EncodedCommand() {
 sendCommand() {
   local ec2Id="$1"
   local output_dir="$2"
+
+  outputHeading "Building ssm command (determine stack type, build, encode)"
   local base64="$(getBase64EncodedCommand $output_dir)"
   outputHeading "Sending ssm command to refresh docker container at $ec2Id"
 
@@ -144,7 +155,7 @@ sendCommand() {
           commands="echo >> $output_dir/ssm-kc-received && date >> $output_dir/ssm-kc-received && \
                     echo ${base64} | base64 --decode >> $output_dir/ssm-kc-received && \
                     echo ${base64} | base64 --decode > $output_dir/ssm-kc-last.sh && \
-                    echo ${finalBase64} | base64 --decode | sh 2>&1" \
+                    sh $output_dir/ssm-kc-last.sh 2>&1" \
     --output text \
     --query "Command.CommandId" \
     --output-s3-bucket-name "$STDOUT_BUCKET" \
@@ -231,7 +242,7 @@ deployToEc2() {
   echo "Stack $STACK_NAME is of type \"ec2\""
   local ec2Id="$(
     aws cloudformation describe-stacks \
-      --stack-name $stackname \
+      --stack-name $STACK_NAME \
       | jq -r '.Stacks[0].Outputs[] | select(.OutputKey == "InstanceId").OutputValue'
   )"
   issueDockerRefreshCommand "$ec2Id"
@@ -239,8 +250,7 @@ deployToEc2() {
 
 deployToEc2Alb() {
   echo "Stack $STACK_NAME is of type \"ec2_alb\""
-  local stackname="$1"
-  local stack="$(aws cloudformation describe-stacks --stack-name $stackname)" 
+  local stack="$(aws cloudformation describe-stacks --stack-name $STACK_NAME)" 
   local ec2Id1="$(echo "$stack" | jq -r '.Stacks[0].Outputs[] | select(.OutputKey == "InstanceId1").OutputValue')"
   local ec2Id2="$(echo "$stack" | jq -r '.Stacks[0].Outputs[] | select(.OutputKey == "InstanceId2").OutputValue')"
   issueDockerRefreshCommand "$ec2Id1"
