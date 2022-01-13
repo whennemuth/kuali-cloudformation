@@ -153,7 +153,7 @@ sendCommand() {
       finalBase64="$base64"
     fi
   fi
-  
+
   STDOUT_BUCKET='kuali-docker-run-css-nprd-stdout'
   if [ -z "$(aws s3 ls | grep -P "$STDOUT_BUCKET")" ] ; then
     aws s3 mb "s3://$STDOUT_BUCKET"
@@ -289,7 +289,7 @@ deploy() {
   esac
 }
 
-checkTestHarness $@ 2> /dev/null
+checkTestHarness $@ || true 2> /dev/null
 
 if validInputs ; then
 

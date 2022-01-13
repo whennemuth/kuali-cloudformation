@@ -245,7 +245,7 @@ run() {
   fi
 }
 
-checkTestHarness $@ 2> /dev/null
+checkTestHarness $@ || true 2> /dev/null
 
 run $@
 
