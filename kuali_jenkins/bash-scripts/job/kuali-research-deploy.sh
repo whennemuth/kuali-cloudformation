@@ -51,6 +51,10 @@ usingNewRelic() {
   [ "$NEW_RELIC_AGENT_ENABLED" == 'true' ] && true || false 
 }
 
+runningOnJenkinsServer() {
+  [ -d /var/lib/jenkins ] && true || false
+}
+
 getStackType() {
   aws cloudformation describe-stacks \
     --stack-name $STACK_NAME \
@@ -136,12 +140,20 @@ sendCommand() {
   local base64="$(getBase64EncodedCommand $output_dir)"
   outputHeading "Sending ssm command to refresh docker container at $ec2Id"
 
-  if isDryrun || isDebug ; then
-    finalBase64=$(getHarmlessBase64EncodedCommand $output_dir)
-  else
+  if runningOnJenkinsServer ; then
+    if isDebug ; then
+      return 0
+    fi
     finalBase64="$base64"
+  else
+    # Debugging locally
+    if isDryrun || isDebug ; then
+      finalBase64=$(getHarmlessBase64EncodedCommand $output_dir)
+    else
+      finalBase64="$base64"
+    fi
   fi
-
+  
   STDOUT_BUCKET='kuali-docker-run-css-nprd-stdout'
   if [ -z "$(aws s3 ls | grep -P "$STDOUT_BUCKET")" ] ; then
     aws s3 mb "s3://$STDOUT_BUCKET"
