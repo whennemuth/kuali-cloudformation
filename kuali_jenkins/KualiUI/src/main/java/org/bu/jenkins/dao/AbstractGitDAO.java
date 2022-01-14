@@ -11,7 +11,7 @@ import java.util.List;
 public abstract class AbstractGitDAO {
 
 	public static enum RefType {
-		BRANCH("heads"), TAG("tags");
+		BRANCH("heads"), TAG("tags"), DEFAULT("heads");
 		private String category;
 		private RefType(String category) {
 			this.category = category;

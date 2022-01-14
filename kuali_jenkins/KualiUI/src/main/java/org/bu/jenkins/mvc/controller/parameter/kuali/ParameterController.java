@@ -197,6 +197,9 @@ public class ParameterController extends AbstractParameterSet {
 										parameterView.setContextVariable(
 											"SelectedRef", 
 											config.getParameterMap().get(QueryStringParms.SELECTED_ITEM.arg()));
+										if("default".equalsIgnoreCase(reftype)) {
+											parameterView.setContextVariable("disable", true);
+										}
 									}
 									else {
 										parameterView.setContextVariable("include", "false");
@@ -223,6 +226,14 @@ public class ParameterController extends AbstractParameterSet {
 									}
 									else {
 										parameterView.setContextVariable("version", "NO_TAGS_FOUND");
+									}
+								}
+								else {
+									String reftype = gitArgs.getRefType();
+									if( ! Argument.isMissing(reftype)) {
+										if("default".equalsIgnoreCase(reftype)) {
+											parameterView.setContextVariable("disable", true);
+										}										
 									}
 								}
 								break;

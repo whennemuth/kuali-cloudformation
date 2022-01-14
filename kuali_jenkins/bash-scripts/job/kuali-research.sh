@@ -143,6 +143,14 @@ getEcrRepoName() {
 buildWarJobCall() {
   local war=''
 
+  buildFeature() {
+    war='true'
+    isSandbox && local branch='master' || local branch='feature'
+    addJobParm 'build-war' 'BRANCH' $branch
+    addJobParm 'build-war' 'GIT_REFSPEC' $GIT_REFSPEC
+    addJobParm 'build-war' 'GIT_BRANCHES_TO_BUILD' $GIT_BRANCHES_TO_BUILD
+  }
+
   if isSandbox; then
     war='true'
     addJobParm 'build-war' 'BRANCH' 'master'
@@ -159,20 +167,20 @@ buildWarJobCall() {
       addJobParm 'build-war' 'GIT_REFSPEC' $GIT_REFSPEC
       addJobParm 'build-war' 'GIT_BRANCHES_TO_BUILD' $GIT_BRANCHES_TO_BUILD
     fi
-  elif defaultGitRef ; then
-    war='false'
-    local pomVersion="$(getPomVersion 'prior')"
-    if [ "$pomVersion" == 'unknown' ] ; then
-      echo "PROBLEM!!! Cannot determine registry image to reference. POM version unknown!";
-      echo "Cancelling build..."
-      exit 1
+  elif isStaging || isProd ; then
+    if defaultGitRef ; then
+      war='false'
+      local pomVersion="$(getPomVersion 'prior')"
+      if [ "$pomVersion" == 'unknown' ] ; then
+        echo "PROBLEM!!! Cannot determine registry image to reference. POM version unknown!";
+        echo "Cancelling build..."
+        exit 1
+      fi
+    else
+      buildFeature
     fi
   else
-    war='true'
-    isSandbox && local branch='master' || local branch='feature'
-    addJobParm 'build-war' 'BRANCH' $branch
-    addJobParm 'build-war' 'GIT_REFSPEC' $GIT_REFSPEC
-    addJobParm 'build-war' 'GIT_BRANCHES_TO_BUILD' $GIT_BRANCHES_TO_BUILD
+    buildFeature
   fi
 
   [ "$war" == 'true' ] && true || false
@@ -215,6 +223,7 @@ printJobCalls() {
       echo "$jobcall"
     fi
   done
+  echo ""
 }
 
 makeJobCalls() {
