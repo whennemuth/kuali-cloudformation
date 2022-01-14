@@ -158,15 +158,6 @@ buildWarJobCall() {
       addJobParm 'build-war' 'GIT_REFSPEC' $GIT_REFSPEC
       addJobParm 'build-war' 'GIT_BRANCHES_TO_BUILD' $GIT_BRANCHES_TO_BUILD
     fi
-  elif isCI ; then
-    war='true'
-    if defaultGitRef ; then
-      addJobParm 'build-war' 'BRANCH' $BRANCH
-    else
-      addJobParm 'build-war' 'BRANCH' 'feature'
-      addJobParm 'build-war' 'GIT_REFSPEC' $GIT_REFSPEC
-      addJobParm 'build-war' 'GIT_BRANCHES_TO_BUILD' $GIT_BRANCHES_TO_BUILD
-    fi
   elif isStaging || isProd ; then
     if defaultGitRef ; then
       war='false'
@@ -179,6 +170,9 @@ buildWarJobCall() {
     else
       buildFeature
     fi
+  elif defaultGitRef ; then
+    war='true'
+    addJobParm 'build-war' 'BRANCH' $BRANCH
   else
     buildFeature
   fi

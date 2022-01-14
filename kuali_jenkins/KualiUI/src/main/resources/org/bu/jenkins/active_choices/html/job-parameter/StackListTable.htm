@@ -11,18 +11,24 @@
   				stack, do that first, then return to this job later and the stack 
   				you created should be available in the list for you to select.
   				<div style="padding-top: 10px; font-style: italic;">
-	  				NOTE:
+	  				USAGE:
 	  				<div style="padding-left: 10px">
 	  					<ul>
 	  						<li>
-							   If "sandbox" is selected, the build will be based on the HEAD of the git master branch for kuali-research
+							   If a stack is selected with a landscape indicating "sandbox", the build will be based on the HEAD of the git master branch for kuali-research
 	  						</li>
 	  						<li>
-							   If "ci" is selected, the build will be based on the HEAD of the git bu-master branch for kuali-research
+							   If a stack is selected with a landscape indicating "ci", the build will be based on the HEAD of the git bu-master branch for kuali-research
 	  						</li>
 	  						<li>
-							   If any other landscape is selected, whatever was last built for the ci landscape is deployed to that landscape
-							   or, you can override this by selecting a specific git reference below.
+	  						   If a stack is selected with a landscape indicating "staging" or "production", then, whatever was last built 
+	  						   is deployed to that stack, and no new build occurs. However, if you override this by selecting a specific git reference below 
+	  						   (not "default") then a full build against the selected git ref is performed and the stack is updated with the result.
+	  						</li>	  						
+	  						<li>
+							   Any other landscape is considered ad-hoc and a full build will be performed and deployed to that stack.
+							   If you still want to skip the build and simply select an existing docker image from the registry to deploy to it, 
+							   then you must use that specific job directly.
 	  						</li>	  						
 	  					</ul>
   					</div>
