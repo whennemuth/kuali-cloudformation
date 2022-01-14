@@ -18,6 +18,12 @@ setGlobalVariables() {
   HOST=http://localhost:8080/
   BRANCH=""
 
+  if [ -z "$STACK_NAME" ] ; then
+    echo "Missing entry! A stack must be selected."
+    echo "Cancelling build..."
+    exit 1
+  fi
+
   # The STACk parameter is actually 3 values: stack name, baseline, and landscape concatenated together with a pipe character
   local stackparts=$(echo $STACK | awk 'BEGIN {RS="|"} {print $0}')
   local counter=1
@@ -29,9 +35,9 @@ setGlobalVariables() {
     esac
   done <<< $(echo "$stackparts")
 
-  if sandbox ; then 
+  if isSandbox ; then 
     BRANCH='master';
-  elif ci ; then 
+  elif isCI ; then 
     BRANCH='bu-master'; 
   fi
 
@@ -73,15 +79,17 @@ addJobParm() {
 # Indicate if the default git reference was not taken (ie: "branch", "tag", or "commitID" was selected)
 defaultGitRef() { [ "${GIT_REF_TYPE,,}" == "default" ] && true || false ; }
 lastWar() { ls -1 /var/lib/jenkins/backup/kuali-research/war/$BRANCH/*.war 2> /dev/null ; }
-sandbox() { [ "${LANDSCAPE,,}" == "sandbox" ] && true || false ; }
-ci() { [ "${LANDSCAPE,,}" == "ci" ] && true || false ; }
-staging() { ([ "${LANDSCAPE,,}" == "stg" ] || [ "${LANDSCAPE,,}" == "stage" ] || [ "${LANDSCAPE,,}" == "staging" ]) && true || false ; }
-prod() { ([ "${LANDSCAPE,,}" == "prod" ] || [ "${LANDSCAPE,,}" == "production" ]) && true || false ; }
-newrelic() { staging || prod ; }
+isSandbox() { [ "${LANDSCAPE,,}" == "sandbox" ] && true || false ; }
+isCI() { [ "${LANDSCAPE,,}" == "ci" ] && true || false ; }
+isStaging() { ([ "${LANDSCAPE,,}" == "stg" ] || [ "${LANDSCAPE,,}" == "stage" ] || [ "${LANDSCAPE,,}" == "staging" ]) && true || false ; }
+isProd() { ([ "${LANDSCAPE,,}" == "prod" ] || [ "${LANDSCAPE,,}" == "production" ]) && true || false ; }
+newrelic() { isStaging || isProd ; }
 # Print out the calls this job would make to other jobs, but do not execute those calls.
+dryrun() { [ "$DRYRUN" == true ] && true || false ; }
+# Make all standard output verbose with set -x
 debug() { [ "$DEBUG" == true ] && true || false ; }
 # Perform the appropriate action with the built job calls
-callJobs() { if debug ; then printJobCalls; else makeJobCalls; fi }
+callJobs() { if dryrun ; then printJobCalls; else makeJobCalls; fi }
 
 getPomVersion() {
   if [ -z "$POM_VERSION" ] ; then
@@ -100,7 +108,7 @@ getPomVersion() {
         ;;
     esac
   fi
-  if debug ; then
+  if dryrun ; then
     local version=${POM_VERSION:-'[derived]'}
     local version=${POM_VERSION:-'unknown'}
   fi
@@ -135,14 +143,14 @@ getEcrRepoName() {
 buildWarJobCall() {
   local war=''
 
-  if sandbox; then
+  if isSandbox; then
     war='true'
     addJobParm 'build-war' 'BRANCH' 'master'
     if ! defaultGitRef ; then
       addJobParm 'build-war' 'GIT_REFSPEC' $GIT_REFSPEC
       addJobParm 'build-war' 'GIT_BRANCHES_TO_BUILD' $GIT_BRANCHES_TO_BUILD
     fi
-  elif ci ; then
+  elif isCI ; then
     war='true'
     if defaultGitRef ; then
       addJobParm 'build-war' 'BRANCH' $BRANCH
@@ -157,10 +165,11 @@ buildWarJobCall() {
     if [ "$pomVersion" == 'unknown' ] ; then
       echo "PROBLEM!!! Cannot determine registry image to reference. POM version unknown!";
       echo "Cancelling build..."
+      exit 1
     fi
   else
     war='true'
-    sandbox && local branch='master' || local branch='feature'
+    isSandbox && local branch='master' || local branch='feature'
     addJobParm 'build-war' 'BRANCH' $branch
     addJobParm 'build-war' 'GIT_REFSPEC' $GIT_REFSPEC
     addJobParm 'build-war' 'GIT_BRANCHES_TO_BUILD' $GIT_BRANCHES_TO_BUILD
@@ -169,14 +178,14 @@ buildWarJobCall() {
   [ "$war" == 'true' ] && true || false
 }
 
-buildDockerBuildJobCall() {
+buildDockerBuildImageJobCall() {
   addJobParm 'build-image' 'POM_VERSION' "\$(getPomVersion)"
   addJobParm 'build-image' 'JENKINS_WAR_FILE' "\$(lastWar)"
   addJobParm 'build-image' 'REGISTRY_REPO_NAME' "$(getEcrRepoName)"
   addJobParm 'build-image' 'ECR_REGISTRY_URL' "$ECR_REGISTRY_URL"
 }
 
-buildDockerPushJobCall() {
+buildDockerPushImageJobCall() {
   addJobParm 'push-image' 'ECR_REGISTRY_URL' "$ECR_REGISTRY_URL"
   addJobParm 'push-image' 'POM_VERSION' "\$(getPomVersion)"
   addJobParm 'push-image' 'REGISTRY_REPO_NAME' "$(getEcrRepoName)"
@@ -233,9 +242,9 @@ run() {
 
   if buildWarJobCall ; then
 
-    buildDockerBuildJobCall
+    buildDockerBuildImageJobCall
 
-    buildDockerPushJobCall
+    buildDockerPushImageJobCall
   fi
 
   buildDeployJobCall

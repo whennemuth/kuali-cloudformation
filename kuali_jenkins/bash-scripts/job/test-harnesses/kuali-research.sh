@@ -3,8 +3,10 @@
 DUMMY_PARAMETERS='true'
 
 # Use some random dummy entries for testing...
-DEBUG=true
-STACK='my stack name|qa|qa'
+DRYRUN=true
+DEBUG=false
+# STACK='my stack name|qa|qa'
+STACK='my stack name|stg|chopped-liver'
 GIT_REF=mybranch
 GIT_REF_TYPE=branch
 GIT_COMMIT_ID=a2caa81630c2763dd1c30cd7d43ce51923171f52
