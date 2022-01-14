@@ -18,7 +18,7 @@ setGlobalVariables() {
   HOST=http://localhost:8080/
   BRANCH=""
 
-  if [ -z "$STACK_NAME" ] ; then
+  if [ -z "$STACK" ] ; then
     echo "Missing entry! A stack must be selected."
     echo "Cancelling build..."
     exit 1
