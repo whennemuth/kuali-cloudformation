@@ -33,7 +33,7 @@ setGlobalVariables() {
       2) BASELINE="$part" ;;
       3) LANDSCAPE="$part" ;;
     esac
-  done <<< $(echo "$stackparts")
+  done <<< "$(echo "$stackparts")"
 
   if isSandbox ; then 
     BRANCH='master';
