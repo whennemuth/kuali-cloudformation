@@ -76,6 +76,7 @@ addJobParm() {
   fi
 }
 
+isJenkinsServer() { [ -d /var/lib/jenkins ] && true || false }
 isFeatureBuild() { [ "${BUILD_TYPE,,}" == "feature" ] && true || false ; }
 isReleaseBuild() { ([ -z "$BUILD_TYPE" ] || [ "${BUILD_TYPE,,}" == "release" ]) && true || false ; }
 lastWar() { ls -1 /var/lib/jenkins/backup/kuali-research/war/$BRANCH/*.war 2> /dev/null ; }
@@ -142,10 +143,10 @@ getEcrRepoName() {
 }
 
 buildWarJobCall() {
-  local war=''
+  BUILD_WAR=''
 
   buildFeature() {
-    war='true'
+    BUILD_WAR='true'
     isSandbox && local branch='master' || local branch='feature'
     addJobParm 'build-war' 'BRANCH' $branch
     addJobParm 'build-war' 'GIT_REFSPEC' $GIT_REFSPEC
@@ -153,7 +154,7 @@ buildWarJobCall() {
   }
 
   if isSandbox; then
-    war='true'
+    BUILD_WAR='true'
     addJobParm 'build-war' 'BRANCH' 'master'
     if isFeatureBuild ; then
       addJobParm 'build-war' 'GIT_REFSPEC' $GIT_REFSPEC
@@ -163,7 +164,7 @@ buildWarJobCall() {
     if isFeatureBuild ; then
       buildFeature
     else
-      war='false'
+      BUILD_WAR='false'
       local pomVersion="$(getPomVersion 'prior')"
       if [ "$pomVersion" == 'unknown' ] ; then
         echo "PROBLEM!!! Cannot determine registry image to reference. POM version unknown!";
@@ -174,11 +175,11 @@ buildWarJobCall() {
   elif isFeatureBuild ; then
     buildFeature
   else
-    war='true'
+    BUILD_WAR='true'
     addJobParm 'build-war' 'BRANCH' $BRANCH
   fi
 
-  [ "$war" == 'true' ] && true || false
+  [ "$BUILD_WAR" == 'true' ] && true || false
 }
 
 buildDockerBuildImageJobCall() {
@@ -195,6 +196,12 @@ buildDockerPushImageJobCall() {
 }
 
 buildDeployJobCall() {
+  if isJenkins && [ "$BUILD_WAR" == 'false' ] ; then
+    # We should know the pom version already (getting it from a prior build)
+    addJobParm 'deploy' 'POM_VERSION' "$(getPomVersion)"
+  else
+    addJobParm 'deploy' 'POM_VERSION' "\$(getPomVersion)"
+  fi
   addJobParm 'deploy' 'POM_VERSION' "\$(getPomVersion)"
   addJobParm 'deploy' 'STACK_NAME' "$STACK_NAME"
   addJobParm 'deploy' 'BASELINE' "$BASELINE"
