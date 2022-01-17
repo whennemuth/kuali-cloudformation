@@ -197,8 +197,11 @@ public class ParameterController extends AbstractParameterSet {
 										parameterView.setContextVariable(
 											"SelectedRef", 
 											config.getParameterMap().get(QueryStringParms.SELECTED_ITEM.arg()));
-										if("default".equalsIgnoreCase(reftype)) {
-											parameterView.setContextVariable("disable", true);
+										String buildType = config.getParameterMap().get(QueryStringParms.BUILD_TYPE.arg());
+										if( ! Argument.isMissing(buildType)) {
+											if("release".equalsIgnoreCase(buildType)) {
+												parameterView.setContextVariable("disable", true);
+											}										
 										}
 									}
 									else {
@@ -229,9 +232,9 @@ public class ParameterController extends AbstractParameterSet {
 									}
 								}
 								else {
-									String reftype = gitArgs.getRefType();
-									if( ! Argument.isMissing(reftype)) {
-										if("default".equalsIgnoreCase(reftype)) {
+									String buildType = config.getParameterMap().get(QueryStringParms.BUILD_TYPE.arg());
+									if( ! Argument.isMissing(buildType)) {
+										if("release".equalsIgnoreCase(buildType)) {
 											parameterView.setContextVariable("disable", true);
 										}										
 									}

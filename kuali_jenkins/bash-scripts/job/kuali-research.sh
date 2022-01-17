@@ -35,14 +35,14 @@ setGlobalVariables() {
     esac
   done <<< "$(echo "$stackparts")"
 
-  if isSandbox ; then 
-    BRANCH='master';
-  elif isCI ; then 
-    BRANCH='bu-master'; 
+  if isReleaseBuild ; then
+    isSandbox && BRANCH='master' || BRANCH='bu-master'
+  else
+    BRANCH='feature'
   fi
 
   # Prepare custom git references for manual feature builds and overriding of default git conventions        
-  case "$GIT_REF_TYPE" in
+  case "${GIT_REF_TYPE,,}" in
     branch)
       GIT_REFSPEC="+refs/heads/$GIT_REF:refs/remotes/origin/$GIT_REF"
       GIT_BRANCHES_TO_BUILD="refs/heads/$GIT_REF"
@@ -55,7 +55,7 @@ setGlobalVariables() {
       GIT_REFSPEC="+refs/heads/*:refs/remotes/origin/*"
       GIT_BRANCHES_TO_BUILD="$GIT_COMMIT_ID"
       ;;        
-  esac 
+  esac
 }
 
 # Add a single parameter to the specified job call
@@ -76,8 +76,8 @@ addJobParm() {
   fi
 }
 
-# Indicate if the default git reference was not taken (ie: "branch", "tag", or "commitID" was selected)
-defaultGitRef() { [ "${GIT_REF_TYPE,,}" == "default" ] && true || false ; }
+isFeatureBuild() { [ "${BUILD_TYPE,,}" == "feature" ] && true || false ; }
+isReleaseBuild() { ([ -z "$BUILD_TYPE" ] || [ "${BUILD_TYPE,,}" == "release" ]) && true || false ; }
 lastWar() { ls -1 /var/lib/jenkins/backup/kuali-research/war/$BRANCH/*.war 2> /dev/null ; }
 isSandbox() { [ "${LANDSCAPE,,}" == "sandbox" ] && true || false ; }
 isCI() { [ "${LANDSCAPE,,}" == "ci" ] && true || false ; }
@@ -110,6 +110,7 @@ getPomVersion() {
   fi
   if dryrun ; then
     local version=${POM_VERSION:-'[derived]'}
+  else
     local version=${POM_VERSION:-'unknown'}
   fi
   echo "$version"
@@ -154,12 +155,14 @@ buildWarJobCall() {
   if isSandbox; then
     war='true'
     addJobParm 'build-war' 'BRANCH' 'master'
-    if ! defaultGitRef ; then
+    if isFeatureBuild ; then
       addJobParm 'build-war' 'GIT_REFSPEC' $GIT_REFSPEC
       addJobParm 'build-war' 'GIT_BRANCHES_TO_BUILD' $GIT_BRANCHES_TO_BUILD
     fi
   elif isStaging || isProd ; then
-    if defaultGitRef ; then
+    if isFeatureBuild ; then
+      buildFeature
+    else
       war='false'
       local pomVersion="$(getPomVersion 'prior')"
       if [ "$pomVersion" == 'unknown' ] ; then
@@ -167,14 +170,12 @@ buildWarJobCall() {
         echo "Cancelling build..."
         exit 1
       fi
-    else
-      buildFeature
     fi
-  elif defaultGitRef ; then
+  elif isFeatureBuild ; then
+    buildFeature
+  else
     war='true'
     addJobParm 'build-war' 'BRANCH' $BRANCH
-  else
-    buildFeature
   fi
 
   [ "$war" == 'true' ] && true || false
@@ -258,6 +259,8 @@ run() {
 }
 
 checkTestHarness $@ || true 2> /dev/null
+
+isDebug && set -x
 
 run $@
 

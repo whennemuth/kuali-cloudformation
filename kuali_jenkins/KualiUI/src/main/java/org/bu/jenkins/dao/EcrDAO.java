@@ -2,7 +2,6 @@ package org.bu.jenkins.dao;
 
 import java.util.Collection;
 import java.util.Comparator;
-import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -179,14 +178,14 @@ public class EcrDAO extends AbstractAwsDAO {
 			if(namedArgs.has(registryKey)) {
 				dao.setRegistryId(namedArgs.get(registryKey));
 			}
-			((List<ImageIdentifier>)dao.getResources()).forEach((image) -> {
+			((Set<ImageIdentifier>)dao.getResources()).forEach((image) -> {
 				System.out.println(
 					String.format("%s/%s:%s", dao.getRegistryId(), dao.getRepositoryName(), image.imageTag())
 				);
 			});
 			
 			dao.setQueryType(QueryType.DETAIL);
-			((List<ImageDetail>)dao.getResources()).forEach((image) -> {
+			((Set<ImageDetail>)dao.getResources()).forEach((image) -> {
 				System.out.println(image.toString());
 			});
 			

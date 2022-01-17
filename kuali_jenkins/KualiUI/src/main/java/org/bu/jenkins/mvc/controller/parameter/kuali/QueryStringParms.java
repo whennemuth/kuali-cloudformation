@@ -25,7 +25,8 @@ public enum QueryStringParms {
 	GIT_PERSONAL_ACCESS_TOKEN,
 	GIT_SSH_KEY,
 	RENDER_NAME,
-	RENDER_DESCRIPTION;
+	RENDER_DESCRIPTION,
+	BUILD_TYPE;
 	public String arg() {
 		return this.name().replaceAll("_", "-").toLowerCase();
 	}
