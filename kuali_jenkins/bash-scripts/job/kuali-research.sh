@@ -94,26 +94,27 @@ callJobs() { if dryrun ; then printJobCalls; else makeJobCalls; fi }
 
 getPomVersion() {
   if [ -z "$POM_VERSION" ] ; then
-    local originJob=${1:-'current'}
-    originJob=${originJob,,}
-    case $originJob in
-      current)
-        local pom="$(dirname $WORKSPACE)/${jobs['build-war']}/pom.xml"
+    if isFeatureBuild ; then
+      # Get the pom version of what is currently being built
+      local pom="$(dirname $WORKSPACE)/${jobs['build-war']}/pom.xml"
         POM_VERSION="$(grep -Po '(?!<version>)[^<>]+</version>' $pom | head -n 1 | sed 's/<\/version>//')"
-        ;;  
-      prior)
-        POM_VERSION="$(getPomVersionFromLastBuiltWar)"
+    elif isReleaseBuild ; then
+      # Get the pom version of what has already been built by a prior job
+      POM_VERSION="$(getPomVersionFromLastBuiltWar)"
+      if [ -z "$POM_VERSION" ] ; then
+        POM_VERSION="$(getPomVersionFromLastPushLog)"
         if [ -z "$POM_VERSION" ] ; then
-          POM_VERSION="$(getPomVersionFromLastPushLog)"
+          POM_VERSION="$(getPomVersionFromYoungestRegistryImage)"
         fi
-        ;;
-    esac
+      fi
+    fi
   fi
-  if dryrun ; then
-    local version=${POM_VERSION:-'[derived]'}
-  else
-    local version=${POM_VERSION:-'unknown'}
-  fi
+  # if dryrun ; then
+  #   local version=${POM_VERSION:-'[derived]'}
+  # else
+  #   local version=${POM_VERSION:-'unknown'}
+  # fi
+  local version=${POM_VERSION:-'unknown'}
   echo "$version"
 }
 
@@ -130,53 +131,46 @@ getPomVersionFromLastBuiltWar() {
   echo "$(lastWar)" | grep -Po '(?<=coeus-webapp\-).*(?=\.war$)'
 }
 
+getPomVersionFromYoungestRegistryImage() {
+  local repo="$(getEcrRepoName)"
+  local acct="aws sts get-caller-identity --output text --query 'Account'"
+  getLatestImage "$repo" "$acct" | cut -d':' -f2
+}
+
 getEcrRepoName() {
-  POM_ARTIFACTID='coeus'
+  POM_ARTIFACTID='kuali-coeus'
   # Set the name of the target repository in docker registry
-  if [ "$BRANCH" == "feature" ] ; then
-    echo "$POM_ARTIFACTID-feature"
-  elif [ "$BRANCH" == "master" ] ; then
+  if [ "$BRANCH" == "master" ] ; then
     echo "$POM_ARTIFACTID-sandbox"
-  else
+  elif isFeatureBuild ; then
+    echo "$POM_ARTIFACTID-feature"
+  elif isReleaseBuild ; then
     echo "$POM_ARTIFACTID"
   fi
 }
 
 buildWarJobCall() {
-  BUILD_WAR=''
+  BUILD_WAR='false'
 
-  buildFeature() {
+  if isFeatureBuild ; then
+    if isProd ; then
+      echo "INVALID CHOICE: Feature builds not allowed against the production environment!"
+      exit 1
+    elif isStaging ; then
+      echo "WARNING: You are pushing a feature build directly into the staging environment!"
+    fi
     BUILD_WAR='true'
     isSandbox && local branch='master' || local branch='feature'
     addJobParm 'build-war' 'BRANCH' $branch
     addJobParm 'build-war' 'GIT_REFSPEC' $GIT_REFSPEC
     addJobParm 'build-war' 'GIT_BRANCHES_TO_BUILD' $GIT_BRANCHES_TO_BUILD
-  }
-
-  if isSandbox; then
-    BUILD_WAR='true'
-    addJobParm 'build-war' 'BRANCH' 'master'
-    if isFeatureBuild ; then
-      addJobParm 'build-war' 'GIT_REFSPEC' $GIT_REFSPEC
-      addJobParm 'build-war' 'GIT_BRANCHES_TO_BUILD' $GIT_BRANCHES_TO_BUILD
-    fi
-  elif isStaging || isProd ; then
-    if isFeatureBuild ; then
-      buildFeature
-    else
-      BUILD_WAR='false'
-      local pomVersion="$(getPomVersion 'prior')"
-      if [ "$pomVersion" == 'unknown' ] ; then
-        echo "PROBLEM!!! Cannot determine registry image to reference. POM version unknown!";
-        echo "Cancelling build..."
-        exit 1
-      fi
-    fi
-  elif isFeatureBuild ; then
-    buildFeature
   else
-    BUILD_WAR='true'
-    addJobParm 'build-war' 'BRANCH' $BRANCH
+    local pomVersion="$(getPomVersion)"
+    if [ "$pomVersion" == 'unknown' ] ; then
+      echo "PROBLEM!!! Cannot determine registry image to reference. POM version unknown!";
+      echo "Cancelling build..."
+      exit 1
+    fi
   fi
 
   [ "$BUILD_WAR" == 'true' ] && true || false
@@ -196,15 +190,13 @@ buildDockerPushImageJobCall() {
 }
 
 buildDeployJobCall() {
-  if isJenkins && [ "$BUILD_WAR" == 'false' ] ; then
-    # We should know the pom version already (getting it from a prior build)
-    addJobParm 'deploy' 'POM_VERSION' "$(getPomVersion)"
-  else
+  if isFeatureBuild ; then
     addJobParm 'deploy' 'POM_VERSION' "\$(getPomVersion)"
+  elif isReleaseBuild ; then
+    addJobParm 'deploy' 'POM_VERSION' "$(getPomVersion 2> /dev/null)"
   fi
-  addJobParm 'deploy' 'POM_VERSION' "\$(getPomVersion)"
-  addJobParm 'deploy' 'STACK_NAME' "$STACK_NAME"
-  addJobParm 'deploy' 'BASELINE' "$BASELINE"
+  addJobParm 'deploy' 'STACK_NAME' "\"$STACK_NAME\""
+  # addJobParm 'deploy' 'BASELINE' "$BASELINE"
   addJobParm 'deploy' 'LANDSCAPE' "$LANDSCAPE"
   addJobParm 'deploy' 'NEW_RELIC_LOGGING' "$(newrelic && echo 'true' || echo 'false')"
   addJobParm 'deploy' 'ECR_REGISTRY_URL' "$ECR_REGISTRY_URL"

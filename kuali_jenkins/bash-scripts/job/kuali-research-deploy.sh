@@ -36,7 +36,7 @@ validInputs() {
 
 printVariables() {
   echo "LANDSCAPE=$LANDSCAPE"
-  echo "BASELINE=$BASELINE"
+  # echo "BASELINE=$BASELINE"
   echo "ECR_REGISTRY_URL=$ECR_REGISTRY_URL"
   echo "REGISTRY_REPO_NAME=$REGISTRY_REPO_NAME"
   echo "POM_VERSION=$POM_VERSION"
