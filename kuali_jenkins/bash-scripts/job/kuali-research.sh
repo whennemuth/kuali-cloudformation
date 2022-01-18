@@ -76,7 +76,7 @@ addJobParm() {
   fi
 }
 
-isJenkinsServer() { [ -d /var/lib/jenkins ] && true || false }
+isJenkinsServer() { [ -d /var/lib/jenkins ] && true || false ; }
 isFeatureBuild() { [ "${BUILD_TYPE,,}" == "feature" ] && true || false ; }
 isReleaseBuild() { ([ -z "$BUILD_TYPE" ] || [ "${BUILD_TYPE,,}" == "release" ]) && true || false ; }
 lastWar() { ls -1 /var/lib/jenkins/backup/kuali-research/war/$BRANCH/*.war 2> /dev/null ; }
