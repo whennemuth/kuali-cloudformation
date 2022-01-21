@@ -33,18 +33,29 @@ turnOffSecurity() {
   restartJenkins
 }
 
-getAdminPasswordFromSecretsManager() {
+getItemFromSecretsManager() {
+  local secretId="$1"
+  local item="$2"
   aws secretsmanager get-secret-value \
-    --secret-id kuali/jenkins/administrator \
+    --secret-id $secretId \
     --output text \
-    --query '{SecretString:SecretString}' | jq '.password' | sed 's/"//g' 2> /dev/null
+    --query '{SecretString:SecretString}' | jq '.'$item | sed 's/"//g' 2> /dev/null
+}
+
+getAdminPasswordFromSecretsManager() {
+  getItemFromSecretsManager 'kuali/jenkins/administrator' 'password'
+}
+
+getCredentialFromSecretsManager() {
+  local key="$1"
+  getItemFromSecretsManager 'kuali/jenkins/credentials' "${key}.token"
 }
 
 # If the admin user has had its password reset, then the JENKINS_HOME/secrets/initialAdminPassword is now no good and the new one needs to be used.
 tryAdminPassword() {
   if [ -f "$ADMIN_PASSWORD_RESET" ] ; then
-    getAdminPasswordFromSecretsManager
-    if [ $? -gt 0 ] || [ ]; then
+    local password="$(getAdminPasswordFromSecretsManager)"
+    if [ $? -gt 0 ] || [ -z "$password" ]; then
       err "No admin secret in the secrets manager service (may have not been added yet or permissions to retrieve are lacking)"
     fi
   fi
@@ -184,7 +195,7 @@ getNewCrumb() {
 }
 
 # You could use the last crumb that was generated, but to do so you must use it in the same session, which means
-# saving session (JSESSION) cookies in the curl cookie jar and resusing them (--cookie $COOKIE_JAR --cookie-jar $COOKIE_JAR).
+# saving session (JSESSION) cookies in the curl cookie jar and reusing them (--cookie $COOKIE_JAR --cookie-jar $COOKIE_JAR).
 getLastCrumb() {
   cat $CRUMB_FILE
 }
@@ -283,4 +294,93 @@ IAmLoggedIn() {
 
 err(){
   echo "E: $*" >>/dev/stderr
+}
+
+
+# Find out from s3 or secrets manager what the value of a password, token, or key is for a specificed
+# credential and inject the value into the xml configuration file for that credential.
+injectSecretIntoCredFile() {
+  local credxml="$1"
+  local id="$(getCredentialsFileId $credfile)"
+
+  getCredentialsFileId() {
+    grep -oP '(?<=<id>).*(?=</id>)' $1
+  }
+
+  getCredentialsFileId() {
+    grep -oP '(?<=<id>).*(?=</id>)' $1
+  }
+
+  # Identify if a credentials xml file is one that has a private ssh key.
+  isAPrivateKeyCredentialsFile() {
+    [ -n "$(grep -o '<privateKey>' $1)" ] && true || false
+  }
+
+  # Identify if a credentials xml file is one that has a password.
+  isAPasswordCredentialsFile() {
+    [ -n "$(grep -o '<password>' $1)" ] && true || false
+  }
+
+  # Inject the content of a private key for ssh access into a credentials file.
+  injectPrivateKeyIntoCredentialsFile() {
+   local id="$(getCredentialsFileId $credfile | grep -ioP '(kc)|(rice)')"
+    case "$id" in
+      kc)
+        local keyfile='/var/lib/jenkins/.ssh/bu_github_id_kc_rsa' ;;
+      rice)
+        local keyfile='/var/lib/jenkins/.ssh/bu_github_id_rice_rsa' ;;
+    esac
+    if [ -n "$keyfile" ] && [ -f "$keyfile" ] ; then
+      start="$(grep -Po '^.*<privateKey>' $credxml)"
+      local key="$(cat $keyfile)"
+      end="$(grep -Po '</privateKey>.*$' $credxml)"
+      echo "${start}${key}${end}" > $credxml
+    fi
+  }
+
+  # Look up and inject a password value into a name/password credential file
+  injectPrivatePasswordIntoCredentialsFile() {
+    case "$id" in
+      'admin')
+        local password="$(getAdminPasswordFromSecretsManager)"
+        ;;
+      'credentials.kualico.github.pat')
+        local password="$(getCredentialFromSecretsManager 'credentials-kualico-github-pat.password')"
+        ;;
+      'credentials.kualico.github')
+        local password="$(getCredentialFromSecretsManager 'credentials-kualico-github.password')"
+        ;;
+    esac
+    if [ -n "$password" ] ; then
+      start="$(grep -Po '^.*<password>' $credxml)"
+      end="$(grep -Po '</password>.*$' $credxml)"
+      echo "${start}${password}${end}" > $credxml
+    fi
+  }
+
+  # Look up and inject into the specified credentials file the value of a secret.
+  injectPrivateSecretIntoCredentialsFile() {
+    case "$id" in
+      'credentials.bu.github.token')
+        local secret="$(getCredentialFromSecretsManager 'credentials-bu-github-token.token')"
+        ;;
+      'credentials.newrelic.license.key')
+        local secret="$(getCredentialFromSecretsManager 'credentials-newrelic-license-key.token')"
+        ;;
+    esac
+    if [ -n "$secret" ] ; then
+      start="$(grep -Po '^.*<secret>' $credxml)"
+      end="$(grep -Po '</secret>.*$' $credxml)"
+      echo "${start}${secret}${end}" > $credxml
+    fi
+  }
+
+
+  if isAPrivateKeyCredentialsFile ; then
+    injectPrivateKeyIntoCredentialsFile
+  elif isAPasswordCredentialsFile ; then
+    injectPrivatePasswordIntoCredentialsFile
+  else
+    injectPrivateSecretIntoCredentialsFile
+  fi
 }

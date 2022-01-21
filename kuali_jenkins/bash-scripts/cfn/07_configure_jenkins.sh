@@ -52,6 +52,7 @@ sed -i 's/ssh-credentials@[0-9\.]\+/ssh-credentials@'$SSH_CREDENTIALS_PLUGIN_VER
 
 # Create all credentials by importing their corresponding xml files.
 for credxml in $(ls -1 $cfgdir | grep credentials.) ; do
+  injectSecretIntoCredFile $cfgdir/$credxml
   echo "Importing $credxml..."
   java -jar $JENKINS_CLI_JAR $(getAdminUserCliParm) -s http://localhost:8080 create-credentials-by-xml system::system::jenkins _ < $cfgdir/$credxml
 done
