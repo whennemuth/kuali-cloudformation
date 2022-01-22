@@ -301,29 +301,25 @@ err(){
 # credential and inject the value into the xml configuration file for that credential.
 injectSecretIntoCredFile() {
   local credxml="$1"
-  local id="$(getCredentialsFileId $credfile)"
+  local id="$(getCredentialsFileId $credxml)"
 
   getCredentialsFileId() {
-    grep -oP '(?<=<id>).*(?=</id>)' $1
-  }
-
-  getCredentialsFileId() {
-    grep -oP '(?<=<id>).*(?=</id>)' $1
+    grep -oP '(?<=<id>).*(?=</id>)' $credxml
   }
 
   # Identify if a credentials xml file is one that has a private ssh key.
   isAPrivateKeyCredentialsFile() {
-    [ -n "$(grep -o '<privateKey>' $1)" ] && true || false
+    [ -n "$(grep -o '<privateKey>' $credxml)" ] && true || false
   }
 
   # Identify if a credentials xml file is one that has a password.
   isAPasswordCredentialsFile() {
-    [ -n "$(grep -o '<password>' $1)" ] && true || false
+    [ -n "$(grep -o '<password>' $credxml)" ] && true || false
   }
 
   # Inject the content of a private key for ssh access into a credentials file.
   injectPrivateKeyIntoCredentialsFile() {
-   local id="$(getCredentialsFileId $credfile | grep -ioP '(kc)|(rice)')"
+   local id="$(getCredentialsFileId $credxml | grep -ioP '(kc)|(rice)')"
     case "$id" in
       kc)
         local keyfile='/var/lib/jenkins/.ssh/bu_github_id_kc_rsa' ;;
