@@ -23,3 +23,5 @@ if [ ! -f $repo/$groupPath/$artifact/$version/$artifact-$version.$packaging ] ; 
 fi             
 
 chown -R jenkins:jenkins $repo/$groupPath/$artifact/$version/
+
+chmod -R ugo+w $repo

@@ -48,7 +48,7 @@ getAdminPasswordFromSecretsManager() {
 
 getCredentialFromSecretsManager() {
   local key="$1"
-  getItemFromSecretsManager 'kuali/jenkins/credentials' "${key}.token"
+  getItemFromSecretsManager 'kuali/jenkins/credentials' "${key}"
 }
 
 # If the admin user has had its password reset, then the JENKINS_HOME/secrets/initialAdminPassword is now no good and the new one needs to be used.
@@ -57,6 +57,8 @@ tryAdminPassword() {
     local password="$(getAdminPasswordFromSecretsManager)"
     if [ $? -gt 0 ] || [ -z "$password" ]; then
       err "No admin secret in the secrets manager service (may have not been added yet or permissions to retrieve are lacking)"
+    else
+      echo "$password"
     fi
   fi
 }
@@ -296,16 +298,26 @@ err(){
   echo "E: $*" >>/dev/stderr
 }
 
+# The following characters need to be escaped to maintain valid xml
+# "   &quot;
+# '   &apos;
+# <   &lt;
+# >   &gt;
+# &   &amp;
+escapeXml() {
+  echo "$1" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g; s/"/\&quot;/g; s/'"'"'/\&#39;/g'
+}
 
 # Find out from s3 or secrets manager what the value of a password, token, or key is for a specificed
 # credential and inject the value into the xml configuration file for that credential.
 injectSecretIntoCredFile() {
   local credxml="$1"
-  local id="$(getCredentialsFileId $credxml)"
 
   getCredentialsFileId() {
     grep -oP '(?<=<id>).*(?=</id>)' $credxml
   }
+
+  local id="$(getCredentialsFileId $credxml)"
 
   # Identify if a credentials xml file is one that has a private ssh key.
   isAPrivateKeyCredentialsFile() {
@@ -319,7 +331,7 @@ injectSecretIntoCredFile() {
 
   # Inject the content of a private key for ssh access into a credentials file.
   injectPrivateKeyIntoCredentialsFile() {
-   local id="$(getCredentialsFileId $credxml | grep -ioP '(kc)|(rice)')"
+    local id="$(getCredentialsFileId $credxml | grep -ioP '(kc)|(rice)')"
     case "$id" in
       kc)
         local keyfile='/var/lib/jenkins/.ssh/bu_github_id_kc_rsa' ;;
@@ -327,10 +339,13 @@ injectSecretIntoCredFile() {
         local keyfile='/var/lib/jenkins/.ssh/bu_github_id_rice_rsa' ;;
     esac
     if [ -n "$keyfile" ] && [ -f "$keyfile" ] ; then
+      echo "Injecting the content of $keyfile into $credxml..."
       start="$(grep -Po '^.*<privateKey>' $credxml)"
       local key="$(cat $keyfile)"
       end="$(grep -Po '</privateKey>.*$' $credxml)"
       echo "${start}${key}${end}" > $credxml
+    else
+      echo "ERROR! Could not determine private key [keyfile:$keyfile, credentialsFile: $credxml]"
     fi
   }
 
@@ -341,16 +356,23 @@ injectSecretIntoCredFile() {
         local password="$(getAdminPasswordFromSecretsManager)"
         ;;
       'credentials.kualico.github.pat')
-        local password="$(getCredentialFromSecretsManager 'credentials-kualico-github-pat.password')"
+        local password="$(getCredentialFromSecretsManager '"credentials-kualico-github-pat"."password"')"
         ;;
       'credentials.kualico.github')
-        local password="$(getCredentialFromSecretsManager 'credentials-kualico-github.password')"
+        local password="$(getCredentialFromSecretsManager '"credentials-kualico-github"."password"')"
+        ;;
+      'credentials.kualico.dockerhub')
+        local password="$(getCredentialFromSecretsManager '"credentials-kualico-dockerhub"."password"')"
         ;;
     esac
     if [ -n "$password" ] ; then
+      echo "Injecting the password for $id into $credxml..."
       start="$(grep -Po '^.*<password>' $credxml)"
+      password="$(escapeXml "$password")"
       end="$(grep -Po '</password>.*$' $credxml)"
       echo "${start}${password}${end}" > $credxml
+    else
+      echo "ERROR! Could not determine password of $id for $credxml"
     fi
   }
 
@@ -358,25 +380,32 @@ injectSecretIntoCredFile() {
   injectPrivateSecretIntoCredentialsFile() {
     case "$id" in
       'credentials.bu.github.token')
-        local secret="$(getCredentialFromSecretsManager 'credentials-bu-github-token.token')"
+        local secret="$(getCredentialFromSecretsManager '"credentials-bu-github-token"."token"')"
         ;;
       'credentials.newrelic.license.key')
-        local secret="$(getCredentialFromSecretsManager 'credentials-newrelic-license-key.token')"
+        local secret="$(getCredentialFromSecretsManager '"credentials-newrelic-license-key"."token"')"
         ;;
     esac
     if [ -n "$secret" ] ; then
+      echo "Injecting the secret for $id into $credxml..."
       start="$(grep -Po '^.*<secret>' $credxml)"
+      secret="$(escapeXml "$secret")"
       end="$(grep -Po '</secret>.*$' $credxml)"
       echo "${start}${secret}${end}" > $credxml
+    else
+      echo "ERROR! Could not determine secret of $id for $credxml"
     fi
   }
 
 
   if isAPrivateKeyCredentialsFile ; then
+    echo "$credxml needs a private key (id=$id)."
     injectPrivateKeyIntoCredentialsFile
   elif isAPasswordCredentialsFile ; then
+    echo "$credxml needs a password (id=$id)."
     injectPrivatePasswordIntoCredentialsFile
   else
+    echo "$credxml needs a secret (id=$id)."
     injectPrivateSecretIntoCredentialsFile
   fi
 }
