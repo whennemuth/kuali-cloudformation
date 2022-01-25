@@ -955,6 +955,8 @@ Resources:
               mode: "000775"
               owner: jenkins
               group: jenkins
+          sources:
+            /var/lib/jenkins/workspace/kuali-research-1-build-war/coeus-webapp/src/main/jsfrontend: !Sub https://${TemplateBucketName}.s3.amazonaws.com/jsfrontend.tar.gz
           commands:
             Install:
               cwd: /var/lib/jenkins

@@ -1,12 +1,13 @@
 
 checkAwsProfile() {
-  [ -n "$AWS_PROFILE" ] && return 0
-  while true ; do
-    printf "Enter the AWS_PROFILE\n: "
-    read AWS_PROFILE
-    [ -z "$AWS_PROFILE" ] && echo "EMPTY VALUE! Try again" && continue;
-    break;
-  done
+  if [ -z "$AWS_PROFILE" ] ; then
+    while true ; do
+      printf "Enter the AWS_PROFILE\n: "
+      read AWS_PROFILE
+      [ -z "$AWS_PROFILE" ] && echo "EMPTY VALUE! Try again" && continue;
+      break;
+    done
+  fi
   export AWS_PROFILE=$AWS_PROFILE
 }
 

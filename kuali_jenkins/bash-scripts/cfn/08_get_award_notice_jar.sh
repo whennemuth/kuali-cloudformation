@@ -1,5 +1,5 @@
 repo='/var/lib/jenkins/.m2/repository'
-group='bu.edu'
+group='edu.bu'
 groupPath=$(echo $group | sed 's|\.|/|g')
 artifact='bu-awardnotice'
 version='1.1'
