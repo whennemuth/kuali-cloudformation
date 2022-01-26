@@ -77,9 +77,18 @@ public class ParameterController extends AbstractParameterSet {
 			GitCommandLineAdapter git = null;
 			String ecrRepoName = null;
 			AbstractAwsDAO basicDAO = null;
+			StackDAO stackDAO = null;
 			String css = "";
 			
 			switch(parameter) {
+				case STACK_NAME:
+					String landscape = config.getParameterMap().get(QueryStringParms.LANDSCAPE.arg());
+					if( ! Argument.isMissing(landscape)) {
+						stackDAO = new StackDAO(credentials);
+						String stackName = stackDAO.getKualiStackApplicationStack(landscape).stackName();
+						parameterView.setContextVariable("StackName", stackName);
+					}
+					break;
 				case ECR_URL:
 					basicDAO = AbstractAwsDAO.getInstance(credentials);
 	

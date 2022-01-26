@@ -132,7 +132,9 @@ setDefaults() {
   DOCKER_BUILD_CONTEXT="git@github.com:bu-ist/kuali-research-docker.git#${DOCKER_BUILD_CONTEXT_GIT_BRANCH}:kuali-research/build.context"
 }
 
-[ "$DEBUG" == 'true' ] && set -x
+checkTestHarness $@ || true 2> /dev/null
+
+isDebug && set -x
 
 setDefaults
 

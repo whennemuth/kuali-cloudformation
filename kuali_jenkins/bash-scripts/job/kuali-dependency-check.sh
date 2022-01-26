@@ -1,8 +1,9 @@
-set +x
-echo " "
-echo "----------------------------------------------------------------------------"
-echo "          M2 DEPENDENCY CHECK (schemaspy, rice, coeus-api, s2sgen)"
-echo "----------------------------------------------------------------------------"
+outputHeading "M2 DEPENDENCY CHECK (schemaspy, rice, coeus-api, s2sgen)"
+
+checkTestHarness $@ || true 2> /dev/null
+
+isDebug && set -x
+
 echo " "
 echo "1) Analyzing pom for versions..."
 

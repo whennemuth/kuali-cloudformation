@@ -21,6 +21,7 @@ public enum ParameterName implements JobParameterMetadata {
 	RELEASE_INFO_PDF("ReleaseInfoPDF", "release-info-pdf"),
 	KUALICO_PDF_IMAGES("KualicoPdfImages", "kualico-pdf-images"),
 	STACK("StackListTable", "stack-list-table"),
+	STACK_NAME("StackName", "stack-name"),
 	INVALID("InvalidState", "invalid-state");
 
 	private String viewName;

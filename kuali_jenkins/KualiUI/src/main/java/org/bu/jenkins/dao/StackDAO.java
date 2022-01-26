@@ -1,5 +1,6 @@
 package org.bu.jenkins.dao;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -15,6 +16,17 @@ import org.bu.jenkins.mvc.model.CloudFormationStack;
 import org.bu.jenkins.util.CaseInsensitiveEnvironment;
 import org.bu.jenkins.util.NamedArgs;
 import org.bu.jenkins.util.logging.LoggingStarterImpl;
+
+import com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility;
+import com.fasterxml.jackson.annotation.PropertyAccessor;
+import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.Version;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.SerializerProvider;
+import com.fasterxml.jackson.databind.module.SimpleModule;
+import com.fasterxml.jackson.databind.ser.std.StdSerializer;
 
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.awscore.exception.AwsServiceException;
@@ -144,23 +156,106 @@ public class StackDAO extends AbstractAwsDAO {
 	}
 	
 	/**
-	 * Get a list of stack for the kuali application. These will only include the primary application stacks that comprise kuali 
+	 * Get a list of stacks for the kuali application. These will only include the primary application stacks that comprise kuali 
 	 * running as a containerized service on ec2 instances. This will NOT include nested stacks.
 	 * @return
 	 */
-	public List<CloudFormationStack> getKualiApplicationStacks() {
+	private List<Stack> _getKualiApplicationStacks() {
 		List<Stack> stacks = getKualiStacks(false);
-		List<CloudFormationStack> filtered = new ArrayList<CloudFormationStack>();
+		List<Stack> filtered = new ArrayList<Stack>();
 		for(Stack stack : stacks) {
 			if(stack.rootId() == null) {
 				for(Tag tag : stack.tags()) {
 					if(tag.key().equalsIgnoreCase("Category") && tag.value().equalsIgnoreCase("application")) {
-						filtered.add(new CloudFormationStack(stack));
+						filtered.add(stack);
 					}
 				}
 			}
 		}
+		return filtered;		
+	}
+	
+	/**
+	 * Get a list of stacks for the kuali application. These will only include the primary application stacks that comprise kuali 
+	 * running as a containerized service on ec2 instances. This will NOT include nested stacks.
+	 * @return
+	 */
+	public List<CloudFormationStack> getKualiApplicationStacks() {
+		List<Stack> stacks = _getKualiApplicationStacks();
+		List<CloudFormationStack> filtered = new ArrayList<CloudFormationStack>();
+		for(Stack stack : stacks) {
+			filtered.add(new CloudFormationStack(stack));
+		}
 		return filtered;
+	}
+	
+	public Stack getKualiStackApplicationStack(String landscape) {
+		Stack match = null;
+		List<Stack> stacks = _getKualiApplicationStacks();
+		for(Stack stack : stacks) {
+			if(landscape.equalsIgnoreCase(new CloudFormationStack(stack).getLandscape())) {
+				match = stack;
+			}
+		}
+		return match;
+	}
+	
+	public String getKualiStackApplicationStackJson(String landscape) {
+		return getKualiStackApplicationStackJson(landscape, false);
+	}
+	
+	public String getKualiStackApplicationStackJson(String landscape, boolean formatted) {
+		Stack stack = getKualiStackApplicationStack(landscape);
+		if(stack == null) {
+			return "{}";
+		}
+		ObjectMapper objectMapper = new ObjectMapper();
+		// objectMapper.setVisibility(PropertyAccessor.FIELD, Visibility.ANY);
+
+		@SuppressWarnings("serial")
+		class CustomStackSerializer extends StdSerializer<Stack> {
+		    
+		    public CustomStackSerializer() {
+		        this(null);
+		    }
+
+		    public CustomStackSerializer(Class<Stack> t) {
+		        super(t);
+		    }
+
+		    @Override
+		    public void serialize(
+		      Stack stack, JsonGenerator jsonGenerator, SerializerProvider serializer) throws IOException {
+		        jsonGenerator.writeStartObject();
+		        
+		        jsonGenerator.writeStringField("stackName", stack.stackName());
+		        jsonGenerator.writeStringField("stackId", stack.stackId());
+		        jsonGenerator.writeStringField("roleARN", stack.roleARN());
+		        jsonGenerator.writeStringField("stackStatusAsString", stack.stackStatusAsString());
+		        jsonGenerator.writeStringField("stackStatusReason", stack.stackStatusReason());
+		        jsonGenerator.writeStringField("creationTime", stack.creationTime() == null ? "null" : stack.creationTime().toString());
+		        jsonGenerator.writeStringField("deletionTime", stack.deletionTime() == null ? "null" : stack.toString());
+		        jsonGenerator.writeStringField("description", stack.description());
+		        
+		        jsonGenerator.writeEndObject();
+		    }
+		}
+
+		try {
+			SimpleModule module = new SimpleModule("CustomStackSerializer", new Version(1, 0, 0, null, null, null));
+			module.addSerializer(Stack.class, new CustomStackSerializer());
+			objectMapper.registerModule(module);
+			if(formatted) {
+				return objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(stack);
+			}
+			else {
+				return objectMapper.writeValueAsString(stack);
+			}
+		} 
+		catch (JsonProcessingException e) {
+			e.printStackTrace();
+			return String.format("{\"error\":\"%s\"}", e.getMessage().replaceAll("\"", ""));
+		}
 	}
 
 	@Override
@@ -179,6 +274,10 @@ public class StackDAO extends AbstractAwsDAO {
 		StackDAO dao = new StackDAO(AWSCredentials.getInstance(namedArgs));		
 		for (Stack stack : dao.getKualiStacks(false)) {
 			System.out.println(stack.stackName());
+		}
+		
+		if(namedArgs.has("landscape")) {
+			System.out.println(dao.getKualiStackApplicationStackJson(namedArgs.get("landscape"), true));
 		}
 	}
 }

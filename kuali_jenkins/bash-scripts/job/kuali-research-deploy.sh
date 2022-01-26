@@ -291,6 +291,8 @@ deploy() {
 
 checkTestHarness $@ || true 2> /dev/null
 
+isDebug && set -x
+
 if validInputs ; then
 
   printVariables

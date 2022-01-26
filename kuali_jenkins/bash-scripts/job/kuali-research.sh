@@ -226,6 +226,7 @@ makeJobCalls() {
   for jobname in ${jobnames[@]} ; do
     local jobcall="${jobcalls[$jobname]}"
     if [ -n "$jobcall" ] ; then
+      outputHeading "$jobname"
       eval "$jobcall"
     fi
   done

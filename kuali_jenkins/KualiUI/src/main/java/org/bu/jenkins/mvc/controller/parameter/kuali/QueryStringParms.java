@@ -8,6 +8,7 @@ package org.bu.jenkins.mvc.controller.parameter.kuali;
  */
 public enum QueryStringParms {
 	PARAMETER_NAME,
+	LANDSCAPE,
 	HTML,
 	SELECTED_ITEM,
 	DOCKER_REPOSITORY_NAME,
