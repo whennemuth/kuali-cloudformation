@@ -36,6 +36,7 @@ validInputs() {
 
 printVariables() {
   echo "LANDSCAPE=$LANDSCAPE"
+  echo "STACK_NAME=$STACK_NAME"
   # echo "BASELINE=$BASELINE"
   echo "ECR_REGISTRY_URL=$ECR_REGISTRY_URL"
   echo "REGISTRY_REPO_NAME=$REGISTRY_REPO_NAME"
@@ -141,13 +142,14 @@ sendCommand() {
   outputHeading "Sending ssm command to refresh docker container at $ec2Id"
 
   if runningOnJenkinsServer ; then
-    if isDebug ; then
+    if isDryrun ; then
+      echo "DRYRUN: sendCommand..."
       return 0
     fi
     finalBase64="$base64"
   else
     # Debugging locally
-    if isDryrun || isDebug ; then
+    if isDryrun ; then
       finalBase64=$(getHarmlessBase64EncodedCommand $output_dir)
     else
       finalBase64="$base64"
@@ -182,6 +184,14 @@ waitForCommandOutputLogs() {
   local ec2Id="$1"
   local output_dir="$2"
   i=1
+
+  if runningOnJenkinsServer ; then
+    if isDryrun ; then
+      echo "DRYRUN: waitForCommandOutputLogs..."
+      return 0
+    fi
+  fi
+
   while ((i<100)) ; do
     s3Url="$(s3GetKcSendCommandOutputFileUrl $COMMAND_ID $STDOUT_BUCKET)"
     [ -n "$s3Url" ] && echo "Url to presign is: $s3Url" && break;

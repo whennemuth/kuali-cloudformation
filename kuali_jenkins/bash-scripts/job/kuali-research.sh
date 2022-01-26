@@ -161,6 +161,7 @@ buildWarJobCall() {
     fi
     BUILD_WAR='true'
     isSandbox && local branch='master' || local branch='feature'
+    addJobParm 'build-war' 'DEBUG' "$DEBUG"
     addJobParm 'build-war' 'BRANCH' $branch
     addJobParm 'build-war' 'GIT_REFSPEC' $GIT_REFSPEC
     addJobParm 'build-war' 'GIT_BRANCHES_TO_BUILD' $GIT_BRANCHES_TO_BUILD
@@ -177,6 +178,7 @@ buildWarJobCall() {
 }
 
 buildDockerBuildImageJobCall() {
+  addJobParm 'build-image' 'DEBUG' "$DEBUG"
   addJobParm 'build-image' 'POM_VERSION' "\$(getPomVersion)"
   addJobParm 'build-image' 'JENKINS_WAR_FILE' "\$(lastWar)"
   addJobParm 'build-image' 'REGISTRY_REPO_NAME' "$(getEcrRepoName)"
@@ -184,6 +186,7 @@ buildDockerBuildImageJobCall() {
 }
 
 buildDockerPushImageJobCall() {
+  addJobParm 'push-image' 'DEBUG' "$DEBUG"
   addJobParm 'push-image' 'ECR_REGISTRY_URL' "$ECR_REGISTRY_URL"
   addJobParm 'push-image' 'POM_VERSION' "\$(getPomVersion)"
   addJobParm 'push-image' 'REGISTRY_REPO_NAME' "$(getEcrRepoName)"
@@ -197,6 +200,7 @@ buildDeployJobCall() {
   fi
   addJobParm 'deploy' 'STACK_NAME' "\"$STACK_NAME\""
   # addJobParm 'deploy' 'BASELINE' "$BASELINE"
+  addJobParm 'deploy' 'DEBUG' "$DEBUG"
   addJobParm 'deploy' 'LANDSCAPE' "$LANDSCAPE"
   addJobParm 'deploy' 'NEW_RELIC_LOGGING' "$(newrelic && echo 'true' || echo 'false')"
   addJobParm 'deploy' 'ECR_REGISTRY_URL' "$ECR_REGISTRY_URL"
