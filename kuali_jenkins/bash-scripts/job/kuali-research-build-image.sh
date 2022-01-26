@@ -1,0 +1,147 @@
+# Periodic cleanup: remove registry originated images that are over 6 months old
+pruneOldRegistryImages() {
+  [ "$DRYRUN" == 'true' ] && echo "DRYRUN: pruneOldRegistryImages..." && return 0
+  echo "Removing coeus images tagged for the registry over 6 months ago..."
+  docker rmi $(
+    docker images | \
+      grep "$AWS_ACCOUNT_ID" | \
+      awk '(($4 >= 6 && $5 == "months") || ($5 == "years")) && ($1 ~ /^.*\/coeus(\-feature)?$/) {
+        print $3
+      }'\
+  ) 2> /dev/null && \
+  docker rmi $(docker images -a --filter dangling=true -q) 2> /dev/null || true
+}
+
+# If the base tomcat image is not in the local repo, get it from the registry
+# default value is being invoked through calling this job using the jenkins-cli build function with the corresponding parameter omitted.
+# NOTE: If you run this job manually, the default value will be reflected in the environment variable.
+getTomcatDockerImage() {
+  BASE_IMAGE_TAG="java${JAVA_VERSION}-tomcat${TOMCAT_VERSION}"
+  TOMCAT_REGISTRY_IMAGE="${ECR_REGISTRY_URL}/${BASE_IMAGE_REPO}:${BASE_IMAGE_TAG}"
+  TOMCAT_LOCAL_IMAGE="bu-ist/${BASE_IMAGE_REPO}:${BASE_IMAGE_TAG}"
+  if [ -z "$(docker images -q ${TOMCAT_LOCAL_IMAGE})" ]; then
+    echo "CANNOT FIND DOCKER IMAGE: ${TOMCAT_LOCAL_IMAGE}";
+    if [ -z "$(docker images -q ${TOMCAT_REGISTRY_IMAGE})" ]; then 
+        echo "CANNOT FIND DOCKER IMAGE: ${TOMCAT_REGISTRY_IMAGE}"; 
+        echo "Pulling ${TOMCAT_REGISTRY_IMAGE} from registry..."
+        aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY_URL}
+        docker pull ${TOMCAT_REGISTRY_IMAGE}
+    fi
+    echo "Tagging ${TOMCAT_REGISTRY_IMAGE}"
+    docker tag ${TOMCAT_REGISTRY_IMAGE} ${TOMCAT_LOCAL_IMAGE}
+  fi
+}
+
+# Fetch and reset the code from the git repository containing the docker build context
+refreshBuildCode() {
+  [ "$DRYRUN" == 'true' ] && echo "DRYRUN: refreshBuildCode..." && return 0
+  eval `ssh-agent -k` || true
+  eval `ssh-agent -s`
+  ssh-add ~/.ssh/bu_github_id_docker_rsa
+  if [ -d kuali-research-docker ] ; then
+    rm -f -r kuali-research-docker
+  fi
+  mkdir kuali-research-docker
+  cd kuali-research-docker
+  git init	
+  git config user.email "jenkins@bu.edu"
+  git config user.name jenkins
+  git config core.sparseCheckout true
+  git remote add github git@github.com:bu-ist/kuali-research-docker.git
+  echo kuali-research >> .git/info/sparse-checkout
+  echo bash.lib.sh >> .git/info/sparse-checkout
+  git fetch github master
+  git checkout master 
+  eval `ssh-agent -k`
+}
+
+copyWarToBuildContext() {
+  [ "$DRYRUN" == 'true' ] && echo "DRYRUN: copyWarToBuildContext..." && return 0
+  if [ -n "${JENKINS_WAR_FILE}" ] ; then
+    cp ${JENKINS_WAR_FILE} kuali-research/build.context
+  else
+    MAVEN_TARGET_DIR=${JENKINS_HOME}/workspace/kuali-research-1-build-war/coeus-webapp/target
+    cp ${MAVEN_TARGET_DIR}/*.war kuali-research/build.context
+  fi
+  cd kuali-research/build.context
+  WAR_FILE=$(ls *.war)
+}
+
+checkCentosImage() {
+  [ "$DRYRUN" == 'true' ] && echo "DRYRUN: checkCentosImage..." && return 0
+  local ecrImage="$ECR_REGISTRY_URL/${BASE_IMAGE_REPO}:${TOMCAT_VERSION}"
+  local localImage="bu-ist/${BASE_IMAGE_REPO}:${TOMCAT_VERSION}"
+  if [ "$(docker images -q $localImage | wc -l)" == "0" ] ; then
+    if [ "$(docker images -q $ecrImage | wc -l)" == "0" ] ; then
+      evalstr="$(aws ecr get-login)"
+      evalstr="$(echo $evalstr | sed 's/ -e none//')"
+      eval $evalstr
+      docker pull $ecrImage
+    fi
+    docker tag $ecrImage $localImage
+  fi
+}
+
+
+# Since the $SOURCE_WAR artifact exists outside the docker build context we cannot execute the COPY 
+# instruction in the Dockerfile against $SOURCE_WAR because we are implementing jenkins security 
+# and docker gets challenged for authentication while trying to the war file from this link. So, 
+# preferably, we would have a RUN instruction in the Dockerfile that curls the jenkins war artifact 
+# into the image while it is building, or use the ADD instruction - and the build command would be:
+#
+#    docker build -t ${DOCKER_TAG} --build-arg SOURCE_WAR=${JENKINS_WAR_URL} ${DOCKER_BUILD_CONTEXT}
+#
+# However, the ADD instruction does
+# not support authentication and I have not been able to make wget or curl with authentication work 
+# from a RUN instruction within the Dockerfile for this same link. Therefore we must get our war 
+# file into the build context manually where we can use ADD (or COPY) with a relative file location.
+# Therefore, the standard docker build command with a context referring to a git repo also cannot be used
+# because it clones the build context to some unknown directory in /tmp.
+# Therefore, we will checkout the build context to a known location within the jenkins build context, copy
+buildDockerImage() {
+
+  copyWarToBuildContext
+  
+  # checkCentosImage
+  
+  local cmd="docker build -t ${DOCKER_TAG} \\
+    --build-arg SOURCE_WAR=${WAR_FILE} \\
+    --build-arg JAVA_VERSION=${JAVA_VERSION} \\
+    --build-arg REPO_URI=${ECR_REGISTRY_URL}/${BASE_IMAGE_REPO} \\
+    --build-arg TOMCAT_VERSION=${TOMCAT_VERSION} ."
+  
+  echo "$cmd"
+  [ "$DRYRUN" != 'true' ] && eval "$cmd"
+}
+
+removeDanglingImages() {
+  echo "Removing dangling images..."
+  docker rmi $(docker images -a --filter dangling=true -q) 2> /dev/null || true
+}
+
+# Define variables.
+# NOTE: JENKINS_URL is the full URL of Jenkins, like http://server:port/jenkins/ 
+#       Only available if Jenkins URL is set in system configuration
+setDefaults() {
+  [ -z "$BASE_IMAGE_REPO" ] && BASE_IMAGE_REPO='kuali-centos7-java-tomcat'
+  [ -z "$JAVA_VERSION" ] && JAVA_VERSION=11
+  [ -z "$TOMCAT_VERSION" ] && TOMCAT_VERSION='9.0.41'
+  AWS_ACCOUNT_ID="$(echo "$ECR_REGISTRY_URL" | cut -d '.' -f1)"
+  AWS_REGION="$(echo "$ECR_REGISTRY_URL" | cut -d '.' -f4)"
+  DOCKER_TAG="${ECR_REGISTRY_URL}/${REGISTRY_REPO_NAME}:${POM_VERSION}"
+  DOCKER_BUILD_CONTEXT="git@github.com:bu-ist/kuali-research-docker.git#${DOCKER_BUILD_CONTEXT_GIT_BRANCH}:kuali-research/build.context"
+}
+
+[ "$DEBUG" == 'true' ] && set -x
+
+setDefaults
+
+pruneOldRegistryImages
+
+getTomcatDockerImage
+
+refreshBuildCode
+
+buildDockerImage
+
+removeDanglingImages
