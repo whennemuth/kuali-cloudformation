@@ -62,9 +62,13 @@ getStackType() {
     | jq -r '.Stacks[0].Tags[] | select(.Key == "Subcategory").Value' 2>&1
 }
 
-# Get the bash command(s) to be sent to the target ec2 instance as a base64 encoded string
-getBase64EncodedCommand() {
+getCommand() {
   local output_dir="$1"
+  local printCommand="${2:-"false"}"
+
+  obfuscatePassword() {
+    [ "$printCommand" == 'true' ] && obfuscate "$1" || echo "$1"
+  }
   
   if [ "${POM_VERSION:0:1}" == '@' ] ; then
     NEW_IMAGE="${ECR_REGISTRY_URL}/${REGISTRY_REPO_NAME}${POM_VERSION}"
@@ -73,7 +77,7 @@ getBase64EncodedCommand() {
   fi
 
   echo \
-    "if [ ! -d $output_dir ] ; then
+    "    if [ ! -d $output_dir ] ; then
       mkdir -p $output_dir;
     fi
     cd /opt/kuali/scripts
@@ -98,7 +102,7 @@ getBase64EncodedCommand() {
     echo \"    image: $NEW_IMAGE\" >> \$f
     echo \"    environment:\" >> \$f
     echo \"      - EC2_HOSTNAME=\$ec2Host\" >> \$f
-    echo \"      - NEW_RELIC_LICENSE_KEY=$NEW_RELIC_LICENSE_KEY\" >> \$f
+    echo \"      - NEW_RELIC_LICENSE_KEY=$(obfuscatePassword "$NEW_RELIC_LICENSE_KEY" "true")\" >> \$f
     echo \"      - NEW_RELIC_AGENT_ENABLED=$NEW_RELIC_AGENT_ENABLED\" >> \$f
     echo \"      - NEW_RELIC_INFRASTRUCTURE_ENABLED=$NEW_RELIC_INFRASTRUCTURE_ENABLED\" >> \$f
     echo \"      - LOGJ2_CATALINA_LEVEL=$LOGJ2_CATALINA_LEVEL\" >> \$f
@@ -121,7 +125,12 @@ getBase64EncodedCommand() {
     sleep 3
     echo ''
     echo \"kuali-research container environment:\"
-    docker exec kuali-research env 2> /dev/null" | base64 -w 0
+    docker exec kuali-research env 2> /dev/null"
+}
+
+# Get the bash command(s) to be sent to the target ec2 instance as a base64 encoded string
+getBase64EncodedCommand() {
+  getCommand $1 | base64 -w 0
 }
 
 # Get a simple bash command to write out a file to be sent to the target ec2 instance as a base64 encoded string.
@@ -138,6 +147,7 @@ sendCommand() {
   local output_dir="$2"
 
   outputHeading "Building ssm command (determine stack type, build, encode)"
+  getCommand $output_dir "true"
   local base64="$(getBase64EncodedCommand $output_dir)"
   outputHeading "Sending ssm command to refresh docker container at $ec2Id"
 
