@@ -57,10 +57,9 @@ runningOnJenkinsServer() {
 }
 
 getStackType() {
-  local cmd="aws cloudformation describe-stacks \\
-    --stack-name $STACK_NAME \\
-    | jq -r '.Stacks[0].Tags[] | select(.Key == "Subcategory").Value' 2> /dev/null"
-  echo "$cmd" && eval "$cmd"
+  aws cloudformation describe-stacks \
+    --stack-name $STACK_NAME 2>&1 \
+    | jq -r '.Stacks[0].Tags[] | select(.Key == "Subcategory").Value' 2>&1
 }
 
 # Get the bash command(s) to be sent to the target ec2 instance as a base64 encoded string
@@ -287,7 +286,6 @@ deployToEcs() {
 
 deploy() {
   outputHeading "Determining type of stack for: $STACK_NAME ..."
-  set -x
   local stackType="$(getStackType)"
   case "$stackType" in
     ec2)
@@ -303,7 +301,7 @@ deploy() {
   esac
 }
 
-checkTestHarnes $@s 2> /dev/null || true
+checkTestHarness $@s 2> /dev/null || true
 
 isDebug && set -x
 

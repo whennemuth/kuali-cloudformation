@@ -34,8 +34,7 @@ outputHeading() {
   echo "       $msg"
   echo "$border"
 
-  [ "$returnToDebugMode" == 'true' ] && set -x
-  echo "hello hello hello"
+  [ "$returnToDebugMode" == 'true' ] && set -x || true
 }
 
 obfuscate() {
