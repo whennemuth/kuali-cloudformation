@@ -294,7 +294,7 @@ run() {
   [ ${#parms[@]} -gt 0 ] && run $@
 }
 
-checkTestHarness $@ || true
+checkTestHarness $@ || true 2> /dev/null
 
 run $@
 

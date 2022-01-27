@@ -130,20 +130,49 @@ setDefaults() {
   AWS_REGION="$(echo "$ECR_REGISTRY_URL" | cut -d '.' -f4)"
   DOCKER_TAG="${ECR_REGISTRY_URL}/${REGISTRY_REPO_NAME}:${POM_VERSION}"
   DOCKER_BUILD_CONTEXT="git@github.com:bu-ist/kuali-research-docker.git#${DOCKER_BUILD_CONTEXT_GIT_BRANCH}:kuali-research/build.context"
+
+  echo "BASE_IMAGE_REPO=$BASE_IMAGE_REPO"
+  echo "JAVA_VERSION=$JAVA_VERSION"
+  echo "TOMCAT_VERSION=$TOMCAT_VERSION"
+  echo "ECR_REGISTRY_URL=$ECR_REGISTRY_URL"
+  echo "AWS_ACCOUNT_ID=$AWS_ACCOUNT_ID"
+  echo "AWS_REGION=$AWS_REGION"
+  echo "DOCKER_TAG=$DOCKER_TAG"
+  echo "DOCKER_BUILD_CONTEXT=$DOCKER_BUILD_CONTEXT"
+
+  local msg=""
+  appendMessage() {
+    [ -n "$msg" ] && msg="$msg, $1" || msg="$1"
+  }
+
+  [ -z "?BASE_IMAGE_REPO" ] && appendMessage "BASE_IMAGE_REPO"
+  [ -z "?JAVA_VERSION" ] && appendMessage "JAVA_VERSION"
+  [ -z "?TOMCAT_VERSION" ] && appendMessage "TOMCAT_VERSION"
+  [ -z "?ECR_REGISTRY_URL" ] && appendMessage "ECR_REGISTRY_URL"
+  [ -z "?AWS_ACCOUNT_ID" ] && appendMessage "AWS_ACCOUNT_ID"
+  [ -z "?AWS_REGION" ] && appendMessage "AWS_REGION"
+  [ -z "?DOCKER_TAG" ] && appendMessage "DOCKER_TAG"
+  [ -z "?DOCKER_BUILD_CONTEXT" ] && appendMessage "DOCKER_BUILD_CONTEXT"
+  [ -n "$msg" ] && echo "ERROR missing parameter(s): $msg"
+
+  [ -n "$msg" ] && true || false
 }
 
 checkTestHarness $@ || true 2> /dev/null
 
 isDebug && set -x
 
-setDefaults
+if setDefaults ; then
 
-pruneOldRegistryImages
+  pruneOldRegistryImages
 
-getTomcatDockerImage
+  getTomcatDockerImage
 
-refreshBuildCode
+  refreshBuildCode
 
-buildDockerImage
+  buildDockerImage
 
-removeDanglingImages
+  removeDanglingImages
+else
+  exit 1
+fi

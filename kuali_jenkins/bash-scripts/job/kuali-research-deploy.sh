@@ -311,7 +311,7 @@ deploy() {
   esac
 }
 
-checkTestHarness $@s 2> /dev/null || true
+checkTestHarness $@ || true 2> /dev/null
 
 isDebug && set -x
 
