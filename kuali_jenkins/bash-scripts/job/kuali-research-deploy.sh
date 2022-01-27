@@ -287,7 +287,8 @@ deployToEcs() {
 
 deploy() {
   outputHeading "Determining type of stack for: $STACK_NAME ..."
-  local stackType="$(getStackType $STACK_NAME)"
+  set -x
+  local stackType="$(getStackType)"
   case "$stackType" in
     ec2)
       deployToEc2 ;;
