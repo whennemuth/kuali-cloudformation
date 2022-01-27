@@ -145,17 +145,17 @@ setDefaults() {
     [ -n "$msg" ] && msg="$msg, $1" || msg="$1"
   }
 
-  [ -z "?BASE_IMAGE_REPO" ] && appendMessage "BASE_IMAGE_REPO"
-  [ -z "?JAVA_VERSION" ] && appendMessage "JAVA_VERSION"
-  [ -z "?TOMCAT_VERSION" ] && appendMessage "TOMCAT_VERSION"
-  [ -z "?ECR_REGISTRY_URL" ] && appendMessage "ECR_REGISTRY_URL"
-  [ -z "?AWS_ACCOUNT_ID" ] && appendMessage "AWS_ACCOUNT_ID"
-  [ -z "?AWS_REGION" ] && appendMessage "AWS_REGION"
-  [ -z "?DOCKER_TAG" ] && appendMessage "DOCKER_TAG"
-  [ -z "?DOCKER_BUILD_CONTEXT" ] && appendMessage "DOCKER_BUILD_CONTEXT"
+  [ -z "$BASE_IMAGE_REPO" ] && appendMessage "BASE_IMAGE_REPO"
+  [ -z "$JAVA_VERSION" ] && appendMessage "JAVA_VERSION"
+  [ -z "$TOMCAT_VERSION" ] && appendMessage "TOMCAT_VERSION"
+  [ -z "$ECR_REGISTRY_URL" ] && appendMessage "ECR_REGISTRY_URL"
+  [ -z "$AWS_ACCOUNT_ID" ] && appendMessage "AWS_ACCOUNT_ID"
+  [ -z "$AWS_REGION" ] && appendMessage "AWS_REGION"
+  [ -z "$DOCKER_TAG" ] && appendMessage "DOCKER_TAG"
+  [ -z "$DOCKER_BUILD_CONTEXT" ] && appendMessage "DOCKER_BUILD_CONTEXT"
   [ -n "$msg" ] && echo "ERROR missing parameter(s): $msg"
 
-  [ -n "$msg" ] && true || false
+  [ -z "$msg" ] && true || false
 }
 
 checkTestHarness $@ || true 2> /dev/null
