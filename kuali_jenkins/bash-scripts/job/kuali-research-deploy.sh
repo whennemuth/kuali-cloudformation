@@ -57,9 +57,10 @@ runningOnJenkinsServer() {
 }
 
 getStackType() {
-  aws cloudformation describe-stacks \
-    --stack-name $STACK_NAME \
-    | jq -r '.Stacks[0].Tags[] | select(.Key == "Subcategory").Value' 2> /dev/null
+  local cmd="aws cloudformation describe-stacks \\
+    --stack-name $STACK_NAME \\
+    | jq -r '.Stacks[0].Tags[] | select(.Key == "Subcategory").Value' 2> /dev/null"
+  echo "$cmd" && eval "$cmd"
 }
 
 # Get the bash command(s) to be sent to the target ec2 instance as a base64 encoded string
@@ -222,6 +223,7 @@ waitForCommandOutputLogs() {
 
 # Fetch and reset the code from the git repository containing the docker build context
 getBashLibFile() {
+  echo "Getting bash.lib.sh from git@github.com:bu-ist/kuali-research-docker.git..."
   (
     eval `ssh-agent -k` || true
     eval `ssh-agent -s`
@@ -285,7 +287,8 @@ deployToEcs() {
 
 deploy() {
   outputHeading "Determining type of stack for: $STACK_NAME ..."
-  case "$(getStackType $STACK_NAME)" in
+  local stackType="$(getStackType $STACK_NAME)"
+  case "$stackType" in
     ec2)
       deployToEc2 ;;
     ec2-alb)
@@ -299,7 +302,7 @@ deploy() {
   esac
 }
 
-checkTestHarness $@ || true 2> /dev/null
+checkTestHarnes $@s 2> /dev/null || true
 
 isDebug && set -x
 
