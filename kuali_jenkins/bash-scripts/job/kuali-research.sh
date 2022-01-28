@@ -225,7 +225,7 @@ printJobCalls() {
     local jobcall="$(echo ${jobcalls[$jobname]} | sed 's/ -p/ \\\n  -p/g')"
     if [ -n "$jobcall" ] ; then
       echo ""
-      echo "$jobcall"
+      echo "$jobcall" | sed -E 's/\x20/ \\\n  /g'
     fi
   done
   echo ""
@@ -237,7 +237,9 @@ makeJobCalls() {
   for jobname in ${jobIDs[@]} ; do
     local jobcall="${jobcalls[$jobname]}"
     if [ -n "$jobcall" ] ; then
-      outputHeading "$jobname"
+      outputHeading "Invoking $jobname..."
+      echo "$jobcall" | sed -E 's/\x20/ \\\n  /g'
+      echo ""
       eval "$jobcall"
     fi
   done
