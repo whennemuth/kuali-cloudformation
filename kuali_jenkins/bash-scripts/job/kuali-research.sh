@@ -1,15 +1,22 @@
-jobnames=(
+jobIDs=(
   build-war
   build-image
   push-image
   deploy
 )
 
-declare -A jobs=()
-jobs[${jobnames[0]}]='kuali-research-1-build-war'
-jobs[${jobnames[1]}]='kuali-research-2-docker-build-image'
-jobs[${jobnames[2]}]='kuali-research-3-docker-push-image'
-jobs[${jobnames[3]}]='kuali-research-4-deploy-to-stack'
+declare -A jobScripts=()
+jobScriptDir=${JOB_SCRIPT_DIR:-"/var/lib/jenkins/kuali-infrastructure/kuali_jenkins/bash-scripts/job"}
+jobScripts[${jobIDs[0]}]="$jobScriptDir/kuali-research-build-war.sh"
+jobScripts[${jobIDs[1]}]="$jobScriptDir/kuali-research-build-image.sh"
+jobScripts[${jobIDs[2]}]="$jobScriptDir/kuali-research-push-image.sh"
+jobScripts[${jobIDs[3]}]="$jobScriptDir/kuali-research-deploy.sh"
+
+declare -A jobNames=()
+jobNames[${jobIDs[0]}]='kuali-research-1-build-war'
+jobNames[${jobIDs[1]}]='kuali-research-2-docker-build-image'
+jobNames[${jobIDs[2]}]='kuali-research-3-docker-push-image'
+jobNames[${jobIDs[3]}]='kuali-research-4-deploy-to-stack'
 
 declare -A jobcalls=()
 
@@ -64,11 +71,11 @@ addJobParm() {
   local temp=${jobcalls[$job]}
   # Add the "boilerplate" details if not already there: java command, jar, arguments, and switches.
   if [ -z "$temp" ] ; then
-    temp="java -jar $CLI -s $HOST build '"${jobs[$job]}"' -v -f "
+    temp="sh -a ${jobScripts[$job]} "
   fi
   # Add the parameter.
   if [ -n "$key" ] && [ -n "$val" ] ; then
-    jobcalls[$job]="$temp -p $key=$val"
+    jobcalls[$job]="$temp $key=$val"
     if [ "$key" == "BRANCH" ] ; then
       # Set this particular variable for global visibility
       eval "$key=$val"
@@ -96,7 +103,7 @@ getPomVersion() {
   if [ -z "$POM_VERSION" ] ; then
     if isFeatureBuild ; then
       # Get the pom version of what is currently being built
-      local pom="$(dirname $WORKSPACE)/${jobs['build-war']}/pom.xml"
+      local pom="$(dirname $WORKSPACE)/${jobScripts['build-war']}/pom.xml"
         POM_VERSION="$(grep -Po '(?!<version>)[^<>]+</version>' $pom | head -n 1 | sed 's/<\/version>//')"
     elif isReleaseBuild ; then
       # Get the pom version of what has already been built by a prior job
@@ -120,7 +127,7 @@ getPomVersion() {
 
 # The last push o
 getPomVersionFromLastPushLog() {
-  local logfile="/var/lib/jenkins/jobs/${jobs['push-image']}/lastSuccessful/log"
+  local logfile="/var/lib/jenkins/jobs/${jobNames['push-image']}/lastSuccessful/log"
   if [ -f "$logfile" ] ; then
     cat $logfile | grep -P 'digest' | cut -d ':' -f 1 | tr -d '[[:space:]]'
   fi
@@ -214,7 +221,7 @@ buildDeployJobCall() {
 }
 
 printJobCalls() {
-  for jobname in ${jobnames[@]} ; do
+  for jobname in ${jobIDs[@]} ; do
     local jobcall="$(echo ${jobcalls[$jobname]} | sed 's/ -p/ \\\n  -p/g')"
     if [ -n "$jobcall" ] ; then
       echo ""
@@ -227,7 +234,7 @@ printJobCalls() {
 makeJobCalls() {
   local creds=/var/lib/jenkins/cli-credentials.sh
   [ -f $creds ] && source $creds
-  for jobname in ${jobnames[@]} ; do
+  for jobname in ${jobIDs[@]} ; do
     local jobcall="${jobcalls[$jobname]}"
     if [ -n "$jobcall" ] ; then
       outputHeading "$jobname"
@@ -262,7 +269,7 @@ run() {
   fi
 }
 
-checkTestHarness $@ || true 2> /dev/null
+checkTestHarness $@ 2> /dev/null || true
 
 isDebug && set -x
 

@@ -2,6 +2,10 @@
 
 # You must source common-functions.sh for some functionality used below.
 
+checkTestHarness $@ 2> /dev/null || true
+
+parseArgs
+
 isDebug && set -x
 
 validParameters() {

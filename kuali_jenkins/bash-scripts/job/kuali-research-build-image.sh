@@ -158,7 +158,9 @@ setDefaults() {
   [ -z "$msg" ] && true || false
 }
 
-checkTestHarness $@ || true 2> /dev/null
+checkTestHarness $@ 2> /dev/null || true
+
+parseArgs
 
 isDebug && set -x
 

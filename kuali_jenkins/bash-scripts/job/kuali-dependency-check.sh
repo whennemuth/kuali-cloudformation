@@ -1,6 +1,9 @@
-outputHeading "M2 DEPENDENCY CHECK (schemaspy, rice, coeus-api, s2sgen)"
 
-checkTestHarness $@ || true 2> /dev/null
+checkTestHarness $@ 2> /dev/null || true
+
+parseArgs
+
+outputHeading "M2 DEPENDENCY CHECK (schemaspy, rice, coeus-api, s2sgen)"
 
 isDebug && set -x
 
