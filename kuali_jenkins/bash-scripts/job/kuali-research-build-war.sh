@@ -154,19 +154,19 @@ backupWar() {
 
 if validParameters ; then
 
-#   if pullFromGithub ; then
+  if pullFromGithub ; then
 
     if checkDependencies ; then
-echo 'done'
-      # if buildWithMaven ; then
 
-      #   if packLog4jAppserverJar ; then
+      if buildWithMaven ; then
 
-      #     backupWar && local success='true'
-      #   fi
-      # fi
+        if packLog4jAppserverJar ; then
+
+          backupWar && local success='true'
+        fi
+      fi
     fi
-#   fi
+  fi
 fi
 
 if [ "$success" == 'true' ] ; then
