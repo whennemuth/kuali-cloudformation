@@ -85,13 +85,16 @@ warExists() {
 
 buildWithMaven() {
   outputSubHeading "Performing maven build..."
-
-  # mvn clean compile install \
-  #   -Dgrm.off=true \
-  #   -Dmaven.test.skip=true \
-  #   -Dbuild.version="${UPCOMING_POM_VERSION}" \
-  #   -Dbuild.bu.git.ref="git:branch=${GIT_BRANCH},ref=${GIT_COMMIT}" \
-  #   -Dclean-jsfrontend-node.off
+  (
+    cd $MAVEN_WORKSPACE
+    
+    mvn clean compile install \
+      -Dgrm.off=true \
+      -Dmaven.test.skip=true \
+      -Dbuild.version="${UPCOMING_POM_VERSION}" \
+      -Dbuild.bu.git.ref="git:branch=${GIT_BRANCH},ref=${GIT_COMMIT}" \
+      -Dclean-jsfrontend-node.off
+  )
 
   warExists && true || false
 }
