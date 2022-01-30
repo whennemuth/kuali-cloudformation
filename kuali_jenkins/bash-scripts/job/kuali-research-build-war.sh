@@ -72,12 +72,13 @@ checkDependencies() {
 
 warExists() {
   WAR_FILE=$(ls -1 $WARFILE_DIR | grep -P "^.*war$")
-  # Confirm the war file has been found
-  if [ -f "$WAR_FILE" ]; then
+  [ -n "$WAR_FILE" ] && WAR_FILE="$WARFILE_DIR/$WAR_FILE"
+  # Confirm the new war file can be found where expected.
+  if [ -f "$WAR_FILE" ] ; then
     echo "Found war file: $WAR_FILE"
     local found="true"
   else
-    echo "CANNOT FIND WAR FILE!!!";
+    echo "CANNOT FIND WAR FILE IN $WARFILE_DIR !!!";
     echo "EXITING BUILD.";
   fi  
   [ "$found" == 'true' ] && true || false
@@ -87,7 +88,7 @@ buildWithMaven() {
   outputSubHeading "Performing maven build..."
   (
     cd $MAVEN_WORKSPACE
-    
+
     mvn clean compile install \
       -Dgrm.off=true \
       -Dmaven.test.skip=true \
@@ -151,7 +152,7 @@ backupWar() {
   # Clear out the backup dir (ensures only one war file and no space-consuming buildup)
   rm -f -r ${BACKUP_DIR}/${BRANCH}/*
   # Copy the war file from the maven target directory to the backup directory
-  cp -f ${WARFILE_DIR}/${WAR_FILE} ${BACKUP_DIR}/${BRANCH}/
+  cp -f ${WAR_FILE} ${BACKUP_DIR}/${BRANCH}/
 }
 
 if validParameters ; then

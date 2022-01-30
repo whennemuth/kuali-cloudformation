@@ -165,7 +165,7 @@ buildWarJobCall() {
     addJobParm 'build-war' 'BRANCH' $branch
     addJobParm 'build-war' 'GIT_REF_TYPE' $GIT_REF_TYPE
     addJobParm 'build-war' 'GIT_REF' $GIT_REF    
-    addJobParm 'build-war' 'GIT_COMMIT' $GIT_COMMIT    
+    addJobParm 'build-war' 'GIT_COMMIT_ID' $GIT_COMMIT_ID    
   else
     local pomVersion="$(getPomVersion)"
     if [ "$pomVersion" == 'unknown' ] ; then
