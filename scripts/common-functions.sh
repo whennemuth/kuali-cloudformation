@@ -31,9 +31,7 @@ outputHeading() {
   local border='###############################################################################'
   echo ""
   echo "$border"
-  echo "$border"
   echo "       $msg"
-  echo "$border"
   echo "$border"
   [ "$returnToDebugMode" == 'true' ] && set -x || true
 }
