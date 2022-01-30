@@ -4,7 +4,9 @@
 # http://linuxcommand.org/lc3_wss0150.php
 # https://medium.com/@dirk.avery/the-bash-trap-trap-ce6083f36700
 # TEMP_FILE="$TEMP_DIR/$PROGNAME.$$.$RANDOM"
- 
+
+set -a
+
 jobIDs=(
   build-war
   build-image
