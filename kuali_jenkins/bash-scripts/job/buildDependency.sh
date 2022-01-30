@@ -28,7 +28,7 @@ validParameters() {
       MAVEN_WORKSPACE=""
     fi
   fi
-  [ ! -d "$(dirname $MAVEN_WORKSPACE)" ] && appendMessage "[No such directory: $(dirname $MAVEN_WORKSPACE)]"
+  [ -z "$MAVEN_WORKSPACE" ] && appendMessage 'MAVEN_WORKSPACE'
 
   #-----------------------------------------------------------------------
   # These take priority in the following order: branch, tag, and/or commit 

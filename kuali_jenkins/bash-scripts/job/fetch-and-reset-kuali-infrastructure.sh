@@ -1,9 +1,8 @@
-set +x
 cd ${JENKINS_HOME}
 if [ ! -d kuali-infrastructure ] ; then
   mkdir kuali-infrastructure
 else
-  source kuali-infrastructure 2> /dev/null || true
+  source kuali-infrastructure/scripts/common-functions.sh 2> /dev/null || true
   outputHeading 'Pulling kuali infrastructure from github...' 2> /dev/null || true
 fi
 cd kuali-infrastructure

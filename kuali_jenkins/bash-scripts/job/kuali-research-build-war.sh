@@ -22,7 +22,6 @@ validParameters() {
   JENKINS_HOME=${JENKINS_HOME:-"/var/lib/jenkins"}
   [ ! -d "$JENKINS_HOME" ] && appendMessage 'JENKINS_HOME'
   MAVEN_WORKSPACE=${MAVEN_WORKSPACE:-"$JENKINS_HOME/latest-maven-build/kc"}
-  [ ! -d "$(dirname $MAVEN_WORKSPACE)" ] && appendMessage "[No such directory: $(dirname $MAVEN_WORKSPACE)]"
   POM=${MAVEN_WORKSPACE}/pom.xml
   WARFILE_DIR=${MAVEN_WORKSPACE}/coeus-webapp/target
   BACKUP_DIR=$JENKINS_HOME/backup/kuali-research/war
