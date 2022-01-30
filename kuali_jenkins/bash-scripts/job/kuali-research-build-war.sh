@@ -103,10 +103,8 @@ buildWithMaven() {
 # Insert a copy of the log4j-appserver jar file into the WEB-INF/lib directory of the war file.
 packLog4jAppserverJar() {
   outputSubHeading "Packing log4j-appserver into war file..."
-  local pom="$1"
-  # Get the content of the pom file with all return/newline characters removed.
-  local content=$(set +x; cat ${pom} | sed ':a;N;$!ba;s/\n//g')
 
+  local pom="$MAVEN_WORKSPACE/pom.xml"
   # repo="${JENKINS_HOME}/.m2/repository"
   # If the local repo location has been customized in settings.xml, then we need to parse it from maven help plugin output.
   local repo=$(echo $(mvn help:effective-settings | grep 'localRepository') | cut -d '>' -f 2 | cut -d '<' -f 1)
@@ -114,7 +112,7 @@ packLog4jAppserverJar() {
 
   # Find a copy of the log4j-appserver jar file for the main kuali-research war file building job and copy it to its workspace.
   echo "Looking for the log4j-appserver jar file (was built for test scope, but need it for runtime scope)"
-  local vLog4j=$(echo "$content" | grep -Po '(?<=<log4j\.version>)([^<]+)')
+  local vLog4j=$(set +x; cat $pom | grep -Po '(?<=<log4j\.version>)([^<]+)')
   if [ -n "$vLog4j" ] ; then
     local jar=$(find $repo -iname log4j-appserver-${vLog4j}.jar)
     if [ -f $jar ] ; then
