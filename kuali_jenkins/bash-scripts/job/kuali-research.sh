@@ -1,3 +1,10 @@
+#!/bin/bash
+
+# trap 
+# http://linuxcommand.org/lc3_wss0150.php
+# https://medium.com/@dirk.avery/the-bash-trap-trap-ce6083f36700
+# TEMP_FILE="$TEMP_DIR/$PROGNAME.$$.$RANDOM"
+ 
 jobIDs=(
   build-war
   build-image
@@ -47,22 +54,6 @@ setGlobalVariables() {
   else
     BRANCH='feature'
   fi
-
-  # Prepare custom git references for manual feature builds and overriding of default git conventions        
-  case "${GIT_REF_TYPE,,}" in
-    branch)
-      GIT_REFSPEC="+refs/heads/$GIT_REF:refs/remotes/origin/$GIT_REF"
-      GIT_BRANCHES_TO_BUILD="refs/heads/$GIT_REF"
-      ;;
-    tag)
-      GIT_REFSPEC="+refs/tags/$GIT_REF:refs/remotes/origin/tags/$GIT_REF"
-      GIT_BRANCHES_TO_BUILD="refs/tags/$GIT_REF"
-      ;;
-    *)
-      GIT_REFSPEC="+refs/heads/*:refs/remotes/origin/*"
-      GIT_BRANCHES_TO_BUILD="$GIT_COMMIT_ID"
-      ;;        
-  esac
 }
 
 # Add a single parameter to the specified job call
@@ -71,7 +62,7 @@ addJobParm() {
   local temp=${jobcalls[$job]}
   # Add the "boilerplate" details if not already there: java command, jar, arguments, and switches.
   if [ -z "$temp" ] ; then
-    temp="sh -a ${jobScripts[$job]} "
+    temp="sh -e -a ${jobScripts[$job]} "
   fi
   # Add the parameter.
   if [ -n "$key" ] && [ -n "$val" ] ; then
@@ -170,8 +161,9 @@ buildWarJobCall() {
     isSandbox && local branch='master' || local branch='feature'
     addJobParm 'build-war' 'DEBUG' "$DEBUG"
     addJobParm 'build-war' 'BRANCH' $branch
-    addJobParm 'build-war' 'GIT_REFSPEC' $GIT_REFSPEC
-    addJobParm 'build-war' 'GIT_BRANCHES_TO_BUILD' $GIT_BRANCHES_TO_BUILD
+    addJobParm 'build-war' 'GIT_REF_TYPE' $GIT_REF_TYPE
+    addJobParm 'build-war' 'GIT_REF' $GIT_REF    
+    addJobParm 'build-war' 'GIT_COMMIT' $GIT_COMMIT    
   else
     local pomVersion="$(getPomVersion)"
     if [ "$pomVersion" == 'unknown' ] ; then
@@ -238,6 +230,7 @@ makeJobCalls() {
     local jobcall="${jobcalls[$jobname]}"
     if [ -n "$jobcall" ] ; then
       outputHeading "Invoking $jobname..."
+      echo ""
       echo "$jobcall" | sed -E 's/\x20/ \\\n  /g'
       echo ""
       eval "$jobcall"
@@ -253,6 +246,8 @@ validParameters() {
   fi
   [ -z "$msg" ] && true || false
 }
+
+
 
 run() {
   setGlobalVariables

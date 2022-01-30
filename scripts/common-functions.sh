@@ -31,9 +31,21 @@ outputHeading() {
   local border='###############################################################################'
   echo ""
   echo "$border"
+  echo "$border"
   echo "       $msg"
   echo "$border"
+  echo "$border"
+  [ "$returnToDebugMode" == 'true' ] && set -x || true
+}
 
+outputSubHeading() {
+  inDebugMode && set +x && returnToDebugMode='true'
+  local msg="$1"
+  local border='------------------------------------------------------------------------------------'
+  echo ""
+  echo "$border"
+  echo "       $msg"
+  echo "$border"
   [ "$returnToDebugMode" == 'true' ] && set -x || true
 }
 
@@ -2401,4 +2413,69 @@ maskString() {
 
 ecrGetLoginDeprecated() {
   [ "$(aws ecr help | grep 'get-login' | grep -o 'password')" == 'password' ] && true || false
+}
+
+# Provided with a deploy key, create/replace a specified directory and fill it with content 
+# fetched from the specified github repository. This is not like a pull, but more like a hard reset.
+# The remote configuration can be based on a branch, tag, or the default wildcard.
+githubFetchAndReset() {
+    parseArgs $@
+
+    configure() {
+      if [ -d "$ROOTDIR" ] ; then
+        echo "$ROOTDIR found, deleting and recreating..."
+        rm -f -r "$ROOTDIR"
+      fi
+      mkdir -p "$ROOTDIR"
+      cd "$ROOTDIR"
+      echo "Initializing new repo..."
+      git init	
+      git config user.email "$USER"
+      git config user.name jenkins
+    }
+
+    fetch() {
+      local ref="$1"
+      local refarg="$2"
+      local cmd="git remote add $refarg --tags origin $REPO"
+      eval `ssh-agent -k` || true
+      eval `ssh-agent -s`
+      # ssh-add ~/.ssh/bu_github_id_kc_rsa
+      ssh-add $KEY
+      echo "$cmd" && eval "$cmd"
+      cmd="git fetch origin $ref"
+      echo "$cmd" && eval "$cmd"
+      eval `ssh-agent -k` || true
+    }
+
+    checkout() {
+      if [ -n "$COMMIT" ] ; then
+        git checkout $COMMIT
+      elif [ -n "$REF" ] ; then
+        git checkout $REF
+      else
+        git reset --hard FETCH_HEAD
+      fi
+      echo "Current head is: $(git rev-parse HEAD)"
+    }
+
+    getSource() {
+      if [ -n "$REF" ] ; then
+        case "${REFTYPE,,}" in
+          branch)
+            fetch $REF "-t $REF" ;;
+          tag)
+            fetch $REF "-t tags/$REF" ;;
+          *)
+            fetch $REF ;;
+        esac
+      elif [ -n "$COMMIT" ] ; then
+        fetch
+      else
+        echo "ERROR! No git branch, tag, or commit provided!"
+        exit 1
+      fi
+    }
+
+    configure && getSource && checkout
 }

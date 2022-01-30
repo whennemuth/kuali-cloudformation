@@ -23,7 +23,7 @@ validParameters() {
   [ -z "$REGISTRY_REPO_NAME" ] && appendMessage "REGISTRY_REPO_NAME"
   [ -z "$POM_VERSION" ] && appendMessage "POM_VERSION"
 
-  [ -n "$msg" ] && echo "ERROR missing parameter(s): $msg"
+  [ -n "$msg" ] && echo "ERROR missing/invalid parameter(s): $msg"
 
   [ -z "$msg" ] && true || false
 }

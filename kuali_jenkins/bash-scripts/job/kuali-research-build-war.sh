@@ -5,60 +5,104 @@
 
 checkTestHarness $@ 2> /dev/null || true
 
+set -a
+
 parseArgs
 
 isDebug && set -x
 
-printParameters() {
-  # For a multibranch project, this will be set to the name of the branch being built, for example in case you wish to deploy to production from master but not from feature branches.
-  echo "BRANCH_NAME = ${BRANCH_NAME}"
-  # The current build number, such as "153"
-  echo "BUILD_NUMBER = ${BUILD_NUMBER}"
-  # The current build ID, identical to BUILD_NUMBER for builds created in 1.597+, but a YYYY-MM-DD_hh-mm-ss timestamp for older builds
-  echo "BUILD_ID = ${BUILD_ID}"
-  # The display name of the current build, which is something like "#153" by default.
-  echo "BUILD_DISPLAY_NAME = ${BUILD_DISPLAY_NAME}"
-  # Name of the project of this build, such as "foo" or "foo/bar".
-  echo "JOB_NAME = ${JOB_NAME}"
-  # Short Name of the project of this build stripping off folder paths, such as "foo" for "bar/foo".
-  echo "JOB_BASE_NAME = ${JOB_BASE_NAME}"
-  # String of "jenkins-${JOB_NAME}-${BUILD_NUMBER}". Convenient to put into a resource file, a jar file, etc for easier identification. starts from 0, not 1.
-  echo "BUILD_TAG = ${BUILD_TAG}"
-  # The absolute path of the directory assigned to the build as a workspace.
-  echo "WORKSPACE = ${WORKSPACE}"
-  # The absolute path of the directory assigned on the master node for Jenkins to store data.
-  echo "JENKINS_HOME = ${JENKINS_HOME}"
-  # Full URL of Jenkins, like http://server:port/jenkins/ (note: only available if Jenkins URL set in system configuration)
-  echo "JENKINS_URL = ${JENKINS_URL}"
-  # Full URL of this build, like http://server:port/jenkins/job/foo/15/ (Jenkins URL must be set)
-  echo "BUILD_URL = ${BUILD_URL}"
-  # Full URL of this job, like http://server:port/jenkins/job/foo/ (Jenkins URL must be set)
-  echo "JOB_URL = ${JOB_URL}"
+validParameters() {
+  local msg=""
+  appendMessage() {
+    [ -n "$msg" ] && msg="$msg, $1" || msg="$1"
+  }
 
-  # These should all come from the maven project plugin
-  echo "POM_DISPLAYNAME = ${POM_DISPLAYNAME}"
-  echo "POM_VERSION = ${POM_VERSION}"
-  echo "POM_GROUPID = ${POM_GROUPID}"
-  echo "POM_ARTIFACTID = ${POM_ARTIFACTID}"
-  echo "POM_PACKAGING = ${POM_PACKAGING}"
+  outputSubHeading "Validating parameters & setting defaults..."
+
+  JENKINS_HOME=${JENKINS_HOME:-"/var/lib/jenkins"}
+  [ ! -d "$JENKINS_HOME" ] && appendMessage 'JENKINS_HOME'
+  MAVEN_WORKSPACE=${MAVEN_WORKSPACE:-"$JENKINS_HOME/latest-maven-build/kc"}
+  [ ! -d "$(dirname $MAVEN_WORKSPACE)" ] && appendMessage "[No such directory: $(dirname $MAVEN_WORKSPACE)]"
+  POM=${MAVEN_WORKSPACE}/pom.xml
+  WARFILE_DIR=${MAVEN_WORKSPACE}/coeus-webapp/target
+  BACKUP_DIR=$JENKINS_HOME/backup/kuali-research/war
+  SCRIPT_DIR=${SCRIPT_DIR:-"$JENKINS_HOME/kuali-infrastructure/kuali_jenkins/bash-scripts/job"}
+  CHECK_DEPENDENCIES=${CHECK_DEPENDENCIES:-"true"}
+  GIT_REPO_URL=${GIT_REPO_URL:-"git@github.com:bu-ist/kuali-research.git"}
+  S3_BUCKET=${S3_BUCKET:-"kuali-conf"}
+
+  echo "JENKINS_HOME=$JENKINS_HOME"
+  echo "MAVEN_WORKSPACE=$MAVEN_WORKSPACE"
+  echo "POM=$POM"
+  echo "WARFILE_DIR=$WARFILE_DIR"
+  echo "BACKUP_DIR=$BACKUP_DIR"
+  echo "SCRIPT_DIR=$SCRIPT_DIR"
+  echo "CHECK_DEPENDENCIES=$CHECK_DEPENDENCIES"
+  echo "GIT_REPO_URL=$GIT_REPO_URL"
+  echo "GIT_REF_TYPE=$GIT_REF_TYPE"
+  echo "GIT_REF=$GIT_REF"
+  echo "GIT_COMMIT_ID=$GIT_COMMIT_ID"
+  echo "BRANCH=$BRANCH"
+  echo "S3_BUCKET=$S3_BUCKET"
+ 
+  [ -n "$msg" ] && echo "ERROR missing/invalid parameter(s): $msg"
+
+  [ -z "$msg" ] && true || false
+}
+
+pullFromGithub() {
+  outputSubHeading "Fetching $GIT_REF from $GIT_REPO_URL ..."
+  (
+    githubFetchAndReset \
+      "rootdir=$MAVEN_WORKSPACE" \
+      "repo=$GIT_REPO_URL" \
+      "key=~/.ssh/bu_github_id_kc_rsa" \
+      "reftype=$GIT_REF_TYPE" \
+      "ref=$GIT_REF" \
+      "commit=$GIT_COMMIT_ID" \
+      "user=jenkins@bu.edu"
+  )
+  [ $? -eq 0 ] && true || false
+}
+
+checkDependencies() {
+  outputSubHeading "M2 Dependency check (schemaspy, rice, coeus-api, s2sgen)..."
+  [ "$CHECK_DEPENDENCIES" != 'true' ] && return 0
+  sh -e $SCRIPT_DIR/kuali-dependency-check.sh "POM=$POM"
+}
+
+warExists() {
+  WAR_FILE=$(ls -1 $WARFILE_DIR | grep -P "^.*war$")
+  # Confirm the war file has been found
+  if [ -f "$WAR_FILE" ]; then
+    echo "Found war file: $WAR_FILE"
+    local found="true"
+  else
+    echo "CANNOT FIND WAR FILE!!!";
+    echo "EXITING BUILD.";
+  fi  
+  [ "$found" == 'true' ] && true || false
+}
+
+buildWithMaven() {
+  outputSubHeading "Performing maven build..."
+
+  # mvn clean compile install \
+  #   -Dgrm.off=true \
+  #   -Dmaven.test.skip=true \
+  #   -Dbuild.version="${UPCOMING_POM_VERSION}" \
+  #   -Dbuild.bu.git.ref="git:branch=${GIT_BRANCH},ref=${GIT_COMMIT}" \
+  #   -Dclean-jsfrontend-node.off
+
+  warExists && true || false
 }
 
 # Insert a copy of the log4j-appserver jar file into the WEB-INF/lib directory of the war file.
 packLog4jAppserverJar() {
-  local delegate="$1"
-  if [ "$delegate" == 'true' ] ; then
-    local cli=/var/lib/jenkins/jenkins-cli.jar
-    local host=http://localhost:8080/
-    [ -f /var/lib/jenkins/cli-credentials.sh ] && source /var/lib/jenkins/cli-credentials.sh
-    java -jar ${cli} -s ${host} build 'kc-pack-log4j-appserver-jar' -v -f \
-        -p POM=${WORKSPACE}/pom.xml \
-        -p WARFILE_DIR=${WARFILE_DIR}
-    return 0
-  fi
-
+  outputSubHeading "Packing log4j-appserver into war file..."
   local pom="$1"
   # Get the content of the pom file with all return/newline characters removed.
-  local content=$(cat ${pom} | sed ':a;N;$!ba;s/\n//g')
+  local content=$(set +x; cat ${pom} | sed ':a;N;$!ba;s/\n//g')
 
   # repo="${JENKINS_HOME}/.m2/repository"
   # If the local repo location has been customized in settings.xml, then we need to parse it from maven help plugin output.
@@ -85,32 +129,18 @@ packLog4jAppserverJar() {
       echo "jarname \$(ls -la -x $libdir | grep log4j-appserver)"
       echo "jar -uf $warfile WEB-INF/lib/$jarname"
       jar -uf $warfile WEB-INF/lib/$jarname
+      local success='true'
     else
       echo "ERROR! Could not find log4j-appserver-${vLog4j}.jar in maven local repository"
-      exit 1
     fi
   else
     echo "ERROR! could not find log4j-appserver version in ${pom}"
-    exit 1
   fi
+  [ "$success" == 'true' ] && true || false
 }
 
 backupWar() {
-  WARFILE_DIR=${WORKSPACE}/coeus-webapp/target
-  WAR_FILE=$(ls -1 $WARFILE_DIR | grep -P "^.*war$")
-  WAR_URL=http://localhost:8080/job/${JOB_BASE_NAME}/ws/coeus-webapp/target/${WAR_FILE}
-  BACKUP_DIR=/var/lib/jenkins/backup/kuali-research/war
-
-  # Confirm the war file has been found
-  if [ -z "${WARFILE}" ]; then
-    echo "Found war file: ${WAR_FILE}"
-    packLog4jAppserverJar
-  else
-    echo "CANNOT FIND WAR FILE!!!";
-    echo "EXITING BUILD.";
-    exit 1;
-  fi      
-
+  outputSubHeading "Backing up war file..."
   # Backup the war file. This keeps war files with the same name but from different git branches
   # from overwriting each other in the jenkins workspace on subsequent builds.
   if [ ! -d ${BACKUP_DIR}/${BRANCH} ] ; then 
@@ -119,11 +149,28 @@ backupWar() {
   # Clear out the backup dir (ensures only one war file and no space-consuming buildup)
   rm -f -r ${BACKUP_DIR}/${BRANCH}/*
   # Copy the war file from the maven target directory to the backup directory
-  cp -f ${WORKSPACE}/coeus-webapp/target/${WAR_FILE} ${BACKUP_DIR}/${BRANCH}/
+  cp -f ${WARFILE_DIR}/${WAR_FILE} ${BACKUP_DIR}/${BRANCH}/
 }
 
-printParameters
+if validParameters ; then
 
-backupWar
+#   if pullFromGithub ; then
 
-echo "FINISHED BUILDING WAR ARTIFACT!";
+    if checkDependencies ; then
+echo 'done'
+      # if buildWithMaven ; then
+
+      #   if packLog4jAppserverJar ; then
+
+      #     backupWar && local success='true'
+      #   fi
+      # fi
+    fi
+#   fi
+fi
+
+if [ "$success" == 'true' ] ; then
+  echo "FINISHED BUILDING WAR ARTIFACT!"
+else
+  exit 1
+fi

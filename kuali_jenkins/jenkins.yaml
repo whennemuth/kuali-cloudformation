@@ -680,6 +680,21 @@ Resources:
               mode: "000600"
               owner: jenkins
               group: jenkins
+            /var/lib/jenkins/.ssh/bu_github_id_schemaspy_rsa:
+              source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/bu_github_id_schemaspy_rsa
+              mode: "000600"
+              owner: jenkins
+              group: jenkins
+            /var/lib/jenkins/.ssh/bu_github_id_coeus-api_rsa:
+              source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/bu_github_id_coeus-api_rsa
+              mode: "000600"
+              owner: jenkins
+              group: jenkins
+            /var/lib/jenkins/.ssh/bu_github_id_coeus-s2sgen_rsa:
+              source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/bu_github_id_coeus-s2sgen_rsa
+              mode: "000600"
+              owner: jenkins
+              group: jenkins
             /var/lib/jenkins/.ssh/bu_kuali_id_jenkins_rsa:
               source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/bu_kuali_id_jenkins_rsa
               mode: "000600"
