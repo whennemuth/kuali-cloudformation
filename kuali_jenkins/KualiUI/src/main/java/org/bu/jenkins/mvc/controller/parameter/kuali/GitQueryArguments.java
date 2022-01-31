@@ -1,6 +1,9 @@
 package org.bu.jenkins.mvc.controller.parameter.kuali;
 
 import java.io.File;
+import java.net.URLDecoder;
+import java.net.URLEncoder;
+import java.nio.charset.Charset;
 
 import org.bu.jenkins.dao.AbstractGitDAO;
 import org.bu.jenkins.job.JobParameterConfiguration;
@@ -46,6 +49,10 @@ public class GitQueryArguments {
 
 	public String getPersonalAccessToken() {
 		return config.getParameterMap().get(QueryStringParms.GIT_PERSONAL_ACCESS_TOKEN.arg());
+	}
+
+	public String getEncodedPersonalAccessToken() {
+		return URLEncoder.encode(getPersonalAccessToken(), Charset.defaultCharset());
 	}
 	
 	public boolean cannotUseToken() {

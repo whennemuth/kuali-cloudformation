@@ -1,0 +1,69 @@
+<!DOCTYPE html SYSTEM "http://www.thymeleaf.org/dtd/xhtml1-strict-thymeleaf-4.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:th="http://www.thymeleaf.org">
+
+<body>
+	<div  th:if="${!deactivate}" th:fragment="build-type" class="kuali-field-wrapper">
+		<div th:if="${allowFeature}">
+			<input 
+				type="radio" 
+				value="feature" 
+				onchange="toggleBuildType();"
+				th:name="${ParameterName} ?: 'value'" 
+				th:checked="${ParameterValue=='feature'}" >
+			<label>
+				Feature
+			</label>
+		</div>
+		<div th:if="${allowPreRelease}">
+			<input
+				type="radio" 
+				value="pre-release" 
+				onchange="toggleBuildType();"
+				th:name="${ParameterName} ?: 'value'" 
+				th:checked="${ParameterValue=='pre-release'}" >
+			<label>
+				Pre-release
+			</label>
+		</div>
+		<div th:if="${allowRelease}">
+			<input
+				type="radio" 
+				value="release" 
+				onchange="toggleBuildType();"
+				th:name="${ParameterName} ?: 'value'" 
+				th:checked="${ParameterValue=='release'}" >
+			<label>
+				Release
+			</label>
+		</div>
+		<div>
+			<div style="font-style: italic; font-size:14px; padding-top:5px;">
+				<div id="_feature" th:attr="style=${ParameterValue=='feature'} ? _ : 'display:none'">
+					Feature build:
+					<ul style="margin:5px;">
+						<li>Full maven build</li>
+						<li>Push of docker image to feature repository in docker registry</li>
+						<li>Deployment of docker image to selected stack</li>
+					</ul>
+				</div>
+				<div id="_pre-release"  th:attr="style=${ParameterValue=='pre-release'} ? _ : 'display:none'">
+					Pre-release:
+					<ul style="margin:5px;">
+						<li>NO maven build</li>
+						<li>Promotion of most recent feature docker image to primary repo in docker registry</li>
+						<li>Deployment of promoted docker image to selected stack</li>
+					</ul>
+				</div>
+				<div id="_release" th:attr="style=${ParameterValue=='release'} ? _ : 'display:none'">
+					Release:
+					<ul style="margin:5px;">
+						<li>NO maven build</li>
+						<li>Deployment of last pre-released docker image to selected stack</li>
+					</ul>
+				</div>
+			</div>
+		</div>
+	</div>
+</body>
+</html>

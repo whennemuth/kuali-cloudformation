@@ -11,6 +11,7 @@ jobIDs=(
   build-war
   build-image
   push-image
+  promote-image
   deploy
 )
 
@@ -19,13 +20,15 @@ jobScriptDir=${JOB_SCRIPT_DIR:-"$JENKINS_HOME/kuali-infrastructure/kuali_jenkins
 jobScripts[${jobIDs[0]}]="$jobScriptDir/kuali-research-build-war.sh"
 jobScripts[${jobIDs[1]}]="$jobScriptDir/kuali-research-build-image.sh"
 jobScripts[${jobIDs[2]}]="$jobScriptDir/kuali-research-push-image.sh"
-jobScripts[${jobIDs[3]}]="$jobScriptDir/kuali-research-deploy.sh"
+jobScripts[${jobIDs[3]}]="$jobScriptDir/kuali-research-promote-image.sh"
+jobScripts[${jobIDs[4]}]="$jobScriptDir/kuali-research-deploy.sh"
 
 declare -A jobNames=()
 jobNames[${jobIDs[0]}]='kuali-research-1-build-war'
 jobNames[${jobIDs[1]}]='kuali-research-2-docker-build-image'
 jobNames[${jobIDs[2]}]='kuali-research-3-docker-push-image'
-jobNames[${jobIDs[3]}]='kuali-research-4-deploy-to-stack'
+jobNames[${jobIDs[3]}]='none'
+jobNames[${jobIDs[4]}]='kuali-research-4-deploy-to-stack'
 
 declare -A jobcalls=()
 
@@ -35,6 +38,10 @@ setGlobalVariables() {
 
   if [ -z "$STACK" ] ; then
     echo "Missing entry! A stack must be selected."
+    echo "Cancelling build..."
+    exit 1
+  elif [ -z "$BUILD_TYPE" ] ; then
+    echo "Missing entry! A build type must be selected."
     echo "Cancelling build..."
     exit 1
   fi
@@ -50,12 +57,13 @@ setGlobalVariables() {
     esac
   done <<< "$(echo "$stackparts")"
 
-  if isReleaseBuild ; then
+  if isReleaseBuild || isPreReleaseBuild ; then
     isSandbox && BRANCH='master' || BRANCH='bu-master'
   else
     BRANCH='feature'
   fi
 
+  BUILD_TYPE="${BUILD_TYPE,,}"
   MAVEN_WORKSPACE="$JENKINS_HOME/latest-maven-build/kc"
   BACKUP_DIR="$JENKINS_HOME/backup/kuali-research/war/$BRANCH"
 
@@ -90,8 +98,9 @@ addJobParm() {
 }
 
 isJenkinsServer() { [ -d /var/lib/jenkins ] && true || false ; }
-isFeatureBuild() { [ "${BUILD_TYPE,,}" == "feature" ] && true || false ; }
-isReleaseBuild() { ([ -z "$BUILD_TYPE" ] || [ "${BUILD_TYPE,,}" == "release" ]) && true || false ; }
+isFeatureBuild() { [ "$BUILD_TYPE" == "feature" ] && true || false ; }
+isPreReleaseBuild() { [ "$BUILD_TYPE" == "pre-release" ] && true || false ; }
+isReleaseBuild() { [ "$BUILD_TYPE" == "release" ] && true || false ; }
 lastWar() { find $BACKUP_DIR -iname coeus-webapp-*.war 2> /dev/null ; }
 isSandbox() { [ "${LANDSCAPE,,}" == "sandbox" ] && true || false ; }
 isCI() { [ "${LANDSCAPE,,}" == "ci" ] && true || false ; }
@@ -111,15 +120,16 @@ getPomVersion() {
       # Get the pom version of what is currently being built
       local pom="$MAVEN_WORKSPACE/pom.xml"
       POM_VERSION="$(grep -Po '(?!<version>)[^<>]+</version>' $pom | head -n 1 | sed 's/<\/version>//')"
-    elif isReleaseBuild ; then
+    else
+      POM_VERSION="$(getPomVersionFromYoungestRegistryImage)"
       # Get the pom version of what has already been built by a prior job
-      POM_VERSION="$(getPomVersionFromLastBuiltWar)"
-      if [ -z "$POM_VERSION" ] ; then
-        POM_VERSION="$(getPomVersionFromLastPushLog)"
-        if [ -z "$POM_VERSION" ] ; then
-          POM_VERSION="$(getPomVersionFromYoungestRegistryImage)"
-        fi
-      fi
+      # POM_VERSION="$(getPomVersionFromLastBuiltWar)"
+      # if [ -z "$POM_VERSION" ] ; then
+      #   POM_VERSION="$(getPomVersionFromLastPushLog)"
+      #   if [ -z "$POM_VERSION" ] ; then
+      #     POM_VERSION="$(getPomVersionFromYoungestRegistryImage)"
+      #   fi
+      # fi
     fi
   fi
   # if dryrun ; then
@@ -144,26 +154,30 @@ getPomVersionFromLastBuiltWar() {
   echo "$(lastWar)" | grep -Po '(?<=coeus-webapp\-).*(?=\.war$)'
 }
 
-getPomVersionFromYoungestRegistryImage() {
-  local repo="$(getEcrRepoName)"
+getYoungestRegistryImage() {
+  local repo="${1:-$(getEcrRepoName)}"
   local acct="aws sts get-caller-identity --output text --query 'Account'"
-  getLatestImage "$repo" "$acct" | cut -d':' -f2
+  getLatestImage "$repo" "$acct"
+}
+
+getPomVersionFromYoungestRegistryImage() {
+  getYoungestRegistryImage | cut -d':' -f2
 }
 
 getEcrRepoName() {
-  POM_ARTIFACTID='kuali-coeus'
+  local repo=='kuali-coeus'
   # Set the name of the target repository in docker registry
   if [ "$BRANCH" == "master" ] ; then
-    echo "$POM_ARTIFACTID-sandbox"
-  elif isFeatureBuild ; then
-    echo "$POM_ARTIFACTID-feature"
+    echo "$repo-sandbox"
+  elif isFeatureBuild || isPreReleaseBuild ; then
+    echo "$repo-feature"
   elif isReleaseBuild ; then
-    echo "$POM_ARTIFACTID"
+    echo "$repo"
   fi
 }
 
 buildWarJobCall() {
-  BUILD_WAR='false'
+  local built='false'
 
   if isFeatureBuild ; then
     if isProd ; then
@@ -172,7 +186,7 @@ buildWarJobCall() {
     elif isStaging ; then
       echo "WARNING: You are pushing a feature build directly into the staging environment!"
     fi
-    BUILD_WAR='true'
+    built='true'
     addJobParm 'build-war' 'DEBUG' "$DEBUG"
     addJobParm 'build-war' 'BRANCH' $BRANCH
     addJobParm 'build-war' 'GIT_REF_TYPE' $GIT_REF_TYPE
@@ -189,7 +203,7 @@ buildWarJobCall() {
     fi
   fi
 
-  [ "$BUILD_WAR" == 'true' ] && true || false
+  [ "$built" == 'true' ] && true || false
 }
 
 buildDockerBuildImageJobCall() {
@@ -205,6 +219,12 @@ buildDockerPushImageJobCall() {
   addJobParm 'push-image' 'ECR_REGISTRY_URL' "$ECR_REGISTRY_URL"
   addJobParm 'push-image' 'POM_VERSION' "\$(getPomVersion)"
   addJobParm 'push-image' 'REGISTRY_REPO_NAME' "$(getEcrRepoName)"
+}
+
+buildPromoteDockerImageJobCall() {
+  addJobParm 'promote-image' 'DEBUG' "$DEBUG"
+  addJobParm 'promote-image' 'SOURCE-IMAGE' "$(getYoungestRegistryImage)"
+  addJobParm 'promote-image' 'TARGET-IMAGE' "$(getYoungestRegistryImage 'kuali-coeus')"
 }
 
 buildDeployJobCall() {
@@ -273,6 +293,11 @@ run() {
     buildDockerBuildImageJobCall
 
     buildDockerPushImageJobCall
+  fi
+
+  if isPreReleaseBuild ; then
+
+    buildPromoteDockerImageJobCall
   fi
 
   buildDeployJobCall

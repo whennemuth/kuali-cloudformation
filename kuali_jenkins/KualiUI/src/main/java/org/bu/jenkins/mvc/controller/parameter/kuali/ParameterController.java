@@ -27,6 +27,7 @@ import org.bu.jenkins.job.AbstractParameterSet;
 import org.bu.jenkins.job.JobParameterConfiguration;
 import org.bu.jenkins.job.JobParameterMetadata;
 import org.bu.jenkins.mvc.model.GitTagForCentosJavaTomcat;
+import org.bu.jenkins.mvc.model.Landscape;
 import org.bu.jenkins.mvc.view.AbstractParameterView;
 import org.bu.jenkins.mvc.view.ParameterErrorView;
 import org.bu.jenkins.util.Argument;
@@ -72,6 +73,7 @@ public class ParameterController extends AbstractParameterSet {
 				parameterView.setContextVariable("InvalidStateMessage", config.getInvalidStateMessage());
 			}
 
+			String landscape = null;
 			String invalidMsg = null;
 			GitQueryArguments gitArgs = null;
 			GitCommandLineAdapter git = null;
@@ -82,7 +84,7 @@ public class ParameterController extends AbstractParameterSet {
 			
 			switch(parameter) {
 				case STACK_NAME:
-					String landscape = config.getParameterMap().get(QueryStringParms.LANDSCAPE.arg());
+					landscape = config.getParameterMap().get(QueryStringParms.LANDSCAPE.arg());
 					if( ! Argument.isMissing(landscape)) {
 						stackDAO = new StackDAO(credentials);
 						String stackName = stackDAO.getKualiStackApplicationStack(landscape).stackName();
@@ -186,7 +188,7 @@ public class ParameterController extends AbstractParameterSet {
 						}
 						else {
 							git.setUser(gitArgs.getUsername());
-							git.setPersonalAccessToken(gitArgs.getPersonalAccessToken());
+							git.setPersonalAccessToken(gitArgs.getEncodedPersonalAccessToken());
 						}
 					}
 					
@@ -293,6 +295,32 @@ public class ParameterController extends AbstractParameterSet {
 					parameterView.setContextVariable("defaultInstructions", true);
 					parameterView.setContextVariable("stacks", stackList.getKualiApplicationStacks());
 					css = AbstractJob.getCssView(logger);
+					break;
+				case BUILD_TYPE:
+					landscape = config.getParameterMap().get(QueryStringParms.LANDSCAPE.arg());
+					parameterView.setContextVariable("allowFeature", true);
+					parameterView.setContextVariable("allowPreRelease", true);
+					parameterView.setContextVariable("allowRelease", true);
+					Landscape lscp = Landscape.fromAlias(landscape);
+					if(lscp == null) {
+						parameterView.setContextVariable("ParameterValue", "feature");
+					}
+					else {
+						switch(lscp) {
+							case STAGING:
+								parameterView.setContextVariable("allowFeature", false);
+								parameterView.setContextVariable("ParameterValue", "pre-release");
+								break;
+							case PRODUCTION:
+								parameterView.setContextVariable("allowFeature", false);
+								parameterView.setContextVariable("allowPreRelease", false);
+								parameterView.setContextVariable("ParameterValue", "release");
+								break;
+							default:
+								parameterView.setContextVariable("ParameterValue", "feature");
+								break;
+						}							
+					}
 					break;
 				case INVALID:
 					break;
