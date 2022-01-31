@@ -2,11 +2,11 @@
 
 # You must source common-functions.sh for some functionality used below.
 
-checkTestHarness $@ 2> /dev/null || true
+# checkTestHarness $@ 2> /dev/null || true
 
-parseArgs $@
+# parseArgs $@
 
-isDebug && set -x
+# isDebug && set -x
 
 validParameters() {
   echo "ECR_REGISTRY_URL=$ECR_REGISTRY_URL"
@@ -29,11 +29,11 @@ validParameters() {
 }
 
 
-if validParameters() {
+if validParameters ; then
   aws ecr get-login-password \
     --region us-east-1 \
     | docker login --username AWS --password-stdin ${ECR_REGISTRY_URL}
 
   # Push the newly created image to the registry
   docker push ${DOCKER_TAG}
-}
+fi
