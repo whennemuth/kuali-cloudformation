@@ -150,7 +150,7 @@ backupWar() {
   # Clear out the backup dir (ensures only one war file and no space-consuming buildup)
   rm -f -r ${BACKUP_DIR}/${BRANCH}/*
   # Copy the war file from the maven target directory to the backup directory
-  cp -f ${WAR_FILE} ${BACKUP_DIR}/${BRANCH}/
+  cp -f -v ${WAR_FILE} ${BACKUP_DIR}/${BRANCH}/
 }
 
 if validParameters ; then
@@ -163,7 +163,7 @@ if validParameters ; then
 
         if packLog4jAppserverJar ; then
 
-          backupWar && local success='true'
+          backupWar && success='true'
         fi
       fi
     fi
@@ -171,6 +171,7 @@ if validParameters ; then
 fi
 
 if [ "$success" == 'true' ] ; then
+  echo " "
   echo "FINISHED BUILDING WAR ARTIFACT!"
 else
   exit 1
