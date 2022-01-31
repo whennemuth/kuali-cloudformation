@@ -3,12 +3,9 @@
 
 set -a
 
+isDebug && set -x
+
 initialize() {
-
-   parseArgs
-
-   isDebug && set -x
-
    jobs_to_run=()
    versions=()
    version_tags=()
@@ -280,6 +277,8 @@ buildArtifacts() {
    fi   
 }
 
+
+parseArgs $@
 
 initialize
 

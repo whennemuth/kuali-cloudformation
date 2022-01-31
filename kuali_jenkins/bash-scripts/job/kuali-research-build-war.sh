@@ -7,7 +7,7 @@ checkTestHarness $@ 2> /dev/null || true
 
 set -a
 
-parseArgs
+parseArgs $@
 
 isDebug && set -x
 
@@ -30,6 +30,7 @@ validParameters() {
   GIT_REPO_URL=${GIT_REPO_URL:-"git@github.com:bu-ist/kuali-research.git"}
   S3_BUCKET=${S3_BUCKET:-"kuali-conf"}
 
+  outputSubHeading "Parameters:"
   echo "JENKINS_HOME=$JENKINS_HOME"
   echo "MAVEN_WORKSPACE=$MAVEN_WORKSPACE"
   echo "POM=$POM"
@@ -42,6 +43,7 @@ validParameters() {
   echo "GIT_REF=$GIT_REF"
   echo "GIT_COMMIT_ID=$GIT_COMMIT_ID"
   echo "S3_BUCKET=$S3_BUCKET"
+  echo " "
  
   [ -n "$msg" ] && echo "ERROR missing/invalid parameter(s): $msg"
 

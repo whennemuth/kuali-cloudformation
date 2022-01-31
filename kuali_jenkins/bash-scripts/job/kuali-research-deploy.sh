@@ -5,7 +5,7 @@
 
 checkTestHarness $@ 2> /dev/null || true
 
-parseArgs
+parseArgs $@
 
 isDebug && set -x
 
