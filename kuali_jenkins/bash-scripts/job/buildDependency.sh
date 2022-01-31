@@ -30,6 +30,7 @@ validParameters() {
   fi
   [ -z "$MAVEN_WORKSPACE" ] && appendMessage 'MAVEN_WORKSPACE'
 
+  outputSubHeading "Parameters:"
   #-----------------------------------------------------------------------
   # These take priority in the following order: branch, tag, and/or commit 
   #-----------------------------------------------------------------------
@@ -41,6 +42,7 @@ validParameters() {
   echo "GIT_DEPLOY_KEY=$GIT_DEPLOY_KEY"
   echo "JENKINS_HOME=$JENKINS_HOME"
   echo "MAVEN_WORKSPACE=$MAVEN_WORKSPACE"
+  echo " "
  
   [ -n "$msg" ] && echo "ERROR missing/invalid parameter(s): $msg"
 

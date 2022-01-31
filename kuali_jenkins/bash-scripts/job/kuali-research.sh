@@ -15,7 +15,7 @@ jobIDs=(
 )
 
 declare -A jobScripts=()
-jobScriptDir=${JOB_SCRIPT_DIR:-"/var/lib/jenkins/kuali-infrastructure/kuali_jenkins/bash-scripts/job"}
+jobScriptDir=${JOB_SCRIPT_DIR:-"$JENKINS_HOME/kuali-infrastructure/kuali_jenkins/bash-scripts/job"}
 jobScripts[${jobIDs[0]}]="$jobScriptDir/kuali-research-build-war.sh"
 jobScripts[${jobIDs[1]}]="$jobScriptDir/kuali-research-build-image.sh"
 jobScripts[${jobIDs[2]}]="$jobScriptDir/kuali-research-push-image.sh"
@@ -30,9 +30,8 @@ jobNames[${jobIDs[3]}]='kuali-research-4-deploy-to-stack'
 declare -A jobcalls=()
 
 setGlobalVariables() {
-  CLI=/var/lib/jenkins/jenkins-cli.jar
+  CLI=$JENKINS_HOME/jenkins-cli.jar
   HOST=http://localhost:8080/
-  BRANCH=""
 
   if [ -z "$STACK" ] ; then
     echo "Missing entry! A stack must be selected."
@@ -59,6 +58,17 @@ setGlobalVariables() {
 
   MAVEN_WORKSPACE="$JENKINS_HOME/latest-maven-build/kc"
   BACKUP_DIR="$JENKINS_HOME/backup/kuali-research/war/$BRANCH"
+
+  outputSubHeading "Parameters:"
+  echo "MAVEN_WORKSPACE=$MAVEN_WORKSPACE"
+  echo "BACKUP_DIR=$BACKUP_DIR"
+  echo "BRANCH=$BRANCH"
+  echo "BUILD_TYPE=$BUILD_TYPE"
+  echo "GIT_REF_TYPE=$GIT_REF_TYPE"
+  echo "GIT_REF=$GIT_REF"
+  echo "GIT_COMMIT_ID=$GIT_COMMIT_ID"
+  echo "ECR_REGISTRY_URL=$ECR_REGISTRY_URL"
+  echo " "
 }
 
 # Add a single parameter to the specified job call
@@ -99,8 +109,8 @@ getPomVersion() {
   if [ -z "$POM_VERSION" ] ; then
     if isFeatureBuild ; then
       # Get the pom version of what is currently being built
-      local pom="$(dirname $WORKSPACE)/${jobScripts['build-war']}/pom.xml"
-        POM_VERSION="$(grep -Po '(?!<version>)[^<>]+</version>' $pom | head -n 1 | sed 's/<\/version>//')"
+      local pom="$MAVEN_WORKSPACE/pom.xml"
+      POM_VERSION="$(grep -Po '(?!<version>)[^<>]+</version>' $pom | head -n 1 | sed 's/<\/version>//')"
     elif isReleaseBuild ; then
       # Get the pom version of what has already been built by a prior job
       POM_VERSION="$(getPomVersionFromLastBuiltWar)"
@@ -163,9 +173,8 @@ buildWarJobCall() {
       echo "WARNING: You are pushing a feature build directly into the staging environment!"
     fi
     BUILD_WAR='true'
-    isSandbox && local branch='master' || local branch='feature'
     addJobParm 'build-war' 'DEBUG' "$DEBUG"
-    addJobParm 'build-war' 'BRANCH' $branch
+    addJobParm 'build-war' 'BRANCH' $BRANCH
     addJobParm 'build-war' 'GIT_REF_TYPE' $GIT_REF_TYPE
     addJobParm 'build-war' 'GIT_REF' $GIT_REF    
     addJobParm 'build-war' 'GIT_COMMIT_ID' $GIT_COMMIT_ID
@@ -220,8 +229,8 @@ buildDeployJobCall() {
 }
 
 printJobCalls() {
-  for jobname in ${jobIDs[@]} ; do
-    local jobcall="$(echo ${jobcalls[$jobname]} | sed 's/ -p/ \\\n  -p/g')"
+  for jobId in ${jobIDs[@]} ; do
+    local jobcall="$(echo ${jobcalls[$jobId]} | sed 's/ -p/ \\\n  -p/g')"
     if [ -n "$jobcall" ] ; then
       echo ""
       echo "$jobcall" | sed -E 's/\x20/ \\\n  /g'
@@ -233,10 +242,10 @@ printJobCalls() {
 makeJobCalls() {
   local creds=/var/lib/jenkins/cli-credentials.sh
   [ -f $creds ] && source $creds
-  for jobname in ${jobIDs[@]} ; do
-    local jobcall="${jobcalls[$jobname]}"
+  for jobId in ${jobIDs[@]} ; do
+    local jobcall="${jobcalls[$jobId]}"
     if [ -n "$jobcall" ] ; then
-      outputHeading "Invoking $jobname..."
+      outputHeading "Invoking $jobId..."
       echo ""
       echo "$jobcall" | sed -E 's/\x20/ \\\n  /g'
       echo ""

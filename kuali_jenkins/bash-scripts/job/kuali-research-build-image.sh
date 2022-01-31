@@ -131,15 +131,19 @@ setDefaults() {
   DOCKER_TAG="${ECR_REGISTRY_URL}/${REGISTRY_REPO_NAME}:${POM_VERSION}"
   DOCKER_BUILD_CONTEXT="git@github.com:bu-ist/kuali-research-docker.git#${DOCKER_BUILD_CONTEXT_GIT_BRANCH}:kuali-research/build.context"
 
+  outputSubHeading "Parameters:"
   echo "BASE_IMAGE_REPO=$BASE_IMAGE_REPO"
   echo "JAVA_VERSION=$JAVA_VERSION"
   echo "TOMCAT_VERSION=$TOMCAT_VERSION"
   echo "ECR_REGISTRY_URL=$ECR_REGISTRY_URL"
   echo "AWS_ACCOUNT_ID=$AWS_ACCOUNT_ID"
   echo "AWS_REGION=$AWS_REGION"
+  echo "POM_VERSION=$POM_VERSION"
+  echo "REGISTRY_REPO_NAME=$REGISTRY_REPO_NAME"
   echo "DOCKER_TAG=$DOCKER_TAG"
   echo "DOCKER_BUILD_CONTEXT=$DOCKER_BUILD_CONTEXT"
   echo "JENKINS_WAR_FILE=$JENKINS_WAR_FILE"
+  echo " "
 
   local msg=""
   appendMessage() {
@@ -152,7 +156,8 @@ setDefaults() {
   [ -z "$ECR_REGISTRY_URL" ] && appendMessage "ECR_REGISTRY_URL"
   [ -z "$AWS_ACCOUNT_ID" ] && appendMessage "AWS_ACCOUNT_ID"
   [ -z "$AWS_REGION" ] && appendMessage "AWS_REGION"
-  [ -z "$DOCKER_TAG" ] && appendMessage "DOCKER_TAG"
+  [ -z "$POM_VERSION" ] && appendMessage "POM_VERSION"
+  [ -z "$REGISTRY_REPO_NAME" ] && appendMessage "REGISTRY_REPO_NAME"
   [ -z "$DOCKER_BUILD_CONTEXT" ] && appendMessage "DOCKER_BUILD_CONTEXT"
   [ -n "$msg" ] && echo "ERROR missing parameter(s): $msg"
 

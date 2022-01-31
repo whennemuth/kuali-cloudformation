@@ -41,7 +41,6 @@ validParameters() {
   echo "GIT_REF_TYPE=$GIT_REF_TYPE"
   echo "GIT_REF=$GIT_REF"
   echo "GIT_COMMIT_ID=$GIT_COMMIT_ID"
-  echo "BRANCH=$BRANCH"
   echo "S3_BUCKET=$S3_BUCKET"
  
   [ -n "$msg" ] && echo "ERROR missing/invalid parameter(s): $msg"
@@ -144,13 +143,13 @@ backupWar() {
   outputSubHeading "Backing up war file..."
   # Backup the war file. This keeps war files with the same name but from different git branches
   # from overwriting each other in the jenkins workspace on subsequent builds.
-  if [ ! -d ${BACKUP_DIR}/${BRANCH} ] ; then 
-    mkdir -p ${BACKUP_DIR}/${BRANCH} 
+  if [ ! -d ${BACKUP_DIR} ] ; then 
+    mkdir -p ${BACKUP_DIR} 
   fi
   # Clear out the backup dir (ensures only one war file and no space-consuming buildup)
-  rm -f -r ${BACKUP_DIR}/${BRANCH}/*
+  rm -f -r ${BACKUP_DIR}/*
   # Copy the war file from the maven target directory to the backup directory
-  cp -f -v ${WAR_FILE} ${BACKUP_DIR}/${BRANCH}/
+  cp -f -v ${WAR_FILE} ${BACKUP_DIR}/
 }
 
 if validParameters ; then
