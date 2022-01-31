@@ -28,7 +28,8 @@ outputHeading() {
   inDebugMode && set +x && returnToDebugMode='true'
   local msg="$1"
   [ -n "$outputHeadingCounter" ] && msg="$outputHeadingCounter) $msg" && ((outputHeadingCounter++))
-  local border='###############################################################################'
+  local border='###############################################################################################################################################'
+  echo ""
   echo ""
   echo "$border"
   echo "       $msg"
