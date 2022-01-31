@@ -139,6 +139,7 @@ setDefaults() {
   echo "AWS_REGION=$AWS_REGION"
   echo "DOCKER_TAG=$DOCKER_TAG"
   echo "DOCKER_BUILD_CONTEXT=$DOCKER_BUILD_CONTEXT"
+  echo "JENKINS_WAR_FILE=$JENKINS_WAR_FILE"
 
   local msg=""
   appendMessage() {

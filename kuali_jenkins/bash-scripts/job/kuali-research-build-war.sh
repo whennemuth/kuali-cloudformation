@@ -24,7 +24,7 @@ validParameters() {
   MAVEN_WORKSPACE=${MAVEN_WORKSPACE:-"$JENKINS_HOME/latest-maven-build/kc"}
   POM=${MAVEN_WORKSPACE}/pom.xml
   WARFILE_DIR=${MAVEN_WORKSPACE}/coeus-webapp/target
-  BACKUP_DIR=$JENKINS_HOME/backup/kuali-research/war
+  BACKUP_DIR=${BACKUP_DIR:-"$JENKINS_HOME/backup/kuali-research/war"}
   SCRIPT_DIR=${SCRIPT_DIR:-"$JENKINS_HOME/kuali-infrastructure/kuali_jenkins/bash-scripts/job"}
   CHECK_DEPENDENCIES=${CHECK_DEPENDENCIES:-"true"}
   GIT_REPO_URL=${GIT_REPO_URL:-"git@github.com:bu-ist/kuali-research.git"}

@@ -56,6 +56,9 @@ setGlobalVariables() {
   else
     BRANCH='feature'
   fi
+
+  MAVEN_WORKSPACE="$JENKINS_HOME/latest-maven-build/kc"
+  BACKUP_DIR="$JENKINS_HOME/backup/kuali-research/war/$BRANCH"
 }
 
 # Add a single parameter to the specified job call
@@ -79,7 +82,7 @@ addJobParm() {
 isJenkinsServer() { [ -d /var/lib/jenkins ] && true || false ; }
 isFeatureBuild() { [ "${BUILD_TYPE,,}" == "feature" ] && true || false ; }
 isReleaseBuild() { ([ -z "$BUILD_TYPE" ] || [ "${BUILD_TYPE,,}" == "release" ]) && true || false ; }
-lastWar() { ls -1 /var/lib/jenkins/backup/kuali-research/war/$BRANCH/*.war 2> /dev/null ; }
+lastWar() { find $BACKUP_DIR -iname coeus-webapp-*.war 2> /dev/null ; }
 isSandbox() { [ "${LANDSCAPE,,}" == "sandbox" ] && true || false ; }
 isCI() { [ "${LANDSCAPE,,}" == "ci" ] && true || false ; }
 isStaging() { ([ "${LANDSCAPE,,}" == "stg" ] || [ "${LANDSCAPE,,}" == "stage" ] || [ "${LANDSCAPE,,}" == "staging" ]) && true || false ; }
@@ -165,7 +168,9 @@ buildWarJobCall() {
     addJobParm 'build-war' 'BRANCH' $branch
     addJobParm 'build-war' 'GIT_REF_TYPE' $GIT_REF_TYPE
     addJobParm 'build-war' 'GIT_REF' $GIT_REF    
-    addJobParm 'build-war' 'GIT_COMMIT_ID' $GIT_COMMIT_ID    
+    addJobParm 'build-war' 'GIT_COMMIT_ID' $GIT_COMMIT_ID
+    addJobParm 'build-war' 'MAVEN_WORKSPACE' "$MAVEN_WORKSPACE" 
+    addJobParm 'build-war' 'BACKUP_DIR' "$BACKUP_DIR"
   else
     local pomVersion="$(getPomVersion)"
     if [ "$pomVersion" == 'unknown' ] ; then
