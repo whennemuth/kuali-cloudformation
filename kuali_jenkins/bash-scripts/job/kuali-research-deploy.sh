@@ -60,10 +60,14 @@ getStackType() {
 getCommand() {
   local output_dir="$1"
   local printCommand="${2:-"false"}"
+  # Example TARGET_IMAGE: 70203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-coeus-feature:2001.0040
+  local repo=$(echo "$TARGET_IMAGE" | cut -d':' -f1)
+  local tag=$(echo "$TARGET_IMAGE" | cut -d':' -f2)
 
   obfuscatePassword() {
     [ "$printCommand" == 'true' ] && obfuscate "$1" || echo "$1"
   }
+
 
   echo \
     "    if [ ! -d $output_dir ] ; then
@@ -73,9 +77,6 @@ getCommand() {
     if [ -n \"\$(docker ps -a --filter name=kuali-research -q)\" ]; then
       docker-compose rm --stop --force kuali-research;
     fi
-    # Example TARGET_IMAGE: 70203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-coeus-feature:2001.0040
-    repo=$(echo \"${TARGET_IMAGE}\" | cut -d':' -f1)
-    tag=$(echo \"${TARGET_IMAGE}\" | cut -d':' -f2)
     EXISTING_IMAGE_ID=\$(docker images \\
           | grep -P \"${repo}\s+${tag}\" \\
           | sed -r -n 's/[[:blank:]]+/ /gp' \\
