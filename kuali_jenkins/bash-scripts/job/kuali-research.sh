@@ -165,7 +165,7 @@ getPomVersionFromYoungestRegistryImage() {
 }
 
 getEcrRepoName() {
-  local repo=='kuali-coeus'
+  local repo='kuali-coeus'
   # Set the name of the target repository in docker registry
   if [ "$BRANCH" == "master" ] ; then
     echo "$repo-sandbox"

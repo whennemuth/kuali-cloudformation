@@ -298,6 +298,7 @@ public class ParameterController extends AbstractParameterSet {
 					break;
 				case BUILD_TYPE:
 					landscape = config.getParameterMap().get(QueryStringParms.LANDSCAPE.arg());
+					parameterView.setContextVariable("ParameterName", "build_type");
 					parameterView.setContextVariable("allowFeature", true);
 					parameterView.setContextVariable("allowPreRelease", true);
 					parameterView.setContextVariable("allowRelease", true);

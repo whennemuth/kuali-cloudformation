@@ -37,6 +37,15 @@
 				Release
 			</label>
 		</div>
+		<!-- This hidden input field will get set by a script from another active choices field that contains the function
+		     toggleBuildType. This function rotates the description for the selected radio button AND sets this hidden
+		     field with the value of the selected radio button. The radio buttons themselves cannot have the name="value"
+		     attribute on them because there's already one such set of radio buttons on the form, and you cannot have 
+		     another because, having the same name attribut ("value"), they would effectively become one radio button set.
+		     This method is a workaround for that. NOTE: The script mentioned above cannot be included directly here
+		     because that active choices plugin "sanitizes" it out if its accompanied by reactive reference fields.
+	    -->
+		<input type=hidden name="value" th:value="${ParameterValue}" id="_build_type">
 		<div>
 			<div style="font-style: italic; font-size:14px; padding-top:5px;">
 				<div id="_feature" th:attr="style=${ParameterValue=='feature'} ? _ : 'display:none'">
