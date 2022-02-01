@@ -9,10 +9,8 @@ parseArgs $@
 
 isDebug && set -x
 
-outputHeadingCounter=1
-
 validInputs() {
-  outputHeading "Checking required environment variables and setting default values..."
+  outputSubHeading "Checking required environment variables and setting default values..."
   local msg=""
   [ -z "$LANDSCAPE" ]  && \
     msg="ERROR: Missing LANDSCAPE value." && echo "$msg"
@@ -140,10 +138,10 @@ sendCommand() {
   local ec2Id="$1"
   local output_dir="$2"
 
-  outputHeading "Building ssm command (determine stack type, build, encode)"
+  outputSubHeading "Building ssm command (determine stack type, build, encode)"
   getCommand $output_dir "true"
   local base64="$(getBase64EncodedCommand $output_dir)"
-  outputHeading "Sending ssm command to refresh docker container at $ec2Id"
+  outputSubHeading "Sending ssm command to refresh docker container at $ec2Id"
 
   if runningOnJenkinsServer ; then
     if isDryrun ; then
@@ -168,7 +166,7 @@ sendCommand() {
   COMMAND_ID=$(aws ssm send-command \
     --instance-ids "$ec2Id" \
     --document-name "AWS-RunShellScript" \
-    --comment "Running shell script to pull and run container against a new docker image: ${TARGET_IMAGE}" \
+    --comment "Running shell script to pull and run container against a new docker image" \
     --parameters \
           commands="echo >> $output_dir/ssm-kc-received && date >> $output_dir/ssm-kc-received && \
                     echo ${base64} | base64 --decode >> $output_dir/ssm-kc-received && \
@@ -289,7 +287,7 @@ deployToEcs() {
 }
 
 deploy() {
-  outputHeading "Determining type of stack for: $STACK_NAME ..."
+  outputSubHeading "Determining type of stack for: $STACK_NAME ..."
   local stackType="$(getStackType)"
   case "$stackType" in
     ec2)

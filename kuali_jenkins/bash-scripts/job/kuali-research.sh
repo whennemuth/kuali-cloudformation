@@ -15,6 +15,8 @@ jobIDs=(
   deploy
 )
 
+outputHeadingCounter=1
+
 declare -A jobScripts=()
 jobScriptDir=${JOB_SCRIPT_DIR:-"$JENKINS_HOME/kuali-infrastructure/kuali_jenkins/bash-scripts/job"}
 jobScripts[${jobIDs[0]}]="$jobScriptDir/kuali-research-build-war.sh"
