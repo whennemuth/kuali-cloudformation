@@ -16,12 +16,8 @@ validInputs() {
   local msg=""
   [ -z "$LANDSCAPE" ]  && \
     msg="ERROR: Missing LANDSCAPE value." && echo "$msg"
-  [ -z "$ECR_REGISTRY_URL" ] && \
-    msg="ERROR: Missing ECR_REGISTRY_URL value." && echo "$msg"
-  [ -z "$REGISTRY_REPO_NAME" ] && \
-    msg="ERROR: Missing REGISTRY_REPO_NAME value." && echo "$msg"
-  [ -z "$POM_VERSION" ] && \
-    msg="ERROR: Missing POM_VERSION value." && echo "$msg"
+  [ -z "$TARGET_IMAGE" ]  && \
+    msg="ERROR: Missing TARGET_IMAGE value." && echo "$msg"
   [ "$NEW_RELIC_LOGGING" == true ] && NEW_RELIC_AGENT_ENABLED="true" || NEW_RELIC_AGENT_ENABLED="false"
   if usingNewRelic ; then
     NEW_RELIC_LICENSE_KEY="$(aws s3 cp s3://kuali-conf/newrelic/newrelic.license.key - 2> /dev/null)"
@@ -41,10 +37,7 @@ validInputs() {
 printVariables() {
   echo "LANDSCAPE=$LANDSCAPE"
   echo "STACK_NAME=$STACK_NAME"
-  # echo "BASELINE=$BASELINE"
-  echo "ECR_REGISTRY_URL=$ECR_REGISTRY_URL"
-  echo "REGISTRY_REPO_NAME=$REGISTRY_REPO_NAME"
-  echo "POM_VERSION=$POM_VERSION"
+  echo "TARGET_IMAGE=$TARGET_IMAGE"
   echo "NEW_RELIC_LOGGING=$NEW_RELIC_LOGGING"
   echo "NEW_RELIC_LICENSE_KEY=$(obfuscate $NEW_RELIC_LICENSE_KEY)"
   echo "NEW_RELIC_INFRASTRUCTURE_ENABLED=$NEW_RELIC_INFRASTRUCTURE_ENABLED"
@@ -73,12 +66,6 @@ getCommand() {
   obfuscatePassword() {
     [ "$printCommand" == 'true' ] && obfuscate "$1" || echo "$1"
   }
-  
-  if [ "${POM_VERSION:0:1}" == '@' ] ; then
-    NEW_IMAGE="${ECR_REGISTRY_URL}/${REGISTRY_REPO_NAME}${POM_VERSION}"
-  else
-    NEW_IMAGE="${ECR_REGISTRY_URL}/${REGISTRY_REPO_NAME}:${POM_VERSION}"
-  fi
 
   echo \
     "    if [ ! -d $output_dir ] ; then
@@ -88,8 +75,11 @@ getCommand() {
     if [ -n \"\$(docker ps -a --filter name=kuali-research -q)\" ]; then
       docker-compose rm --stop --force kuali-research;
     fi
+    # Example TARGET_IMAGE: 70203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-coeus-feature:2001.0040
+    repo=$(echo \"${TARGET_IMAGE}\" | cut -d':' -f1)
+    tag=$(echo \"${TARGET_IMAGE}\" | cut -d':' -f2)
     EXISTING_IMAGE_ID=\$(docker images \\
-          | grep -P \"${ECR_REGISTRY_URL}/${REGISTRY_REPO_NAME}\s+${POM_VERSION}\" \\
+          | grep -P \"${repo}\s+${tag}\" \\
           | sed -r -n 's/[[:blank:]]+/ /gp' \\
           | cut -d ' ' -f 3)
     if [ -n \"\${EXISTING_IMAGE_ID}\" ]; then
@@ -178,7 +168,7 @@ sendCommand() {
   COMMAND_ID=$(aws ssm send-command \
     --instance-ids "$ec2Id" \
     --document-name "AWS-RunShellScript" \
-    --comment "Running shell script to pull and run container against a new docker image for ${REGISTRY_REPO_NAME}" \
+    --comment "Running shell script to pull and run container against a new docker image: ${TARGET_IMAGE}" \
     --parameters \
           commands="echo >> $output_dir/ssm-kc-received && date >> $output_dir/ssm-kc-received && \
                     echo ${base64} | base64 --decode >> $output_dir/ssm-kc-received && \

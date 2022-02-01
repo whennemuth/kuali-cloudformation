@@ -57,9 +57,10 @@ setGlobalVariables() {
     esac
   done <<< "$(echo "$stackparts")"
 
-  if isReleaseBuild || isPreReleaseBuild ; then
+  if isRelease || isPreRelease ; then
     isSandbox && BRANCH='master' || BRANCH='bu-master'
   else
+    # Must be a feature build
     BRANCH='feature'
   fi
 
@@ -99,8 +100,8 @@ addJobParm() {
 
 isJenkinsServer() { [ -d /var/lib/jenkins ] && true || false ; }
 isFeatureBuild() { [ "$BUILD_TYPE" == "feature" ] && true || false ; }
-isPreReleaseBuild() { [ "$BUILD_TYPE" == "pre-release" ] && true || false ; }
-isReleaseBuild() { [ "$BUILD_TYPE" == "release" ] && true || false ; }
+isPreRelease() { [ "$BUILD_TYPE" == "pre-release" ] && true || false ; }
+isRelease() { [ "$BUILD_TYPE" == "release" ] && true || false ; }
 lastWar() { find $BACKUP_DIR -iname coeus-webapp-*.war 2> /dev/null ; }
 isSandbox() { [ "${LANDSCAPE,,}" == "sandbox" ] && true || false ; }
 isCI() { [ "${LANDSCAPE,,}" == "ci" ] && true || false ; }
@@ -115,6 +116,23 @@ debug() { [ "$DEBUG" == true ] && true || false ; }
 callJobs() { if dryrun ; then printJobCalls; else makeJobCalls; fi }
 
 getPomVersion() {
+
+  getPomVersionFromYoungestRegistryImage() {
+    getYoungestRegistryImage | cut -d':' -f2
+  }
+
+  # getPomVersionFromLastPushLog() {
+  #   local logfile="/var/lib/jenkins/jobs/${jobNames['push-image']}/lastSuccessful/log"
+  #   if [ -f "$logfile" ] ; then
+  #     cat $logfile | grep -P 'digest' | cut -d ':' -f 1 | tr -d '[[:space:]]'
+  #   fi
+  # }
+
+  # # The last built war file will have the pom version integrated in its name. 
+  # getPomVersionFromLastBuiltWar() {
+  #   echo "$(lastWar)" | grep -Po '(?<=coeus-webapp\-).*(?=\.war$)'
+  # }
+
   if [ -z "$POM_VERSION" ] ; then
     if isFeatureBuild ; then
       # Get the pom version of what is currently being built
@@ -141,39 +159,22 @@ getPomVersion() {
   echo "$version"
 }
 
-# The last push o
-getPomVersionFromLastPushLog() {
-  local logfile="/var/lib/jenkins/jobs/${jobNames['push-image']}/lastSuccessful/log"
-  if [ -f "$logfile" ] ; then
-    cat $logfile | grep -P 'digest' | cut -d ':' -f 1 | tr -d '[[:space:]]'
+getEcrRepoName() {
+  local repo='kuali-coeus'
+  # Set the name of the target repository in docker registry
+  if [ "$BRANCH" == "master" ] ; then
+    echo "$repo-sandbox"
+  elif isFeatureBuild || isPreRelease ; then
+    echo "$repo-feature"
+  elif isRelease ; then
+    echo "$repo"
   fi
-}
-
-# The last built war file will have the pom version integrated in its name. 
-getPomVersionFromLastBuiltWar() {
-  echo "$(lastWar)" | grep -Po '(?<=coeus-webapp\-).*(?=\.war$)'
 }
 
 getYoungestRegistryImage() {
   local repo="${1:-$(getEcrRepoName)}"
   local acct="aws sts get-caller-identity --output text --query 'Account'"
   getLatestImage "$repo" "$acct"
-}
-
-getPomVersionFromYoungestRegistryImage() {
-  getYoungestRegistryImage | cut -d':' -f2
-}
-
-getEcrRepoName() {
-  local repo='kuali-coeus'
-  # Set the name of the target repository in docker registry
-  if [ "$BRANCH" == "master" ] ; then
-    echo "$repo-sandbox"
-  elif isFeatureBuild || isPreReleaseBuild ; then
-    echo "$repo-feature"
-  elif isReleaseBuild ; then
-    echo "$repo"
-  fi
 }
 
 buildWarJobCall() {
@@ -228,23 +229,11 @@ buildPromoteDockerImageJobCall() {
 }
 
 buildDeployJobCall() {
-  if isFeatureBuild ; then
-    addJobParm 'deploy' 'POM_VERSION' "\$(getPomVersion)"
-  elif isReleaseBuild ; then
-    addJobParm 'deploy' 'POM_VERSION' "$(getPomVersion 2> /dev/null)"
-  fi
   addJobParm 'deploy' 'STACK_NAME' "\"$STACK_NAME\""
   addJobParm 'deploy' 'DEBUG' "$DEBUG"
   addJobParm 'deploy' 'LANDSCAPE' "$LANDSCAPE"
   addJobParm 'deploy' 'NEW_RELIC_LOGGING' "$(newrelic && echo 'true' || echo 'false')"
-  addJobParm 'deploy' 'ECR_REGISTRY_URL' "$ECR_REGISTRY_URL"
-  addJobParm 'deploy' 'REGISTRY_REPO_NAME' "$(getEcrRepoName)"
-  if [ -n "POM_ARTIFACTID_OVERRIDE" ] ; then
-    # By convention, we are calling the repository name within the registry the same as the artifactId of the pom file 
-    # that the repository keeps images for. However if we want to break this rule and cause downstream jobs to push 
-    # and pull from the registry referencing a different repository name, then set this value accordingly.
-    addJobParm 'deploy' 'POM_ARTIFACTID_OVERRIDE' $POM_ARTIFACTID_OVERRIDE
-  fi
+  addJobParm 'deploy' 'TARGET_IMAGE' "$(getYoungestRegistryImage 'kuali-coeus')"
 }
 
 printJobCalls() {
@@ -294,7 +283,7 @@ run() {
     buildDockerPushImageJobCall
   fi
 
-  if isPreReleaseBuild ; then
+  if isPreRelease ; then
 
     buildPromoteDockerImageJobCall
   fi
