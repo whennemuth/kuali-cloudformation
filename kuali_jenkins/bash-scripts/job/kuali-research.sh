@@ -223,8 +223,8 @@ buildDockerPushImageJobCall() {
 
 buildPromoteDockerImageJobCall() {
   addJobParm 'promote-image' 'DEBUG' "$DEBUG"
-  addJobParm 'promote-image' 'SOURCE-IMAGE' "$(getYoungestRegistryImage)"
-  addJobParm 'promote-image' 'TARGET-IMAGE' "$(getYoungestRegistryImage 'kuali-coeus')"
+  addJobParm 'promote-image' 'SOURCE_IMAGE' "$(getYoungestRegistryImage)"
+  addJobParm 'promote-image' 'TARGET_IMAGE' "$(getYoungestRegistryImage 'kuali-coeus')"
 }
 
 buildDeployJobCall() {
@@ -234,7 +234,6 @@ buildDeployJobCall() {
     addJobParm 'deploy' 'POM_VERSION' "$(getPomVersion 2> /dev/null)"
   fi
   addJobParm 'deploy' 'STACK_NAME' "\"$STACK_NAME\""
-  # addJobParm 'deploy' 'BASELINE' "$BASELINE"
   addJobParm 'deploy' 'DEBUG' "$DEBUG"
   addJobParm 'deploy' 'LANDSCAPE' "$LANDSCAPE"
   addJobParm 'deploy' 'NEW_RELIC_LOGGING' "$(newrelic && echo 'true' || echo 'false')"

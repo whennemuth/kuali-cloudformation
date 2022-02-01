@@ -2,11 +2,11 @@
 
 # You must source common-functions.sh for some functionality used below.
 
-# checkTestHarness $@ 2> /dev/null || true
+checkTestHarness $@ 2> /dev/null || true
 
-# parseArgs $@
+parseArgs $@
 
-# isDebug && set -x
+isDebug && set -x
 
 validParameters() {
   echo "ECR_REGISTRY_URL=$ECR_REGISTRY_URL"
