@@ -92,7 +92,7 @@ getCommand() {
     echo \"version: '3'\" > \$f
     echo \"services:\" >> \$f
     echo \"  kuali-research:\" >> \$f
-    echo \"    image: $NEW_IMAGE\" >> \$f
+    echo \"    image: $TARGET_IMAGE\" >> \$f
     echo \"    environment:\" >> \$f
     echo \"      - EC2_HOSTNAME=\$ec2Host\" >> \$f
     echo \"      - NEW_RELIC_LICENSE_KEY=$(obfuscatePassword "$NEW_RELIC_LICENSE_KEY" "true")\" >> \$f
