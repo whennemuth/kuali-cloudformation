@@ -196,7 +196,9 @@ waitForCommandOutputLogs() {
   fi
 
   while ((i<200)) ; do
+set -x
     s3Url="$(s3GetKcSendCommandOutputFileUrl $COMMAND_ID $STDOUT_BUCKET)"
+set +x
     [ -n "$s3Url" ] && echo "Url to presign is: $s3Url" && break;
     echo "Url to presign not ready. Trying again in 5 seconds..."
     ((i+=1))
