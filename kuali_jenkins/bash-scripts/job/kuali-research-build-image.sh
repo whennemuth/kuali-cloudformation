@@ -57,14 +57,17 @@ refreshBuildCode() {
 
 copyWarToBuildContext() {
   [ "$DRYRUN" == 'true' ] && echo "DRYRUN: copyWarToBuildContext..." && return 0
-  if [ -n "${JENKINS_WAR_FILE}" ] ; then
-    cp ${JENKINS_WAR_FILE} kuali-research/build.context
-  else
-    MAVEN_TARGET_DIR=${JENKINS_HOME}/workspace/kuali-research-1-build-war/coeus-webapp/target
-    cp ${MAVEN_TARGET_DIR}/*.war kuali-research/build.context
-  fi
   cd kuali-research/build.context
+  cp $JENKINS_WAR_FILE .
   WAR_FILE=$(ls *.war)
+}
+
+# The git readme file says you don't need to do this for tomcat 9.x and above, but still getting ClassNotFoundException from KcConfigVerifier 
+copySpringInstrumentJarToBuildContext() {
+  [ "$DRYRUN" == 'true' ] && echo "DRYRUN: copySpringInstrumentJarToBuildContext..." && return 0
+  cd kuali-research/build.context
+  cp $SPRING_INSTRUMENT_JAR .
+  SPRING_INSTRUMENT_JAR=$(ls $SPRING_INSTRUMENT_JAR)
 }
 
 checkCentosImage() {
@@ -102,10 +105,13 @@ buildDockerImage() {
 
   copyWarToBuildContext
   
+  copySpringInstrumentJarToBuildContext
+  
   # checkCentosImage
   
   local cmd="docker build -t ${DOCKER_TAG} \\
     --build-arg SOURCE_WAR=${WAR_FILE} \\
+    --build-arg SPRING_INSTRUMENT_JAR=${SPRING_INSTRUMENT_JAR} \\
     --build-arg JAVA_VERSION=${JAVA_VERSION} \\
     --build-arg REPO_URI=${ECR_REGISTRY_URL}/${BASE_IMAGE_REPO} \\
     --build-arg TOMCAT_VERSION=${TOMCAT_VERSION} ."
@@ -143,6 +149,7 @@ setDefaults() {
   echo "DOCKER_TAG=$DOCKER_TAG"
   echo "DOCKER_BUILD_CONTEXT=$DOCKER_BUILD_CONTEXT"
   echo "JENKINS_WAR_FILE=$JENKINS_WAR_FILE"
+  echo "SPRING_INSTRUMENT_JAR=$SPRING_INSTRUMENT_JAR"
   echo " "
 
   local msg=""
@@ -159,6 +166,10 @@ setDefaults() {
   [ -z "$POM_VERSION" ] && appendMessage "POM_VERSION"
   [ -z "$REGISTRY_REPO_NAME" ] && appendMessage "REGISTRY_REPO_NAME"
   [ -z "$DOCKER_BUILD_CONTEXT" ] && appendMessage "DOCKER_BUILD_CONTEXT"
+  [ -z "$JENKINS_WAR_FILE" ] && appendMessage "JENKINS_WAR_FILE"
+  [ ! -f "$JENKINS_WAR_FILE" ] && appendMessage "JENKINS_WAR_FILE [$JENKINS_WAR_FILE not found]"
+  [ -z "$SPRING_INSTRUMENT_JAR" ] && appendMessage "SPRING_INSTRUMENT_JAR"
+  [ ! -f "$SPRING_INSTRUMENT_JAR" ] && appendMessage "SPRING_INSTRUMENT_JAR [$SPRING_INSTRUMENT_JAR not found]"
   [ -n "$msg" ] && echo "ERROR missing parameter(s): $msg"
 
   [ -z "$msg" ] && true || false

@@ -25,12 +25,12 @@ jobScripts[${jobIDs[2]}]="$jobScriptDir/kuali-research-push-image.sh"
 jobScripts[${jobIDs[3]}]="$jobScriptDir/kuali-research-promote-image.sh"
 jobScripts[${jobIDs[4]}]="$jobScriptDir/kuali-research-deploy.sh"
 
-declare -A jobNames=()
-jobNames[${jobIDs[0]}]='kuali-research-1-build-war'
-jobNames[${jobIDs[1]}]='kuali-research-2-docker-build-image'
-jobNames[${jobIDs[2]}]='kuali-research-3-docker-push-image'
-jobNames[${jobIDs[3]}]='none'
-jobNames[${jobIDs[4]}]='kuali-research-4-deploy-to-stack'
+# declare -A jobNames=()
+# jobNames[${jobIDs[0]}]='kuali-research-1-build-war'
+# jobNames[${jobIDs[1]}]='kuali-research-2-docker-build-image'
+# jobNames[${jobIDs[2]}]='kuali-research-3-docker-push-image'
+# jobNames[${jobIDs[3]}]='none'
+# jobNames[${jobIDs[4]}]='kuali-research-4-deploy-to-stack'
 
 declare -A jobcalls=()
 
@@ -215,6 +215,8 @@ buildDockerBuildImageJobCall() {
   addJobParm 'build-image' 'JENKINS_WAR_FILE' "\$(lastWar)"
   addJobParm 'build-image' 'REGISTRY_REPO_NAME' "$(getEcrRepoName)"
   addJobParm 'build-image' 'ECR_REGISTRY_URL' "$ECR_REGISTRY_URL"
+  # This file should be there as long as the -Dcopy.javaagent.off arg is not set to true when running mvn
+  addJobParm 'build-image' 'SPRING_INSTRUMENT_JAR' "$MAVEN_WORKSPACE/target/javaagent/spring-instrument.jar"
 }
 
 buildDockerPushImageJobCall() {
