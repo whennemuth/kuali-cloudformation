@@ -586,6 +586,12 @@ Resources:
                 log_stream_name = {instance_id}/var/log/localhost
                 datetime_format = %Y-%m-%dT%H:%M:%S.%f
                 
+                [/var/log/catalina]
+                file = /opt/kuali/kc_tomcat_logs/catalina.log
+                log_group_name = ${GlobalTag}-${Landscape}
+                log_stream_name = {instance_id}/var/log/catalina
+                datetime_format = %Y-%m-%dT%H:%M:%S.%f
+                
                 [/var/log/cfn-init]
                 file = /var/log/cfn-init.log
                 log_group_name = ${GlobalTag}-${Landscape}
@@ -1147,6 +1153,29 @@ Outputs:
   PrivateIP:
     Value:
       !GetAtt EC2Instance.PrivateIp
+
+  DashboardAddress:
+    Value:
+      !Sub 
+      - https://${ip}/dashboard
+      - ip: !GetAtt EC2Instance.PrivateIp
+
+  CorMainAddress:
+    Value:
+      !Sub 
+      - https://${ip}/apps
+      - ip: !GetAtt EC2Instance.PrivateIp
+
+  MongoAddress:
+    Value:
+      !If
+        - CreateMongoEc2Instance
+        - !Sub 
+          - ${Url}:${Port}/${DbName}
+          - Url: !GetAtt MongoDbInstance.Outputs.PrivateIP
+            Port: 27017
+            DbName: core-development
+        - ''
 
   InstanceId:
     Value:

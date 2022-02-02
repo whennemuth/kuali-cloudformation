@@ -92,16 +92,19 @@ buildDockerImage() {
 
   # Copy the war file to the docker build context
   [ "$DRYRUN" == 'true' ] && echo "DRYRUN: copyWarToBuildContext..." && return 0
-  cp $JENKINS_WAR_FILE .
+  cp -v $JENKINS_WAR_FILE .
   WAR_FILE=$(ls *.war)
   
   # The git readme file says you don't need to do this for tomcat 9.x and above, but still getting ClassNotFoundException from KcConfigVerifier 
   [ "$DRYRUN" == 'true' ] && echo "DRYRUN: copySpringInstrumentJarToBuildContext..." && return 0
-  cp $SPRING_INSTRUMENT_JAR ./spring-instrument.jar
+  cp -v $SPRING_INSTRUMENT_JAR ./spring-instrument.jar
   SPRING_INSTRUMENT_JAR='spring-instrument.jar'
 
   # checkCentosImage
-  
+  outputSubHeading "Docker build context:"
+  echo "$(pwd):"
+  ls -la
+  echo " "
   local cmd="docker build -t ${DOCKER_TAG} \\
     --build-arg SOURCE_WAR=${WAR_FILE} \\
     --build-arg SPRING_INSTRUMENT_JAR=${SPRING_INSTRUMENT_JAR} \\

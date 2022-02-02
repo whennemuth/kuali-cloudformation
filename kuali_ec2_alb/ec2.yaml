@@ -512,6 +512,12 @@ Resources:
                 log_stream_name = {instance_id}/var/log/localhost
                 datetime_format = %Y-%m-%dT%H:%M:%S.%f
                 
+                [/var/log/catalina]
+                file = /opt/kuali/kc_tomcat_logs/catalina.log
+                log_group_name = ${GlobalTag}-${Landscape}
+                log_stream_name = {instance_id}/var/log/catalina
+                datetime_format = %Y-%m-%dT%H:%M:%S.%f
+                
                 [/var/log/cfn-init]
                 file = /var/log/cfn-init.log
                 log_group_name = ${GlobalTag}-${Landscape}
