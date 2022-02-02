@@ -97,8 +97,8 @@ buildDockerImage() {
   
   # The git readme file says you don't need to do this for tomcat 9.x and above, but still getting ClassNotFoundException from KcConfigVerifier 
   [ "$DRYRUN" == 'true' ] && echo "DRYRUN: copySpringInstrumentJarToBuildContext..." && return 0
-  cp $SPRING_INSTRUMENT_JAR .
-  SPRING_INSTRUMENT_JAR=$(ls $SPRING_INSTRUMENT_JAR)
+  cp $SPRING_INSTRUMENT_JAR ./spring-instrument.jar
+  SPRING_INSTRUMENT_JAR='spring-instrument.jar'
 
   # checkCentosImage
   
