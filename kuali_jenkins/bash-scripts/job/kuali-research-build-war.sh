@@ -90,15 +90,14 @@ buildWithMaven() {
   (
     cd $MAVEN_WORKSPACE
 
+    export MAVEN_OPTS="-Xmx3072m -Xms512m -XX:MaxPermSize=256m"
+
     mvn clean compile install \
       -Dgrm.off=true \
       -Dmaven.test.skip=true \
       -Dbuild.version="${UPCOMING_POM_VERSION}" \
       -Dbuild.bu.git.ref="git:branch=${GIT_BRANCH},ref=${GIT_COMMIT}" \
-      -Dclean-jsfrontend-node.off \
-      -Xmx3072m \
-      -Xms512m \
-      -XX:MaxPermSize=256m
+      -Dclean-jsfrontend-node.off
   )
 
   warExists && true || false
