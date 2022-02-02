@@ -75,6 +75,9 @@ performMavenBuild() {
   }
   (
     cd $MAVEN_WORKSPACE
+
+    export MAVEN_OPTS="-Xmx3072m -Xms512m -XX:MaxPermSize=256m"
+
     if buildingRice ; then
       mvn clean compile install -e -Dgrm.off=true
     else

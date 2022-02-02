@@ -55,21 +55,6 @@ refreshBuildCode() {
   eval `ssh-agent -k`
 }
 
-copyWarToBuildContext() {
-  [ "$DRYRUN" == 'true' ] && echo "DRYRUN: copyWarToBuildContext..." && return 0
-  cd kuali-research/build.context
-  cp $JENKINS_WAR_FILE .
-  WAR_FILE=$(ls *.war)
-}
-
-# The git readme file says you don't need to do this for tomcat 9.x and above, but still getting ClassNotFoundException from KcConfigVerifier 
-copySpringInstrumentJarToBuildContext() {
-  [ "$DRYRUN" == 'true' ] && echo "DRYRUN: copySpringInstrumentJarToBuildContext..." && return 0
-  cd kuali-research/build.context
-  cp $SPRING_INSTRUMENT_JAR .
-  SPRING_INSTRUMENT_JAR=$(ls $SPRING_INSTRUMENT_JAR)
-}
-
 checkCentosImage() {
   [ "$DRYRUN" == 'true' ] && echo "DRYRUN: checkCentosImage..." && return 0
   local ecrImage="$ECR_REGISTRY_URL/${BASE_IMAGE_REPO}:${TOMCAT_VERSION}"
@@ -103,10 +88,18 @@ checkCentosImage() {
 # Therefore, we will checkout the build context to a known location within the jenkins build context, copy
 buildDockerImage() {
 
-  copyWarToBuildContext
+  cd kuali-research/build.context
+
+  # Copy the war file to the docker build context
+  [ "$DRYRUN" == 'true' ] && echo "DRYRUN: copyWarToBuildContext..." && return 0
+  cp $JENKINS_WAR_FILE .
+  WAR_FILE=$(ls *.war)
   
-  copySpringInstrumentJarToBuildContext
-  
+  # The git readme file says you don't need to do this for tomcat 9.x and above, but still getting ClassNotFoundException from KcConfigVerifier 
+  [ "$DRYRUN" == 'true' ] && echo "DRYRUN: copySpringInstrumentJarToBuildContext..." && return 0
+  cp $SPRING_INSTRUMENT_JAR .
+  SPRING_INSTRUMENT_JAR=$(ls $SPRING_INSTRUMENT_JAR)
+
   # checkCentosImage
   
   local cmd="docker build -t ${DOCKER_TAG} \\
@@ -135,7 +128,7 @@ setDefaults() {
   AWS_ACCOUNT_ID="$(echo "$ECR_REGISTRY_URL" | cut -d '.' -f1)"
   AWS_REGION="$(echo "$ECR_REGISTRY_URL" | cut -d '.' -f4)"
   DOCKER_TAG="${ECR_REGISTRY_URL}/${REGISTRY_REPO_NAME}:${POM_VERSION}"
-  DOCKER_BUILD_CONTEXT="git@github.com:bu-ist/kuali-research-docker.git#${DOCKER_BUILD_CONTEXT_GIT_BRANCH}:kuali-research/build.context"
+  # DOCKER_BUILD_CONTEXT="git@github.com:bu-ist/kuali-research-docker.git#${DOCKER_BUILD_CONTEXT_GIT_BRANCH}:kuali-research/build.context"
 
   outputSubHeading "Parameters:"
   echo "BASE_IMAGE_REPO=$BASE_IMAGE_REPO"
@@ -147,7 +140,7 @@ setDefaults() {
   echo "POM_VERSION=$POM_VERSION"
   echo "REGISTRY_REPO_NAME=$REGISTRY_REPO_NAME"
   echo "DOCKER_TAG=$DOCKER_TAG"
-  echo "DOCKER_BUILD_CONTEXT=$DOCKER_BUILD_CONTEXT"
+  # echo "DOCKER_BUILD_CONTEXT=$DOCKER_BUILD_CONTEXT"
   echo "JENKINS_WAR_FILE=$JENKINS_WAR_FILE"
   echo "SPRING_INSTRUMENT_JAR=$SPRING_INSTRUMENT_JAR"
   echo " "
@@ -165,7 +158,7 @@ setDefaults() {
   [ -z "$AWS_REGION" ] && appendMessage "AWS_REGION"
   [ -z "$POM_VERSION" ] && appendMessage "POM_VERSION"
   [ -z "$REGISTRY_REPO_NAME" ] && appendMessage "REGISTRY_REPO_NAME"
-  [ -z "$DOCKER_BUILD_CONTEXT" ] && appendMessage "DOCKER_BUILD_CONTEXT"
+  # [ -z "$DOCKER_BUILD_CONTEXT" ] && appendMessage "DOCKER_BUILD_CONTEXT"
   [ -z "$JENKINS_WAR_FILE" ] && appendMessage "JENKINS_WAR_FILE"
   [ ! -f "$JENKINS_WAR_FILE" ] && appendMessage "JENKINS_WAR_FILE [$JENKINS_WAR_FILE not found]"
   [ -z "$SPRING_INSTRUMENT_JAR" ] && appendMessage "SPRING_INSTRUMENT_JAR"

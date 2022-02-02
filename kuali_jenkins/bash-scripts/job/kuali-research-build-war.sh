@@ -17,7 +17,7 @@ validParameters() {
     [ -n "$msg" ] && msg="$msg, $1" || msg="$1"
   }
 
-  outputSubHeading "Validating parameters & setting defaults..."
+  outputSubHeading "Parameters..."
 
   JENKINS_HOME=${JENKINS_HOME:-"/var/lib/jenkins"}
   [ ! -d "$JENKINS_HOME" ] && appendMessage 'JENKINS_HOME'
@@ -30,7 +30,6 @@ validParameters() {
   GIT_REPO_URL=${GIT_REPO_URL:-"git@github.com:bu-ist/kuali-research.git"}
   S3_BUCKET=${S3_BUCKET:-"kuali-conf"}
 
-  outputSubHeading "Parameters:"
   echo "JENKINS_HOME=$JENKINS_HOME"
   echo "MAVEN_WORKSPACE=$MAVEN_WORKSPACE"
   echo "POM=$POM"
