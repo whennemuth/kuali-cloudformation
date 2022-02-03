@@ -187,8 +187,8 @@ getPushEcrRepoName() {
 getYoungestRegistryImage() {
   local type="$1"
   case "${type,,}" in
-    source) local repo="$(getPullRepoName)" ;;
-    target) local repo="$(getPushRepoName)" ;;
+    source) local repo="$(getPullEcrRepoName)" ;;
+    target) local repo="$(getPushEcrRepoName)" ;;
   esac
   local acct="aws sts get-caller-identity --output text --query 'Account'"
   getLatestImage "$repo" "$acct"
