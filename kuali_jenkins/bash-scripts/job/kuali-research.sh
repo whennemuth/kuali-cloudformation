@@ -120,7 +120,7 @@ callJobs() { if dryrun ; then printJobCalls; else makeJobCalls; fi }
 getPomVersion() {
 
   getPomVersionFromYoungestRegistryImage() {
-    getYoungestRegistryImage | cut -d':' -f2
+    getYoungestRegistryImage 'source' | cut -d':' -f2
   }
 
   # getPomVersionFromLastPushLog() {
@@ -161,20 +161,35 @@ getPomVersion() {
   echo "$version"
 }
 
-getEcrRepoName() {
+getPullEcrRepoName() {
   local repo='kuali-coeus'
-  # Set the name of the target repository in docker registry
   if [ "$BRANCH" == "master" ] ; then
     echo "$repo-sandbox"
   elif isFeatureBuild || isPreRelease ; then
     echo "$repo-feature"
   elif isRelease ; then
+    echo "Not_Applicable"
+  fi
+}
+
+getPushEcrRepoName() {
+  local repo='kuali-coeus'
+  # Set the name of the target repository in docker registry
+  if [ "$BRANCH" == "master" ] ; then
+    echo "$repo-sandbox"
+  elif isFeatureBuild ; then
+    echo "$repo-feature"
+  elif isPreRelease || isRelease ; then
     echo "$repo"
   fi
 }
 
 getYoungestRegistryImage() {
-  local repo="${1:-$(getEcrRepoName)}"
+  local type="$1"
+  case "${type,,}" in
+    source) local repo="$(getPullRepoName)" ;;
+    target) local repo="$(getPushRepoName)" ;;
+  esac
   local acct="aws sts get-caller-identity --output text --query 'Account'"
   getLatestImage "$repo" "$acct"
 }
@@ -190,20 +205,13 @@ buildWarJobCall() {
       echo "WARNING: You are pushing a feature build directly into the staging environment!"
     fi
     built='true'
-    addJobParm 'build-war' 'DEBUG' "$DEBUG"
+    addJobParm 'build-war' 'DEBUG' $DEBUG
     addJobParm 'build-war' 'BRANCH' $BRANCH
     addJobParm 'build-war' 'GIT_REF_TYPE' $GIT_REF_TYPE
     addJobParm 'build-war' 'GIT_REF' $GIT_REF    
     addJobParm 'build-war' 'GIT_COMMIT_ID' $GIT_COMMIT_ID
-    addJobParm 'build-war' 'MAVEN_WORKSPACE' "$MAVEN_WORKSPACE" 
-    addJobParm 'build-war' 'BACKUP_DIR' "$BACKUP_DIR"
-  else
-    local pomVersion="$(getPomVersion)"
-    if [ "$pomVersion" == 'unknown' ] ; then
-      echo "PROBLEM!!! Cannot determine registry image to reference. POM version unknown!";
-      echo "Cancelling build..."
-      exit 1
-    fi
+    addJobParm 'build-war' 'MAVEN_WORKSPACE' $MAVEN_WORKSPACE
+    addJobParm 'build-war' 'BACKUP_DIR' $BACKUP_DIR
   fi
 
   [ "$built" == 'true' ] && true || false
@@ -213,7 +221,7 @@ buildDockerBuildImageJobCall() {
   addJobParm 'build-image' 'DEBUG' "$DEBUG"
   addJobParm 'build-image' 'POM_VERSION' "\$(getPomVersion)"
   addJobParm 'build-image' 'JENKINS_WAR_FILE' "\$(lastWar)"
-  addJobParm 'build-image' 'REGISTRY_REPO_NAME' "$(getEcrRepoName)"
+  addJobParm 'build-image' 'REGISTRY_REPO_NAME' "$(getPushEcrRepoName)"
   addJobParm 'build-image' 'ECR_REGISTRY_URL' "$ECR_REGISTRY_URL"
   # This file should be there as long as the -Dcopy.javaagent.off arg is not set to true when running mvn
   addJobParm 'build-image' 'SPRING_INSTRUMENT_JAR' "$MAVEN_WORKSPACE/target/javaagent/spring-instrument.jar"
@@ -223,13 +231,13 @@ buildDockerPushImageJobCall() {
   addJobParm 'push-image' 'DEBUG' "$DEBUG"
   addJobParm 'push-image' 'ECR_REGISTRY_URL' "$ECR_REGISTRY_URL"
   addJobParm 'push-image' 'POM_VERSION' "\$(getPomVersion)"
-  addJobParm 'push-image' 'REGISTRY_REPO_NAME' "$(getEcrRepoName)"
+  addJobParm 'push-image' 'REGISTRY_REPO_NAME' "$(getPushEcrRepoName)"
 }
 
 buildPromoteDockerImageJobCall() {
   addJobParm 'promote-image' 'DEBUG' "$DEBUG"
-  addJobParm 'promote-image' 'SOURCE_IMAGE' "$(getYoungestRegistryImage)"
-  addJobParm 'promote-image' 'TARGET_IMAGE' "$(getYoungestRegistryImage 'kuali-coeus')"
+  addJobParm 'promote-image' 'SOURCE_IMAGE' "$(getYoungestRegistryImage 'source')"
+  addJobParm 'promote-image' 'TARGET_IMAGE' "$(getYoungestRegistryImage 'target')"
 }
 
 buildDeployJobCall() {
@@ -237,7 +245,7 @@ buildDeployJobCall() {
   addJobParm 'deploy' 'DEBUG' "$DEBUG"
   addJobParm 'deploy' 'LANDSCAPE' "$LANDSCAPE"
   addJobParm 'deploy' 'NEW_RELIC_LOGGING' "$(newrelic && echo 'true' || echo 'false')"
-  addJobParm 'deploy' 'TARGET_IMAGE' "$(getYoungestRegistryImage 'kuali-coeus')"
+  addJobParm 'deploy' 'TARGET_IMAGE' "$(getYoungestRegistryImage 'target')"
 }
 
 printJobCalls() {

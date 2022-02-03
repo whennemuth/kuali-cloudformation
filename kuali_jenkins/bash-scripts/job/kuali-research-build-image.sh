@@ -1,7 +1,7 @@
 # Periodic cleanup: remove registry originated images that are over 6 months old
 pruneOldRegistryImages() {
   [ "$DRYRUN" == 'true' ] && echo "DRYRUN: pruneOldRegistryImages..." && return 0
-  echo "Removing coeus images tagged for the registry over 6 months ago..."
+  outputSubHeading "Pruning coeus images tagged for the registry over 6 months ago..."
   docker rmi $(
     docker images | \
       grep "$AWS_ACCOUNT_ID" | \
@@ -10,12 +10,14 @@ pruneOldRegistryImages() {
       }'\
   ) 2> /dev/null && \
   docker rmi $(docker images -a --filter dangling=true -q) 2> /dev/null || true
+  echo "Finished pruning"
 }
 
 # If the base tomcat image is not in the local repo, get it from the registry
 # default value is being invoked through calling this job using the jenkins-cli build function with the corresponding parameter omitted.
 # NOTE: If you run this job manually, the default value will be reflected in the environment variable.
 getTomcatDockerImage() {
+  outputSubHeading "Checking for the centos/tomcat base image locally..."
   BASE_IMAGE_TAG="java${JAVA_VERSION}-tomcat${TOMCAT_VERSION}"
   TOMCAT_REGISTRY_IMAGE="${ECR_REGISTRY_URL}/${BASE_IMAGE_REPO}:${BASE_IMAGE_TAG}"
   TOMCAT_LOCAL_IMAGE="bu-ist/${BASE_IMAGE_REPO}:${BASE_IMAGE_TAG}"
@@ -30,6 +32,7 @@ getTomcatDockerImage() {
     echo "Tagging ${TOMCAT_REGISTRY_IMAGE}"
     docker tag ${TOMCAT_REGISTRY_IMAGE} ${TOMCAT_LOCAL_IMAGE}
   fi
+  echo "Finished base image check."
 }
 
 # Fetch and reset the code from the git repository containing the docker build context
@@ -54,22 +57,6 @@ refreshBuildCode() {
   git checkout master 
   eval `ssh-agent -k`
 }
-
-checkCentosImage() {
-  [ "$DRYRUN" == 'true' ] && echo "DRYRUN: checkCentosImage..." && return 0
-  local ecrImage="$ECR_REGISTRY_URL/${BASE_IMAGE_REPO}:${TOMCAT_VERSION}"
-  local localImage="bu-ist/${BASE_IMAGE_REPO}:${TOMCAT_VERSION}"
-  if [ "$(docker images -q $localImage | wc -l)" == "0" ] ; then
-    if [ "$(docker images -q $ecrImage | wc -l)" == "0" ] ; then
-      evalstr="$(aws ecr get-login)"
-      evalstr="$(echo $evalstr | sed 's/ -e none//')"
-      eval $evalstr
-      docker pull $ecrImage
-    fi
-    docker tag $ecrImage $localImage
-  fi
-}
-
 
 # Since the $SOURCE_WAR artifact exists outside the docker build context we cannot execute the COPY 
 # instruction in the Dockerfile against $SOURCE_WAR because we are implementing jenkins security 
@@ -100,7 +87,6 @@ buildDockerImage() {
   cp -v $SPRING_INSTRUMENT_JAR ./spring-instrument.jar
   SPRING_INSTRUMENT_JAR='spring-instrument.jar'
 
-  # checkCentosImage
   outputSubHeading "Docker build context:"
   echo "$(pwd):"
   ls -la
@@ -113,6 +99,7 @@ buildDockerImage() {
     --build-arg TOMCAT_VERSION=${TOMCAT_VERSION} ."
   
   echo "$cmd"
+  echo " "
   [ "$DRYRUN" != 'true' ] && eval "$cmd"
 }
 
