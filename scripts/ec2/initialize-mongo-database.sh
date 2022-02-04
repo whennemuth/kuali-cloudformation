@@ -192,7 +192,7 @@ EOF
 
 
 createInstitutionsCollection() {
-  getInstitutionRESTCall
+  getCollectionRestCall 'api/v1/institution'
 }
 
 getIdp() {
@@ -251,7 +251,7 @@ EOF
 
 
 createUsersCollection() {
-  # getInstitutionRESTCall
+  # getCollectionRestCall 'api/v1/users'
   echo 'Creating users collection...'
 }
 
@@ -264,9 +264,11 @@ updateUsers() {
 # A brand new core-development mongo database will not contain the "institutions" and "users" collections.
 # Usually, browsing the application and logging in for the first time as admin will trigger the creaton of these
 # two collections, but you can accomplish the same by making a rest call to the institution module.
-getInstitutionRESTCall() {
+getCollectionRestCall() {
 
-  echo "Making REST call to cor-main container to trigger auto-create of institutions and/or users collection(s)..."
+  local path="$1"
+
+  echo "Making $path REST call to cor-main container to trigger auto-create of the associated collection..."
 
   setContainerId() {
     containerShortname=${1:-'cor-main'}
@@ -298,9 +300,9 @@ getInstitutionRESTCall() {
 
   makeRESTCall() {
     for attempt in {1..30} ; do
-      echo "Attempting REST call to $containerShortname container to trigger auto-create of institutions and/or users collection(s)..."
-      echo "curl http://$containerIpAddress:3000/api/v1/institution"
-      local reply=$(curl http://$containerIpAddress:3000/api/v1/institution 2>&1)
+      echo "Attempting $path REST call to $containerShortname container to trigger auto-create of institutions and/or users collection(s)..."
+      echo "curl http://$containerIpAddress:3000/$path"
+      local reply=$(curl http://$containerIpAddress:3000/$path 2>&1)
       local code=$?
       echo "$code: $reply"
       if [ $code -ne 0 ] || [ -n "$(grep -i 'connection refused' <<< $reply)" ] ; then

@@ -180,6 +180,19 @@ Resources:
               StringEquals:
                 ec2:ResourceTag/self-stoppable:
                   'true'
+      - PolicyName:
+          !Sub "${GlobalTag}-${Landscape}-mongo-read-secrets"
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Action:
+            - secretsmanager:GetResourcePolicy
+            - secretsmanager:GetSecretValue
+            - secretsmanager:DescribeSecret
+            - secretsmanager:ListSecretVersionIds
+            Resource:
+            - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:kuali/${Baseline}/*
+            
 
   EC2InstanceLogsGroup:
     Type: AWS::Logs::LogGroup

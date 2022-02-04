@@ -244,6 +244,22 @@ Resources:
             #   StringEquals:
             #     aws:ResourceTag/Name: !Sub kuali-oracle-${Landscape}
             #     rds:db-tag/Name: !Sub kuali-oracle-${Landscape}
+      - !If 
+        - UseMongoEc2Instance
+        - PolicyName:
+            !Sub "${GlobalTag}-${Landscape}-ssm-to-mongo"
+          PolicyDocument:
+            Statement:
+            - Effect: Allow
+              Action:
+              - ssm:SendCommand
+              - ssm:CancelCommand
+              Resource:
+              - !Sub 
+                - arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/${id}
+                - id: !GetAtt MongoDbInstance.Outputs.InstanceId
+              - !Sub arn:aws:ssm:${AWS::Region}::document/AWS-RunShellScript
+        - !Ref AWS::NoValue
       - PolicyName:
           !Sub ${GlobalTag}-${Landscape}-ecs-service-policy
         PolicyDocument:

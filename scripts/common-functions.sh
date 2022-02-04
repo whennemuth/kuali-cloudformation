@@ -1551,7 +1551,7 @@ checkRDSParameters() {
   elif [ -n "$BASELINE" ] ; then
     if ! isABaselineLandscape ; then
       local original="$BASELINE"
-      BASELINE="$(getStackBaselineByLandscape $BASELINE)"
+      BASELINE="$(getStackBaselineByLandscape $LANDSCAPE)"
       validateBaseline " descendent landscape \"$original\""
     fi
   fi
@@ -1911,6 +1911,21 @@ getLatestOracleEngineVersion() {
 # The top result of a numeric sort against a list of all an ecr repos image tags should indicate the latest one.
 getLatestImage() {
   local reponame="$1"
+  if [ -n "$LANDSCAPE" ] ; then
+    if [ "$reponame" == 'coeus' ] || [ "$reponame" == 'kuali-coeus' ] ; then
+      local baseline="$(getBaselineFromString $LANDSCAPE)"
+      case "$baseline" in
+        sb)
+          reponame='kuali-coeus-sandbox' ;;
+        ci|qa)
+          reponame='kuali-coeus-feature' ;;
+        stg|prod)
+          reponame='kuali-coeus' ;;
+        *)
+          reponame='kuali-coeus-feature' ;;
+      esac
+    fi
+  fi
   local accountNbr="$(aws sts get-caller-identity --output text --query 'Account')"
   local version=$(aws \
     ecr describe-images \
@@ -1921,6 +1936,21 @@ getLatestImage() {
     | sort -rn \
     | head -n 1)
   echo "$accountNbr.dkr.ecr.us-east-1.amazonaws.com/$reponame:$version"
+}
+
+getKcRepoName() {
+  local landscape="$1"
+  local baseline="$(getBaselineFromString $landscape)"
+  case "$baseline" in
+    sb)
+      echo 'kuali-coeus-sandbox' ;;
+    ci|qa)
+      echo 'kuali-coeus-feature' ;;
+    stg|prod)
+      echo 'kuali-coeus' ;;
+    *)
+      echo 'kuali-coeus-feature' ;;
+  esac
 }
 
 getStackToDelete() {

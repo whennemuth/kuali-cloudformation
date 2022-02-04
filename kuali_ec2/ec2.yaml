@@ -314,7 +314,22 @@ Resources:
             #   StringEquals:
             #     aws:ResourceTag/Name: !Sub kuali-oracle-${Landscape}
             #     rds:db-tag/Name: !Sub kuali-oracle-${Landscape}
-
+      - !If 
+        - CreateMongoEc2Instance
+        - PolicyName:
+            !Sub "${GlobalTag}-${Landscape}-ssm-to-mongo"
+          PolicyDocument:
+            Statement:
+            - Effect: Allow
+              Action:
+              - ssm:SendCommand
+              - ssm:CancelCommand
+              Resource:
+              - !Sub 
+                - arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/${id}
+                - id: !GetAtt MongoDbInstance.Outputs.InstanceId
+              - !Sub arn:aws:ssm:${AWS::Region}::document/AWS-RunShellScript
+        - !Ref AWS::NoValue
 
   EC2InstanceProfile:
     Type: AWS::IAM::InstanceProfile
@@ -420,6 +435,7 @@ Resources:
           # 4) Other utilities like git, sysstat etc.
           yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
           yum install -y https://repo.mongodb.org/yum/amazon/2/mongodb-org/4.4/x86_64/RPMS/mongodb-org-shell-4.4.1-1.amzn2.x86_64.rpm
+          yum install -y https://repo.mongodb.org/yum/amazon/2/mongodb-org/4.4/x86_64/RPMS/mongodb-database-tools-100.4.1.x86_64.rpm
           yum install -y perl-Switch perl-DateTime perl-Sys-Syslog perl-LWP-Protocol-https perl-Digest-SHA.x86_64
           yum install -y aws-cfn-bootstrap
           yum install -y git
