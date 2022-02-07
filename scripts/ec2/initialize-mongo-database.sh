@@ -278,7 +278,6 @@ importUsers() {
     --parameters commands="sh /opt/kuali/import.cor-main-users.sh $args" \
     --output text \
     --query "Command.CommandId"
-  fi
 }
 
 getToken() {
