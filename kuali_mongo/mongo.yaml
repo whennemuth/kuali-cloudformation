@@ -191,8 +191,8 @@ Resources:
             - secretsmanager:DescribeSecret
             - secretsmanager:ListSecretVersionIds
             Resource:
-            - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:kuali/${Baseline}/*
-            
+            - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:kuali/cor-main/mongodb/connect-*
+
 
   EC2InstanceLogsGroup:
     Type: AWS::Logs::LogGroup
@@ -475,6 +475,65 @@ Resources:
               mode: "000775"
               owner: root
               group: root
+            /opt/kuali/import.cor-main-users.sh:
+              content: !Sub |
+                #!/bin/bash
+
+                src="${!1}"
+
+                # Build a command to import the user dump, and have the container run it.
+                importUsers() {
+                  cmd="mongoimport --file /data/db/userdump.json --host 127.0.0.1:27017 --verbose -d core-development -c users"
+                  docker exec mongo-cor-main ${!cmd}
+                }
+
+                details="$(
+                  aws --region ${AWS::Region} secretsmanager get-secret-value \
+                    --secret-id kuali/cor-main/mongodb/connect \
+                    --output text \
+                    --query '{SecretString:SecretString}' | jq '.'${!baseline})"
+
+                replset="$(echo "${!details}" | jq -r '.replset')"  
+                db="$(echo "${!details}" | jq -r '.db')"  
+                shards="$(echo "${!details}" | jq -r '.shards')"  
+                username="$(echo "${!details}" | jq -r '.username')"
+                password="$(echo "${!details}" | jq -r '.password')"
+                host="${!replset}/${!shards}"
+                uri="mongodb://${!shards}/${!db}?replicaSet=${!replset}"
+
+                usercount="$(docker exec mongo-cor-main mongosh mongodb://127.0.0.1:27017/core-development --quiet --eval 'db.users.countDocuments({})')"
+
+                # Cancel the import of users if it looks like the users collection has already received them.
+                if [ "${!usercount}" -gt 1 ] ; then
+                  echo "There are already ${!usercount} users in cor-main, which is more than one - assuming import has already been done."
+                  exit 0
+                fi
+
+                case "${!src}" in
+                  mongodb)
+                    # Drop a json file of users obtained by exporting from another mongo db into the cor-main mongo data directory
+                    baseline="${!2}"
+
+                    # Build a command to export a user dump from the specified mongo host and have the mongo cor-main container run it.
+                    # The json user dump file should land in the containers data directory, which is mounted and so visible outside the container.
+                    exportUsers() {
+                      local cmd="mongoexport --out /data/db/userdump.json --ssl --host ${!host} --verbose --authenticationDatabase admin --username ${!username} --password "${!password}" -d "${!db}" -c "users""
+                      docker exec mongo-cor-main ${!cmd}
+                    }
+
+                    exportUsers && importUsers
+                    ;;
+                  s3)
+                    # Drop a json file of users obtained from s3 into the cor-main mongo data directory
+                    url="${!2}"
+                    aws s3 cp $url /opt/kuali/mongo-data-cor-main
+                    importUsers
+                    ;;
+                esac
+
+              mode: "000775"
+              owner: root
+              group: root             
         RunDockerContainers:
           commands:
             StartContainers:

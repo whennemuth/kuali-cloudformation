@@ -190,9 +190,14 @@ EOF
   fi
 }
 
-
 createInstitutionsCollection() {
-  getCollectionRestCall 'api/v1/institution'
+  echo 'Triggering Creating institution collection creation...'
+  makeCollectionRESTCall 'api/v1/institution'
+}
+
+createUsersCollection() {
+  echo 'Triggering Creating users collection creation...'
+  makeCollectionRESTCall 'api/v1/users'
 }
 
 getIdp() {
@@ -249,70 +254,118 @@ EOF
   runCommand "$cmd"
 }
 
+# Issue an ssm command to the mongo ec2 instance to import users.
+importUsers() {
+  echo "Importing users..."
+  if [ -z "$MONGO_INSTANCE_ID" ] ; then
+    echo "ERROR! Expected MONGO_EC2_ID environment variable but was not set."
+    echo "Cannot send ssm command to import users."
+    return 0
+  elif [ "${USER_IMPORT_MONGODB,,}" == 'true' ] ; then
+    local args="mongodb $BASELINE"
+  elif [ -z "$USER_IMPORT_FILE" ] ; then
+    local args="s3 $USER_IMPORT_FILE"
+  else
+    echo "No mongo database or s3 file specified for user import!"
+    echo "Users collection in cor-main will have only the admin user."
+    return 0
+  fi
 
-createUsersCollection() {
-  # getCollectionRestCall 'api/v1/users'
-  echo 'Creating users collection...'
+  aws --region "${AWS_DEFAULT_REGION:-"us-east-1"}" ssm send-command \
+    --instance-ids "$MONGO_INSTANCE_ID" \
+    --document-name "AWS-RunShellScript" \
+    --comment "Command issued to mongo ec2 to import users to cor-main container" \
+    --parameters commands="sh /opt/kuali/import.cor-main-users.sh $args" \
+    --output text \
+    --query "Command.CommandId"
+  fi
 }
 
-
-updateUsers() {
-  echo "Updating users..."
+getToken() {
+  local serverIP="$1"
+  local port="$2"
+  [ -n "$TOKEN" ] && echo "$TOKEN" && return 0
+  TOKEN="$(curl \
+    -X POST \
+    -H "Authorization: Basic $(echo -n "admin:admin" | base64 -w 0)" \
+    -H "Content-Type: application/json" \
+    "http://${serverIP}:${port}/api/v1/auth/authenticate" \
+    | sed 's/token//g' \
+    | sed "s/[{}\"':]//g" \
+    | sed "s/[[:space:]]//g")"
+  echo "$TOKEN"
 }
-
 
 # A brand new core-development mongo database will not contain the "institutions" and "users" collections.
 # Usually, browsing the application and logging in for the first time as admin will trigger the creaton of these
 # two collections, but you can accomplish the same by making a rest call to the institution module.
-getCollectionRestCall() {
+makeCollectionRESTCall() {
 
   local path="$1"
 
   echo "Making $path REST call to cor-main container to trigger auto-create of the associated collection..."
 
+  # Using the name of the cor-main docker container, set a global variable to the value of its ID
   setContainerId() {
-    containerShortname=${1:-'cor-main'}
-    echo "docker ps -f name=${containerShortname} -q ..."
-    containerId=$(docker ps -f name=${containerShortname} -q 2> /dev/null)
-    echo "Container ID: $containerId"
-    if [ -z "$containerId" ] && [ -z "$1" ]; then
+    CONTAINER_SHORT_NAME=${1:-'cor-main'}
+    CONTAINER_ID=$(docker ps -f name=${CONTAINER_SHORT_NAME} -q 2> /dev/null)
+    echo "docker ps -f name=${CONTAINER_SHORT_NAME} -q ..."
+    echo "Container \"$CONTAINER_SHORT_NAME\" ID: $CONTAINER_ID"
+    if [ -z "$CONTAINER_ID" ] && [ -z "$1" ]; then
       # If the container is not named "cor-main", then we are running in an ecs stack, which names containers after a portion of the docker.
       # image name. The -f filter will return partial matches, so as long as the container name has "kuali-core" in it, the ID will be found.
       setContainerId 'kuali-core'
     fi
-    [ -n "$containerId" ] && true || false
+    [ -n "$CONTAINER_ID" ] && true || false
   }
 
+  # Inspect the cor-main docker container for its network ip address and set a global variable with its value.
   setContainerIpAddress() {
     for attempt in {1..240} ; do
       echo "$(whoami) running docker ps ..."
       docker ps
       if setContainerId ; then
-        containerIpAddress=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $containerId 2> /dev/null)
+        CONTAINER_IP_ADDRESS=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $CONTAINER_ID 2> /dev/null)
         break;
       fi
       echo "Looks like core container isn't running yet, attempt $((attempt+1))..."
       sleep 5
     done
-    [ -z "$containerIpAddress" ] && echo "ERROR! It's been an 20 minutes with no success getting the core docker container ID. Quitting."
-    [ -n "$containerIpAddress" ] && true || false
+    [ -z "$CONTAINER_IP_ADDRESS" ] && echo "ERROR! It's been an 20 minutes with no success getting the core docker container ID. Quitting."
+    [ -n "$CONTAINER_IP_ADDRESS" ] && true || false
+  }
+
+  # Hit the cor-main api with the basic path to trigger the app to auto-create the collection if it's not there.
+  attemptCurl() {
+    local retval=$(curl http://$CONTAINER_IP_ADDRESS:3000/$path 2>&1)
+    local code=$?
+    [ $code -ne 0 ] && return $code
+    if [ -n "$(echo "$retval" | grep -i 'Unauthorized')" ] ; then
+      # Can't perform a GET, so must do a POST with a bearer token
+      curl \
+        -i \
+        -X GET \
+        "http://$CONTAINER_IP_ADDRESS:3000/$path" \
+        --header "Content-Type: application/json" \
+        --header "Authorization: Bearer $(getToken $CONTAINER_IP_ADDRESS '3000')"
+    fi
   }
 
   makeRESTCall() {
     for attempt in {1..30} ; do
-      echo "Attempting $path REST call to $containerShortname container to trigger auto-create of institutions and/or users collection(s)..."
-      echo "curl http://$containerIpAddress:3000/$path"
-      local reply=$(curl http://$containerIpAddress:3000/$path 2>&1)
+      echo "Attempting $path REST call to $CONTAINER_SHORT_NAME container to trigger auto-create of institutions and/or users collection(s)..."
+      echo "curl http://$CONTAINER_IP_ADDRESS:3000/$path"
+      local reply=$(attemptCurl)
       local code=$?
       echo "$code: $reply"
       if [ $code -ne 0 ] || [ -n "$(grep -i 'connection refused' <<< $reply)" ] ; then
-        echo "Looks like $containerShortname container isn't ready yet, attempt $((attempt+1))..."
+        echo "Looks like $CONTAINER_SHORT_NAME container isn't ready yet, attempt $((attempt+1))..."
         sleep 2
       else
         return 0
       fi
     done
-    echo "It's been a minute with no success contacting the $containerShortname container. Quitting."
+    echo "It's been a minute with no success contacting the $CONTAINER_SHORT_NAME container. Quitting."
   }
 
   if setContainerIpAddress ; then
@@ -329,14 +382,14 @@ updateCore() {
         updateInCommons ;;
       institutions)
         if ! mongoCollectionExists 'institutions' ; then
-          createInstitutionsCollection
+          triggerCollectionCreation 
         fi
         updateInstitutions ;;
       users)
         if ! mongoCollectionExists 'users' ; then
           createUsersCollection
         fi
-        updateUsers ;;
+        importUsers ;;
     esac
   done
 }
@@ -367,6 +420,27 @@ initialize() {
     SHIB_IDP_METADATA_URL=https://$SHIB_HOST/idp/shibboleth
   fi
   [ -z "$ENTITY_ID" ] && ENTITY_ID="https://$DNS_NAME/shibboleth"
+
+  echo " "
+  echo "-----------------------------------------------------"
+  echo "    PARAMETERS:"
+  echo "-----------------------------------------------------"
+  echo "TASK: $TASK"
+  echo "DNS_NAME: $DNS_NAME"
+  echo "USING_ROUTE53: $USING_ROUTE53"
+  echo "ENTITY_ID: $ENTITY_ID"
+  echo "DEBUG: $DEBUG"
+  echo "COLLECTIONS: $COLLECTIONS"
+  echo "BASELINE: $BASELINE"
+  echo "LANDSCAPE: $LANDSCAPE"
+  echo "SHIB_HOST: $SHIB_HOST"
+  echo "AWS_DEFAULT_REGION: $AWS_DEFAULT_REGION"
+  echo "MONGO_INSTANCE_ID: $MONGO_INSTANCE_ID"
+  echo "MONGO_URI: $MONGO_URI"
+  echo "USER_IMPORT_MONGODB: $USER_IMPORT_MONGODB"
+  echo "USER_IMPORT_FILE: $USER_IMPORT_FILE"
+  echo "ENV_FILE_FROM_S3_CORE: $ENV_FILE_FROM_S3_CORE"
+  echo " "
 }
 
 
@@ -381,5 +455,8 @@ case "$task" in
     ;;
   update-core)
     updateCore
+    ;;
+  import-users)
+    importUsers
     ;;
 esac

@@ -965,9 +965,11 @@ Resources:
                 USING_ROUTE53: 'false'
                 DEBUG: 'false'
                 COLLECTIONS: 'incommons institutions users'
+                BASELINE: !Ref Baseline
                 LANDSCAPE: !Ref Landscape
                 SHIB_HOST: !If [ IsTest, 'shib-test.bu.edu', 'shib.bu.edu' ]
                 AWS_DEFAULT_REGION: !Ref AWS::Region
+                MONGO_INSTANCE_ID: !GetAtt MongoDbInstance.Outputs.InstanceId
                 MONGO_URI:
                   !If
                   - CreateMongoEc2Instance
@@ -979,6 +981,10 @@ Resources:
                   - ''
                 # An empty MONGO_URI parameter will trigger a search for mongo parameters in this properties file:
                 ENV_FILE_FROM_S3_CORE: /opt/kuali/s3/core/environment.variables.s3
+                # Import users to cor-main from an atlas mongodb source identified by baseline (BASELINE env variable must be set).
+                USER_IMPORT_MONGODB: 'true'
+                # Otherwise import users from a dump file in an s3 subdirectory identified by baseline (BASELINE env variable must be set).
+                USER_IMPORT_FILE: !Sub s3://${TemplateBucketName}/${Baseline}/core/userdump.json
               command: bash initialize-mongo-database.sh
         06_start_cron_for_custom_cloudwatch_metrics:
           commands:
