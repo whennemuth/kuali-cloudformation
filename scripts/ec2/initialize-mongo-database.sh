@@ -275,7 +275,7 @@ importUsers() {
     --instance-ids \"$MONGO_INSTANCE_ID\" \
     --document-name \"AWS-RunShellScript\" \
     --comment \"Command issued to mongo ec2 to import users to cor-main container\" \
-    --parameters commands=\"sh /opt/kuali/import.cor-main-users.sh $args 2>&1 > /var/log/import-users.log\" \
+    --parameters commands=\"sh -x /opt/kuali/import.cor-main-users.sh $args 2>&1 > /var/log/import-users.log\" \
     --output text \
     --query \"Command.CommandId\""
 
