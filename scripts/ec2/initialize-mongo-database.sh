@@ -271,13 +271,19 @@ importUsers() {
     return 0
   fi
 
-  aws --region "${AWS_DEFAULT_REGION:-"us-east-1"}" ssm send-command \
+  local cmd="aws --region "${AWS_DEFAULT_REGION:-"us-east-1"}" ssm send-command \
     --instance-ids "$MONGO_INSTANCE_ID" \
     --document-name "AWS-RunShellScript" \
     --comment "Command issued to mongo ec2 to import users to cor-main container" \
-    --parameters commands="sh /opt/kuali/import.cor-main-users.sh $args" \
+    --parameters commands="sh /opt/kuali/import.cor-main-users.sh $args 2>&1 > /var/log/import-users.log" \
     --output text \
-    --query "Command.CommandId"
+    --query "Command.CommandId""
+
+  echo "Sending ssm command to mongo ec2 instance to run script that imports users:"
+  echo " "
+  echo $cmd
+  echo " "
+  eval "$cmd"
 }
 
 getToken() {
