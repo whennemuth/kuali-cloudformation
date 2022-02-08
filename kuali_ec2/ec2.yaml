@@ -188,7 +188,8 @@ Conditions:
 Mappings:
   crc: 
     # General CRC Academic/Admin Systems
-    cidr: "128.197.0.0/16"
+    first:
+      cidr: "128.197.0.0/16"
   2faCidrs:
     first:
       cidr: "168.122.81.0/24"
@@ -1094,7 +1095,7 @@ Resources:
         IpProtocol: tcp
         FromPort: 80
         ToPort: 80
-        CidrIp: !FindInMap [ crc, "cidr" ]
+        CidrIp: !FindInMap [ crc, "first", "cidr" ]
         
       - Description: "HTTPS: vpn.bu.edu/2fa On Campus, Group 1"
         IpProtocol: tcp
@@ -1140,7 +1141,7 @@ Resources:
         IpProtocol: tcp
         FromPort: 443
         ToPort: 443
-        CidrIp: !FindInMap [ crc, "cidr" ]
+        CidrIp: !FindInMap [ crc, "first", "cidr" ]
         
       - Description: "UDP: vpn.bu.edu/2fa On Campus, Group 1"
         IpProtocol: udp
@@ -1186,7 +1187,7 @@ Resources:
         IpProtocol: udp
         FromPort: 1043
         ToPort: 1043
-        CidrIp: !FindInMap [ crc, "cidr" ]
+        CidrIp: !FindInMap [ crc, "first", "cidr" ]
 
 Outputs:
 
