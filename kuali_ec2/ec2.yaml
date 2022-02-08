@@ -186,6 +186,9 @@ Conditions:
   CreateFromRdsClone: !Not [!Equals [!Ref RdsSnapshotARN, empty]]
 
 Mappings:
+  crc: 
+    # General CRC Academic/Admin Systems
+    cidr: "128.197.0.0/16"
   2faCidrs:
     first:
       cidr: "168.122.81.0/24"
@@ -1087,6 +1090,11 @@ Resources:
         FromPort: 80
         ToPort: 80
         CidrIp: !FindInMap [ DbReportCidrs, "second", "cidr" ]
+      - Description: "HTTP: General CRC Academic/Admin Systems"
+        IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: !FindInMap [ crc, "cidr" ]
         
       - Description: "HTTPS: vpn.bu.edu/2fa On Campus, Group 1"
         IpProtocol: tcp
@@ -1128,6 +1136,11 @@ Resources:
         FromPort: 443
         ToPort: 443
         CidrIp: !FindInMap [ DbReportCidrs, "second", "cidr" ]
+      - Description: "HTTPS: General CRC Academic/Admin Systems"
+        IpProtocol: tcp
+        FromPort: 443
+        ToPort: 443
+        CidrIp: !FindInMap [ crc, "cidr" ]
         
       - Description: "UDP: vpn.bu.edu/2fa On Campus, Group 1"
         IpProtocol: udp
@@ -1169,6 +1182,11 @@ Resources:
         FromPort: 1043
         ToPort: 1043
         CidrIp: !FindInMap [ DbReportCidrs, "second", "cidr" ]
+      - Description: "UDP: General CRC Academic/Admin Systems"
+        IpProtocol: udp
+        FromPort: 1043
+        ToPort: 1043
+        CidrIp: !FindInMap [ crc, "cidr" ]
 
 Outputs:
 
