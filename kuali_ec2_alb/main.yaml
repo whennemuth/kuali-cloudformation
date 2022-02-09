@@ -499,6 +499,11 @@ Resources:
             - CreateMongoEc2Instance
             - !GetAtt MongoDbInstance.Outputs.PrivateIP
             - !Ref AWS::NoValue
+        MongoInstanceId:
+          !If
+            - CreateMongoEc2Instance
+            - !GetAtt MongoDbInstance.Outputs.InstanceId
+            - !Ref AWS::NoValue
         UsingShibboleth:
           !Ref UsingShibboleth
         TemplateBucketName:
@@ -661,6 +666,17 @@ Outputs:
           - !Ref HostedZoneName
           - !Sub ${Landscape}.${HostedZoneName}
         - !GetAtt ALB.Outputs.DNSName
+
+  MongoAddress:
+    Value:
+      !If
+        - CreateMongoEc2Instance
+        - !Sub 
+          - ${Url}:${Port}/${DbName}
+          - Url: !GetAtt MongoDbInstance.Outputs.PrivateIP
+            Port: 27017
+            DbName: core-development
+        - ''
     
   InstanceId1:
     Value:
