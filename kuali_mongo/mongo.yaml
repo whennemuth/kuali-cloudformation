@@ -496,7 +496,7 @@ Resources:
                 # Set every password to the same thing ("password") - this db is for testing and so we want to have access as any user.
                 generifyPasswords() {
                   # Hashed value for literal term "password"
-                  local digest="$2b$10$8ad6lRa14bmXirrp83JTIOSjLiO8IpGt9dVaKK7oLJlvnyoWzhzdS"
+                  local digest='$2b$10$8ad6lRa14bmXirrp83JTIOSjLiO8IpGt9dVaKK7oLJlvnyoWzhzdS'
                   docker exec mongo-cor-main mongosh mongodb://127.0.0.1:27017/core-development --eval 'db.users.updateMany( {},{ $set: { "passwordDigest": "'${!digest}'" }});'
                 }
 
