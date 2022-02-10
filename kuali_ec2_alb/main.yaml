@@ -456,9 +456,9 @@ Resources:
     # For now, the rds and mongo instances have always been ready by the time the ec2 instances need them.
     # However, this is not guaranteed, and if you want to avoid that trouble, uncomment the DependsOn below.
     # Otherwise, these resources are created in parallel, which is faster.
-    # DependsOn: 
-    #   - RdsInstance
-    #   - MongoDbInstance
+    DependsOn: 
+      - RdsInstance
+      - MongoDbInstance
     Properties:
       TemplateURL: 
         !Sub https://s3.amazonaws.com/${TemplateBucketName}/cloudformation/kuali_ec2_alb/ec2.yaml
@@ -527,22 +527,22 @@ Resources:
           !Ref EnableNewRelicAPM
         EnableNewRelicInfrastructure:
           !Ref EnableNewRelicInfrastructure
-        Tags:
-          - Key: DnsJdbc
-            Value:
-              !If
-                - CreateFromRdsClone
-                - !If
-                    - CreateDnsRecord
-                    - !GetAtt RdsInstance.Outputs.KualiOracleJDBCConnectionString
-                    - 'No DNS'
-                - 'Exists'
-          - Key: RdsJdbc
-            Value:
-              !If
-                - CreateFromRdsClone
-                - !GetAtt RdsInstance.Outputs.RdsOracleJDBCConnectionString
-                - 'Exists'
+      Tags:
+        - Key: DnsJdbc
+          Value:
+            !If
+              - CreateFromRdsClone
+              - !If
+                  - CreateDnsRecord
+                  - !GetAtt RdsInstance.Outputs.KualiOracleJDBCConnectionString
+                  - 'No DNS'
+              - 'Exists'
+        - Key: RdsJdbc
+          Value:
+            !If
+              - CreateFromRdsClone
+              - !GetAtt RdsInstance.Outputs.RdsOracleJDBCConnectionString
+              - 'Exists'
 
   Instance2:
     Type: AWS::CloudFormation::Stack
@@ -585,6 +585,11 @@ Resources:
             - CreateMongoEc2Instance
             - !GetAtt MongoDbInstance.Outputs.PrivateIP
             - !Ref AWS::NoValue
+        MongoInstanceId:
+          !If
+            - CreateMongoEc2Instance
+            - !GetAtt MongoDbInstance.Outputs.InstanceId
+            - !Ref AWS::NoValue
         InstanceType:
           !Ref InstanceType
         TemplateBucketName:
@@ -614,6 +619,22 @@ Resources:
           !GetAtt Instance1.Outputs.EC2Role
         EC2InstanceLogsGroupArn:
           !GetAtt Instance1.Outputs.EC2InstanceLogsGroupArn
+      Tags:
+        - Key: DnsJdbc
+          Value:
+            !If
+              - CreateFromRdsClone
+              - !If
+                  - CreateDnsRecord
+                  - !GetAtt RdsInstance.Outputs.KualiOracleJDBCConnectionString
+                  - 'No DNS'
+              - 'Exists'
+        - Key: RdsJdbc
+          Value:
+            !If
+              - CreateFromRdsClone
+              - !GetAtt RdsInstance.Outputs.RdsOracleJDBCConnectionString
+              - 'Exists'
             
   Services:
     Type: AWS::CloudFormation::Stack
