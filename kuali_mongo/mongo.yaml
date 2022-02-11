@@ -490,12 +490,15 @@ Resources:
                 # Build a command to import the user dump, and have the container run it.
                 importUsers() {
                   cmd="mongoimport --file /data/db/userdump.json --host 127.0.0.1:27017 --verbose -d core-development -c users"
+                  echo "Sending import command to docker container..."
+                  echo "docker exec mongo-cor-main ${!cmd}"
                   docker exec mongo-cor-main ${!cmd}
                 }
 
                 # Set every password to the same thing ("password") - this db is for testing and so we want to have access as any user.
                 generifyPasswords() {
                   # Hashed value for literal term "password"
+                  echo "Setting all cor-main user passwords to the same value..."
                   local digest='$2b$10$8ad6lRa14bmXirrp83JTIOSjLiO8IpGt9dVaKK7oLJlvnyoWzhzdS'
                   docker exec mongo-cor-main mongosh mongodb://127.0.0.1:27017/core-development --eval 'db.users.updateMany( {},{ $set: { "passwordDigest": "'${!digest}'" }});'
                 }
@@ -506,17 +509,24 @@ Resources:
                 if [ "${!usercount}" -gt 1 ] ; then
                   echo "There are already ${!usercount} users in cor-main, which is more than one - assuming import has already been done."
                   exit 0
+                else
+                  echo "There are ${!usercount} users in cor-main - importing the rest..."
                 fi
 
+                echo ""
                 case "${!src}" in
                   mongodb)
                     # Drop a json file of users obtained by exporting from another mongo db into the cor-main mongo data directory
                     baseline="${!2}"
 
+                    echo "Acquiring users to import from ${!baseline} atlas mongodb source"
+                    [ -z "${!baseline}" ] && echo "Missing baseline value argument!" && exit 1
                     # Build a command to export a user dump from the specified mongo host and have the mongo cor-main container run it.
                     # The json user dump file should land in the containers data directory, which is mounted and so visible outside the container.
                     exportUsers() {
                       local cmd="mongoexport --out /data/db/userdump.json --ssl --host ${!host} --verbose --authenticationDatabase admin --username ${!username} --password "${!password}" -d "${!db}" -c "users""
+                      echo "Sending import command to docker container..."
+                      echo "docker exec mongo-cor-main ${!cmd}"
                       docker exec mongo-cor-main ${!cmd}
                     }
 
@@ -539,8 +549,13 @@ Resources:
                   s3)
                     # Drop a json file of users obtained from s3 into the cor-main mongo data directory
                     url="${!2}"
-                    aws s3 cp $url /opt/kuali/mongo-data-cor-main
+                    echo "Acquiring users to import from s3 bucket: ${!url}"
+                    [ -z "${!url}" ] && echo "Missing s3 url!" && exit 1
+                    aws s3 cp ${!url} /opt/kuali/mongo-data-cor-main
                     importUsers
+                    ;;
+                  *)
+                    echo "Invalid/Missing task specifier: ${!src}"
                     ;;
                 esac
 

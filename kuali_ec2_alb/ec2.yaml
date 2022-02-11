@@ -764,6 +764,7 @@ Resources:
                 USING_ROUTE53: !Ref UsingRoute53
                 DEBUG: 'false'
                 COLLECTIONS: 'incommons institutions users'
+                BASELINE: !Ref Baseline
                 LANDSCAPE: !Ref Landscape
                 AWS_DEFAULT_REGION: !Ref AWS::Region
                 SHIB_HOST: 

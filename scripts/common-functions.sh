@@ -1994,17 +1994,28 @@ waitForStack() {
   done
   if [ "$status" == $successStatus ] ; then
     outputHeading "Stack outputs:"
-    for p in $(
+    while read p ; do
+      local key="$(echo ''$p'' | jq '.OutputKey')"
+      local val="$(echo ''$p'' | jq '.OutputValue')"
+      echo "$key: $val"
+    done <<<$(
       aws cloudformation describe-stacks \
       --stack-name=$stackname \
       --query 'Stacks[].{Outputs:Outputs}' \
       | jq -c '.[0].Outputs' \
       | jq -c '.[]'
-    ) ; do
-      local key="$(echo ''$p'' | jq '.OutputKey')"
-      local val="$(echo ''$p'' | jq '.OutputValue')"
-      echo "$key: $val"
-    done
+    )
+    # for p in $(
+    #   aws cloudformation describe-stacks \
+    #   --stack-name=$stackname \
+    #   --query 'Stacks[].{Outputs:Outputs}' \
+    #   | jq -c '.[0].Outputs' \
+    #   | jq -c '.[]'
+    # ) ; do
+    #   local key="$(echo ''$p'' | jq '.OutputKey')"
+    #   local val="$(echo ''$p'' | jq '.OutputValue')"
+    #   echo "$key: $val"
+    # done
     true
   else
     outputHeading "STACK CREATION FAILED ($stackname)"

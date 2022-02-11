@@ -271,11 +271,13 @@ importUsers() {
     return 0
   fi
 
+  # NOTE: Using 2>&1 >> logfile won't work when set -x is used (only stdout is saved to file)
+  #       However simply using 2>> logile will work as debug output goes over same pipe as stderr.
   local cmd="aws --region \"${AWS_DEFAULT_REGION:-"us-east-1"}\" ssm send-command \
     --instance-ids \"$MONGO_INSTANCE_ID\" \
     --document-name \"AWS-RunShellScript\" \
     --comment \"Command issued to mongo ec2 to import users to cor-main container\" \
-    --parameters commands=\"sh -x /opt/kuali/import.cor-main-users.sh $args 2>&1 > /var/log/import-users.log\" \
+    --parameters commands=\"sh -x /opt/kuali/import.cor-main-users.sh $args 2>> /var/log/import-users.log\" \
     --output text \
     --query \"Command.CommandId\""
 

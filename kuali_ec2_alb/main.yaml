@@ -666,7 +666,7 @@ Outputs:
     Description: The URL endpoint for the kuali research home page
     Value:
       !Sub 
-      - https://${domain}/kc
+      - https://${domain}/dashboard
       - domain: !If 
         - CreateDnsRecord
         - !If
