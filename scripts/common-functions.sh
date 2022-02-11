@@ -1564,6 +1564,15 @@ checkRDSParameters() {
       BASELINE="$(getStackBaselineByLandscape $LANDSCAPE)"
       validateBaseline " descendent landscape \"$original\""
     fi
+  elif [ -n "$RDS_ARN" ] ; then
+    if isABaselineLandscape ; then
+      BASELINE="$LANDSCAPE"
+    else
+      local bsln="$(getRdsBaseline $RDS_ARN)"
+      if isABaselineLandscape "${bsln:-"unknown"}" ; then
+        BASELINE=$bsln
+      fi
+    fi
   fi
 
   validateBaseline
