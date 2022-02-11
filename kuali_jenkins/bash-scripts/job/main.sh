@@ -147,7 +147,7 @@ buildArgs() {
       DNS)
         local route53='false'
         [ "${DNS,,}" == 'route53' ] && route53='true'
-        putArg USING_ROUTE53=$shib
+        putArg USING_ROUTE53=$route53
         ;;
       WAF)
         putArg CREATE_WAF=$WAF 'false' ;;
