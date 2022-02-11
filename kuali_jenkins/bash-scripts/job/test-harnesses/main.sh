@@ -20,17 +20,33 @@
 # ADVANCED_MANUAL_ENTRIES=ENABLE_NEWRELIC_INFRASTRUCTURE%3Dtrue%0ADEEP_VALIDATION%3Dtrue
 # ' | tr -d '\n')
 
+# PARAMETERS=$(echo '
+# DRYRUN=true&
+# STACK_ACTION=create&
+# STACK_TYPE=ec2&
+# AUTHENTICATION=cor-main&
+# DNS=none&
+# RDS_SOURCE=shared-snapshot&
+# RDS_SNAPSHOT_SHARED=arn%3Aaws%3Ards%3Aus-east-1%3A730096353738%3Asnapshot%3Akuali-stg-10-27-2021&LANDSCAPE=dev&
+# WAF=false&
+# ALB=false&
+# MONGO=false&
+# ADVANCED=false
+# ' | tr -d '\n')
+
 PARAMETERS=$(echo '
 DRYRUN=true&
+DEBUG=true&
 STACK_ACTION=create&
-STACK_TYPE=ec2&
+STACK_TYPE=ec2-alb&
 AUTHENTICATION=cor-main&
-DNS=none&
-RDS_SOURCE=shared-snapshot&
-RDS_SNAPSHOT_SHARED=arn%3Aaws%3Ards%3Aus-east-1%3A730096353738%3Asnapshot%3Akuali-stg-10-27-2021&LANDSCAPE=dev&
+DNS=route53&
+RDS_SOURCE=instance&
+RDS_INSTANCE_BY_LANDSCAPE=arn%3Aaws%3Ards%3Aus-east-1%3A770203350335%3Adb%3Akuali-oracle-warren&
+LANDSCAPE=warren2&
 WAF=false&
 ALB=false&
-MONGO=false&
+MONGO=true&
 ADVANCED=false
 ' | tr -d '\n')
 

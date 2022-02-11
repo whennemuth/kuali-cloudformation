@@ -25,7 +25,7 @@ inDebugMode() {
 }
 
 outputHeading() {
-  inDebugMode && set +x && returnToDebugMode='true'
+  inDebugMode && set +x && local returnToDebugMode='true'
   local msg="$1"
   [ -n "$outputHeadingCounter" ] && msg="$outputHeadingCounter) $msg" && ((outputHeadingCounter++))
   local border='###############################################################################################################################################'
@@ -180,6 +180,15 @@ setDefaults() {
   [ "$SILENT" != 'true' ] && echo "TEMPLATE_BUCKET_NAME = $TEMPLATE_BUCKET_NAME"
 }
 
+validateOne() {
+  local f="$1"
+  local root="$2"
+  # Debug output would also make it into the validate.invalid file, so turn it of temporarily
+  inDebugMode && set +x && local returnToDebugMode='true'
+  validate "$f" >> $root/validate.valid 2>> $root/validate.invalid
+  [ "$returnToDebugMode" == 'true' ] && set -x || true
+}
+
 # Validate one or all cloudformation yaml templates.
 validateStack() {
   eval "$(getEvalArgs $@)"
@@ -201,7 +210,8 @@ validateStack() {
 
     printf "validating $f";
 
-    validate "$f" >> $root/validate.valid 2>> $root/validate.invalid
+    validateOne "$f" "$root"
+
     if [ $? -gt 0 ] ; then
       echo $f >> $root/validate.invalid
     else

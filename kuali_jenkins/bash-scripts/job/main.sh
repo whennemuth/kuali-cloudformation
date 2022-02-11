@@ -1,26 +1,8 @@
 #!/bin/bash
-
-outputHeading() {
-  local border='*******************************************************************************'
-  echo ""
-  echo "$border"
-  echo "       $1"
-  echo "$border"
-}
   
-err() {
-  echo "Error: $*" >>/dev/stderr
-}
-
 urldecode() {
   local url_encoded="${1//+/ }"
   printf '%b' "${url_encoded//%/\\x}"
-}
-
-isCurrentDir() {
-  local askDir="$1"
-  local thisDir="$(pwd | awk 'BEGIN {RS="/"} {print $1}' | tail -1)"
-  [ "$askDir" == "$thisDir" ] && true || false
 }
 
 # Parameters are all combined into a single querystring. Split them up into separate shell variables.
@@ -215,8 +197,9 @@ pullCodeFromGithub() {
 createStack() {
   local method="${1:-"create"}"
   outputHeading "Preparing to $method stack..."
-  local args=($(buildArgs LANDSCAPE AUTHENTICATION DNS WAF ALB MONGO RDS_SOURCE ADVANCED)) 
-  local cmd="sh main.sh $method-stack ${args[@]}"  
+  local args=($(buildArgs LANDSCAPE AUTHENTICATION DNS WAF ALB MONGO RDS_SOURCE ADVANCED))
+  isDebug && local debug='-x'
+  local cmd="sh $debug main.sh $method-stack ${args[@]}"  
   local rootdir="kuali_$(echo $STACK_TYPE | sed 's/-/_/g')"
   local rootpath="$JENKINS_HOME/kuali-infrastructure/$rootdir"
   
@@ -242,7 +225,8 @@ recreateStack() {
 deleteStack() {
   outputHeading "Preparing to delete stack..."
   local args=($(buildArgs STACK))
-  local cmd="sh main.sh delete-stack ${args[@]}"
+  isDebug && local debug='-x'
+  local cmd="sh $debug main.sh delete-stack ${args[@]}"
   cd $JENKINS_HOME/kuali-infrastructure/
   # TODO: Users may figure out how to override the default naming conventions for stacks so that the name does not 
   # reflect the stack type. Might be worth replacing the next 7 lines of code with some alternative method of identifying stack type.
@@ -276,7 +260,9 @@ run() {
   [ -n "$task" ] && shift
   case "$task" in
     parse)
-      processParametersQueryString ;;
+      processParametersQueryString      
+      isDebug && set -x
+      ;;
     validate)
       validateChoices ;;
     pull)
@@ -295,6 +281,8 @@ run() {
 }
 
 checkTestHarness $@ 2> /dev/null || true
+
+isDebug && set -x
 
 run $@
 
