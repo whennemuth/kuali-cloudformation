@@ -222,6 +222,7 @@ Parameters:
   RdsEngineVersion:
     Type: String
     Description: If cloning, The version number of the database engine to use.
+    Default: empty
 
   RdsDbSubnet1:
     Type: AWS::EC2::Subnet::Id

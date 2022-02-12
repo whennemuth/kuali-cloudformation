@@ -2132,26 +2132,30 @@ runStackActionCommand() {
     read answer
   fi
 
-  [ "$answer" == "y" ] && sh $cmdfile || echo "Cancelled."
-
-  if [ $? -gt 0 ] ; then
-    echo "Cancelling..."
-    exit 1
-  else
-    echo "Stack command issued."
-    case "${task:0:6}" in
-      create)
-        if ! waitForStackToCreate ; then
-          exit 1
-        fi
-        ;;
-      update)
-        if ! waitForStackToUpdate ; then
-          exit 1
-        fi
-        ;;
-    esac
+  if [ "$answer" == "y" ] ; then
+    sh $cmdfile
+    if [ $? -gt 0 ] ; then
+      echo "Cancelling due to error..."
+      exit 1
+    fi
+  else 
+    echo "Cancelled."
+    exit 0
   fi
+
+  echo "Stack command issued."
+  case "${task:0:6}" in
+    create)
+      if ! waitForStackToCreate ; then
+        exit 1
+      fi
+      ;;
+    update)
+      if ! waitForStackToUpdate ; then
+        exit 1
+      fi
+      ;;
+  esac
 }
 
 awsVersion() {
