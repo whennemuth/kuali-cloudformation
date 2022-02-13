@@ -299,7 +299,7 @@ Conditions:
   CreateAlbLogsBuckets: !Or [!Equals [!Ref EnableALBLogging, 'true' ], Condition: CreateWAF]
   UseKeypair: !Not [!Equals [!Ref EC2KeypairName, empty]]
   IsProd: !Equals [!Ref Landscape, prod]
-  CreateRdsClone: !Not [!Equals [!Ref RdsSnapshotARN, empty]]
+  CreateFromRdsClone: !Not [!Equals [!Ref RdsSnapshotARN, empty]]
   CreateJumpboxInstance: !Not [!Equals [!Ref RdsJumpboxInstanceType, empty]]
 
 
@@ -320,7 +320,7 @@ Resources:
 
   RdsInstance:
     Type: AWS::CloudFormation::Stack
-    Condition: CreateRdsClone
+    Condition: CreateFromRdsClone
     Properties:
       TemplateURL:
         !Sub https://s3.amazonaws.com/${TemplateBucketName}/cloudformation/kuali_rds/rds-oracle.yaml
@@ -333,8 +333,8 @@ Resources:
         DBInstanceClass: !If [ IsProd, db.m5.xlarge, !Ref AWS::NoValue ]
         RdsSnapshotARN: !Ref RdsSnapshotARN
         RdsEngineVersion: !Ref RdsEngineVersion
-        RdsDbSubnet1: !Ref RdsDbSubnet1
-        RdsDbSubnet2: !Ref RdsDbSubnet2
+        RdsDbSubnet1: !If [ CreateFromRdsClone, !Ref RdsDbSubnet1, !Ref AWS::NoValue ]
+        RdsDbSubnet2: !If [ CreateFromRdsClone, !Ref RdsDbSubnet2, !Ref AWS::NoValue ]
         RdsSubnetCIDR1: !Ref RdsSubnetCIDR1
         RdsSubnetCIDR2: !Ref RdsSubnetCIDR2
         JumpboxInstanceType: !If [ CreateJumpboxInstance, !Ref RdsJumpboxInstanceType, !Ref AWS::NoValue ]
