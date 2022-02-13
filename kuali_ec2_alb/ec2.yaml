@@ -177,6 +177,7 @@ Parameters:
     Type: String
     Description: The id of the ec2 instance hosting a simple mongo database (for test environments)
     Default: empty
+    
 
 Conditions: 
   CreateProfile: !Equals [ !Ref InstanceProfile, "create" ]
