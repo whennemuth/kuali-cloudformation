@@ -302,8 +302,8 @@ Resources:
         DBInstanceClass: !If [ IsProd, db.m5.xlarge, !Ref AWS::NoValue ]
         RdsSnapshotARN: !Ref RdsSnapshotARN
         RdsEngineVersion: !Ref RdsEngineVersion
-        RdsDbSubnet1: !Ref RdsDbSubnet1
-        RdsDbSubnet2: !Ref RdsDbSubnet2
+        RdsDbSubnet1: !If [ CreateFromRdsClone, !Ref RdsDbSubnet1, !Ref AWS::NoValue ]
+        RdsDbSubnet2: !If [ CreateFromRdsClone, !Ref RdsDbSubnet2, !Ref AWS::NoValue ]
         RdsSubnetCIDR1: !Ref RdsSubnetCIDR1
         RdsSubnetCIDR2: !Ref RdsSubnetCIDR2
         RdsAvailabilityZone: !Ref RdsAvailabilityZone
