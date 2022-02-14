@@ -27,7 +27,6 @@ Resources:
   # See: https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/resource-record-sets-values-basic.html
   KualiDNSRecord:
     Type: AWS::Route53::RecordSet
-    DependsOn: DBInstance
     Properties:
       Comment: !Sub More stable alternative for for rds endpoint address ${DbEndpointAddress}
       HostedZoneName: !Sub ${HostedZoneName}.
