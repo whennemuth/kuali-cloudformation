@@ -1450,7 +1450,7 @@ getRdsSnapshotType() {
 
 getRdsEndpoint() {
   local instanceArn="$1"
-  aws rds describe-db-instances --db-instance-id $instanceArn --output text --query 'DBInstances[].Endpoint.{hostAddr:Address}')
+  aws rds describe-db-instances --db-instance-id $instanceArn --output text --query 'DBInstances[].Endpoint.{hostAddr:Address}'
 }
 
 getRdsInstanceRoute53Record() {
