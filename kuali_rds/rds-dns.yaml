@@ -1,0 +1,38 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: |
+  Creates a single route 53 recordset for a RDS instance. 
+  Allows swapping out the database without clients knowing and having to update connection details.
+
+Parameters:
+
+  Landscape:
+    Description: Specify a name for your landscape
+    Type: String
+    AllowedPattern: "[a-zA-Z\\d]{1,12}"
+    ConstraintDescription: Up to 12 letters and/or numbers
+
+  HostedZoneName:
+    Type: String
+    Description: If included, a DNS record will be created and registered with the specified HostedZone
+
+  DbEndpointAddress:
+    Type: String
+    Description: |
+      The private dns address of the rds instance. Something like: kuali-oracle-[landscape].clb9d4mkglfd.us-east-1.rds.amazonaws.com
+
+
+Resources:
+
+  # See: https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/resource-record-sets-values-basic.html
+  KualiDNSRecord:
+    Type: AWS::Route53::RecordSet
+    Condition: CreateDnsRecord
+    DependsOn: DBInstance
+    Properties:
+      Comment: !Sub More stable alternative for for rds endpoint address ${DbEndpointAddress}
+      HostedZoneName: !Sub ${HostedZoneName}.
+      Name: !Sub ${Landscape}.db.${HostedZoneName}
+      Type: CNAME
+      TTL: 300
+      ResourceRecords: !Ref DbEndpointAddress

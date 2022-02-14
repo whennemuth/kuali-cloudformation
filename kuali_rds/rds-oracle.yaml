@@ -475,28 +475,20 @@ Resources:
       - Key: Function
         Value: !Ref Function
 
-  # See: https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/resource-record-sets-values-basic.html
   KualiDNSRecord:
-    Type: AWS::Route53::RecordSet
+    Type: AWS::CloudFormation::Stack
     Condition: CreateDnsRecord
     DependsOn: DBInstance
     Properties:
-      Comment: 
-        !Sub
-        - More stable alternative for for rds endpoint address ${endpoint}
-        - endpoint: 
-            !GetAtt 
-            - DBInstance
-            - Endpoint.Address
-      HostedZoneName: !Sub ${HostedZoneName}.
-      Name: !Sub ${Landscape}.db.${HostedZoneName}
-      Type: CNAME
-      TTL: 300
-      ResourceRecords:
-        - !GetAtt 
+      TemplateURL: 
+        !Sub https://s3.amazonaws.com/${TemplateBucketName}/cloudformation/kuali_rds/rds-dns.yaml
+      Parameters:
+        Landscape: !Ref Landscape
+        HostedZoneName: !Ref HostedZoneName
+        DbEndpointAddress: 
+          !GetAtt 
           - DBInstance
           - Endpoint.Address
-
 
   DBJumpbox:
     Type: AWS::CloudFormation::Stack

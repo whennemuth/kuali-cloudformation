@@ -178,6 +178,12 @@ Parameters:
     Description: The availability zone of the rds instance
     Default: empty
 
+  # A non-empty value will only get used if the rds instance pre-exists (is NOT getting created in this stack).
+  RdsEndpointAddress:
+    Type: String
+    Description: Create a dns record with the hosted zone for the pre-existing rds instance that has this endpoint address.
+    Default: empty
+
 
 Conditions:
   CreatePdfS3bBucket: !Not [!Equals [!Ref PdfS3BucketName, empty]]
@@ -187,6 +193,8 @@ Conditions:
   IsProd: !Equals [!Ref Landscape, prod]
   NewrelicLicsenseKeyProvided: !Equals [!Ref NewrelicLicsenseKey, empty]
   CreateFromRdsClone: !Not [!Equals [!Ref RdsSnapshotARN, empty]]
+  CreateDnsRecordForRds: !And [ !Not [ Condition: CreateFromRdsClone ], !Not [ !Equals [ !Ref RdsEndpointAddress, empty]]]
+
 
 Mappings:
   crc: 
@@ -240,6 +248,17 @@ Resources:
         RdsSubnetCIDR2: !Ref RdsSubnetCIDR2
         RdsAvailabilityZone: !Ref RdsAvailabilityZone
         ApplicationSecurityGroupId: !GetAtt EC2InstanceSecurityGroup.GroupId
+
+  RdsDnsRecord:
+    Type: AWS::CloudFormation::Stack
+    Condition: CreateDnsRecordForRds
+    Properties:
+      TemplateURL: 
+        !Sub https://s3.amazonaws.com/${TemplateBucketName}/cloudformation/kuali_rds/rds-dns.yaml
+      Parameters:
+        Landscape: !Ref Landscape
+        HostedZoneName: !Ref HostedZoneName
+        DbEndpointAddress: !Ref RdsEndpointAddress
 
   EC2Role:
     Type: AWS::IAM::Role

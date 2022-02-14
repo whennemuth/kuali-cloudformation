@@ -1448,6 +1448,33 @@ getRdsSnapshotType() {
     --query 'DBSnapshots[].{SnapshotType:SnapshotType}' 2> /dev/null
 }
 
+getRdsInstanceRoute53Record() {
+  local instanceArn="$1"
+  local hostedZoneName="$2"
+  local landscape="$3"
+  local rdsEndpoint="$(aws rds describe-db-instances --db-instance-id $instanceArn --output text --query 'DBInstances[].Endpoint.{hostAddr:Address}')"
+  local hostedZoneId="$(getHostedZoneId $hostedZoneName)"
+  local hostedZoneName="$(aws route53 get-hosted-zone \
+    --id "$hostedZoneId" \
+    --output text \
+    --query 'HostedZone.{name:Name}' 2> /dev/null)"
+  local queryparm1='starts_with(Name, `'$landscape'.'$hostedZoneName'`) == `true`'
+  local queryparm2='starts_with(AliasTarget.DNSName, `'$rdsEndpoint'`) == `true`'
+  local queryparm3='Type == `A`'
+
+  aws route53 list-resource-record-sets \
+    --hosted-zone-id $hostedZoneId \
+    --output text \
+    --query "ResourceRecordSets[?$queryparm1 && $queryparm2 && $queryparm3].{name:Name}"
+}
+
+rdsInstanceRoute53RecordExists() {
+  local instanceArn="$1"
+  local hostedZoneName="$2"
+  local landscape="$3"
+  record="$(getRdsInstanceRoute53Record $@)"
+  ([ -n "$record" ] && [ "${record,,}" != 'none' ]) && true || false
+}
 
 getRdsSnapshotBaseline() {
   local snapshotArn="$1"

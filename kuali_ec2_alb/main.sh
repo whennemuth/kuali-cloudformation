@@ -233,7 +233,7 @@ EOF
     
     add_parameter $cmdfile 'Baseline' 'BASELINE'
 
-    if [ -n "$RDS_SNAPSHOT_ARN" ]; then
+    if [ -n "$RDS_SNAPSHOT_ARN" ] ; then
       validateTemplateAndUploadToS3 \
         silent=true \
         filepath=../kuali_rds/rds-oracle.yaml \
@@ -245,8 +245,23 @@ EOF
         silent=true \
         filepath=../kuali_campus_security/main.yaml \
         s3path=s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_campus_security/
-    else
+    elif [ -n "$RDS_ARN" ] ; then
       echo "No RDS snapshotting indicated. Will use existing RDS database directly."
+      if [ "${USING_ROUTE53,,}" == 'true' ] ; then
+
+        if ! rdsInstanceRoute53RecordExists $RDS_ARN $HOSTED_ZONE $LANDSCAPE ; then
+
+          validateTemplateAndUploadToS3 \
+            silent=true \
+            filepath=../kuali_rds/rds-dns.yaml \
+            s3path=s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_rds/
+
+          add_parameter $cmdfile 'RdsEndpointAddress' $rdsEndpoint
+        fi
+      fi
+    else
+      # Is there a scenario where the db is specified some other way, or should it exit here with an error code?
+      echo "WARNING: No RDS snapshotting indicated and no rds arn provided - how is the database for this stack specified?"
     fi
 
     if [ -n "$JUMPBOX_INSTANCE_TYPE" ] ; then

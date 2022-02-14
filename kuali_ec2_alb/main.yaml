@@ -263,6 +263,12 @@ Parameters:
     Description: The availability zone of the rds instance
     Default: empty
 
+  # A non-empty value will only get used if HostedZoneName is also non-empty and the rds instance pre-exists (is NOT getting created in this stack).
+  RdsEndpointAddress:
+    Type: String
+    Description: Create a dns record with the hosted zone for the pre-existing rds instance that has this endpoint address.
+    Default: empty
+
 
 Conditions:
   CreateWAF: !Equals [!Ref EnableWAF, 'true']
@@ -272,6 +278,7 @@ Conditions:
   UseKeypair: !Not [!Equals [!Ref EC2KeypairName, empty]]
   IsProd: !Equals [!Ref Landscape, prod]
   CreateFromRdsClone: !Not [!Equals [!Ref RdsSnapshotARN, empty]]
+  CreateDnsRecordForRds: !And [ Condition: CreateDnsRecord, !Not [ Condition: CreateFromRdsClone ], !Not [ !Equals [ !Ref RdsEndpointAddress, empty]]]
 
 
 Resources:
@@ -315,6 +322,17 @@ Resources:
             - CreateDnsRecord
             - !Ref HostedZoneName
             - !Ref AWS::NoValue
+
+  RdsDnsRecord:
+    Type: AWS::CloudFormation::Stack
+    Condition: CreateDnsRecordForRds
+    Properties:
+      TemplateURL: 
+        !Sub https://s3.amazonaws.com/${TemplateBucketName}/cloudformation/kuali_rds/rds-dns.yaml
+      Parameters:
+        Landscape: !Ref Landscape
+        HostedZoneName: !Ref HostedZoneName
+        DbEndpointAddress: !Ref RdsEndpointAddress
 
   BucketEmptierLambda:
     Type: AWS::CloudFormation::Stack
