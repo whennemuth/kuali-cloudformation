@@ -1448,11 +1448,16 @@ getRdsSnapshotType() {
     --query 'DBSnapshots[].{SnapshotType:SnapshotType}' 2> /dev/null
 }
 
+getRdsEndpoint() {
+  local instanceArn="$1"
+  aws rds describe-db-instances --db-instance-id $instanceArn --output text --query 'DBInstances[].Endpoint.{hostAddr:Address}')
+}
+
 getRdsInstanceRoute53Record() {
   local instanceArn="$1"
   local hostedZoneName="$2"
   local landscape="$3"
-  local rdsEndpoint="$(aws rds describe-db-instances --db-instance-id $instanceArn --output text --query 'DBInstances[].Endpoint.{hostAddr:Address}')"
+  local rdsEndpoint="$(getRdsEndpoint $instanceArn)"
   local hostedZoneId="$(getHostedZoneId $hostedZoneName)"
   local hostedZoneName="$(aws route53 get-hosted-zone \
     --id "$hostedZoneId" \
