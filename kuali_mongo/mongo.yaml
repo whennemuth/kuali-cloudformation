@@ -365,6 +365,13 @@ Resources:
                 log_group_name = ${GlobalTag}-${Landscape}
                 log_stream_name = /var/log/import-users
                 datetime_format = %Y-%m-%dT%H:%M:%S.%f
+                
+                [/var/log/cfn-init]
+                file = /var/log/cfn-init.log
+                log_group_name = ${GlobalTag}-${Landscape}
+                log_stream_name = {instance_id}/var/log/cfn-init
+                datetime_format = %Y-%m-%d %H:%M:%S,
+                # multi_line_start_pattern = \d{4}\-\d{2}\-\d{2} \d{2}:\d{2}:\d{2},\d{3}
           services:
             sysvinit:
               cfn-hup:
@@ -477,7 +484,7 @@ Resources:
 
                 /usr/local/bin/docker-compose down 2> /dev/null || true
 
-                /usr/local/bin/docker-compose up --detach                
+                /usr/local/bin/docker-compose up --quiet-pull --detach                
               mode: "000775"
               owner: root
               group: root

@@ -363,7 +363,7 @@ Resources:
                 pull() {
                   local pswd="$(aws ecr get-login-password --region ${AWS::Region})"
                   echo ${!pswd} | docker login -u AWS --password-stdin ${!registry}
-                  docker pull ${!imageName}
+                  docker pull -q -a ${!imageName}
                 }
 
                 clear() {

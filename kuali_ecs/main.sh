@@ -289,6 +289,7 @@ EOF
             silent=true \
             filepath=../kuali_rds/rds-dns.yaml \
             s3path=s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_rds/
+          addParameter $cmdfile 'RdsPrivateEndpoint' "$(getRdsEndpoint $RDS_ARN)"
         fi
       else
         echo "No RDS snapshotting indicated. Will use: $RDS_ARN"

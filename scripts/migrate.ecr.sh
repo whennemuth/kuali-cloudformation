@@ -85,7 +85,7 @@ migrate() {
     if dryrun ; then
       echo "DRYRUN: docker pull $sourceImg"
     else
-      docker pull $sourceImg
+      docker pull -q -a $sourceImg
     fi
     [ $? -eq 0 ] && ((pulled++))
 

@@ -705,7 +705,7 @@ Resources:
                 [ ! -f /opt/kuali/nginx/error.log ] && touch /opt/kuali/nginx/error.log
                 [ ! -f /opt/kuali/nginx/access.log ] && touch /opt/kuali/nginx/access.log
 
-                /usr/local/bin/docker-compose up --detach
+                /usr/local/bin/docker-compose up --quiet-pull --detach
                 
               mode: "000775"
               owner: root

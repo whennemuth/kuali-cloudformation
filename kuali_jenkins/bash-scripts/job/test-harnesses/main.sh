@@ -36,7 +36,7 @@
 
 PARAMETERS=$(echo '
 DRYRUN=true&
-DEBUG=true&
+STACK=kuali-ec2-alb-warren2%7Cstg%7Cwarren2&
 STACK_ACTION=create&
 STACK_TYPE=ec2-alb&
 AUTHENTICATION=cor-main&

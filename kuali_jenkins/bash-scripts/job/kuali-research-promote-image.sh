@@ -39,7 +39,7 @@ if validParameters ; then
     | docker login --username AWS --password-stdin ${ECR_REGISTRY_URL}
 
   # Pull the source image
-  docker pull $SOURCE_IMAGE
+  docker pull -q -a $SOURCE_IMAGE
 
   # Apply another tag to the source image
   docker tag $SOURCE_IMAGE $TARGET_IMAGE

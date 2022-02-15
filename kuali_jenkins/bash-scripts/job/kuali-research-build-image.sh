@@ -27,7 +27,7 @@ getTomcatDockerImage() {
         echo "CANNOT FIND DOCKER IMAGE: ${TOMCAT_REGISTRY_IMAGE}"; 
         echo "Pulling ${TOMCAT_REGISTRY_IMAGE} from registry..."
         aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY_URL}
-        docker pull ${TOMCAT_REGISTRY_IMAGE}
+        docker pull -q -a ${TOMCAT_REGISTRY_IMAGE}
     fi
     echo "Tagging ${TOMCAT_REGISTRY_IMAGE}"
     docker tag ${TOMCAT_REGISTRY_IMAGE} ${TOMCAT_LOCAL_IMAGE}

@@ -2048,29 +2048,34 @@ waitForStack() {
     sleep $interval
   done
   if [ "$status" == $successStatus ] ; then
-    outputHeading "Stack outputs:"
-    while read p ; do
-      local key="$(echo ''$p'' | jq '.OutputKey')"
-      local val="$(echo ''$p'' | jq '.OutputValue')"
-      echo "$key: $val"
-    done <<<$(
-      aws cloudformation describe-stacks \
-      --stack-name=$stackname \
-      --query 'Stacks[].{Outputs:Outputs}' \
-      | jq -c '.[0].Outputs' \
-      | jq -c '.[]'
-    )
-    # for p in $(
-    #   aws cloudformation describe-stacks \
-    #   --stack-name=$stackname \
-    #   --query 'Stacks[].{Outputs:Outputs}' \
-    #   | jq -c '.[0].Outputs' \
-    #   | jq -c '.[]'
-    # ) ; do
-    #   local key="$(echo ''$p'' | jq '.OutputKey')"
-    #   local val="$(echo ''$p'' | jq '.OutputValue')"
-    #   echo "$key: $val"
-    # done
+    if [ "$task" == 'delete' ] ; then
+      echo " "
+      echo "Finished."
+    else
+      outputHeading "Stack outputs:"
+      while read p ; do
+        local key="$(echo ''$p'' | jq '.OutputKey')"
+        local val="$(echo ''$p'' | jq '.OutputValue')"
+        echo "$key: $val"
+      done <<<$(
+        aws cloudformation describe-stacks \
+        --stack-name=$stackname \
+        --query 'Stacks[].{Outputs:Outputs}' \
+        | jq -c '.[0].Outputs' \
+        | jq -c '.[]'
+      )
+      # for p in $(
+      #   aws cloudformation describe-stacks \
+      #   --stack-name=$stackname \
+      #   --query 'Stacks[].{Outputs:Outputs}' \
+      #   | jq -c '.[0].Outputs' \
+      #   | jq -c '.[]'
+      # ) ; do
+      #   local key="$(echo ''$p'' | jq '.OutputKey')"
+      #   local val="$(echo ''$p'' | jq '.OutputValue')"
+      #   echo "$key: $val"
+      # done
+    fi
     true
   else
     outputHeading "STACK CREATION FAILED ($stackname)"
