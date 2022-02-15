@@ -33,4 +33,5 @@ Resources:
       Name: !Sub ${Landscape}.db.${HostedZoneName}
       Type: CNAME
       TTL: 300
-      ResourceRecords: !Ref DbEndpointAddress
+      ResourceRecords: 
+        - !Ref DbEndpointAddress
