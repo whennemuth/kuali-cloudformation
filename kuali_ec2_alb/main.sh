@@ -256,7 +256,7 @@ EOF
             filepath=../kuali_rds/rds-dns.yaml \
             s3path=s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_rds/
 
-          add_parameter $cmdfile 'RdsEndpointAddress' "$(getRdsEndpoint $RDS_ARN)"
+          addParameter $cmdfile 'RdsEndpointAddress' "$(getRdsEndpoint $RDS_ARN)"
         fi
       fi
     else
