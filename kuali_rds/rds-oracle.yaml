@@ -509,6 +509,22 @@ Resources:
 
 Outputs:
 
+  Route53Endpoint:
+    Description: Alternative endpoint for the rds instance through route 53 CNAME record.
+    Value:
+      !If 
+        - CreateDnsRecord
+        - !Sub ${Landscape}.db.${HostedZoneName}
+        - None
+
+  PrivateEndpoint:
+    Description: The private endpoint address that the rds service automatically assigns to the instance when it is created.
+    Value: 
+      !GetAtt 
+        - DBInstance
+        - Endpoint.Address
+    
+
   RdsOracleJDBCConnectionString:
     Description: JDBC connection string for Oracle database using rds hostname endpoint directly.
     Value: !Join 

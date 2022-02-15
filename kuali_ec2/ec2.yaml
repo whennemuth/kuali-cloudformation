@@ -192,8 +192,8 @@ Conditions:
   IsTest: !Not [!And [!Equals [!Ref Landscape, prod], !Equals [!Ref Landscape, stg]]]
   IsProd: !Equals [!Ref Landscape, prod]
   NewrelicLicsenseKeyProvided: !Equals [!Ref NewrelicLicsenseKey, empty]
-  CreateFromRdsClone: !Not [!Equals [!Ref RdsSnapshotARN, empty]]
-  CreateDnsRecordForRds: !And [ !Not [ Condition: CreateFromRdsClone ], !Not [ !Equals [ !Ref RdsEndpointAddress, empty]]]
+  CreateRdsInstanceFromSnapshot: !Not [!Equals [!Ref RdsSnapshotARN, empty]]
+  CreateDnsRecordForRds: !And [ !Not [ Condition: CreateRdsInstanceFromSnapshot ], !Not [ !Equals [ !Ref RdsEndpointAddress, empty]]]
 
 
 Mappings:
@@ -229,7 +229,7 @@ Resources:
 
   RdsInstance:
     Type: AWS::CloudFormation::Stack
-    Condition: CreateFromRdsClone
+    Condition: CreateRdsInstanceFromSnapshot
     Properties:
       TemplateURL:
         !Sub https://s3.amazonaws.com/${TemplateBucketName}/cloudformation/kuali_rds/rds-oracle.yaml

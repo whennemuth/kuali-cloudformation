@@ -126,12 +126,13 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
           kc_image=770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-coeus-sandbox:2001.0040 \
           core_image=770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-core:2001.0040 \
           portal_image=770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-portal:2001.0040 \
-          pdf_image=770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-research-pdf:2002.0003       
+          pdf_image=770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-research-pdf:2002.0003 \
+          rds_arn=arn:aws:rds:us-east-1:770203350335:db:kuali-oracle-ci
       ```
       
    2. **"Injected"**:
       This scenario assumes that you are "injecting" the load balancer and ec2 instances into subnets that have already been set aside for them, perhaps by network administrators, cloud team, etc.
-
+   
       ```
       # Example 1): Create the infrastructure in a specific VPC using existing subnets:
       sh main.sh \
@@ -142,7 +143,7 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
           public_subnet1=subnet-01b7baf7ed9fe8b4e \
           public_subnet2=subnet-0ed0feaf1187d9ed9
       ```
-
+   
 2. **Browse the app:**
    Once the stack has been created, you can visit the Course Schedule Planner app in your browser.
 

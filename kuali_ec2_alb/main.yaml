@@ -263,22 +263,36 @@ Parameters:
     Description: The availability zone of the rds instance
     Default: empty
 
-  # A non-empty value will only get used if HostedZoneName is also non-empty and the rds instance pre-exists (is NOT getting created in this stack).
-  RdsEndpointAddress:
+  # One of the following 2 parameters must be provided if the RdsSnapshotARN is empty:
+  # 1) A non-empty value will only get used if HostedZoneName is also non-empty and the rds instance pre-exists (is NOT getting created in this stack).
+  RdsRoute53Endpoint:
     Type: String
     Description: Create a dns record with the hosted zone for the pre-existing rds instance that has this endpoint address.
+    Default: empty
+  # Or... 2)
+  RdsPrivateEndpoint:
+    Type: String
+    Description: The private endpoint address that the rds service automatically assigns to the instance when it is created.
     Default: empty
 
 
 Conditions:
   CreateWAF: !Equals [!Ref EnableWAF, 'true']
+  # The dns record applies to the application addressing, and even though the database addressing could be specified in kc-config.xml 
+  # using the private rds endpoint, this flag will indicate to create a CNAME record for the rds endpoint as well.
   CreateDnsRecord: !Not [!Equals [!Ref HostedZoneName, empty]]
   CreateMongoEc2Instance: !Not [!Equals [!Ref MongoSubnetId, empty]]
   CreateAlbLogsBuckets: !Or [!Equals [!Ref EnableALBLogging, 'true' ], Condition: CreateWAF]
   UseKeypair: !Not [!Equals [!Ref EC2KeypairName, empty]]
   IsProd: !Equals [!Ref Landscape, prod]
-  CreateFromRdsClone: !Not [!Equals [!Ref RdsSnapshotARN, empty]]
-  CreateDnsRecordForRds: !And [ Condition: CreateDnsRecord, !Not [ Condition: CreateFromRdsClone ], !Not [ !Equals [ !Ref RdsEndpointAddress, empty]]]
+  CreateRdsInstanceFromSnapshot: !Not [!Equals [!Ref RdsSnapshotARN, empty]]
+  RdsRoute53EndpointProvided: !Not [!Equals [!Ref RdsRoute53Endpoint, empty]]
+  RdsPrivateEndpointProvided: !Not [!Equals [!Ref RdsPrivateEndpoint, empty]]
+  CreateDnsRecordForRds: 
+    !And
+      - Condition: CreateDnsRecord
+      - !Not [ Condition: CreateRdsInstanceFromSnapshot ]
+      - !Not [ !Equals [ !Ref RdsRoute53Endpoint, empty]]
 
 
 Resources:
@@ -298,7 +312,7 @@ Resources:
 
   RdsInstance:
     Type: AWS::CloudFormation::Stack
-    Condition: CreateFromRdsClone
+    Condition: CreateRdsInstanceFromSnapshot
     Properties:
       TemplateURL:
         !Sub https://s3.amazonaws.com/${TemplateBucketName}/cloudformation/kuali_rds/rds-oracle.yaml
@@ -332,7 +346,7 @@ Resources:
       Parameters:
         Landscape: !Ref Landscape
         HostedZoneName: !Ref HostedZoneName
-        DbEndpointAddress: !Ref RdsEndpointAddress
+        DbEndpointAddress: !Ref RdsRoute53Endpoint
 
   BucketEmptierLambda:
     Type: AWS::CloudFormation::Stack
@@ -496,6 +510,24 @@ Resources:
               - !Ref HostedZoneName
               - !Sub ${Landscape}.${HostedZoneName}
             - !GetAtt ALB.Outputs.DNSName
+        RdsEndpoint:
+          !If
+            - RdsRoute53EndpointProvided
+            - !Ref RdsRoute53Endpoint
+            - !If
+              - RdsPrivateEndpointProvided
+              - !Ref RdsPrivateEndpoint
+              - !If
+                - CreateDnsRecordForRds
+                - !Ref RdsRoute53Endpoint
+                - !If
+                  - CreateRdsInstanceFromSnapshot
+                  - !If
+                      - CreateDnsRecord
+                      - !GetAtt RdsInstance.Outputs.Route53Endpoint
+                      - !GetAtt RdsInstance.Outputs.PrivateEndpoint
+                  - !Ref AWS::NoValue
+                  # Function getRdsHostname in process.configs.sh will try to "figure out" the rds endpoint
         EntityId:
           !If 
             - CreateDnsRecord
@@ -546,7 +578,7 @@ Resources:
         - Key: DnsJdbc
           Value:
             !If
-              - CreateFromRdsClone
+              - CreateRdsInstanceFromSnapshot
               - !If
                   - CreateDnsRecord
                   - !GetAtt RdsInstance.Outputs.KualiOracleJDBCConnectionString
@@ -555,7 +587,7 @@ Resources:
         - Key: RdsJdbc
           Value:
             !If
-              - CreateFromRdsClone
+              - CreateRdsInstanceFromSnapshot
               - !GetAtt RdsInstance.Outputs.RdsOracleJDBCConnectionString
               - 'Exists'
         - Key: PrivateMongoAddress
@@ -603,6 +635,24 @@ Resources:
               - !Sub https://${HostedZoneName}/shibboleth
               - !Sub https://*.${HostedZoneName}/shibboleth
             - !GetAtt ALB.Outputs.DNSName
+        RdsEndpoint:
+          !If
+            - RdsRoute53EndpointProvided
+            - !Ref RdsRoute53Endpoint
+            - !If
+              - RdsPrivateEndpointProvided
+              - !Ref RdsPrivateEndpoint
+              - !If
+                - CreateDnsRecordForRds
+                - !Ref RdsRoute53Endpoint
+                - !If
+                  - CreateRdsInstanceFromSnapshot
+                  - !If
+                      - CreateDnsRecord
+                      - !GetAtt RdsInstance.Outputs.Route53Endpoint
+                      - !GetAtt RdsInstance.Outputs.PrivateEndpoint
+                  - !Ref AWS::NoValue
+                  # Function getRdsHostname in process.configs.sh will try to "figure out" the rds endpoint
         UsingRoute53: !If [ CreateDnsRecord, 'true', 'false' ]
         CampusSubnet:
           !Ref CampusSubnet2
@@ -649,7 +699,7 @@ Resources:
         - Key: DnsJdbc
           Value:
             !If
-              - CreateFromRdsClone
+              - CreateRdsInstanceFromSnapshot
               - !If
                   - CreateDnsRecord
                   - !GetAtt RdsInstance.Outputs.KualiOracleJDBCConnectionString
@@ -658,7 +708,7 @@ Resources:
         - Key: RdsJdbc
           Value:
             !If
-              - CreateFromRdsClone
+              - CreateRdsInstanceFromSnapshot
               - !GetAtt RdsInstance.Outputs.RdsOracleJDBCConnectionString
               - 'Exists'
         - Key: PrivateMongoAddress

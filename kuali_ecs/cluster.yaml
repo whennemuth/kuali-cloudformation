@@ -118,6 +118,12 @@ Parameters:
     Type: String
     Description: The DNS name for the ALB or a hosted zone that forwards to it. The app is publicly reachable at this address.
 
+  RdsEndpoint:
+    Type: String
+    Description: The endpoint of the rds instance - either private ip, private dns, or provided by route53 CNAME record.
+      Usable as HOST in jdbc connection string.
+    Default: empty
+
   EntityId:
     Type: String
     Description: The id of the issuer of saml authentication requests to shibboleth. 
@@ -183,6 +189,7 @@ Conditions:
   IsTest: !Not [!And [!Equals [!Ref Landscape, prod], !Equals [!Ref Landscape, stg]]]
   UsingShibboleth: !Equals [!Ref UsingShibboleth, 'true']
   NewrelicLicsenseKeyProvided: !Equals [!Ref NewrelicLicsenseKey, empty]
+  RdsEndpointProvided: !Not [!Equals [!Ref RdsEndpoint, empty]]
 
 
 Resources:
@@ -767,6 +774,7 @@ Resources:
                 NEW_RELIC_INFRASTRUCTURE_ENABLED: !If [ NewrelicLicsenseKeyProvided, !Ref EnableNewRelicInfrastructure, 'false' ]
                 JAVA_ENV: !Ref Landscape
                 DNS_NAME: !Ref DNSName
+                RDS_HOSTNAME: !If [ RdsEndpointProvided, !Ref RdsEndpoint, !Ref AWS::NoValue ]
               command: bash process-configs.sh
         03_process_kc-config_file:
           commands:

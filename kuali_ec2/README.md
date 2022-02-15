@@ -61,13 +61,15 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
    sh main.sh create-stack
      stack_name=my-standalone-ec2-stack \
      global_tag=my-standalone-ec2 \
+     landscape=mylandscape \
      no_rollback=true \
      template_bucket_path=s3://mybucket/stacks/kuali_ec2_alb \
      ec2_instance_type=m5.large \
-     kc_image=770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-coeus-sandbox:2001.0040 \
+     kc_image=770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-coeus-feature:2001.0040 \
      core_image=770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-core:2001.0040 \
      portal_image=770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-portal:2001.0040 \
      pdf_image=770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-research-pdf:2002.0003
+     rds_arn=arn:aws:rds:us-east-1:770203350335:db:kuali-oracle-my-other-landscape
    ```
 
 3. **Browse the app:**
@@ -85,10 +87,10 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
    ```
    # Scenario 1) One or more templates have changed, but none of the parameters have
    sh main.sh update-stack
-
+   
    # Scenario 2) A parameter has changed (upgrading kuali-research)
    sh main.sh update-stack \
-   	kc_image=770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-coeus-sandbox:2001.0040
+   	kc_image=770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-coeus-feature:2001.0040
    ```
    
 5. **Shell into the EC2 instance:**

@@ -1454,31 +1454,35 @@ getRdsEndpoint() {
 }
 
 getRdsInstanceRoute53Record() {
-  local instanceArn="$1"
-  local hostedZoneName="$2"
-  local landscape="$3"
-  local rdsEndpoint="$(getRdsEndpoint $instanceArn)"
-  local hostedZoneId="$(getHostedZoneId $hostedZoneName)"
-  local hostedZoneName="$(aws route53 get-hosted-zone \
-    --id "$hostedZoneId" \
-    --output text \
-    --query 'HostedZone.{name:Name}' 2> /dev/null)"
-  local queryparm1='starts_with(Name, `'$landscape'.'$hostedZoneName'`) == `true`'
-  local queryparm2='starts_with(AliasTarget.DNSName, `'$rdsEndpoint'`) == `true`'
-  local queryparm3='Type == `A`'
+  if [ -z "$RDS_INSTANCE_ROUTE53_RECORD" ] ; then
+    local instanceArn="$1"
+    local hostedZoneName="$2"
+    local landscape="$3"
+    local rdsEndpoint="$(getRdsEndpoint $instanceArn)"
+    local hostedZoneId="$(getHostedZoneId $hostedZoneName)"
+    local hostedZoneName="$(aws route53 get-hosted-zone \
+      --id "$hostedZoneId" \
+      --output text \
+      --query 'HostedZone.{name:Name}' 2> /dev/null)"
+    local queryparm1='starts_with(Name, `'$landscape'.'$hostedZoneName'`) == `true`'
+    local queryparm2='starts_with(AliasTarget.DNSName, `'$rdsEndpoint'`) == `true`'
+    local queryparm3='Type == `A`'
 
-  aws route53 list-resource-record-sets \
-    --hosted-zone-id $hostedZoneId \
-    --output text \
-    --query "ResourceRecordSets[?$queryparm1 && $queryparm2 && $queryparm3].{name:Name}"
+    RDS_INSTANCE_ROUTE53_RECORD="$(aws route53 list-resource-record-sets \
+      --hosted-zone-id $hostedZoneId \
+      --output text \
+      --query "ResourceRecordSets[?$queryparm1 && $queryparm2 && $queryparm3].{name:Name}")"
+
+    [ "${RDS_INSTANCE_ROUTE53_RECORD,,}" == 'none' ] && RDS_INSTANCE_ROUTE53_RECORD=''
+  fi
+  echo "$RDS_INSTANCE_ROUTE53_RECORD"
 }
 
 rdsInstanceRoute53RecordExists() {
   local instanceArn="$1"
   local hostedZoneName="$2"
   local landscape="$3"
-  record="$(getRdsInstanceRoute53Record $@)"
-  ([ -n "$record" ] && [ "${record,,}" != 'none' ]) && true || false
+  [ -n "$(getRdsInstanceRoute53Record $@)" ] && true || false
 }
 
 getRdsSnapshotBaseline() {

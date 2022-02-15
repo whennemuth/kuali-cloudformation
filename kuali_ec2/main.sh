@@ -146,8 +146,11 @@ EOF
       [ $? -gt 0 ] && exit 1
       copyToBucket '../kuali_rds/rds-oracle.yaml' "s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_rds/"
       processRdsParameters $cmdfile $LANDSCAPE "$RDS_SNAPSHOT_ARN" "$RDS_ARN_TO_CLONE"
+    elif [ -n "$RDS_ARN" ] ; then
+      echo "No RDS snapshotting indicated. Will use $RDS_ARN directly."
+      addParameter $cmdfile 'RdsPrivateEndpoint' "$(getRdsEndpoint $RDS_ARN)"
     else
-      echo "No RDS snapshotting indicated. Will use existing RDS database directly."
+      echo "No RDS snapshotting indicated. Will determine existing RDS database dynamically."
     fi
 
     if [ -n "$JUMPBOX_INSTANCE_TYPE" ] ; then

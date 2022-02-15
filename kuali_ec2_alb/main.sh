@@ -246,18 +246,22 @@ EOF
         filepath=../kuali_campus_security/main.yaml \
         s3path=s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_campus_security/
     elif [ -n "$RDS_ARN" ] ; then
-      echo "No RDS snapshotting indicated. Will use existing RDS database directly."
       if [ "${USING_ROUTE53,,}" == 'true' ] ; then
-
-        if ! rdsInstanceRoute53RecordExists $RDS_ARN $HOSTED_ZONE $LANDSCAPE ; then
-
+        if rdsInstanceRoute53RecordExists $RDS_ARN $HOSTED_ZONE $LANDSCAPE ; then
+          echo "No RDS snapshotting indicated. Will use: $RDS_ARN"
+          echo "        arn: $RDS_ARN"
+          echo "   endpoint: $RDS_INSTANCE_ROUTE53_RECORD"
+          addParameter $cmdfile 'RdsRoute53Endpoint' "$RDS_INSTANCE_ROUTE53_RECORD"
+        else
+          echo "No RDS snapshotting indicated. Will use: $RDS_ARN"
           validateTemplateAndUploadToS3 \
             silent=true \
             filepath=../kuali_rds/rds-dns.yaml \
             s3path=s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_rds/
-
-          addParameter $cmdfile 'RdsEndpointAddress' "$(getRdsEndpoint $RDS_ARN)"
         fi
+      else
+        echo "No RDS snapshotting indicated. Will use: $RDS_ARN"
+        addParameter $cmdfile 'RdsPrivateEndpoint' "$(getRdsEndpoint $RDS_ARN)"
       fi
     else
       # Is there a scenario where the db is specified some other way, or should it exit here with an error code?
