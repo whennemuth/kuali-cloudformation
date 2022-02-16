@@ -172,9 +172,9 @@ stackAction() {
 
       # Upload scripts that will be run as part of AWS::CloudFormation::Init
       outputHeading "Uploading bash scripts involved in AWS::CloudFormation::Init..."
-      copyToBucket '../scripts/ec2/process-configs.sh' "s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/"
-      copyToBucket '../scripts/ec2/stop-instance.sh' "s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/"
-      copyToBucket '../scripts/ec2/cloudwatch-metrics.sh' "s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/"
+      for f in $(find ../scripts/ec2/ -type f -iname '*.sh') ; do
+        copyToBucket "s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/"
+      done
     fi
 
     cat <<-EOF > $cmdfile

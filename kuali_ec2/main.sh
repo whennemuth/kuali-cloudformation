@@ -89,13 +89,9 @@ stackAction() {
 
       # Upload scripts that will be run as part of AWS::CloudFormation::Init
       outputHeading "Uploading bash scripts involved in AWS::CloudFormation::Init..."
-      copyToBucket '../scripts/ec2/process-configs.sh' "s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/"
-      copyToBucket '../scripts/ec2/stop-instance.sh' "s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/"
-      copyToBucket '../scripts/ec2/cloudwatch-metrics.sh' "s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/"
-      if [ "${CREATE_MONGO,,}" == 'true' ] ; then
-        copyToBucket '../kuali_mongo/mongo.yaml' "s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_mongo/"
-        copyToBucket '../scripts/ec2/initialize-mongo-database.sh' "s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/"
-      fi
+      for f in $(find ../scripts/ec2/ -type f -iname '*.sh') ; do
+        copyToBucket "s3://$TEMPLATE_BUCKET_NAME/cloudformation/scripts/ec2/"
+      done
     fi
 
     checkKeyPair
