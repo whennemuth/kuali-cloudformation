@@ -263,15 +263,15 @@ Resources:
         - Key: Function
           Value: !Ref Function
   
-  # APPLICATION: Allow ingress for any other resource that belongs to the application security group.
-  # (Redundant if CampusIngress1&2 are used since the same CIDR blocks apply - though this is preferred)
+  # APPLICATION: Allow ingress for only specific resources that belong to the application security group for the landscape.
+  # (Redundant if CampusIngress1&2 are used since their combined CIDR blocks cover all resources that could be associated with the application security group - so, this is preferred because it is tighter.)
   ApplicationIngress:
    Type: 'AWS::EC2::SecurityGroupIngress'
    Condition: IncludeAppSg
    Properties:
       GroupId: !Ref SGBase
       SourceSecurityGroupId: !Ref ApplicationSecurityGroupId
-      Description: Allows inbound access from any resource in the kuali application subnet(s).
+      Description: Allows inbound access from any resource associated with the specified source security group.
       FromPort: !Ref FromPort
       IpProtocol: tcp
       ToPort: !Ref ToPort
@@ -279,7 +279,7 @@ Resources:
   # Or...
 
   # CAMPUS: Allow ingress from the first subnet where the application servers reside 
-  # (Redundant if ApplicationIngress is used since the same CIDR blocks apply)
+  # (Much more inclusive than using ApplicationIngress since it covers the whole subnet, no specific resources - therefore the less preferable option)
   CampusIngress1:
    Type: 'AWS::EC2::SecurityGroupIngress'
    Condition: IncludeCampusSg1
@@ -291,7 +291,7 @@ Resources:
       IpProtocol: tcp
       ToPort: !Ref ToPort
   # CAMPUS: Allow ingress from the second (if exists) subnet where the application servers reside
-  # (Redundant if ApplicationIngress is used since the same CIDR blocks apply)
+  # (Much more inclusive than using ApplicationIngress since it covers the whole subnet, not specific resources - therefore the less preferable option)
   CampusIngress2:
     Type: 'AWS::EC2::SecurityGroupIngress'
     Condition: IncludeCampusSg2

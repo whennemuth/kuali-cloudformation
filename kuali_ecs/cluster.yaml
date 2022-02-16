@@ -118,17 +118,11 @@ Parameters:
     Type: String
     Description: The DNS name for the ALB or a hosted zone that forwards to it. The app is publicly reachable at this address.
 
-  # 2 parameters that should be provided if the rds instance pre-exists (not created in this stack).
+  # A parameter that should be provided if the rds instance pre-exists (not created in this stack).
   RdsEndpoint:
     Type: String
     Description: The endpoint of the rds instance - either private ip, private dns, or provided by route53 CNAME record.
       Usable as HOST in jdbc connection string.
-    Default: empty
-  RdsVpcSecurityGroupId:
-    Type: String
-    Description: |
-      The vpc security group id associated with a pre-existing rds instance. The ec2 instance(s) to be created
-      associate themselves with this security group for ingress to the rds intance.
     Default: empty
 
   EntityId:
@@ -197,7 +191,6 @@ Conditions:
   UsingShibboleth: !Equals [!Ref UsingShibboleth, 'true']
   NewrelicLicsenseKeyProvided: !Equals [!Ref NewrelicLicsenseKey, empty]
   RdsEndpointProvided: !Not [!Equals [!Ref RdsEndpoint, empty]]
-  RdsVpcSecurityGroupIdProvided: !Not [!Equals [!Ref RdsVpcSecurityGroupId, empty]]
 
 
 Resources:
@@ -471,10 +464,6 @@ Resources:
         !Ref InstanceType
       SecurityGroups:
       - !Ref SecurityGroupId
-      - !If 
-        - RdsVpcSecurityGroupIdProvided
-        - !Ref RdsVpcSecurityGroupId
-        - !Ref AWS::NoValue
       KeyName:
         !If 
           - UseKeypair

@@ -294,7 +294,7 @@ Parameters:
     Description: The availability zone of the rds instance
     Default: empty
 
-  # 2 of 3 values that are provided if the rds instance pre-exists (is NOT getting created in this stack).
+  # 1 of 2 values that are provided if the rds instance pre-exists (is NOT getting created in this stack).
   # -----------------------------------------------------------------------------------------------------------------------
   # 1) If not empty, will only get used if HostedZoneName is also non-empty
   RdsRoute53Endpoint:
@@ -305,13 +305,6 @@ Parameters:
   RdsPrivateEndpoint:
     Type: String
     Description: The private endpoint address that the rds service automatically assigns to the instance when it is created.
-    Default: empty
-  # And...
-  RdsVpcSecurityGroupId:
-    Type: String
-    Description: |
-      The vpc security group id associated with a pre-existing rds instance. The ec2 instance(s) to be created
-      associate themselves with this security group for ingress to the rds intance.
     Default: empty
 
 
@@ -559,7 +552,6 @@ Resources:
               - !Sub https://${HostedZoneName}/shibboleth
               - !Sub https://*.${HostedZoneName}/shibboleth
             - !GetAtt ALB.Outputs.DNSName
-        RdsVpcSecurityGroupId: !Ref RdsVpcSecurityGroupId
         RdsEndpoint:
           !If
             - RdsRoute53EndpointProvided

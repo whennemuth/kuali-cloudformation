@@ -178,16 +178,10 @@ Parameters:
     Description: The availability zone of the rds instance
     Default: empty
 
-  # 2 values that, if non-empty, will only get used if the rds instance pre-exists (is NOT getting created in this stack).
+  # A value that, if non-empty, will only get used if the rds instance pre-exists (is NOT getting created in this stack).
   RdsEndpointAddress:
     Type: String
     Description: Create a dns record with the hosted zone for the pre-existing rds instance that has this endpoint address.
-    Default: empty
-  RdsVpcSecurityGroupId:
-    Type: String
-    Description: |
-      The vpc security group id associated with a pre-existing rds instance. The ec2 instance(s) to be created
-      associate themselves with this security group so they can gain ingress access to the rds intance.
     Default: empty
 
 
@@ -200,7 +194,6 @@ Conditions:
   NewrelicLicsenseKeyProvided: !Equals [!Ref NewrelicLicsenseKey, empty]
   CreateRdsInstanceFromSnapshot: !Not [!Equals [!Ref RdsSnapshotARN, empty]]
   CreateDnsRecordForRds: !And [ !Not [ Condition: CreateRdsInstanceFromSnapshot ], !Not [ !Equals [ !Ref RdsEndpointAddress, empty]]]
-  RdsVpcSecurityGroupIdProvided: !Not [!Equals [!Ref RdsVpcSecurityGroupId, empty]]
 
 
 Mappings:
@@ -443,10 +436,6 @@ Resources:
         !Ref EC2InstanceType
       SecurityGroupIds:
       - !GetAtt EC2InstanceSecurityGroup.GroupId
-      - !If 
-        - RdsVpcSecurityGroupIdProvided
-        - !Ref RdsVpcSecurityGroupId
-        - !Ref AWS::NoValue
       KeyName:
         !If 
           - UseKeypair
