@@ -389,7 +389,7 @@ updateCore() {
         updateInCommons ;;
       institutions)
         if ! mongoCollectionExists 'institutions' ; then
-          triggerCollectionCreation 
+          createInstitutionsCollection 
         fi
         updateInstitutions ;;
       users)
