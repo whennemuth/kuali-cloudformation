@@ -263,8 +263,9 @@ Parameters:
     Description: The availability zone of the rds instance
     Default: empty
 
-  # One of the following 2 parameters must be provided if the RdsSnapshotARN is empty:
-  # 1) A non-empty value will only get used if HostedZoneName is also non-empty and the rds instance pre-exists (is NOT getting created in this stack).
+  # 2 of 3 values that are provided if the rds instance pre-exists (is NOT getting created in this stack).
+  # -----------------------------------------------------------------------------------------------------------------------
+  # 1) If not empty, will only get used if HostedZoneName is also non-empty
   RdsRoute53Endpoint:
     Type: String
     Description: Create a dns record with the hosted zone for the pre-existing rds instance that has this endpoint address.
@@ -273,6 +274,13 @@ Parameters:
   RdsPrivateEndpoint:
     Type: String
     Description: The private endpoint address that the rds service automatically assigns to the instance when it is created.
+    Default: empty
+  # And...
+  RdsVpcSecurityGroupId:
+    Type: String
+    Description: |
+      The vpc security group id associated with a pre-existing rds instance. The ec2 instance(s) to be created
+      associate themselves with this security group ingress to the rds intance.
     Default: empty
 
 
@@ -510,6 +518,7 @@ Resources:
               - !Ref HostedZoneName
               - !Sub ${Landscape}.${HostedZoneName}
             - !GetAtt ALB.Outputs.DNSName
+        RdsVpcSecurityGroupId: !Ref RdsVpcSecurityGroupId
         RdsEndpoint:
           !If
             - RdsRoute53EndpointProvided

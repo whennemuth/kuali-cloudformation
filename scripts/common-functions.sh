@@ -1453,6 +1453,11 @@ getRdsEndpoint() {
   aws rds describe-db-instances --db-instance-id $instanceArn --output text --query 'DBInstances[].Endpoint.{hostAddr:Address}'
 }
 
+getRdsVpcSecurityGroupName() {
+  local instanceArn="$1"
+  aws rds describe-db-instances --db-instance-id $instanceArn --output text --query 'DBInstances[].VpcSecurityGroups[].{id:VpcSecurityGroupId}'
+}
+
 getRdsInstanceRoute53Record() {
   if [ -z "$RDS_INSTANCE_ROUTE53_RECORD" ] ; then
     local instanceArn="$1"
