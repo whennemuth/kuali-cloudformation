@@ -290,10 +290,12 @@ EOF
             filepath=../kuali_rds/rds-dns.yaml \
             s3path=s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_rds/
           addParameter $cmdfile 'RdsPrivateEndpoint' "$(getRdsEndpoint $RDS_ARN)"
+          addParameter $cmdfile 'RdsVpcSecurityGroupId' "$(getRdsVpcSecurityGroupId $RDS_ARN)"
         fi
       else
         echo "No RDS snapshotting indicated. Will use: $RDS_ARN"
         addParameter $cmdfile 'RdsPrivateEndpoint' "$(getRdsEndpoint $RDS_ARN)"
+        addParameter $cmdfile 'RdsVpcSecurityGroupId' "$(getRdsVpcSecurityGroupId $RDS_ARN)"
       fi
     else
       # Is there a scenario where the db is specified some other way, or should it exit here with an error code?
