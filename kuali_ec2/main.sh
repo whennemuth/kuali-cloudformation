@@ -149,6 +149,7 @@ EOF
     elif [ -n "$RDS_ARN" ] ; then
       echo "No RDS snapshotting indicated. Will use $RDS_ARN directly."
       addParameter $cmdfile 'RdsPrivateEndpoint' "$(getRdsEndpoint $RDS_ARN)"
+      addParameter $cmdfile 'RdsVpcSecurityGroupId' "$(getRdsVpcSecurityGroupId $RDS_ARN)"
     else
       echo "No RDS snapshotting indicated. Will determine existing RDS database dynamically."
     fi

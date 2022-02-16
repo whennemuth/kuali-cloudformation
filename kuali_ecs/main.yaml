@@ -239,29 +239,27 @@ Parameters:
     - "false"
     ConstraintDescription: Enter "true" or "false" only.
 
-  # RDS Parameters:
+  # --------------------------------------------------------------------------------------------
+  #       RDS create from snapshotParameters:
+  # --------------------------------------------------------------------------------------------
   RdsSnapshotARN:
     Description: The arn of an existing rds db snapshot. A new RDS instance will be restored from the snapshot for use by this stack.
     Type: String
     Default: empty
-
   RdsEngineVersion:
     Type: String
     Description: If cloning, The version number of the database engine to use.
     Default: empty
-
   RdsDbSubnet1:
     # Type: AWS::EC2::Subnet::Id
     Type: String
     Description: The first private subnet for one of the rds instances.
     Default: empty
-
   RdsDbSubnet2:
     # Type: AWS::EC2::Subnet::Id
     Type: String
     Description: The second private subnet for one of the rds instances.
-    Default: empty
-  
+    Default: empty  
   RdsSubnetCIDR1:
     AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
     ConstraintDescription: It must be a valid IP CIDR range of the form x.x.x.x/x. 
@@ -272,7 +270,6 @@ Parameters:
     MinLength: 9 
     Type: String
     Default: 0.0.0.0/0
-
   RdsSubnetCIDR2:
     AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
     ConstraintDescription: It must be a valid IP CIDR range of the form x.x.x.x/x. 
@@ -282,29 +279,35 @@ Parameters:
     MaxLength: 18
     MinLength: 9 
     Type: String
-    Default: 0.0.0.0/0
-  
+    Default: 0.0.0.0/0  
   RdsJumpboxInstanceType:
     Description: What size for the jumpbox? Omitting this parameter skips jumpbox creation
     Type: String
     Default: empty
-
   RdsAvailabilityZone:
     Type: String
     Description: The availability zone of the rds instance
     Default: empty
 
-  # 1 of 2 values that are provided if the rds instance pre-exists (is NOT getting created in this stack).
-  # -----------------------------------------------------------------------------------------------------------------------
-  # 1) If not empty, will only get used if HostedZoneName is also non-empty
+  # Or...
+  
+  # --------------------------------------------------------------------------------------------
+  #       RDS parameters for pre-existing instance - rds instance pre-exists (is NOT getting created in this stack).
+  # --------------------------------------------------------------------------------------------
   RdsRoute53Endpoint:
+    # NOTE: HostedZoneName cannot be empty
     Type: String
-    Description: Create a dns record with the hosted zone for the pre-existing rds instance that has this endpoint address.
+    Description: Create a dns record using this endpoint value with the hosted zone for the pre-existing rds instance.
     Default: empty
   # Or... 2)
   RdsPrivateEndpoint:
     Type: String
     Description: The private endpoint address that the rds service automatically assigns to the instance when it is created.
+    Default: empty
+  # And...
+  RdsVpcSecurityGroupId:
+    Type: String
+    Description: The id of the vpc security group associated with the existing rds instance
     Default: empty
 
 
@@ -318,13 +321,14 @@ Conditions:
   UseKeypair: !Not [!Equals [!Ref EC2KeypairName, empty]]
   IsProd: !Equals [!Ref Landscape, prod]
   CreateRdsInstanceFromSnapshot: !Not [!Equals [!Ref RdsSnapshotARN, empty]]
+  UseExistingRdsInstance: !Not [ Condition: CreateRdsInstanceFromSnapshot ]
   CreateJumpboxInstance: !Not [!Equals [!Ref RdsJumpboxInstanceType, empty]]
   RdsRoute53EndpointProvided: !Not [!Equals [!Ref RdsRoute53Endpoint, empty]]
   RdsPrivateEndpointProvided: !Not [!Equals [!Ref RdsPrivateEndpoint, empty]]
   CreateDnsRecordForRds: 
     !And
       - Condition: CreateDnsRecord
-      - !Not [ Condition: CreateRdsInstanceFromSnapshot ]
+      - Condition: UseExistingRdsInstance
       - !Not [ !Equals [ !Ref RdsRoute53Endpoint, empty]]
 
 
@@ -342,6 +346,11 @@ Resources:
         Function: !Ref Function
         VpcId: !Ref VpcId
         PublicALB: !If [ CreateWAF, 'true', 'false' ]
+        RdsVpcSecurityGroupId:
+          !If 
+            - UseExistingRdsInstance
+            - !Ref RdsVpcSecurityGroupId
+            - !Ref AWS::NoValue
 
   RdsInstance:
     Type: AWS::CloudFormation::Stack

@@ -2022,6 +2022,7 @@ waitForStack() {
   local task="$1"
   local stackname="$2"
   local interval=${3:-5}
+  local counter=1
   if [ -z "$stackname" ] ; then
     stackname="$STACK_NAME"
     if [ -n "$stackname" ] ; then

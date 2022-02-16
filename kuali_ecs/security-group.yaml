@@ -38,6 +38,15 @@ Parameters:
     - "true"
     - "false"
 
+  RdsVpcSecurityGroupId:
+    Type: String
+    Description: The id of the vpc security group associated with the existing rds instance
+    Default: empty
+
+
+Conditions:
+  UseExistingRdsInstance: !Not [!Equals [!Ref RdsVpcSecurityGroupId, empty]]
+
 
 # Mappings:
 #   2faCidrs:
@@ -117,6 +126,28 @@ Resources:
         - IpProtocol: -1
           SourceSecurityGroupId: !Ref ALBSecurityGroup
           Description: Allows inbound access to the EC2 instance from the ALB only.
+
+  ApplicationIngressToExistingRdsInstance:
+   Type: AWS::EC2::SecurityGroupIngress
+   Condition: UseExistingRdsInstance
+   Properties:
+      GroupId: !Ref RdsVpcSecurityGroupId
+      SourceSecurityGroupId: !GetAtt EC2SecurityGroup.GroupId
+      Description: Allows ingress to an rds instance created in another stack from application ec2 instances created in this stack.
+      FromPort: 1521
+      IpProtocol: tcp
+      ToPort: 1521
+
+  ALBIngressToExistingRdsInstance:
+   Type: AWS::EC2::SecurityGroupIngress
+   Condition: UseExistingRdsInstance
+   Properties:
+      GroupId: !Ref RdsVpcSecurityGroupId
+      SourceSecurityGroupId: !GetAtt ALBSecurityGroup.GroupId
+      Description: Allows ingress to an rds instance created in another stack from the alb created in this stack.
+      FromPort: 1521
+      IpProtocol: tcp
+      ToPort: 1521
       
   # BU2FAWebIngress:
   #   Type: AWS::EC2::SecurityGroup

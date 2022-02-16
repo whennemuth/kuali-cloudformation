@@ -259,6 +259,8 @@ Parameters:
     Description: The availability zone of the rds instance
     Default: empty
 
+  # Or...
+
   # --------------------------------------------------------------------------------------------
   #       RDS parameters for pre-existing instance - rds instance pre-exists (is NOT getting created in this stack).
   # --------------------------------------------------------------------------------------------
@@ -675,6 +677,8 @@ Resources:
             - CreateMongoEc2Instance
             - !GetAtt MongoDbInstance.Outputs.InstanceId
             - !Ref AWS::NoValue
+        UsingShibboleth:
+          !Ref UsingShibboleth
         InstanceType:
           !Ref InstanceType
         TemplateBucketName:
