@@ -529,16 +529,13 @@ Resources:
               - RdsPrivateEndpointProvided
               - !Ref RdsPrivateEndpoint
               - !If
-                - CreateDnsRecordForRds
-                - !Ref RdsRoute53Endpoint
+                - CreateRdsInstanceFromSnapshot
                 - !If
-                  - CreateRdsInstanceFromSnapshot
-                  - !If
-                      - CreateDnsRecord
-                      - !GetAtt RdsInstance.Outputs.Route53Endpoint
-                      - !GetAtt RdsInstance.Outputs.PrivateEndpoint
-                  - !Ref AWS::NoValue
-                  # Function getRdsHostname in process.configs.sh will try to "figure out" the rds endpoint
+                    - CreateDnsRecord
+                    - !GetAtt RdsInstance.Outputs.Route53Endpoint
+                    - !GetAtt RdsInstance.Outputs.PrivateEndpoint
+                - !Ref AWS::NoValue
+                # Function getRdsHostname in process.configs.sh will try to "figure out" the rds endpoint
         EntityId:
           !If 
             - CreateDnsRecord
@@ -654,16 +651,13 @@ Resources:
               - RdsPrivateEndpointProvided
               - !Ref RdsPrivateEndpoint
               - !If
-                - CreateDnsRecordForRds
-                - !Ref RdsRoute53Endpoint
+                - CreateRdsInstanceFromSnapshot
                 - !If
-                  - CreateRdsInstanceFromSnapshot
-                  - !If
-                      - CreateDnsRecord
-                      - !GetAtt RdsInstance.Outputs.Route53Endpoint
-                      - !GetAtt RdsInstance.Outputs.PrivateEndpoint
-                  - !Ref AWS::NoValue
-                  # Function getRdsHostname in process.configs.sh will try to "figure out" the rds endpoint
+                    - CreateDnsRecord
+                    - !GetAtt RdsInstance.Outputs.Route53Endpoint
+                    - !GetAtt RdsInstance.Outputs.PrivateEndpoint
+                - !Ref AWS::NoValue
+                # Function getRdsHostname in process.configs.sh will try to "figure out" the rds endpoint
         UsingRoute53: !If [ CreateDnsRecord, 'true', 'false' ]
         CampusSubnet:
           !Ref CampusSubnet2

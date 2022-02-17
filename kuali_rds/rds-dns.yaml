@@ -35,3 +35,5 @@ Resources:
       TTL: 300
       ResourceRecords: 
         - !Ref DbEndpointAddress
+
+
