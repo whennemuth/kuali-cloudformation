@@ -67,7 +67,7 @@ processEnvironmentVariableFiles() {
             #    if it was there, it was based on a baseline landscape (what if landscape is not baseline?)
             removeLine $envfile 'BU_LOGOUT_URL'
             # 2) Add it back in again with the correct value
-            setNewValue $envfile 'BU_LOGOUT_URL' "https://$DNS_NAME/auth/signout?return_to=https://$SHIB_HOST/idp/logout.jsp"
+            setNewValue $envfile 'BU_LOGOUT_URL' "https://$SHIB_HOST/idp/logout.jsp"
           fi
           # NOTE: The local.js file uses this environment variable set the auth.samlIssuerUrl value, 
           # which is the fallback if it is not found in the mongo instiutions document first.

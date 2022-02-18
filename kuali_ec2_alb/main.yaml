@@ -291,7 +291,7 @@ Conditions:
   UseKeypair: !Not [!Equals [!Ref EC2KeypairName, empty]]
   IsProd: !Equals [!Ref Landscape, prod]
   CreateRdsInstanceFromSnapshot: !Not [!Equals [!Ref RdsSnapshotARN, empty]]
-  UseExistingRdsInstance: !Not [ Condition: CreateRdsInstanceFromSnapshot ]
+  UseExistingRdsInstance: !Equals [!Ref RdsSnapshotARN, empty]
   RdsRoute53EndpointProvided: !Not [!Equals [!Ref RdsRoute53Endpoint, empty]]
   RdsPrivateEndpointProvided: !Not [!Equals [!Ref RdsPrivateEndpoint, empty]]
   CreateDnsRecordForRds: 
