@@ -390,7 +390,7 @@ Resources:
       Parameters:
         Landscape: !Ref Landscape
         HostedZoneName: !Ref HostedZoneName
-        DbEndpointAddress: !Ref RdsRoute53Endpoint
+        DbEndpointAddress: !Ref RdsPrivateEndpoint
 
   BucketEmptierLambda:
     Type: AWS::CloudFormation::Stack
