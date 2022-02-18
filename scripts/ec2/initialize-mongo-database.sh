@@ -1,5 +1,8 @@
 #!/bin/bash
 
+commandFile="$(mktemp)"
+commandOutputFile="$(mktemp)"
+
 # Construct the parameter list for connecting to the mongo database.
 # There are several variations on how this is done depending on MONGO_URI
 getMongoParameters() {
@@ -115,7 +118,6 @@ isLocalHost() {
   retval=$(echo "${1,,}" | grep -iP '((localhost)|(127\.0\.0\.1))(:\d+)?')
 }
 
-
 shibbolethDataAvailable() {
   if [ -z "$SHIB_HOST" ] ; then
     SHIB_HOST="$(getValueFromEnvVarFile 'SHIB_HOST')"
@@ -132,20 +134,39 @@ shibbolethDataApplicable() {
 
 
 runCommand() {
-  echo "$cmd"
-  [ "${DEBUG,,}" != 'true' ] && [ ! "${1,,}" == 'ignore-debug' ] && eval $cmd
+  cat <<EOF
+
+$(cat $commandFile)
+
+EOF
+
+  if [ "${DEBUG,,}" != 'true' ] && [ ! "${1,,}" == 'ignore-debug' ] ; then
+    source $commandFile > $commandOutputFile
+    cat <<EOF
+
+$(cat $commandOutputFile)
+
+EOF
+  fi
+}
+
+# Determine if the last update failed to either find or modify anything
+nothingFoundOrUpdated() {
+  local modified="$(cat $commandOutputFile | jq '.modifiedCount' 2> /dev/null)"
+  [ -z "$modified" ] && modified='0'
+  local matched="$(cat $commandOutputFile | jq '.matchedCount' 2> /dev/null)"
+  [ -z "$matched" ] && matched='0'
+  ([ $modified -eq 0 ] && [ $matched -eq 0 ]) && true || false
 }
 
 
 mongoCollectionExists() {
   local collectionName=$1
-  cmd=$(cat << EOF
+  cat << EOF > $commandFile
 	match=\$($(getMongoParameters) \
     --quiet \
-    --eval 'db.runCommand( { listCollections: 1.0, nameOnly: true } )' | grep "$collectionName"
-    )
+    --eval 'db.runCommand( { listCollections: 1.0, nameOnly: true } )' | grep "$collectionName" )
 EOF
-	)
   runCommand
   [ "$match" ] && true || false
 }
@@ -169,10 +190,10 @@ updateInCommons() {
   if [ -n "$cert" ] ; then
     if mongoCollectionExists 'incommons' ; then
       echo "Clearing out the incommons collecion and repopulating..."
-      local cmd="$(getMongoParameters) --quiet --eval 'db.getCollection(\"incommons\").remove({})'"
-      runCommand "$cmd"
+      echo "$(getMongoParameters) --quiet --eval 'db.getCollection(\"incommons\").remove({})'" > $commandFile
+      runCommand
     fi
-    local cmd=$(cat << EOF
+    cat << EOF > $commandFile
     $(getMongoParameters) \
       --quiet \
       --eval 'db.getCollection("incommons")
@@ -183,21 +204,52 @@ updateInCommons() {
         }
       )'
 EOF
-    )
-    runCommand "$cmd"
+    runCommand
   else
     echo "WARNING! Could not acquire shibboleth idp certificate value from $SHIB_IDP_METADATA_URL"
   fi
 }
 
-createInstitutionsCollection() {
-  echo 'Triggering Creating institution collection creation...'
-  makeCollectionRESTCall 'api/v1/institution'
+# Typically the cor-main app will create a collection that does not exist if a simply read operation is executed against the associated REST api.
+# Make the REST call and repeatedly query for a list of collections until it shows up in that list (give up after 10 seconds)
+createCollection() {
+  local collection="$1"
+  local api="$2"
+  echo "Triggering Creating $collection collection creation..."
+  local counter=1
+  if ! mongoCollectionExists $collection ; then
+    makeCollectionRESTCall $api
+    while true ; do
+      sleep 1
+      if mongoCollectionExists $collection ; then
+        echo "$collection collection found!"
+        break;
+      elif [ $counter -ge 10 ] ; then
+        echo "It's been 10 seconds without $collection collection showing up!"
+        break;
+      fi
+      ((counter++))
+    done
+  fi
 }
 
+# Explicitly create the institutions collection.
+createInstitutionsCollection() {
+  cat << EOF > $commandFile
+	$(getMongoParameters) \
+    --quiet \
+	  --eval 'db.createCollection("institutions", {autoIndexId: true})'
+EOF
+  runCommand
+}
+
+# Implicitly create the users collection. 
 createUsersCollection() {
-  echo 'Triggering Creating users collection creation...'
-  makeCollectionRESTCall 'api/v1/users'
+  echo "Triggering Creating users collection creation..."
+  local counter=1
+  if ! mongoCollectionExists users ; then
+    makeCollectionRESTCall 'api/v1/users'
+  fi
 }
 
 getIdp() {
@@ -221,8 +273,9 @@ updateInstitutions() {
     provider="saml"
     issuer="$ENTITY_ID"
   fi
+  # Somehow, the institution collection was auto-created (will have the default document - "name": "Kuali")
   # NOTE: samlIssuerUrl is looked for here first, and the fallback value would be what you set for auth.samlIssuerUrl in local.js
-	local cmd=$(cat << EOF
+	cat << EOF > $commandFile
 	$(getMongoParameters) \
     --quiet \
 	  --eval 'db.getCollection("institutions")
@@ -233,6 +286,7 @@ updateInstitutions() {
             "provider": "$provider",
             "samlIssuerUrl": "$issuer",
             "signInExpiresIn" : 1209600000,
+            "signOutUrl" : "$SHIB_LOGOUT_URL",
             "features.impersonation": true,
             "features.apps": {
               "users": true,
@@ -250,8 +304,66 @@ updateInstitutions() {
         }           
       )'
 EOF
-	)
-  runCommand "$cmd"
+  
+  runCommand
+
+  if nothingFoundOrUpdated ; then
+    # Using the institutions REST api seems to eventually result in the automatic creation of the collection,
+    # but only as if having had the task placed in some kind of job queue whose execution is unpredictable.
+    # Therefore it is necessary to explicitly create the collection here.
+    echo "Institutions collection has no document with name 'Kuali' - performing insert instead..."
+    	cat << EOF > $commandFile
+      $(getMongoParameters) \
+        --quiet \
+        --eval 'db.getCollection("institutions").insert(
+        {
+          "secret" : "$(openssl rand -base64 15)", 
+          "ldapConfig" : {
+              "searchAttributes" : []
+          },
+          "features" : {
+              "apps" : {
+                  "users" : true,
+                  "research" : true
+              },
+              "impersonation" : true,
+              "ssoDisableStripDomain" : false,
+              "formsUsesPermissions" : false,
+              "disableNotifications" : false,
+              "stopImpersonate" : false,
+              "multiProduct" : false,
+              "useElasticsearch" : false
+          },
+          "provider" : "$provider",
+          "validRedirectHosts" : [ 
+              "$DNS_NAME", 
+              "localhost", 
+              "127.0.0.1"
+          ],
+          "casVersion" : "CAS1.0",
+          "signInExpiresIn" : 1209600000.0,
+          "signInExpiresWithSession" : true,
+          "signOutUrl" : "$SHIB_LOGOUT_URL",
+          "forceAuthn" : false,
+          "casForceLogout" : false,
+          "timezone" : "America/Denver",
+          "redirect" : null,
+          "approval" : "auto",
+          "autoCreateSamlUsers" : true,
+          "subdomain" : "kuali",
+          "name" : "Kuali",
+          "updatedBy" : {
+              "id" : "kuali-system"
+          },
+          "idps" : [ 
+            $idp
+          ],
+          "samlIssuerUrl" : "https://*.kuali.research.bu.edu/shibboleth"
+        }
+      )'
+EOF
+    runCommand
+  fi
 }
 
 # Issue an ssm command to the mongo ec2 instance to import users.
@@ -348,7 +460,7 @@ makeCollectionRESTCall() {
     local code=$?
     [ $code -ne 0 ] && return $code
     if [ -n "$(echo "$retval" | grep -i 'Unauthorized')" ] ; then
-      # Can't perform a GET, so must do a POST with a bearer token
+      # Try with a bearer token
       curl \
         -i \
         -X GET \
@@ -425,6 +537,7 @@ initialize() {
   [ -z "$USING_ROUTE53" ] && USING_ROUTE53='false'
   if shibbolethDataApplicable ; then
     SHIB_IDP_METADATA_URL=https://$SHIB_HOST/idp/shibboleth
+    SHIB_LOGOUT_URL=https://$SHIB_HOST/idp/logout.jsp
   fi
   [ -z "$ENTITY_ID" ] && ENTITY_ID="https://$DNS_NAME/shibboleth"
 
