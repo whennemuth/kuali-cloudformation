@@ -330,6 +330,7 @@ Conditions:
       - Condition: CreateDnsRecord
       - Condition: UseExistingRdsInstance
       - !Not [ !Equals [ !Ref RdsRoute53Endpoint, empty]]
+      - !Not [ !Equals [ !Ref RdsPrivateEndpoint, empty]]
 
 
 Resources:

@@ -292,7 +292,7 @@ EOF
             s3path=s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_rds/
           # The route53 CNAME record does not yet exist but will get created further along in the stack, so set the anticipated value for the rds endpoint
           addParameter $cmdfile 'RdsRoute53Endpoint' "${LANDSCAPE}.db.${HOSTED_ZONE}"
-          # addParameter $cmdfile 'RdsPrivateEndpoint' "$(getRdsEndpoint $RDS_ARN)"
+          addParameter $cmdfile 'RdsPrivateEndpoint' "$(getRdsEndpoint $RDS_ARN)"
           addParameter $cmdfile 'RdsVpcSecurityGroupId' "$(getRdsVpcSecurityGroupId $RDS_ARN)"
         fi
       else
