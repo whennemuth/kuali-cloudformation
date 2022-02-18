@@ -61,7 +61,14 @@ processEnvironmentVariableFiles() {
         else
           # Unless explicit values are provided, shibboleth is out of the picture and core will be its own IDP, and logout url will default to "/apps"
           checkValue $envfile 'SHIB_HOST'
-          checkValue $envfile 'BU_LOGOUT_URL'
+          if ! checkValue $envfile 'BU_LOGOUT_URL' ; then
+            # No environment variable provided for the shib logout url, but we still need one.
+            # 1) Remove the BU_LOGOUT_URL value that came by default in the environment variable file
+            #    if it was there, it was based on a baseline landscape (what if landscape is not baseline?)
+            removeLine $envfile 'BU_LOGOUT_URL'
+            # 2) Add it back in again with the correct value
+            setNewValue $envfile 'BU_LOGOUT_URL' "https://$DNS_NAME/auth/signout?return_to=https://$SHIB_HOST/idp/logout.jsp"
+          fi
           # NOTE: The local.js file uses this environment variable set the auth.samlIssuerUrl value, 
           # which is the fallback if it is not found in the mongo instiutions document first.
           checkValue $envfile 'ENTITY_ID'
@@ -154,12 +161,16 @@ processEnvironmentVariableFiles() {
   done
 }
 
+trim() {
+  local input="${1:-$(</dev/stdin)}"
+  echo -n "$(printf "$input" | sed -E 's/^[ \t\n]*//' | sed -E 's/[ \t\n]*$//')"
+}
 
 # Create a script to export all environment variables in the mounted directory before starting node
 createExportFile() {
   # Turn a name=value line into an "export name='value'" line
   getLineExport() {
-    local line=$(echo -n "$1" | xargs) # Use xargs to trim the line.
+    local line=$(echo -n "$1" | trim)
     # Return an empty string if the line is a properties file comment
     [ "${line:0:1}" == "#" ] && echo "" && exit 0;
     [ -z "$line" ] && echo "" && exit 0;
@@ -265,8 +276,10 @@ checkValue() {
   local name=$2
   local value="$3"
   [ -z "$value" ] &&  eval "local value=\$$name"
-  [ -z "$value" ] && return 0
-  setNewValue $file $name "$value"
+  if [ -n "$value" ] ; then
+    setNewValue $file $name "$value"
+  fi
+  [ -n "$value" ] && true || false
 }
 
 getRdsHostname() {
