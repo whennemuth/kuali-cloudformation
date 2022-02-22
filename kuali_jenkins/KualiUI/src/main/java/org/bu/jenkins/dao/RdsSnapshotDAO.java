@@ -279,8 +279,10 @@ public class RdsSnapshotDAO extends AbstractAwsDAO {
 				snapshots = dao.getKualiRdsSnapshots(getFilter(namedArgs));
 				break;
 			case "orphans":
-				List<RdsSnapshot> orphaned = dao.getKualiRdsSnapshots(getFilter(namedArgs));
 				snapshots = dao.getAllOrphanedKualiRdsSnapshots();
+				break;
+			case "shared":
+				snapshots = dao.getSharedSnapshots();
 				break;
 		}
 		

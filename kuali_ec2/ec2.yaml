@@ -55,6 +55,11 @@ Parameters:
     Description: Id of the private application subnet where a new mongo database ec2 instance is optionally created.
     Default: empty
 
+  HostedZoneName:
+    Type: String
+    Description: If included, a DNS record will be created and registered with the specified HostedZone
+    Default: empty
+
   # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/retrieve-ecs-optimized_AMI.html
   ECSAMI:
     Description: AMI ID

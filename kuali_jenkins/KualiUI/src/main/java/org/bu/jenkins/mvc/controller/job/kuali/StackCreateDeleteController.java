@@ -67,6 +67,8 @@ public class StackCreateDeleteController extends AbstractJob {
 		logger.info("Flushing cache...");
 		StackDAO.CACHE.flush();
 		RdsInstanceDAO.CACHE.flush();
+		RdsSnapshotDAO.STANDARD_SNAPSHOT_CACHE.flush();
+		RdsSnapshotDAO.SHARED_SNAPSHOT_CACHE.flush();
 	}
 	
 	public static enum ParameterName implements JobParameterMetadata {
