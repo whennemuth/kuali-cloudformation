@@ -92,8 +92,8 @@ EOF
 # EXAMPLE
 # sh dbclient.sh update-sequences \
 #   SEQUENCE_TASK=report-sql-upload \
-#   aws_access_key_id=[LEGACY_ACCOUNT_KEY] \
-#   aws_secret_access_key=[LEGACY_ACCOUNT_SECRET] \
+#   aws_access_key_id=[TARGET_ACCOUNT_KEY] \
+#   aws_secret_access_key=[TARGET_ACCOUNT_SECRET] \
 #   aws_region=us-east-1 \
 #   landscape=stg \
 #   tunnel=false 
@@ -108,8 +108,8 @@ runUploadSqlScript() {
 # EXAMPLE
 # sh dbclient.sh update-sequences \
 #   SEQUENCE_TASK=resequence \
-#   aws_access_key_id=[LEGACY_ACCOUNT_KEY] \
-#   aws_secret_access_key=[LEGACY_ACCOUNT_SECRET] \
+#   aws_access_key_id=[TARGET_ACCOUNT_KEY] \
+#   aws_secret_access_key=[TARGET_ACCOUNT_SECRET] \
 #   aws_region=us-east-1 \
 #   landscape=stg \
 #   tunnel=false
@@ -169,7 +169,11 @@ EOF
   run $@ files_to_run=$UPDATE_SEQUENCES_SQL
 }
 
-parseArgs $@
+[ "$DEBUG" == 'true' ] && set -x
+
+echo " "
+echo "---- Parameters for sequence task:"
+parseArgs silent=false $@
 
 case "${SEQUENCE_TASK,,}" in
   report-raw-create)
@@ -189,21 +193,21 @@ case "${SEQUENCE_TASK,,}" in
     # If "db_" parms are ommitted, they will be looked up dynamically.
     runUploadSqlScript $@ \
       "legacy=false" \
-      "db_host=$RDS_DB_HOST" \
-      "db_user=$RDS_DB_USER" \
-      "db_port=$RDS_DB_PORT" \
-      "db_sid=$RDS_DB_SID" \
-      "db_password=$RDS_DB_PASSWORD"
+      "db_host=$TARGET_DB_HOST" \
+      "db_user=$TARGET_DB_USER" \
+      "db_port=$TARGET_DB_PORT" \
+      "db_sid=$TARGET_DB_SID" \
+      "db_password=$TARGET_DB_PASSWORD"
     ;;
   resequence)
     # If "db_" parms are ommitted, they will be looked up dynamically.
     updateSequences $@ \
       "legacy=false" \
-      "db_host=$RDS_DB_HOST" \
-      "db_user=$RDS_DB_USER" \
-      "db_port=$RDS_DB_PORT" \
-      "db_sid=$RDS_DB_SID" \
-      "db_password=$RDS_DB_PASSWORD"
+      "db_host=$TARGET_DB_HOST" \
+      "db_user=$TARGET_DB_USER" \
+      "db_port=$TARGET_DB_PORT" \
+      "db_sid=$TARGET_DB_SID" \
+      "db_password=$TARGET_DB_PASSWORD"
     ;;
   *)
     echo "SEQUENCE_TASK parameter is missing!"

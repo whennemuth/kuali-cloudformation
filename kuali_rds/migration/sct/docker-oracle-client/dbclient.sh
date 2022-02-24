@@ -24,6 +24,7 @@ else
   parseArgs silent=true default_profile=true $@
 fi
 
+[ "$DEBUG" == 'true' ] && set -x
 
 getPwdForMount() {
   local dir="$1"
@@ -143,12 +144,138 @@ checkLandscape() {
   fi
 }
 
+checkBaseline() {
+  if [ -z "$BASELINE" ] ; then
+  cat <<EOF
+  Required parameter missing: BASELINE
+  A baseline landscape is required to identify and locate parameters for the legacy oracle database
+EOF
+  exit 1
+  fi
+}
+
 checkAwsCredentials() {
   if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ] ; then
-    echo "Missing aws access key and/or secret access key"
+    echo "Required parameter(s) missing: AWS_ACCESS_KEY_ID and/or AWS_SECRET_ACCESS_KEY"
     exit 1
   fi
 }
+
+updateSequences() {
+
+  checkDbOrAwsParmCombos() {
+    local prefix="${1,,}"
+    local prefix_="${prefix^^}_"
+    [ -z "$prefix" ] && prefix_=''
+    local valid='true'
+    dbParmsIncomplete() {
+      eval "local host="\${${prefix_}DB_HOST}""
+      eval "local user="\${${prefix_}DB_USER}""
+      eval "local port="\${${prefix_}DB_PORT}""
+      eval "local pswd="\${${prefix_}DB_PASSWORD}""
+      eval "local sid="\${${prefix_}DB_SID}""
+      ([ -z "$host" ] || [ -z "$user" ] || [ -z "$port" ] || [ -z "$sid" ] || [ -z "$pswd" ]) && true || false
+    }
+    awsParmsIncomplete() {
+      eval "local id="\${${prefix_}AWS_ACCESS_KEY_ID}""
+      eval "local key="\${${prefix_}AWS_SECRET_ACCESS_KEY}""
+      [ "$prefix" == 'legacy' ] && export PARM3='BASELINE'
+      [ "$prefix" == 'target' ] && export PARM3='LANDSCAPE'
+      [ -z "$PARM3" ] && P3='N/A' || eval "P3="\${$PARM3}""
+      ([ -z "$id" ] || [ -z "$key" ] || [ -z "$P3" ]) && true || false
+    }
+    missingParms() {
+      if dbParmsIncomplete && awsParmsIncomplete ; then true; else false; fi
+    }
+    if missingParms ; then
+      local valid='false'
+      cat <<EOF
+
+      REQUIRED ${prefix^^} PARAMETER(S) MISSING!
+      One of two sets of parameters must be provided:
+      1)
+        - ${PARM3:-"N/A"}
+        - ${prefix_}AWS_ACCESS_KEY_ID
+        - ${prefix_}AWS_SECRET_ACCESS_KEY
+        or...
+      2)
+        - ${prefix_}DB_HOST
+        - ${prefix_}DB_USER
+        - ${prefix_}DB_PORT
+        - ${prefix_}DB_SID
+        - ${prefix_}DB_PASSWORD
+
+EOF
+    fi
+    [ "$valid" == 'true' ] && true || false
+  }
+
+  checkLegacyAndTargetComboParms() {
+    local valid='true'
+    ! checkDbOrAwsParmCombos 'legacy' && valid='false'
+    ! checkDbOrAwsParmCombos 'target' && valid='false'
+    [ $valid == 'true' ] && true || false
+  }
+
+
+  # The AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY values will have been provided for both the "legacy" aws account
+  # and a newer "target" account. Strip out the id and key pair for "target" if "legacy is specified" and vice versa.
+  # This will "filter" down the arg list from having 4 "AWS_..." values to 2.
+  filterArgs() {
+    local type="$1"
+    local args=""
+    shift
+    for nv in $@ ; do
+      if [ -n "$(grep '=' <<< $nv)" ] ; then
+        local name="$(echo $nv | cut -d'=' -f1)"
+        local value="$(echo $nv | cut -d'=' -f2-)"
+        case $type in
+          target)
+            [ "${name,,}" == 'legacy_aws_access_key_id' ] && continue 
+            [ "${name,,}" == 'legacy_aws_secret_access_key' ] && continue 
+            [ "${name,,}" == 'target_aws_access_key_id' ] && args="$args aws_access_key_id=$value" && continue
+            [ "${name,,}" == 'target_aws_secret_access_key' ] && args="$args aws_secret_access_key=$value" && continue
+            ;;
+          legacy)
+            [ "${name,,}" == 'target_aws_access_key_id' ] && continue 
+            [ "${name,,}" == 'target_aws_secret_access_key' ] && continue 
+            [ "${name,,}" == 'legacy_aws_access_key_id' ] && args="$args aws_access_key_id=$value" && continue
+            [ "${name,,}" == 'legacy_aws_secret_access_key' ] && args="$args aws_secret_access_key=$value" && continue
+            ;;
+        esac
+      fi
+      args="$args $nv"
+    done
+    echo "$args"
+  }
+
+  if [ -n "$SEQUENCE_TASK" ] ; then
+    case "$SEQUENCE_TASK" in
+      report-raw-create)
+        ! checkDbOrAwsParmCombos && exit 1
+        sh bash/update.sequences.sh $(filterArgs 'legacy' $@) sequence_task=report-raw-create legacy=true
+        ;;
+      report-sql-create)
+        sh bash/update.sequences.sh $@ sequence_task=report-sql-create legacy=true
+        ;;
+      report-sql-upload)        
+        ! checkDbOrAwsParmCombos && exit 1
+        sh bash/update.sequences.sh $(filterArgs 'target' $@) sequence_task=report-sql-upload
+        ;;
+      resequence)
+        ! checkDbOrAwsParmCombos && exit 1
+        sh bash/update.sequences.sh $(filterArgs 'target' $@) sequence_task=resequence
+        ;;
+    esac
+  else
+    ! checkLegacyAndTargetComboParms && exit 1
+    sh bash/update.sequences.sh $(filterArgs 'legacy' $@) sequence_task=report-raw-create legacy=true && \
+    sh bash/update.sequences.sh $@ sequence_task=report-sql-create legacy=true && \
+    sh bash/update.sequences.sh $(filterArgs 'target' $@) sequence_task=report-sql-upload && \
+    sh bash/update.sequences.sh $(filterArgs 'target' $@) sequence_task=resequence
+  fi
+}
+
 
 # Run all numbered sql files in directory indicated by the landscape, starting from the indicated numeric prefix.
 # Example: In running all scripts, an error occurred on the 6th one. Correct error and rerun with start_at=6 added.
@@ -187,7 +314,6 @@ case "$task" in
     getPwdForSctScriptMount
     getPwdForGenericSqlMount
     ;;
-
   run-sct-scripts)
     checkLandscape
     checkAwsCredentials
@@ -207,15 +333,8 @@ case "$task" in
     ;;
   toggle-constraints-triggers)
     toggleConstraintsAndTriggers $@ ;;
-  update-sequences)
-    if [ -n "$SEQUENCE_TASK" ] ; then
-      sh bash/update.sequences.sh $@ sequence_task=$SEQUENCE_TASK
-    else
-      sh bash/update.sequences.sh $@ sequence_task=report-raw-create legacy=true
-      sh bash/update.sequences.sh $@ sequence_task=report-sql-create legacy=true
-      sh bash/update.sequences.sh $@ sequence_task=report-sql-upload
-      sh bash/update.sequences.sh $@ sequence_task=resequence
-    fi
+  update-sequences) 
+    updateSequences $@
     ;;
   table-counts)
     run $@ files_to_run=inventory.sql log_path=source-counts.log ;;

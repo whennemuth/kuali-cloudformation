@@ -180,6 +180,11 @@ Parameters:
     Description: The private ip address of the ec2 instance hosting a simple mongo database (for test environments)
     Default: empty
 
+  MongoInstanceId:
+    Type: String
+    Description: The id of the ec2 instance hosting a simple mongo database (for test environments)
+    Default: empty
+
     
 Conditions: 
   CreateProfile: !Equals [ !Ref InstanceProfile, "create" ]
@@ -265,7 +270,7 @@ Resources:
               Resource:
               - !Sub 
                 - arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/${id}
-                - id: !GetAtt MongoDbInstance.Outputs.InstanceId
+                - id: !Ref MongoInstanceId
               - !Sub arn:aws:ssm:${AWS::Region}::document/AWS-RunShellScript
         - !Ref AWS::NoValue
       - PolicyName:
@@ -827,6 +832,7 @@ Resources:
                     - UsingShibboleth
                     - !If [ IsTest, 'shib-test.bu.edu', 'shib.bu.edu' ]
                     - !Ref AWS::NoValue
+                MONGO_INSTANCE_ID: !Ref MongoInstanceId
                 MONGO_URI:
                   !If
                   - UseMongoEc2Instance
@@ -838,6 +844,14 @@ Resources:
                   - ''
                 # An empty MONGO_URI parameter will trigger a search for mongo parameters in this properties file:
                 ENV_FILE_FROM_S3_CORE: /opt/kuali/s3/core/environment.variables.s3
+                # Import users to cor-main from an atlas mongodb source identified by baseline (BASELINE env variable must be set).
+                USER_IMPORT_MONGODB:  !If [ UseMongoEc2Instance, 'true', 'false' ]
+                # Otherwise import users from a dump file in an s3 subdirectory identified by baseline (BASELINE env variable must be set).
+                USER_IMPORT_FILE: 
+                  !If
+                    - UseMongoEc2Instance
+                    - !Sub s3://${TemplateBucketName}/${Baseline}/core/userdump.json
+                    - !Ref AWS::NoValue
               command: bash initialize-mongo-database.sh
         06_start_cron_for_custom_cloudwatch_metrics:
           commands:

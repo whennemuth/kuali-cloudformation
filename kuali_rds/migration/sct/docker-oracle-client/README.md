@@ -89,22 +89,26 @@ You can drive what the container does with name=value parameter pairs:
      
 
 - **Update sequences**
-A migration that continues with [Change data capture](https://docs.aws.amazon.com/dms/latest/userguide/CHAP_Task.CDC.html) replicates all table data on an ongoing basis, but not the changes to sequences used by those tables:
+  A migration that continues with [Change data capture](https://docs.aws.amazon.com/dms/latest/userguide/CHAP_Task.CDC.html) replicates all table data on an ongoing basis, but not the changes to sequences used by those tables:
   
    > *"As DMS does not replicate incremental sequence numbers during CDC from source database, you will need to generate the latest sequence value from the source for all the sequences and apply it on the target Amazon RDS for Oracle database to avoid sequence value inconsistencies."*
 
    When cutting over from the source database to the target RDS database, the sequences in the target database will need to be advanced so that they reflect the changes to the sequences in the source database that occurred since the original target database sequences were created using the [schema conversion tool](../sct/README.md). Use the following script to update the sequences in the target RDS database to catch them back up with and match the corresponding source database sequences:
   
    ```
-   sh dbclient.sh update-sequences \
-     aws_access_key_id=[your key] \
-     aws_secret_access_key=[your secret] \
+  # baseline refers to the legacy database, and landscape the target database
+  sh dbclient.sh update-sequences \
+     legacy_aws_access_key_id=[your legacy key] \
+     legacy_aws_secret_access_key=[your legacy secret] \
+     target_aws_access_key_id=[your target key] \
+     target_aws_secret_access_key=[your target secret] \
      aws_region=us-east-1 \
      template_bucket_name=kuali-research-ec2-setup \
-  landscape=stg
+     baseline=stg
+     landscape=mylandscape
    ```
   
-   The prior invocation provided the aws credentials, a landscape, and the s3 bucket name where a copy of kc-config.xml is kept.
+   The prior invocation provided the aws credentials, a landscape, and the s3 bucket name where a copy of kc-config.xml is kept for the legacy database connection parameters.
    This will allow for source and target database connection details to be looked up, based on the landscape in s3 and secrets manager.
    Alternatively, if you know the oracle connection parameters, you can provide them explicitly:
   
@@ -117,18 +121,18 @@ A migration that continues with [Change data capture](https://docs.aws.amazon.co
      legacy_db_port=1521 \
      legacy_db_sid=Kuali \
      legacy_db_password=[legacy password] \
-     rds_db_host=buaws-kuali-oracle-stg.cnc9dm5uqxog.us-east-1.rds.amazonaws.com \
-     rds_db_user=admin \
-     rds_db_port=1521 \
-     rds_db_sid=Kuali \
-     rds_db_password=[rds password]
+     target_db_host=buaws-kuali-oracle-stg.cnc9dm5uqxog.us-east-1.rds.amazonaws.com \
+     target_db_user=admin \
+     target_db_port=1521 \
+     target_db_sid=Kuali \
+     target_db_password=[rds password]
    ```
   
    
   
 - **Run Table row count comparison scripts:**
 
-   After the AWS migration service has run, one way to validate that all data has been migrated is to compare table row counts between the source and target schemas. The following script will print out only the names of tables whos row counts differ between source and target schemas.
+   After the AWS migration service has run, one way to validate that all data has been migrated is to compare table row counts between the source and target schemas. The following script will print out only the names of tables whose row counts differ between source and target schemas.
    A valid migration should lead to this script outputting no tables names.
 
    ```

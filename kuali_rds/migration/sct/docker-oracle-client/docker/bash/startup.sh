@@ -91,9 +91,16 @@ setRdsParms() {
   setExplicitDbParms
 
   if [ -z "$DB_PASSWORD" ] ; then
-    landscape="$BASELINE"
-    [ -z "$landscape" ] && landscape="$LANDSCAPE"
-    DB_PASSWORD="$(getDbPassword 'admin' "$landscape")"
+    if isLegacyDb ; then
+      local landscape="${LANDSCAPE:-$BASELINE}"
+    else
+      local landscape="${LANDSCAPE}"
+    fi
+    local baseline="$BASELINE"
+    if [ -z "$baseline" ] ; then
+      baseline="$(getRdsBaselineFromLandscape $landscape)"
+    fi
+    DB_PASSWORD="$(getDbPassword 'admin' "$baseline")"
   fi
 
   [ -z "$DB_PASSWORD" ] && echo "ERROR! RDS DB password not provided and lookup failed." && exit 1
@@ -133,12 +140,15 @@ isLocalHost() {
 isUnknownHost() {
   [ -z "$DB_HOST" ] && true || false
 }
+isLegacyDb() {
+  [ "$LEGACY" == 'true' ] && true || false
+}
 
 # Database connection should be through localhost tunneled to target db endpoint, unless
 # specific details are provided that indicate the db host can be reached directly.
 startTunnel() {
   tunnelCmd="sh tunnel.sh silent=true user_terminated=false default_profile=true $@"
-  if [ "$DEBUG" == 'true' ] ; then
+  if [ "$DRYRUN" == 'true' ] ; then
     echo "$tunnelCmd"
   else
     local errfile=/tmp/output/tunnel.err
@@ -157,7 +167,7 @@ startTunnel() {
 
 
 setConnectionParms() {
-  if [ "$LEGACY" == 'true' ] ; then
+  if isLegacyDb ; then
     setLegacyParms $@
   else
     setRdsParms $@
@@ -173,12 +183,22 @@ setConnectionURL() {
       (HOST='$DB_HOST')(PORT='$DB_PORT')
     ))(CONNECT_DATA=(SERVER=DEDICATED)(SERVICE_NAME='$DB_SID')))'
 
-  if [ "$DEBUG" == 'true' ] ; then
+  if [ "$DRYRUN" == 'true' ] ; then
     echo "sqlplus $DB_USER/$DB_PASSWORD@\"$url\""
     exit 0
   fi
 }
 
+canConnect() {
+  local success='false'
+  if sqlplus $DB_USER/$DB_PASSWORD@"$url" < /dev/null | grep 'Connected to'; then
+   echo "Connection test successful!"
+   success='true'
+  else
+    echo "Connection test failed!"
+  fi
+  [ "$success" == 'true' ] && true || false
+}
 
 connectAndRun() {
   if [ "$FILES_TO_RUN" == 'all' ] ; then
@@ -200,11 +220,17 @@ connectAndRun() {
 
 set -a 
 
-parseArgs default_profile=true $@
+parseArgs 'default_profile=true' $@
+
+[ "$DEBUG" == 'true' ] && set -x
 
 setConnectionParms $@
 
 setConnectionURL
 
-connectAndRun
+if canConnect ; then
+  connectAndRun
+else
+  exit 1
+fi
 

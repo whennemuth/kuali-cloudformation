@@ -589,6 +589,11 @@ Resources:
             - CreateMongoEc2Instance
             - !GetAtt MongoDbInstance.Outputs.PrivateIP
             - !Ref AWS::NoValue
+        MongoInstanceId:
+          !If
+            - CreateMongoEc2Instance
+            - !GetAtt MongoDbInstance.Outputs.InstanceId
+            - !Ref AWS::NoValue
         UsingShibboleth:
           !Ref UsingShibboleth
         MinClusterSize:

@@ -1400,6 +1400,15 @@ getRdsArn() {
     --query 'ResourceTagMappingList[].{ARN:ResourceARN}' 2> /dev/null
 }
 
+getRdsBaselineFromLandscape() {
+  local landscape=${1:-$LANDSCAPE}
+  aws resourcegroupstaggingapi get-resources \
+    --resource-type-filters rds:db \
+    --tag-filters 'Key=App,Values=Kuali' 'Key=Landscape,Values='$landscape \
+    --output text \
+    --query 'ResourceTagMappingList[].Tags[?Key==`Baseline`].{val:Value}' 2> /dev/null
+}
+
 getRdsJson() {
   local landscape=${1:-$LANDSCAPE}
   local rdsArn=$(getRdsArn $landscape)
