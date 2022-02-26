@@ -41,8 +41,8 @@ printVariables() {
   if isLegacyDeploy ; then
     echo "LEGACY_LANDSCAPE=$LEGACY_LANDSCAPE"
     echo "CROSS_ACCOUNT_ROLE_ARN=$CROSS_ACCOUNT_ROLE_ARN"
-    echo "LEGACY_TEST=$LEGACY_TEST"
   fi
+  echo "SSM_TEST=$SSM_TEST"
   echo "LANDSCAPE=$LANDSCAPE"
   echo "TARGET_IMAGE=$TARGET_IMAGE"
   echo "NEW_RELIC_LOGGING=$NEW_RELIC_LOGGING"
@@ -64,8 +64,8 @@ isLegacyDeploy() {
   ([ -n "$LEGACY_LANDSCAPE" ] && [ "${STACK_NAME,,}" == 'legacy' ]) && true || false
 }
 
-isLegacyTest() {
-  ([ "${LEGACY_TEST,,}" == 'true' ] && [ "${STACK_NAME,,}" == 'legacy' ]) && true || false
+isSSMTest() {
+  [ "${SSM_TEST,,}" == 'true' ] && true || false
 }
 
 getStackType() {
@@ -195,7 +195,20 @@ getCommand() {
         $targetImage 2>&1 | tee $output_dir/last-coeus-run-cmd"
   }
 
-  if isLegacyDeploy ; then
+  # Get a simple bash command to write out a file to be sent to the target ec2 instance as a base64 encoded string.
+  # This can be run against a real application host because its impact is of no effect to anything (harmless).
+  getHarmlessCommand() {
+    local outdir=${1:-"$output_dir"}
+    echo "echo 'THIS IS A TEST!' && echo $(date) > $output_dir/last-coeus-run-cmd 2>&1"
+  }
+
+  if isDryrun || isSSMTest ; then
+    local outdir="$output_dir"
+    if isLegacyDeploy ; then
+      outdir='/tmp'
+    fi
+    getHarmlessCommand $outdir
+  elif isLegacyDeploy ; then
     getLegacyCommand
   else
     getCssCommand
@@ -205,13 +218,6 @@ getCommand() {
 # Get the bash command(s) to be sent to the target ec2 instance as a base64 encoded string
 getBase64EncodedCommand() {
   getCommand $1 | base64 -w 0
-}
-
-# Get a simple bash command to write out a file to be sent to the target ec2 instance as a base64 encoded string.
-# This can be run against a real application host because its impact is of no effect to anything (harmless).
-getHarmlessBase64EncodedCommand() {
-  local output_dir="$1"
-  echo "echo 'THIS IS A TEST!' && echo $(date) > $output_dir/last-coeus-run-cmd 2>&1" | base64 -w 0
 }
 
 # Use the ssm service to send the command for refreshing the docker container at the specified ec2 host.
@@ -224,25 +230,6 @@ sendCommand() {
   getCommand $output_dir "true"
   local base64="$(getBase64EncodedCommand $output_dir)"
   outputSubHeading "Sending ssm command to refresh docker container at $ec2Id"
-
-  if runningOnJenkinsServer ; then
-    if isDryrun ; then
-      if isLegacyTest ; then
-        finalBase64=$(getHarmlessBase64EncodedCommand '/tmp')
-      else
-        echo "DRYRUN: sendCommand..."
-        return 0
-      fi
-    fi
-    finalBase64="$base64"
-  else
-    # Debugging locally
-    if isDryrun ; then
-      finalBase64=$(getHarmlessBase64EncodedCommand $output_dir)
-    else
-      finalBase64="$base64"
-    fi
-  fi
 
   if isLegacyDeploy ; then
     STDOUT_BUCKET='kuali-docker-run-stdout'
@@ -271,7 +258,9 @@ sendCommand() {
     --output-s3-bucket-name "$STDOUT_BUCKET" \
     --output-s3-key-prefix "kc")
 
-  echo "COMMAND_ID=$COMMAND_ID"    
+  local retval=$?
+  echo "COMMAND_ID=$COMMAND_ID" 
+  ([ $retval -gt 0 ] || [ -z "$COMMAND_ID" ]) && true || false
 }
 
 # Assume a role that exists in the legacy account for the ability to execute an ssm send-command call
@@ -285,6 +274,7 @@ assumeCrossAccountRole() {
     --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' \
     --output text)
   set +x
+  
   if [ -n "$sts" ] ; then
     sts=($sts)
     aws configure set aws_access_key_id ${sts[0]} --profile $ASSUMED_ROLE_PROFILE && \
@@ -383,7 +373,11 @@ issueDockerRefreshCommand() {
   && \
   sendCommand $ec2Id $output_dir \
   && \
-  waitForCommandOutputLogs $ec2Id $output_dir
+  waitForCommandOutputLogs $ec2Id $output_dir \
+  && \
+  local success='true'
+
+  [ "$success" == 'true' ] && true || false
 }
 
 deployToEc2() {
@@ -401,7 +395,8 @@ deployToEc2Alb() {
   local stack="$(aws cloudformation describe-stacks --stack-name $STACK_NAME)" 
   local ec2Id1="$(echo "$stack" | jq -r '.Stacks[0].Outputs[] | select(.OutputKey == "InstanceId1").OutputValue')"
   local ec2Id2="$(echo "$stack" | jq -r '.Stacks[0].Outputs[] | select(.OutputKey == "InstanceId2").OutputValue')"
-  issueDockerRefreshCommand "$ec2Id1"
+  issueDockerRefreshCommand "$ec2Id1" \
+  && \
   issueDockerRefreshCommand "$ec2Id2"
 }
 
