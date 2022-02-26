@@ -41,6 +41,7 @@ printVariables() {
   if isLegacyDeploy ; then
     echo "LEGACY_LANDSCAPE=$LEGACY_LANDSCAPE"
     echo "CROSS_ACCOUNT_ROLE_ARN=$CROSS_ACCOUNT_ROLE_ARN"
+    echo "LEGACY_TEST=$LEGACY_TEST"
   fi
   echo "LANDSCAPE=$LANDSCAPE"
   echo "TARGET_IMAGE=$TARGET_IMAGE"
@@ -61,6 +62,10 @@ runningOnJenkinsServer() {
 
 isLegacyDeploy() {  
   ([ -n "$LEGACY_LANDSCAPE" ] && [ "${STACK_NAME,,}" == 'legacy' ]) && true || false
+}
+
+isLegacyTest() {
+  ([ "${LEGACY_LANDSCAPE,,}" == 'true' ] && [ "${STACK_NAME,,}" == 'legacy' ]) && true || false
 }
 
 getStackType() {
@@ -222,8 +227,12 @@ sendCommand() {
 
   if runningOnJenkinsServer ; then
     if isDryrun ; then
-      echo "DRYRUN: sendCommand..."
-      return 0
+      if isLegacyTest ; then
+        finalBase64=$(getHarmlessBase64EncodedCommand '/tmp')
+      else
+        echo "DRYRUN: sendCommand..."
+        return 0
+      fi
     fi
     finalBase64="$base64"
   else
