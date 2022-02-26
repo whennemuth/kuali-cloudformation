@@ -234,7 +234,7 @@ sendCommand() {
   if isLegacyDeploy ; then
     STDOUT_BUCKET='kuali-docker-run-stdout'
     if ! assumeCrossAccountRole ; then
-      "ERROR: Could not assume role $CROSS_ACCOUNT_ROLE_ARN to invoke legacy account deployment."
+      echo "ERROR: Could not assume role $CROSS_ACCOUNT_ROLE_ARN to invoke legacy account deployment."
       return 1
     fi
   else
