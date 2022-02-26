@@ -173,7 +173,7 @@ Resources:
       TaskDefinition:
         !Ref TaskDefinition
       # Wait 6 minutes before counting health checks - kuali-research takes time to come up
-      HealthCheckGracePeriodSeconds: 3600
+      HealthCheckGracePeriodSeconds: 360
       # How this service traces back to its load balancer: Service > TargetGroup > ListenerRule > Listener > ALB
       LoadBalancers:
       - ContainerName: kuali-research

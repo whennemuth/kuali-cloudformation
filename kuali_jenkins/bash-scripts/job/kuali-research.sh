@@ -246,6 +246,7 @@ buildDeployJobCall() {
   addJobParm 'deploy' 'LANDSCAPE' "$LANDSCAPE"
   addJobParm 'deploy' 'NEW_RELIC_LOGGING' "$(newrelic && echo 'true' || echo 'false')"
   addJobParm 'deploy' 'TARGET_IMAGE' "$(getYoungestRegistryImage 'target')"
+  addJobParm 'deploy' 'LEGACY_LANDSCAPE' "$LEGACY_LANDSCAPE"
 }
 
 printJobCalls() {

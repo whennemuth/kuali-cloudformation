@@ -12,7 +12,7 @@ Parameters:
     Description: >
       A common value that all resources in this template will have prefixed to
       their name and attached as a tag to establish a bundling through naming convention.
-    Default: kuali-mongo
+    Default: kuali-jenkins
 
   TemplateBucketName:
     Type: String
@@ -313,6 +313,32 @@ Resources:
               StringEqualsIfExists:
                 aws:ResourceTag/Service: !Ref Service
 
+      - PolicyName:
+          !Sub ${GlobalTag}-cross-account-send-command
+        PolicyDocument:
+          Statement:
+          # - Effect: Allow
+          #   Resource: 
+          #   - !Sub arn:aws:ec2::${LegacyAccountId}:instance/*
+          #   - !Sub arn:aws:ssm::${LegacyAccountId}:document/AWS-RunShellScript
+          #   Action:
+          #     - ssm:SendCommand
+          #     - ssm:CancelCommand
+          #   Condition:
+          #     StringEqualsIfExists:
+          #       aws:ResourceTag/Service: !Ref Service
+          # - Effect: Allow
+          #   Action:
+          #     - iam:CreateServiceLinkedRole
+          #   Resource: "*"
+          #   Condition:
+          #     StringEquals:
+          #       iam:AWSServiceName:
+          #         - ssm.amazonaws.com
+          - Effect: Allow
+            Action: sts:AssumeRole
+            Resource: !Sub arn:aws:iam::${LegacyAccountId}:role/kuali-ssm-trusting-role
+
 
   JenkinsAdministrator:
     Type: AWS::SecretsManager::Secret
@@ -499,6 +525,7 @@ Resources:
                 log_group_name = ${GlobalTag}
                 log_stream_name = /var/log/jenkins/jenkins.log
                 datetime_format = %Y-%m-%d %H:%M:%S
+
             /etc/init.d/jenkins-docker.sh:
               source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/cloudformation/kuali_jenkins/scripts/jenkins-docker.sh
               mode: "000775"

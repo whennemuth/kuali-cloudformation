@@ -1,0 +1,77 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+
+Description: >
+  This stack creates a role in this account which is assumed by the jenkins ec2 instance in the trusted css account to allow it to
+  invoke ssm send-command calls across accounts to ec2 instances in this account, the trusting legacy account.
+  
+Parameters:
+
+  Service:
+    Description: Service catalog name.
+    Type: String
+    Default: research-administration
+
+  Function:
+    Description: The Function within the Service.
+    Type: String
+    Default: kuali
+  
+  TrustedAccount:
+    Type: String
+    Description: The id of the trusted account
+    Default: 770203350335
+  
+  TrustedRoleName:
+    Type: String
+    Description: The name of the trusted role from the trusted account
+    Default: kuali-jenkins-ec2-role
+
+  TrustingRoleName:
+    Type: String
+    Description: The name of the trusting role for this trusting account
+    Default: kuali-ssm-trusting-role
+
+Resources:
+
+  CrossAccountAssumableRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Ref TrustingRoleName
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: 
+                - !Sub arn:aws:iam::${TrustedAccount}:role/${TrustedRoleName}
+                # - !Sub arn:aws:iam::${TrustedAccount}:root
+            Action: sts:AssumeRole
+      Path: /
+      Policies:
+        - PolicyName: kuali-ssm-trusting-policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:SendCommand
+                  - ssm:CancelCommand
+                Resource:
+                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}::instance/*
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:document/AWS-RunShellScript
+                Condition:
+                  StringEquals:
+                    aws:ResourceTag/Service: !Ref Service
+              - Effect: Allow
+                Resource:
+                  - arn:aws:s3:::kuali-*
+                Action: "*"
+              # - Effect: Allow
+              #   Action:
+              #     - iam:CreateServiceLinkedRole
+              #   Resource: "*"
+              #   Condition:
+              #     StringEquals:
+              #       iam:AWSServiceName:
+              #         - ssm.amazonaws.com

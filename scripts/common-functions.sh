@@ -2035,7 +2035,7 @@ waitForStack() {
   if [ -z "$stackname" ] ; then
     stackname="$STACK_NAME"
     if [ -n "$stackname" ] ; then
-      [ - n "$LANDSCAPE" ] && stackname="$stackname-$LANDSCAPE"
+      [ -n "$LANDSCAPE" ] && stackname="$stackname-$LANDSCAPE"
     fi
   fi
   if [ -z "$stackname" ] ; then
@@ -2077,7 +2077,7 @@ waitForStack() {
         --stack-name=$stackname \
         --query 'Stacks[].{Outputs:Outputs}' \
         | jq -c '.[0].Outputs' \
-        | jq -c '.[]'
+        | jq -c '.[]' 2> /dev/null
       )
       # for p in $(
       #   aws cloudformation describe-stacks \
@@ -2175,7 +2175,7 @@ jqInstalled() {
 runStackActionCommand() {
   
   if isDebug || isDryrun ; then
-    outputHeading "DEBUG: Would execute the following to trigger cloudformation..."
+    outputHeading "DRYRUN: Would execute the following to trigger cloudformation..."
     cat $cmdfile
     exit 0
   fi
