@@ -65,7 +65,7 @@ isLegacyDeploy() {
 }
 
 isLegacyTest() {
-  ([ "${LEGACY_LANDSCAPE,,}" == 'true' ] && [ "${STACK_NAME,,}" == 'legacy' ]) && true || false
+  ([ "${LEGACY_TEST,,}" == 'true' ] && [ "${STACK_NAME,,}" == 'legacy' ]) && true || false
 }
 
 getStackType() {
