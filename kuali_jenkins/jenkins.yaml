@@ -325,7 +325,7 @@ Resources:
           #     - ssm:SendCommand
           #     - ssm:CancelCommand
           #   Condition:
-          #     StringEqualsIfExists:
+          #     StringEquals:
           #       aws:ResourceTag/Service: !Ref Service
           # - Effect: Allow
           #   Action:

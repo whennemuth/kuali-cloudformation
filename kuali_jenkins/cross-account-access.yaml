@@ -56,22 +56,17 @@ Resources:
               - Effect: Allow
                 Action:
                   - ssm:SendCommand
-                  - ssm:CancelCommand
                 Resource:
-                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}::instance/*
-                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:document/AWS-RunShellScript
-                Condition:
-                  StringEquals:
-                    aws:ResourceTag/Service: !Ref Service
+                  # NOTE: You must include BOTH issuing and receiving participants in the ssm send-command action
+                  - !Sub arn:aws:ec2:*:${TrustedAccount}:instance/*
+                  - !Sub arn:aws:ec2:*:${AWS::AccountId}:instance/*
+                  # NOTE: You have to wildcard the account number portion of the following arn:
+                  - arn:aws:ssm:*:*:document/AWS-RunShellScript
+                # Condition:
+                #   StringEquals:
+                #     aws:ResourceTag/Service: !Ref Service
               - Effect: Allow
                 Resource:
-                  - arn:aws:s3:::kuali-*
+                  # NOTE: The following s3 arn expression can not contain region information (including "*")
+                  - arn:aws:s3::*:kuali-*
                 Action: "*"
-              # - Effect: Allow
-              #   Action:
-              #     - iam:CreateServiceLinkedRole
-              #   Resource: "*"
-              #   Condition:
-              #     StringEquals:
-              #       iam:AWSServiceName:
-              #         - ssm.amazonaws.com

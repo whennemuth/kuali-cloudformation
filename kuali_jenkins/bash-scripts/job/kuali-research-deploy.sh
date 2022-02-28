@@ -199,14 +199,10 @@ getCommand() {
   # This can be run against a real application host because its impact is of no effect to anything (harmless).
   getHarmlessCommand() {
     local outdir=${1:-"$output_dir"}
-    echo "echo 'THIS IS A TEST!' && echo $(date) > $output_dir/last-coeus-run-cmd 2>&1"
+    echo "echo 'THIS IS A TEST!' && echo $(date) > $outdir/last-coeus-run-cmd 2>&1"
   }
 
   if isDryrun || isSSMTest ; then
-    local outdir="$output_dir"
-    if isLegacyDeploy ; then
-      outdir='/tmp'
-    fi
     getHarmlessCommand $outdir
   elif isLegacyDeploy ; then
     getLegacyCommand
@@ -249,7 +245,8 @@ sendCommand() {
     --document-name "AWS-RunShellScript" \
     --comment "Running shell script to pull and run container against a new docker image" \
     --parameters \
-          commands="echo >> $output_dir/ssm-kc-received && date >> $output_dir/ssm-kc-received && \
+          commands="(mkdir -p $output_dir 2> /dev/null || true) && \
+                    echo >> $output_dir/ssm-kc-received && date >> $output_dir/ssm-kc-received && \
                     echo ${base64} | base64 --decode >> $output_dir/ssm-kc-received && \
                     echo ${base64} | base64 --decode > $output_dir/ssm-kc-last.sh && \
                     sh $output_dir/ssm-kc-last.sh 2>&1" \
@@ -265,6 +262,10 @@ sendCommand() {
 
 # Assume a role that exists in the legacy account for the ability to execute an ssm send-command call
 assumeCrossAccountRole() {
+  if [ "$SECOND_ITERATION" ] ; then
+    # The role would have already been assumed at this point
+    return 0
+  fi
   echo "Assuming role $CROSS_ACCOUNT_ROLE_ARN"
   ASSUMED_ROLE_PROFILE='CROSS_ACCOUNT_SSM'
   set -x
@@ -337,6 +338,10 @@ waitForCommandOutputLogs() {
 
 # Fetch and reset the code from the git repository containing the docker build context
 getBashLibFile() {
+  if [ "$SECOND_ITERATION" ] ; then
+    # The bash file would have already been obtained at this point
+    return 0
+  fi
   echo "Getting bash.lib.sh from git@github.com:bu-ist/kuali-research-docker.git..."
   (
     eval `ssh-agent -k` || true
@@ -409,26 +414,22 @@ deployToLegacyAccount() {
     echo "Parameter required: LEGACY_LANDSCAPE"
     echo "Cannot deploy coeus to the legacy account. Fix this or do it by hand."
   else
+    # Send command to the first ec2 instance
+    SECOND_ITERATION=''
     case "${LEGACY_LANDSCAPE,,}" in
-      sb)
-        issueDockerRefreshCommand 'i-099de1c5407493f9b'
-        issueDockerRefreshCommand 'i-0c2d2ef87e98f2088'
-        ;;
-      ci)
-        issueDockerRefreshCommand 'i-0258a5f2a87ba7972'
-        issueDockerRefreshCommand 'i-0511b83a249cd9fb1'
-        ;;
-      qa)
-        issueDockerRefreshCommand 'i-011ccd29dec6c6d10'
-        ;;
-      stg)
-        issueDockerRefreshCommand 'i-090d188ea237c8bcf'
-        issueDockerRefreshCommand 'i-0cb479180574b4ba2'
-        ;;
-      prod)
-        issueDockerRefreshCommand 'i-0534c4e38e6a24009'
-        issueDockerRefreshCommand 'i-07d7b5f3e629e89ae'
-        ;;
+      sb) issueDockerRefreshCommand 'i-099de1c5407493f9b' ;;
+      ci) issueDockerRefreshCommand 'i-0258a5f2a87ba7972' ;;
+      qa) issueDockerRefreshCommand 'i-011ccd29dec6c6d10' ;;
+      stg) issueDockerRefreshCommand 'i-090d188ea237c8bcf' ;;
+      prod) issueDockerRefreshCommand 'i-0534c4e38e6a24009' ;;
+    esac
+    SECOND_ITERATION='true'
+    # Send command to the second ec2 instance
+    case "${LEGACY_LANDSCAPE,,}" in
+      sb) issueDockerRefreshCommand 'i-0c2d2ef87e98f2088' ;;
+      ci) issueDockerRefreshCommand 'i-0511b83a249cd9fb1' ;;
+      stg) issueDockerRefreshCommand 'i-0cb479180574b4ba2' ;;
+      prod) issueDockerRefreshCommand 'i-07d7b5f3e629e89ae' ;;
     esac
   fi
 }
