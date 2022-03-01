@@ -241,12 +241,22 @@ buildPromoteDockerImageJobCall() {
 }
 
 buildDeployJobCall() {
-  addJobParm 'deploy' 'STACK_NAME' "\"$STACK_NAME\""
   addJobParm 'deploy' 'DEBUG' "$DEBUG"
+  addJobParm 'deploy' 'DRYRUN' "$DEBUG"
+  addJobParm 'deploy' 'STACK_NAME' "\"$STACK_NAME\""
   addJobParm 'deploy' 'LANDSCAPE' "$LANDSCAPE"
   addJobParm 'deploy' 'NEW_RELIC_LOGGING' "$(newrelic && echo 'true' || echo 'false')"
   addJobParm 'deploy' 'TARGET_IMAGE' "$(getYoungestRegistryImage 'target')"
-  addJobParm 'deploy' 'LEGACY_LANDSCAPE' "$LEGACY_LANDSCAPE"
+}
+
+buildLegacyDeployJobCall() {
+  addJobParm 'deploy' 'DEBUG' "$DEBUG"
+  addJobParm 'deploy' 'DRYRUN' "$DEBUG"
+  addJobParm 'deploy' 'STACK_NAME' "legacy"
+  addJobParm 'deploy' 'LANDSCAPE' "$LANDSCAPE"
+  addJobParm 'deploy' 'NEW_RELIC_LOGGING' "$(newrelic && echo 'true' || echo 'false')"
+  addJobParm 'deploy' 'TARGET_IMAGE' "$(getYoungestRegistryImage 'target')"
+  addJobParm 'deploy' 'LEGACY_LANDSCAPE' "$stg"
 }
 
 printJobCalls() {
@@ -284,6 +294,9 @@ validParameters() {
   [ -z "$msg" ] && true || false
 }
 
+legacyDeploy() {
+  [ "${LEGACY_DEPLOY,,}" == 'true' ] && true || false
+}
 
 
 run() {
@@ -304,6 +317,18 @@ run() {
   buildDeployJobCall
 
   if validParameters ; then
+    callJobs
+  fi
+
+  if legacyDeploy ; then
+    # Wait for a minute to give the cross-account ecr image replication a chance to finish
+    sleep 60
+
+    # Clear out the exiting built jobs, create one for the legacy deploy and run it.
+    STACK_NAME='legacy'
+    LEGACY_LANDSCAPE='stg'
+    declare -A jobcalls=()
+    buildLegacyDeployJobCall
     callJobs
   fi
 }

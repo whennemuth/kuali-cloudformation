@@ -37,6 +37,8 @@ validInputs() {
 }
 
 printVariables() {
+  echo "DEBUG=$DEBUG"
+  echo "DRYRUN=$DRYRUN"
   echo "STACK_NAME=$STACK_NAME"
   if isLegacyDeploy ; then
     echo "LEGACY_LANDSCAPE=$LEGACY_LANDSCAPE"
