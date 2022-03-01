@@ -329,7 +329,7 @@ run() {
     local timeoutSeconds=120
     local counter=0
     while true ; do
-      [ $(($counter*$sleep)) -ge $timeoutSeconds ] && echo "$timeoutSeconds elapsed, starting to deploy to legacy account..." && break;
+      [ $(($counter*$sleep)) -ge $timeoutSeconds ] && echo "$timeoutSeconds elapsed, starting to deploy to legacy account..." && break || true;
       echo "$((timeoutSeconds-$(($counter*$sleep)))) seconds remaining..."
       ((counter++))
       sleep $sleep      
