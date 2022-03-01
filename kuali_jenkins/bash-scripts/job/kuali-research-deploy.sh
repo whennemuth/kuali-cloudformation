@@ -143,7 +143,7 @@ getCommand() {
 
   getLegacyCommand() {
     # Unlike the css account, coeus images are not stored in ecr with a "kuali-" prefix, so strip it off.
-    local targetImage="$(echo "$TARGET_IMAGE" | cut -d'-' -f2-)"
+    local targetImage="$(echo "$TARGET_IMAGE" | sed 's/kuali-coeus/coeus/')"
     echo \
       "      if [ ! -d $output_dir ] ; then
         mkdir -p $output_dir;
