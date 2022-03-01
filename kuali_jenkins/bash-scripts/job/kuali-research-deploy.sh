@@ -259,7 +259,7 @@ sendCommand() {
 
   local retval=$?
   echo "COMMAND_ID=$COMMAND_ID" 
-  ([ $retval -gt 0 ] || [ -z "$COMMAND_ID" ]) && true || false
+  ([ $retval -eq 0 ] && [ -n "$COMMAND_ID" ]) && true || false
 }
 
 # Assume a role that exists in the legacy account for the ability to execute an ssm send-command call
