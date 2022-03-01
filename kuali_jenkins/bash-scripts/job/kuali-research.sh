@@ -328,13 +328,15 @@ run() {
     local sleep=5
     local timeoutSeconds=120
     local counter=0
+    set +e
     while true ; do
-      [ $(($counter*$sleep)) -ge $timeoutSeconds ] && echo "$timeoutSeconds elapsed, starting to deploy to legacy account..." && break || true;
+      [ $(($counter*$sleep)) -ge $timeoutSeconds ] && echo "$timeoutSeconds elapsed, starting to deploy to legacy account..." && break;
       echo "$((timeoutSeconds-$(($counter*$sleep)))) seconds remaining..."
       ((counter++))
       sleep $sleep      
     done
-
+    set -e
+    
     # Clear out the exiting built jobs, create one for the legacy deploy and run it.
     STACK_NAME='legacy'
     LEGACY_LANDSCAPE='stg'
