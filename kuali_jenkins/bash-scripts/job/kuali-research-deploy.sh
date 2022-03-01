@@ -81,14 +81,14 @@ getCommand() {
   local output_dir="$1"
   local printCommand="${2:-"false"}"
   # Example TARGET_IMAGE: 70203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-coeus-feature:2001.0040
-  local repo=$(echo "$TARGET_IMAGE" | cut -d':' -f1)
-  local tag=$(echo "$TARGET_IMAGE" | cut -d':' -f2)
 
   obfuscatePassword() {
     [ "$printCommand" == 'true' ] && obfuscate "$1" || echo "$1"
   }
 
   getCssCommand() {
+    local repo=$(echo "$TARGET_IMAGE" | cut -d':' -f1)
+    local tag=$(echo "$TARGET_IMAGE" | cut -d':' -f2)
     echo \
       "      if [ ! -d $output_dir ] ; then
         mkdir -p $output_dir;
@@ -152,6 +152,10 @@ getCommand() {
       echo "${targetAcctNo}.$(echo $targetImage | cut -d'.' -f2-)"
     }
 
+    local legacyImage="$(getLegacyImageName)"
+    local repo=$(echo "$legacyImage" | cut -d':' -f1)
+    local tag=$(echo "$legacyImage" | cut -d':' -f2)
+
     echo \
       "      if [ ! -d $output_dir ] ; then
         mkdir -p $output_dir;
@@ -202,7 +206,7 @@ getCommand() {
         -v /var/log/newrelic:/var/log/newrelic \\
         --restart unless-stopped \\
         --name kuali-research \\
-        $(getLegacyImageName) 2>&1 | tee $output_dir/last-coeus-run-cmd"
+        $legacyImage 2>&1 | tee $output_dir/last-coeus-run-cmd"
   }
 
   # Get a simple bash command to write out a file to be sent to the target ec2 instance as a base64 encoded string.

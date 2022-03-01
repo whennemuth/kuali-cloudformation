@@ -222,6 +222,8 @@ Mappings:
       cidr: "168.122.69.0/24"
     sixth:
       cidr: "10.1.0.0/21"
+
+  # Macs?: 168.122.73.117
   # Typically, the dbreport subnet should be for database access, but anyone with a vpn connection as
   # dbreport should also be able to access the app through the browser, so it is also included here.
   DbReportCidrs:
