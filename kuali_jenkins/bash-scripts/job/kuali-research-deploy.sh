@@ -142,8 +142,16 @@ getCommand() {
   }
 
   getLegacyCommand() {
-    # Unlike the css account, coeus images are not stored in ecr with a "kuali-" prefix, so strip it off.
-    local targetImage="$(echo "$TARGET_IMAGE" | sed 's/kuali-coeus/coeus/')"
+
+    # Modify the css ecr image name to be the corresponding legacy ecr image name:
+    # strip off the "kuali-" prefix and swap out the account number portion.
+    getLegacyImageName() {
+      local targetAcctNo="$(echo "$CROSS_ACCOUNT_ROLE_ARN" | grep -oP '\d{10,}')"
+      # 770203350335.dkr.ecr.us-east-1.amazonaws.com/coeus-feature:2001.0040
+      local targetImage="$(echo "$TARGET_IMAGE" | sed 's/kuali-coeus/coeus/')"
+      echo "${targetAcctNo}.$(echo $targetImage | cut -d'.' -f2-)"
+    }
+
     echo \
       "      if [ ! -d $output_dir ] ; then
         mkdir -p $output_dir;
@@ -194,7 +202,7 @@ getCommand() {
         -v /var/log/newrelic:/var/log/newrelic \\
         --restart unless-stopped \\
         --name kuali-research \\
-        $targetImage 2>&1 | tee $output_dir/last-coeus-run-cmd"
+        $(getLegacyImageName) 2>&1 | tee $output_dir/last-coeus-run-cmd"
   }
 
   # Get a simple bash command to write out a file to be sent to the target ec2 instance as a base64 encoded string.
