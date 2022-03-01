@@ -256,7 +256,8 @@ buildLegacyDeployJobCall() {
   addJobParm 'deploy' 'LANDSCAPE' "$LANDSCAPE"
   addJobParm 'deploy' 'NEW_RELIC_LOGGING' "$(newrelic && echo 'true' || echo 'false')"
   addJobParm 'deploy' 'TARGET_IMAGE' "$(getYoungestRegistryImage 'target')"
-  addJobParm 'deploy' 'LEGACY_LANDSCAPE' "$stg"
+  addJobParm 'deploy' 'LEGACY_LANDSCAPE' 'stg'
+  addJobParm 'deploy' 'CROSS_ACCOUNT_ROLE_ARN' "arn:aws:iam::730096353738:role/kuali-ssm-trusting-role"
 }
 
 printJobCalls() {
@@ -271,6 +272,7 @@ printJobCalls() {
 }
 
 makeJobCalls() {
+  set -e
   local creds=/var/lib/jenkins/cli-credentials.sh
   [ -f $creds ] && source $creds
   for jobId in ${jobIDs[@]} ; do
@@ -322,7 +324,16 @@ run() {
 
   if legacyDeploy ; then
     # Wait for a minute to give the cross-account ecr image replication a chance to finish
-    sleep 60
+    echo "Waiting for one minute to give the cross-account ecr image replication a chance to finish..."
+    local sleep=5
+    local timeoutSeconds=120
+    local counter=0
+    while true ; do
+      [ $(($counter*$sleep)) -ge $timeoutSeconds ] && echo "$timeoutSeconds elapsed, starting to deploy to legacy account..." && break;
+      echo "$((timeoutSeconds-$(($counter*$sleep)))) seconds remaining..."
+      ((counter++))
+      sleep $sleep      
+    done
 
     # Clear out the exiting built jobs, create one for the legacy deploy and run it.
     STACK_NAME='legacy'
