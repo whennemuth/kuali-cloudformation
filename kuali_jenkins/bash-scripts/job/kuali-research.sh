@@ -324,10 +324,10 @@ run() {
 
   if legacyDeploy ; then
     # Wait for a minute to give the cross-account ecr image replication a chance to finish
-    echo "Waiting for one minute to give the cross-account ecr image replication a chance to finish..."
     local sleep=5
     local timeoutSeconds=120
     local counter=0
+    echo "Waiting for $timeoutSeconds seconds to give the cross-account ecr image replication a chance to finish..."
     set +e
     while true ; do
       [ $(($counter*$sleep)) -ge $timeoutSeconds ] && echo "$timeoutSeconds elapsed, starting to deploy to legacy account..." && break;
@@ -335,8 +335,9 @@ run() {
       ((counter++))
       sleep $sleep      
     done
+    echo " "
     set -e
-    
+
     # Clear out the exiting built jobs, create one for the legacy deploy and run it.
     STACK_NAME='legacy'
     LEGACY_LANDSCAPE='stg'
