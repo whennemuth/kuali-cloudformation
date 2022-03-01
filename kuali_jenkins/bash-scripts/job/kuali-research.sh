@@ -323,20 +323,28 @@ run() {
   fi
 
   if legacyDeploy ; then
-    # Wait for a minute to give the cross-account ecr image replication a chance to finish
-    local sleep=5
-    local timeoutSeconds=120
-    local counter=0
-    echo "Waiting for $timeoutSeconds seconds to give the cross-account ecr image replication a chance to finish..."
-    set +e
-    while true ; do
-      [ $(($counter*$sleep)) -ge $timeoutSeconds ] && echo "$timeoutSeconds elapsed, starting to deploy to legacy account..." && break;
-      echo "$((timeoutSeconds-$(($counter*$sleep)))) seconds remaining..."
-      ((counter++))
-      sleep $sleep      
-    done
-    echo " "
-    set -e
+    # Wait for a minute or two to give the cross-account ecr image replication a chance to finish
+    waitForLegacyEcrUpdate() {
+      local sleep=5
+      local timeoutSeconds=120
+      local counter=0
+      echo "Waiting for $timeoutSeconds seconds to give the cross-account ecr image replication a chance to finish..."
+      set +e
+      while true ; do
+        [ $(($counter*$sleep)) -ge $timeoutSeconds ] && echo "$timeoutSeconds elapsed, starting to deploy to legacy account..." && break;
+        echo "$((timeoutSeconds-$(($counter*$sleep)))) seconds remaining..."
+        ((counter++))
+        sleep $sleep      
+      done
+      echo " "
+      set -e
+    }
+
+    if isDryrun ; then
+      echo "Wait for legacy ECR to update..."
+    else
+      waitForLegacyEcrUpdate
+    fi
 
     # Clear out the exiting built jobs, create one for the legacy deploy and run it.
     STACK_NAME='legacy'
