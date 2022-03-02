@@ -114,7 +114,8 @@ removeDanglingImages() {
 setDefaults() {
   [ -z "$BASE_IMAGE_REPO" ] && BASE_IMAGE_REPO='kuali-centos7-java-tomcat'
   [ -z "$JAVA_VERSION" ] && JAVA_VERSION=11
-  [ -z "$TOMCAT_VERSION" ] && TOMCAT_VERSION='9.0.41'
+  # [ -z "$TOMCAT_VERSION" ] && TOMCAT_VERSION='9.0.41'
+  [ -z "$TOMCAT_VERSION" ] && TOMCAT_VERSION='8.5.34'
   AWS_ACCOUNT_ID="$(echo "$ECR_REGISTRY_URL" | cut -d '.' -f1)"
   AWS_REGION="$(echo "$ECR_REGISTRY_URL" | cut -d '.' -f4)"
   DOCKER_TAG="${ECR_REGISTRY_URL}/${REGISTRY_REPO_NAME}:${POM_VERSION}"
