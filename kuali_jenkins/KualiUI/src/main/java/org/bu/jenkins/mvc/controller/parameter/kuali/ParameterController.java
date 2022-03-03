@@ -323,6 +323,8 @@ public class ParameterController extends AbstractParameterSet {
 						}							
 					}
 					break;
+				case BUILD_TYPE_SCRIPT:
+					parameterView = getSparseParameterView(config, "org/bu/jenkins/active_choices/html/job-javascript/");
 				case INVALID:
 					break;
 				default:

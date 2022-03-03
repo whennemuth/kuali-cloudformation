@@ -120,7 +120,7 @@ callJobs() { if dryrun ; then printJobCalls; else makeJobCalls; fi }
 getPomVersion() {
 
   getPomVersionFromYoungestRegistryImage() {
-    getYoungestRegistryImage 'source' | cut -d':' -f2
+    getYoungestRegistryImage 'promote-from' | cut -d':' -f2
   }
 
   # getPomVersionFromLastPushLog() {
@@ -161,6 +161,7 @@ getPomVersion() {
   echo "$version"
 }
 
+# Get the name of the ecr non-release repository from where images exist to be pulled so as to "promote" them in a follow-up pushes to the release repository.
 getPullEcrRepoName() {
   local repo='kuali-coeus'
   if [ "$BRANCH" == "master" ] ; then
@@ -172,6 +173,7 @@ getPullEcrRepoName() {
   fi
 }
 
+# Get the name of the ecr release repository where images get pushed to in "promotions" from non-release repositories.
 getPushEcrRepoName() {
   local repo='kuali-coeus'
   # Set the name of the target repository in docker registry
@@ -184,11 +186,12 @@ getPushEcrRepoName() {
   fi
 }
 
+# Select from all images in the coeus ecr repository tagged with a maven-style version (ie: "2001.0040"), where such tag indicates the latest version.
 getYoungestRegistryImage() {
   local type="$1"
   case "${type,,}" in
-    source) local repo="$(getPullEcrRepoName)" ;;
-    target) local repo="$(getPushEcrRepoName)" ;;
+    promote-from) local repo="$(getPullEcrRepoName)" ;;
+    promote-to) local repo="$(getPushEcrRepoName)" ;;
   esac
   local acct="aws sts get-caller-identity --output text --query 'Account'"
   getLatestImage "$repo" "$acct"
@@ -236,8 +239,8 @@ buildDockerPushImageJobCall() {
 
 buildPromoteDockerImageJobCall() {
   addJobParm 'promote-image' 'DEBUG' "$DEBUG"
-  addJobParm 'promote-image' 'SOURCE_IMAGE' "$(getYoungestRegistryImage 'source')"
-  addJobParm 'promote-image' 'TARGET_IMAGE' "$(getYoungestRegistryImage 'target')"
+  addJobParm 'promote-image' 'SOURCE_IMAGE' "$(getYoungestRegistryImage 'promote-from')"
+  addJobParm 'promote-image' 'TARGET_IMAGE' "$(getYoungestRegistryImage 'promote-to')"
 }
 
 buildDeployJobCall() {
@@ -246,7 +249,7 @@ buildDeployJobCall() {
   addJobParm 'deploy' 'STACK_NAME' "\"$STACK_NAME\""
   addJobParm 'deploy' 'LANDSCAPE' "$LANDSCAPE"
   addJobParm 'deploy' 'NEW_RELIC_LOGGING' "$(newrelic && echo 'true' || echo 'false')"
-  addJobParm 'deploy' 'TARGET_IMAGE' "$(getYoungestRegistryImage 'target')"
+  addJobParm 'deploy' 'TARGET_IMAGE' "$(getYoungestRegistryImage 'promote-to')"
 }
 
 buildLegacyDeployJobCall() {
@@ -255,8 +258,10 @@ buildLegacyDeployJobCall() {
   addJobParm 'deploy' 'STACK_NAME' "legacy"
   addJobParm 'deploy' 'LANDSCAPE' "$LANDSCAPE"
   addJobParm 'deploy' 'NEW_RELIC_LOGGING' "$(newrelic && echo 'true' || echo 'false')"
-  addJobParm 'deploy' 'TARGET_IMAGE' "$(getYoungestRegistryImage 'target')"
-  addJobParm 'deploy' 'LEGACY_LANDSCAPE' 'stg'
+  addJobParm 'deploy' 'TARGET_IMAGE' "$(getYoungestRegistryImage 'promote-to')"
+  [ "${LEGACY_LANDSCAPE,,}" == 'staging' ] && local lscp='stg'
+  [ "${LEGACY_LANDSCAPE,,}" == 'production' ] && local lscp='prod'
+  addJobParm 'deploy' 'LEGACY_LANDSCAPE' "$lscp"
   addJobParm 'deploy' 'CROSS_ACCOUNT_ROLE_ARN' "arn:aws:iam::730096353738:role/kuali-ssm-trusting-role"
 }
 
@@ -296,8 +301,14 @@ validParameters() {
   [ -z "$msg" ] && true || false
 }
 
+legacyDeployStaging() {
+  [ "${LEGACY_DEPLOY,,}" == 'staging' ] && true || false
+}
+legacyDeployProduction() {
+  [ "${LEGACY_DEPLOY,,}" == 'production' ] && true || false
+}
 legacyDeploy() {
-  [ "${LEGACY_DEPLOY,,}" == 'true' ] && true || false
+  (legacyDeployStaging || legacyDeployProduction) && true || false
 }
 
 

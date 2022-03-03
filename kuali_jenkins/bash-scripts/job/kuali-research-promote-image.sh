@@ -16,7 +16,7 @@ validParameters() {
 
   echo "DEBUG=$DEBUG"
   echo "SOURCE_IMAGE=$SOURCE_IMAGE"
-  echo "TARGET_IMAGE=$TARGET_IMAGEE"
+  echo "TARGET_IMAGE=$TARGET_IMAGE"
   if [ -z "$ECR_REGISTRY_URL" ] ; then
     ECR_REGISTRY_URL="$(echo "$SOURCE_IMAGE" | cut -d'/' -f1 2> /dev/null)"
   fi

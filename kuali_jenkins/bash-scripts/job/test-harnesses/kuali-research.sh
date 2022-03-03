@@ -13,7 +13,7 @@ GIT_REF_TYPE=branch
 GIT_COMMIT_ID=029b7611e44a0ba4805e749a6c2372990a8f8a0b
 ECR_REGISTRY_URL=770203350335.dkr.ecr.us-east-1.amazonaws.com
 AWS_PROFILE=infnprd
-LEGACY_DEPLOY='true'
+LEGACY_DEPLOY='stg'
 LEGACY_LANDSCAPE='stg'
 
 # This test harness must be run from the root of the entire project 

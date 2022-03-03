@@ -109,8 +109,13 @@ removeDanglingImages() {
 }
 
 # Define variables.
-# NOTE: JENKINS_URL is the full URL of Jenkins, like http://server:port/jenkins/ 
-#       Only available if Jenkins URL is set in system configuration
+# NOTE: 
+#   1) JENKINS_URL is the full URL of Jenkins, like http://server:port/jenkins/ - Only available if Jenkins URL is set in system configuration
+#   2) Tomcat versions 8.5.3 and 9.0.41 BOTH work when reverse proxied by nginx (CSS account).
+#      However, version 9.0.41 will NOT work when reverse proxied by apache2 (Legacy account).
+#      This is probably due to some change in the way tomcat 9 connectors work - they now seem to be blocking/ignoring requests from apache,
+#      probably due to what address is being listened for on the relevant http and/or ajp ports. The specific change might be spotted in:
+#      https://tomcat.apache.org/migration-9.html. Until we are off the legacy account completely, we are using tomcat 8.5.
 setDefaults() {
   [ -z "$BASE_IMAGE_REPO" ] && BASE_IMAGE_REPO='kuali-centos7-java-tomcat'
   [ -z "$JAVA_VERSION" ] && JAVA_VERSION=11

@@ -1,0 +1,15 @@
+<!DOCTYPE html SYSTEM "http://www.thymeleaf.org/dtd/xhtml1-strict-thymeleaf-4.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:th="http://www.thymeleaf.org">
+
+	<script th:inline="javascript" th:fragment="build-type-script">	
+		function toggleBuildType() {
+			document.getElementById('_build_type').value = event.srcElement.value;
+			document.getElementById('_feature').style.display = 'none';
+			document.getElementById('_pre-release').style.display = 'none';
+			document.getElementById('_release').style.display = 'none';
+			document.getElementById('_'+event.srcElement.value).style.display = 'inline';
+		}
+	</script>
+
+</html>

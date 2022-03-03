@@ -23,6 +23,7 @@ public enum ParameterName implements JobParameterMetadata {
 	STACK("StackListTable", "stack-list-table"),
 	STACK_NAME("StackName", "stack-name"),
 	BUILD_TYPE("BuildType", "build-type"),
+	BUILD_TYPE_SCRIPT("BuildTypeScript", "build-type-script"),
 	INVALID("InvalidState", "invalid-state");
 
 	private String viewName;
