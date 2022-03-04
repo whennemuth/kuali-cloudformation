@@ -294,9 +294,12 @@ makeJobCalls() {
 
 validParameters() {
   local msg=''
-  [ -z "$LANDSCAPE" ] && msg="no landscape selection"
-  if [ -n "$msg" ] ; then
-    echo "Invalid/missing parameters: $msg"
+  # Note: Landscape came from the STACK parameter, whose value is a concatenation of 3 values (one of which is landscape)
+  if [ -z "$LANDSCAPE" ] ; then
+    if isFeatureBuild ; then
+      msg="Feature builds must be deployed to a stack in this account. No stack has been selected."
+      echo "Invalid/missing parameters: $msg"
+    fi
   fi
   [ -z "$msg" ] && true || false
 }
