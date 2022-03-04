@@ -25,44 +25,35 @@ jobScripts[${jobIDs[2]}]="$jobScriptDir/kuali-research-push-image.sh"
 jobScripts[${jobIDs[3]}]="$jobScriptDir/kuali-research-promote-image.sh"
 jobScripts[${jobIDs[4]}]="$jobScriptDir/kuali-research-deploy.sh"
 
-# declare -A jobNames=()
-# jobNames[${jobIDs[0]}]='kuali-research-1-build-war'
-# jobNames[${jobIDs[1]}]='kuali-research-2-docker-build-image'
-# jobNames[${jobIDs[2]}]='kuali-research-3-docker-push-image'
-# jobNames[${jobIDs[3]}]='none'
-# jobNames[${jobIDs[4]}]='kuali-research-4-deploy-to-stack'
-
 declare -A jobcalls=()
 
 setGlobalVariables() {
   CLI=$JENKINS_HOME/jenkins-cli.jar
   HOST=http://localhost:8080/
 
-  if [ -z "$STACK" ] ; then
-    echo "Missing entry! A stack must be selected."
-    echo "Cancelling build..."
-    exit 1
-  elif [ -z "$BUILD_TYPE" ] ; then
+  if [ -n "$STACK" ] ; then
+    # The STACK parameter is actually 3 values: stack name, baseline, and landscape concatenated together with a pipe character
+    local stackparts=$(echo $STACK | awk 'BEGIN {RS="|"} {print $0}')
+    local counter=1
+    while read part; do
+      case $((counter++)) in
+        1) STACK_NAME="$part" ;;
+        2) BASELINE="$part" ;;
+        3) LANDSCAPE="$part" ;;
+      esac
+    done <<< "$(echo "$stackparts")"
+  fi
+
+  if [ -z "$BUILD_TYPE" ] ; then
     echo "Missing entry! A build type must be selected."
     echo "Cancelling build..."
     exit 1
   fi
 
-  # The STACk parameter is actually 3 values: stack name, baseline, and landscape concatenated together with a pipe character
-  local stackparts=$(echo $STACK | awk 'BEGIN {RS="|"} {print $0}')
-  local counter=1
-  while read part; do
-    case $((counter++)) in
-      1) STACK_NAME="$part" ;;
-      2) BASELINE="$part" ;;
-      3) LANDSCAPE="$part" ;;
-    esac
-  done <<< "$(echo "$stackparts")"
 
   if isRelease || isPreRelease ; then
     isSandbox && BRANCH='master' || BRANCH='bu-master'
   else
-    # Must be a feature build
     BRANCH='feature'
   fi
 
@@ -123,18 +114,6 @@ getPomVersion() {
     getYoungestRegistryImage 'promote-from' | cut -d':' -f2
   }
 
-  # getPomVersionFromLastPushLog() {
-  #   local logfile="/var/lib/jenkins/jobs/${jobNames['push-image']}/lastSuccessful/log"
-  #   if [ -f "$logfile" ] ; then
-  #     cat $logfile | grep -P 'digest' | cut -d ':' -f 1 | tr -d '[[:space:]]'
-  #   fi
-  # }
-
-  # # The last built war file will have the pom version integrated in its name. 
-  # getPomVersionFromLastBuiltWar() {
-  #   echo "$(lastWar)" | grep -Po '(?<=coeus-webapp\-).*(?=\.war$)'
-  # }
-
   if [ -z "$POM_VERSION" ] ; then
     if isFeatureBuild ; then
       # Get the pom version of what is currently being built
@@ -142,21 +121,8 @@ getPomVersion() {
       POM_VERSION="$(grep -Po '(?!<version>)[^<>]+</version>' $pom | head -n 1 | sed 's/<\/version>//')"
     else
       POM_VERSION="$(getPomVersionFromYoungestRegistryImage)"
-      # Get the pom version of what has already been built by a prior job
-      # POM_VERSION="$(getPomVersionFromLastBuiltWar)"
-      # if [ -z "$POM_VERSION" ] ; then
-      #   POM_VERSION="$(getPomVersionFromLastPushLog)"
-      #   if [ -z "$POM_VERSION" ] ; then
-      #     POM_VERSION="$(getPomVersionFromYoungestRegistryImage)"
-      #   fi
-      # fi
     fi
   fi
-  # if dryrun ; then
-  #   local version=${POM_VERSION:-'[derived]'}
-  # else
-  #   local version=${POM_VERSION:-'unknown'}
-  # fi
   local version=${POM_VERSION:-'unknown'}
   echo "$version"
 }
@@ -295,11 +261,9 @@ makeJobCalls() {
 validParameters() {
   local msg=''
   # Note: Landscape came from the STACK parameter, whose value is a concatenation of 3 values (one of which is landscape)
-  if [ -z "$LANDSCAPE" ] ; then
-    if isFeatureBuild ; then
-      msg="Feature builds must be deployed to a stack in this account. No stack has been selected."
-      echo "Invalid/missing parameters: $msg"
-    fi
+  if [ -z "$LANDSCAPE" ] && isFeatureBuild ; then
+    msg="Feature builds must be deployed to a stack in this account. No stack has been selected."
+    echo "Invalid/missing parameters: $msg"
   fi
   [ -z "$msg" ] && true || false
 }
