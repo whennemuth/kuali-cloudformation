@@ -1979,32 +1979,37 @@ getLatestOracleEngineVersion() {
 # All kuali images are tagged with a single version: YYMM.xxxx
 # The top result of a numeric sort against a list of all an ecr repos image tags should indicate the latest one.
 getLatestImage() {
-  local reponame="$1"
+  eval "$(getEvalArgs lowercase $@)"
   if [ -n "$LANDSCAPE" ] ; then
-    if [ "$reponame" == 'coeus' ] || [ "$reponame" == 'kuali-coeus' ] ; then
+    if [ "$repo_name" == 'coeus' ] || [ "$repo_name" == 'kuali-coeus' ] ; then
       local baseline="$(getBaselineFromString $LANDSCAPE)"
       case "$baseline" in
         sb)
-          reponame='kuali-coeus-sandbox' ;;
-        ci|qa)
-          reponame='kuali-coeus-feature' ;;
+          repo_name='kuali-coeus-sandbox' ;;
         stg|prod)
-          reponame='kuali-coeus' ;;
+          repo_name='kuali-coeus' ;;
         *)
-          reponame='kuali-coeus-feature' ;;
+          if [ "$release" == 'true' ] ; then
+            repo_name='kuali-coeus'
+          else
+            repo_name='kuali-coeus-feature'
+          fi
+          ;;
       esac
     fi
   fi
-  local accountNbr="$(aws sts get-caller-identity --output text --query 'Account')"
+  if [ -z "$account_nbr" ] ; then
+    local account_nbr="$(aws sts get-caller-identity --output text --query 'Account')"
+  fi
   local version=$(aws \
     ecr describe-images \
-    --registry-id $accountNbr \
-    --repository-name $reponame \
+    --registry-id $account_nbr \
+    --repository-name $repo_name \
     --output text \
     --query 'imageDetails[*].[imageTags[0]]' \
     | sort -rn \
     | head -n 1)
-  echo "$accountNbr.dkr.ecr.us-east-1.amazonaws.com/$reponame:$version"
+  echo "$account_nbr.dkr.ecr.us-east-1.amazonaws.com/$repo_name:$version"
 }
 
 getKcRepoName() {

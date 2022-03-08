@@ -30,6 +30,10 @@ declare -A jobcalls=()
 setGlobalVariables() {
   CLI=$JENKINS_HOME/jenkins-cli.jar
   HOST=http://localhost:8080/
+  BUILD_TYPE="${BUILD_TYPE,,}"
+  MAVEN_WORKSPACE="$JENKINS_HOME/latest-maven-build/kc"
+  ([ "${LEGACY_DEPLOY,,}" == 'staging' ] || [ "${LEGACY_DEPLOY,,}" == 'stage' ]) && LEGACY_DEPLOY='stg'
+  [ "${LEGACY_DEPLOY,,}" == 'production' ] && LEGACY_DEPLOY='prod'
 
   if [ -n "$STACK" ] ; then
     # The STACK parameter is actually 3 values: stack name, baseline, and landscape concatenated together with a pipe character
@@ -48,8 +52,11 @@ setGlobalVariables() {
     echo "Missing entry! A build type must be selected."
     echo "Cancelling build..."
     exit 1
+  elif [ -z "$LANDSCAPE" ] && isFeatureBuild ; then
+    echo "Missing entry! A stack must be selected when performing a feature build."
+    echo "Cancelling build..."
+    exit 1
   fi
-
 
   if isRelease || isPreRelease ; then
     isSandbox && BRANCH='master' || BRANCH='bu-master'
@@ -57,8 +64,6 @@ setGlobalVariables() {
     BRANCH='feature'
   fi
 
-  BUILD_TYPE="${BUILD_TYPE,,}"
-  MAVEN_WORKSPACE="$JENKINS_HOME/latest-maven-build/kc"
   BACKUP_DIR="$JENKINS_HOME/backup/kuali-research/war/$BRANCH"
 
   outputSubHeading "Parameters:"
@@ -66,10 +71,14 @@ setGlobalVariables() {
   echo "BACKUP_DIR=$BACKUP_DIR"
   echo "BRANCH=$BRANCH"
   echo "BUILD_TYPE=$BUILD_TYPE"
+  echo "LEGACY_DEPLOY=$LEGACY_DEPLOY"
   echo "GIT_REF_TYPE=$GIT_REF_TYPE"
   echo "GIT_REF=$GIT_REF"
   echo "GIT_COMMIT_ID=$GIT_COMMIT_ID"
   echo "ECR_REGISTRY_URL=$ECR_REGISTRY_URL"
+  echo "LANDSCAPE=$LANDSCAPE"
+  echo "BASELINE=$BASELINE"
+  echo "STACK_NAME=$STACK_NAME"
   echo " "
 }
 
@@ -91,6 +100,7 @@ addJobParm() {
   fi
 }
 
+isStackSelected() { [ -n "$STACK_NAME" ] && true || false ; }
 isJenkinsServer() { [ -d /var/lib/jenkins ] && true || false ; }
 isFeatureBuild() { [ "$BUILD_TYPE" == "feature" ] && true || false ; }
 isPreRelease() { [ "$BUILD_TYPE" == "pre-release" ] && true || false ; }
@@ -157,10 +167,15 @@ getYoungestRegistryImage() {
   local type="$1"
   case "${type,,}" in
     promote-from) local repo="$(getPullEcrRepoName)" ;;
-    promote-to) local repo="$(getPushEcrRepoName)" ;;
+    promote-to) 
+      local repo="$(getPushEcrRepoName)"
+      if isPreRelease || isRelease ; then
+        local release='true' 
+      fi
+      ;;
   esac
-  local acct="aws sts get-caller-identity --output text --query 'Account'"
-  getLatestImage "$repo" "$acct"
+
+  getLatestImage "repo_name=$repo" "account_nbr=$acct" "release=$release"
 }
 
 buildWarJobCall() {
@@ -224,10 +239,8 @@ buildLegacyDeployJobCall() {
   addJobParm 'deploy' 'STACK_NAME' "legacy"
   addJobParm 'deploy' 'LANDSCAPE' "$LANDSCAPE"
   addJobParm 'deploy' 'NEW_RELIC_LOGGING' "$(newrelic && echo 'true' || echo 'false')"
-  addJobParm 'deploy' 'TARGET_IMAGE' "$(getYoungestRegistryImage 'promote-to')"
-  [ "${LEGACY_LANDSCAPE,,}" == 'staging' ] && local lscp='stg'
-  [ "${LEGACY_LANDSCAPE,,}" == 'production' ] && local lscp='prod'
-  addJobParm 'deploy' 'LEGACY_LANDSCAPE' "$lscp"
+  addJobParm 'deploy' 'TARGET_IMAGE' "$(getYoungestRegistryImage 'promote-to' $LEGACY_DEPLOY)"
+  addJobParm 'deploy' 'LEGACY_LANDSCAPE' "$LEGACY_DEPLOY"
   addJobParm 'deploy' 'CROSS_ACCOUNT_ROLE_ARN' "arn:aws:iam::730096353738:role/kuali-ssm-trusting-role"
 }
 
@@ -259,20 +272,14 @@ makeJobCalls() {
 }
 
 validParameters() {
-  local msg=''
-  # Note: Landscape came from the STACK parameter, whose value is a concatenation of 3 values (one of which is landscape)
-  if [ -z "$LANDSCAPE" ] && isFeatureBuild ; then
-    msg="Feature builds must be deployed to a stack in this account. No stack has been selected."
-    echo "Invalid/missing parameters: $msg"
-  fi
-  [ -z "$msg" ] && true || false
+  true
 }
 
 legacyDeployStaging() {
-  [ "${LEGACY_DEPLOY,,}" == 'staging' ] && true || false
+  [ "${LEGACY_DEPLOY,,}" == 'stg' ] && true || false
 }
 legacyDeployProduction() {
-  [ "${LEGACY_DEPLOY,,}" == 'production' ] && true || false
+  [ "${LEGACY_DEPLOY,,}" == 'prod' ] && true || false
 }
 legacyDeploy() {
   (legacyDeployStaging || legacyDeployProduction) && true || false
@@ -294,7 +301,9 @@ run() {
     buildPromoteDockerImageJobCall
   fi
 
-  buildDeployJobCall
+  if isStackSelected ; then
+    buildDeployJobCall
+  fi
 
   if validParameters ; then
     callJobs
@@ -318,15 +327,16 @@ run() {
       set -e
     }
 
-    if isDryrun ; then
-      echo "Wait for legacy ECR to update..."
-    else
-      waitForLegacyEcrUpdate
+    if isStackSelected ; then
+      if isDryrun ; then
+        echo "Wait for legacy ECR to update..."
+      else
+        waitForLegacyEcrUpdate
+      fi
     fi
 
     # Clear out the exiting built jobs, create one for the legacy deploy and run it.
     STACK_NAME='legacy'
-    LEGACY_LANDSCAPE='stg'
     declare -A jobcalls=()
     buildLegacyDeployJobCall
     callJobs
