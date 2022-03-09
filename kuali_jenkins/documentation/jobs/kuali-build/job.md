@@ -2,7 +2,7 @@
 
 ## Kuali build Jenkins job
 
-<img align="left" src="C:\whennemuth\workspaces\ecs_workspace\cloud-formation\kuali-infrastructure\kuali_jenkins\jenkins1.png" alt="jenkins1" style="margin-right:15px;" />The jenkins job that builds and deploys kuali research to a selected environment exists on a
+<img align="left" src="../jenkins1.png" alt="jenkins1" style="margin-right:15px;" />The jenkins job that builds and deploys kuali research to a selected environment exists on a
 ec2-based jenkins host in the CSS (Common security services) aws account.
 **Job features:**
    -- Full java/maven build
@@ -59,5 +59,12 @@ ec2-based jenkins host in the CSS (Common security services) aws account.
    [private jenkins ip]:8080/view/Kuali-Research/job/kuali-research/build?delay=0sec.
    ```
 
-2. More to come...
+2. #### Run the Job:
+
+  **Feature build and deploy**
+  ![](scenario1.png)
+  **Feature build and dual deploy**
+  ![](scenario2.png)
+  **Pre-Release**
+  ![](scenario3.png)
 
