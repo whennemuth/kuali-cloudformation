@@ -59,7 +59,7 @@ ec2-based jenkins host in the CSS (Common security services) aws account.
    [private jenkins ip]:8080/view/Kuali-Research/job/kuali-research/build?delay=0sec.
    ```
 
-2. #### Run the Job
+2. #### Select Job Parameters
 
   The three senior selections of the jenkins job for rebuilding/redploying kuali-research are:
   
@@ -71,15 +71,16 @@ ec2-based jenkins host in the CSS (Common security services) aws account.
     - **Feature**: This is an early stage build that targets a test branch and non-production landscape for testing. The steps taken are:
       1. Pull from a git feature branch
       2. Maven build, resulting in  a war file
-      3. Packaging of the war file into a docker image, which is published to a docker feature repository within our registry
-      4. Deployment of the newly published docker feature image to the selected landscape stack. This involves sending a command to resources within the stack to purge all related docker containers and images and re-launch new containers based on the new images available in the docker feature repository (these are downloaded).
-    - **Pre-release:** This selection indicates readiness to move a feature build into the release category in preparation for the final release. A typical scenario occurs when having finished a feature and you want to move the EXACT build image destined for production out to the staging environment. No building or packaging takes place. The steps taken are:
-      1. Pull the image from the feature repository
-      2. Rename the image so as to indicate its upcoming new home in the release repository
-      3. Push the image to the release repository
-      4. Redeploy the release image to a target landscape, if a landscape stack is selected.
+      3. Packaging of the war file into a docker image, which is published to a docker FEATURE repository within our registry
+      4. Deployment of the newly published docker feature image to the selected landscape stack. This involves sending a command to resources within the stack to purge all related docker containers and images and re-launch new containers based on the new image available in the docker FEATURE repository (these are downloaded).
+    - **Pre-release:** This selection indicates readiness to move a feature build into the release category in preparation for the final release. A typical scenario occurs when having finished a feature and you want to move the EXACT build image destined for production out to the staging environment. This assumes that feature branch(s) have been merged into the release branch (bu-master). The steps taken are:
+      1. Pull from the git bu-master
+      2. Maven build, resulting in  a war file
+      3. Packaging of the war file into a docker image, which is published to a docker RELEASE repository within our registry
+      4. Deployment of the newly published docker feature image to the selected landscape stack (probably staging). This involves sending a command to resources within the stack to purge all related docker containers and images and re-launch new containers based on the new image available in the docker RELEASE repository (these are downloaded).
     - **Release**: This selection indicates you are performing a final release to the environment you select (this should always be production). The steps taken are:
       1. Redeploy the release image to the target landscape *(this landscape would probably be production, running the prior release).*
+         This is basically step 4 of the Pre-release build type, but with the production landscape as the target.
   - **GIT_COMMIT_ID**
     This selection indicates exactly what is being built and deployed with respect to the source code.
     You typically set the value here indirectly through the other "GIT_" prefixed parameters. Experiment with these other parameters, and how it works becomes quickly self-explanatory.
@@ -89,9 +90,21 @@ ec2-based jenkins host in the CSS (Common security services) aws account.
   - **LEGACY_DEPLOY**
     This selection indicates that you additionally want the feature or release indicated by the BUILD_TYPE parameter deployed to the "legacy" landscape that you select.
   
-  
-  
-  
+3. #### Run the Job
+
+   - Uncheck "DRYRUN".
+      This parameter is useful to verify for oneself what would happen if building with the selected parameters.
+      The script function calls that would occur are printed in order in the console output of the job, but they are not executed.
+      Also, there is a "DEBUG" checkbox for seeing more verbose console output.
+   - Click "Build"
+   - View console output
+      Once building, the current running instance of the job will become available as the top item in the "Build History" listing on the left of the page.
+      Click the down arrow for that job instance and select "Console output" from the context menu that appears.
+
+
+
+
+
 
 #### EXAMPLES:
 
@@ -99,7 +112,7 @@ ec2-based jenkins host in the CSS (Common security services) aws account.
 
 **Feature build and deploy**
 
-*"I have committed new code to my feature branch "myfeature" in git, and I want to build and deploy the changes to my own test landscape "playground"*:
+*"I have committed new code to my feature branch "myfeature" in git, and I want to build and deploy those changes to my own test landscape "playground"*:
 
 ![](scenario1.png)
 
@@ -109,11 +122,11 @@ ec2-based jenkins host in the CSS (Common security services) aws account.
 - LEGACY_DEPLOY: "None"
 - GIT_REF_TYPE: "Branch"
 - GIT_REF: "myfeature"
-  
+- Accept all other defaults
 
 **Feature build and dual deploy**
 
-*"I have committed more new code to my feature branch "myfeature" in git, and I want to build and deploy the changes to my own test landscape AND to the staging landscape in the legacy account"*:
+*"I have committed more new code to my feature branch "myfeature" in git, and I want to build and deploy the changes to my own test landscape AND to the staging landscape in the legacy aws account"*:
 
 ![](scenario2.png)
 
@@ -123,17 +136,42 @@ ec2-based jenkins host in the CSS (Common security services) aws account.
 - LEGACY_DEPLOY: "Staging"
 - GIT_REF_TYPE: "Branch"
 - GIT_REF: "myfeature"
+- Accept all other defaults
   
 
-**Pre-Release and deploy**
+**Pre-Release build and dual deploy**
+"I have merged my feature branch into the "bu-master" branch and want to build and stage it in the staging landscape locally AND to the staging landscape in the legacy aws account"
 
-*"I want to promote "myfeature" to release status and make it available in the staging environment"*:
-
-![](scenario3.png)
+The depiction for this is basically the same as for the illustration in the prior example. 
 
 - DRYRUN: Uncheck
 - STACK: Select radio button for landscape "staging"
 - BUILD_TYPE: "Pre-release"
+- LEGACY_DEPLOY: "Staging"
+- Accept all other defaults
+  
+
+**Release**
+
+*"I want to perform a release to the production landscape"*:
+
+![](scenario3.png)
+
+- DRYRUN: Uncheck
+- STACK: Select radio button for landscape "production"
+- BUILD_TYPE: "Release"
 - LEGACY_DEPLOY: "None"
-- GIT_REF_TYPE: "Branch"
-- GIT_REF: "myfeature"
+- Accept all other defaults
+  
+
+**Dual Release**
+
+*"I want to perform a release against both the CSS and "Legacy" aws accounts"*
+
+![](scenario4.png)
+
+- DRYRUN: Uncheck
+- STACK: Select radio button for landscape "production"
+- BUILD_TYPE: "Release"
+- LEGACY_DEPLOY: "Production"
+- Accept all other defaults
