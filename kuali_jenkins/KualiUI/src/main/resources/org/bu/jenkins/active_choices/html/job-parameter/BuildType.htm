@@ -51,16 +51,16 @@
 				<div id="_feature" th:attr="style=${ParameterValue=='feature'} ? _ : 'display:none'">
 					Feature build:
 					<ul style="margin:5px;">
-						<li>Full maven build</li>
-						<li>Push of docker image to feature repository in docker registry</li>
+						<li>Full maven build (any feature branch)</li>
+						<li>Push of docker image to FEATURE repository in docker registry</li>
 						<li>Deployment of docker image to selected stack</li>
 					</ul>
 				</div>
 				<div id="_pre-release"  th:attr="style=${ParameterValue=='pre-release'} ? _ : 'display:none'">
 					Pre-release:
 					<ul style="margin:5px;">
-						<li>NO maven build</li>
-						<li>Promotion of most recent feature docker image to primary repo in docker registry</li>
+						<li>Full maven build (bu-master branch)</li>
+						<li>Push of docker image to RELEASE repository in docker registry</li>
 						<li>Deployment of promoted docker image to selected stack</li>
 					</ul>
 				</div>

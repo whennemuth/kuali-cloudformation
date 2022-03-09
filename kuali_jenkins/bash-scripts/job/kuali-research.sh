@@ -181,12 +181,17 @@ getYoungestRegistryImage() {
 buildWarJobCall() {
   local built='false'
 
-  if isFeatureBuild ; then
-    if isProd ; then
-      echo "INVALID CHOICE: Feature builds not allowed against the production environment!"
+  if isFeatureBuild || isPreRelease ; then
+    if isFeatureBuild ; then
+      if isProd ; then
+        echo "INVALID CHOICE: Feature builds not allowed against the production environment!"
+        exit 1
+      elif isStaging ; then
+        echo "WARNING: You are pushing a feature build directly into the staging environment!"
+      fi
+    elif isProd ; then
+      echo "INVALID CHOICE: Pre-releases not allowed against the production environment!"
       exit 1
-    elif isStaging ; then
-      echo "WARNING: You are pushing a feature build directly into the staging environment!"
     fi
     built='true'
     addJobParm 'build-war' 'DEBUG' $DEBUG
@@ -296,10 +301,10 @@ run() {
     buildDockerPushImageJobCall
   fi
 
-  if isPreRelease ; then
+  # if isPreRelease ; then
 
-    buildPromoteDockerImageJobCall
-  fi
+  #   buildPromoteDockerImageJobCall
+  # fi
 
   if isStackSelected ; then
     buildDeployJobCall

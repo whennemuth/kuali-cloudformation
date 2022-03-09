@@ -210,7 +210,7 @@ public class ParameterController extends AbstractParameterSet {
 											config.getParameterMap().get(QueryStringParms.SELECTED_ITEM.arg()));
 										String buildType = config.getParameterMap().get(QueryStringParms.BUILD_TYPE.arg());
 										if( ! Argument.isMissing(buildType)) {
-											if("release".equalsIgnoreCase(buildType)) {
+											if( ! "feature".equalsIgnoreCase(buildType)) {
 												parameterView.setContextVariable("disable", true);
 											}										
 										}
@@ -245,7 +245,7 @@ public class ParameterController extends AbstractParameterSet {
 								else {
 									String buildType = config.getParameterMap().get(QueryStringParms.BUILD_TYPE.arg());
 									if( ! Argument.isMissing(buildType)) {
-										if("release".equalsIgnoreCase(buildType)) {
+										if( ! "feature".equalsIgnoreCase(buildType)) {
 											parameterView.setContextVariable("disable", true);
 										}										
 									}
