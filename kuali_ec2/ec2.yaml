@@ -1046,185 +1046,201 @@ Resources:
       - Key: Name
         Value: !Sub ${GlobalTag}-${Landscape}
       SecurityGroupIngress:
-      - Description: "SSH: vpn.bu.edu/2fa On Campus, Group 1"
+      - Description: "HTTP ingress"
         IpProtocol: tcp
-        FromPort: 22
-        ToPort: 22
-        CidrIp: !FindInMap [ 2faCidrs, "first", "cidr" ]
-      - Description: "SSH: vpn.bu.edu/2fa On Campus, Group 2 "
+        FromPort: 80
+        ToPort: 80
+        CidrIp: 0.0.0.0/0
+      - Description: "HTTPS ingress"
         IpProtocol: tcp
-        FromPort: 22
-        ToPort: 22
-        CidrIp: !FindInMap [ 2faCidrs, "second", "cidr" ]
-      - Description: "SSH: vpn.bu.edu/2fa Off Campus"
-        IpProtocol: tcp
-        FromPort: 22
-        ToPort: 22
-        CidrIp: !FindInMap [ 2faCidrs, "third", "cidr" ]
-      - Description: "SSH: vpn.bu.edu/2fa Off Campus"
-        IpProtocol: tcp
-        FromPort: 22
-        ToPort: 22
-        CidrIp: !FindInMap [ 2faCidrs, "fourth", "cidr" ]
-      - Description: "SSH: vpn.bu.edu/2fa Off Campus"
-        IpProtocol: tcp
-        FromPort: 22
-        ToPort: 22
-        CidrIp: !FindInMap [ 2faCidrs, "fifth", "cidr" ]
-      - Description: "SSH: vpn.bu.edu/2fa Off Campus"
-        IpProtocol: tcp
-        FromPort: 22
-        ToPort: 22
-        CidrIp: !FindInMap [ 2faCidrs, "sixth", "cidr" ]
-      - Description: "SSH: vpn.bu.edu/dbreport Off Campus"
-        IpProtocol: tcp
-        FromPort: 22
-        ToPort: 22
-        CidrIp: !FindInMap [ DbReportCidrs, "first", "cidr" ]
-      - Description: "SSH: vpn.bu.edu/dbreport On Campus"
-        IpProtocol: tcp
-        FromPort: 22
-        ToPort: 22
-        CidrIp: !FindInMap [ DbReportCidrs, "second", "cidr" ]
+        FromPort: 443
+        ToPort: 443
+        CidrIp: 0.0.0.0/0
+      - Description: "UDP ingress"
+        IpProtocol: udp
+        FromPort: 1043
+        ToPort: 1043
+        CidrIp: 0.0.0.0/0
+        
+      # - Description: "SSH: vpn.bu.edu/2fa On Campus, Group 1"
+      #   IpProtocol: tcp
+      #   FromPort: 22
+      #   ToPort: 22
+      #   CidrIp: !FindInMap [ 2faCidrs, "first", "cidr" ]
+      # - Description: "SSH: vpn.bu.edu/2fa On Campus, Group 2 "
+      #   IpProtocol: tcp
+      #   FromPort: 22
+      #   ToPort: 22
+      #   CidrIp: !FindInMap [ 2faCidrs, "second", "cidr" ]
+      # - Description: "SSH: vpn.bu.edu/2fa Off Campus"
+      #   IpProtocol: tcp
+      #   FromPort: 22
+      #   ToPort: 22
+      #   CidrIp: !FindInMap [ 2faCidrs, "third", "cidr" ]
+      # - Description: "SSH: vpn.bu.edu/2fa Off Campus"
+      #   IpProtocol: tcp
+      #   FromPort: 22
+      #   ToPort: 22
+      #   CidrIp: !FindInMap [ 2faCidrs, "fourth", "cidr" ]
+      # - Description: "SSH: vpn.bu.edu/2fa Off Campus"
+      #   IpProtocol: tcp
+      #   FromPort: 22
+      #   ToPort: 22
+      #   CidrIp: !FindInMap [ 2faCidrs, "fifth", "cidr" ]
+      # - Description: "SSH: vpn.bu.edu/2fa Off Campus"
+      #   IpProtocol: tcp
+      #   FromPort: 22
+      #   ToPort: 22
+      #   CidrIp: !FindInMap [ 2faCidrs, "sixth", "cidr" ]
+      # - Description: "SSH: vpn.bu.edu/dbreport Off Campus"
+      #   IpProtocol: tcp
+      #   FromPort: 22
+      #   ToPort: 22
+      #   CidrIp: !FindInMap [ DbReportCidrs, "first", "cidr" ]
+      # - Description: "SSH: vpn.bu.edu/dbreport On Campus"
+      #   IpProtocol: tcp
+      #   FromPort: 22
+      #   ToPort: 22
+      #   CidrIp: !FindInMap [ DbReportCidrs, "second", "cidr" ]
 
       
-      - Description: "HTTP: vpn.bu.edu/2fa On Campus, Group 1"
-        IpProtocol: tcp
-        FromPort: 80
-        ToPort: 80
-        CidrIp: !FindInMap [ 2faCidrs, "first", "cidr" ]
-      - Description: "HTTP: vpn.bu.edu/2fa On Campus, Group 2 "
-        IpProtocol: tcp
-        FromPort: 80
-        ToPort: 80
-        CidrIp: !FindInMap [ 2faCidrs, "second", "cidr" ]
-      - Description: "HTTP: vpn.bu.edu/2fa Off Campus"
-        IpProtocol: tcp
-        FromPort: 80
-        ToPort: 80
-        CidrIp: !FindInMap [ 2faCidrs, "third", "cidr" ]
-      - Description: "HTTP: vpn.bu.edu/2fa Off Campus"
-        IpProtocol: tcp
-        FromPort: 80
-        ToPort: 80
-        CidrIp: !FindInMap [ 2faCidrs, "fourth", "cidr" ]
-      - Description: "HTTP: vpn.bu.edu/2fa Off Campus"
-        IpProtocol: tcp
-        FromPort: 80
-        ToPort: 80
-        CidrIp: !FindInMap [ 2faCidrs, "fifth", "cidr" ]
-      - Description: "HTTP: vpn.bu.edu/2fa Off Campus"
-        IpProtocol: tcp
-        FromPort: 80
-        ToPort: 80
-        CidrIp: !FindInMap [ 2faCidrs, "sixth", "cidr" ]
-      - Description: "HTTP: vpn.bu.edu/dbreport Off Campus"
-        IpProtocol: tcp
-        FromPort: 80
-        ToPort: 80
-        CidrIp: !FindInMap [ DbReportCidrs, "first", "cidr" ]
-      - Description: "HTTP: vpn.bu.edu/dbreport On Campus"
-        IpProtocol: tcp
-        FromPort: 80
-        ToPort: 80
-        CidrIp: !FindInMap [ DbReportCidrs, "second", "cidr" ]
-      - Description: "HTTP: General CRC Academic/Admin Systems"
-        IpProtocol: tcp
-        FromPort: 80
-        ToPort: 80
-        CidrIp: !FindInMap [ crc, "first", "cidr" ]
+      # - Description: "HTTP: vpn.bu.edu/2fa On Campus, Group 1"
+      #   IpProtocol: tcp
+      #   FromPort: 80
+      #   ToPort: 80
+      #   CidrIp: !FindInMap [ 2faCidrs, "first", "cidr" ]
+      # - Description: "HTTP: vpn.bu.edu/2fa On Campus, Group 2 "
+      #   IpProtocol: tcp
+      #   FromPort: 80
+      #   ToPort: 80
+      #   CidrIp: !FindInMap [ 2faCidrs, "second", "cidr" ]
+      # - Description: "HTTP: vpn.bu.edu/2fa Off Campus"
+      #   IpProtocol: tcp
+      #   FromPort: 80
+      #   ToPort: 80
+      #   CidrIp: !FindInMap [ 2faCidrs, "third", "cidr" ]
+      # - Description: "HTTP: vpn.bu.edu/2fa Off Campus"
+      #   IpProtocol: tcp
+      #   FromPort: 80
+      #   ToPort: 80
+      #   CidrIp: !FindInMap [ 2faCidrs, "fourth", "cidr" ]
+      # - Description: "HTTP: vpn.bu.edu/2fa Off Campus"
+      #   IpProtocol: tcp
+      #   FromPort: 80
+      #   ToPort: 80
+      #   CidrIp: !FindInMap [ 2faCidrs, "fifth", "cidr" ]
+      # - Description: "HTTP: vpn.bu.edu/2fa Off Campus"
+      #   IpProtocol: tcp
+      #   FromPort: 80
+      #   ToPort: 80
+      #   CidrIp: !FindInMap [ 2faCidrs, "sixth", "cidr" ]
+      # - Description: "HTTP: vpn.bu.edu/dbreport Off Campus"
+      #   IpProtocol: tcp
+      #   FromPort: 80
+      #   ToPort: 80
+      #   CidrIp: !FindInMap [ DbReportCidrs, "first", "cidr" ]
+      # - Description: "HTTP: vpn.bu.edu/dbreport On Campus"
+      #   IpProtocol: tcp
+      #   FromPort: 80
+      #   ToPort: 80
+      #   CidrIp: !FindInMap [ DbReportCidrs, "second", "cidr" ]
+      # - Description: "HTTP: General CRC Academic/Admin Systems"
+      #   IpProtocol: tcp
+      #   FromPort: 80
+      #   ToPort: 80
+      #   CidrIp: !FindInMap [ crc, "first", "cidr" ]
         
-      - Description: "HTTPS: vpn.bu.edu/2fa On Campus, Group 1"
-        IpProtocol: tcp
-        FromPort: 443
-        ToPort: 443
-        CidrIp: !FindInMap [ 2faCidrs, "first", "cidr" ]
-      - Description: "HTTPS: vpn.bu.edu/2fa On Campus, Group 2 "
-        IpProtocol: tcp
-        FromPort: 443
-        ToPort: 443
-        CidrIp: !FindInMap [ 2faCidrs, "second", "cidr" ]
-      - Description: "HTTPS: vpn.bu.edu/2fa Off Campus"
-        IpProtocol: tcp
-        FromPort: 443
-        ToPort: 443
-        CidrIp: !FindInMap [ 2faCidrs, "third", "cidr" ]
-      - Description: "HTTPS: vpn.bu.edu/2fa Off Campus"
-        IpProtocol: tcp
-        FromPort: 443
-        ToPort: 443
-        CidrIp: !FindInMap [ 2faCidrs, "fourth", "cidr" ]
-      - Description: "HTTPS: vpn.bu.edu/2fa Off Campus"
-        IpProtocol: tcp
-        FromPort: 443
-        ToPort: 443
-        CidrIp: !FindInMap [ 2faCidrs, "fifth", "cidr" ]
-      - Description: "HTTPS: vpn.bu.edu/2fa Off Campus"
-        IpProtocol: tcp
-        FromPort: 443
-        ToPort: 443
-        CidrIp: !FindInMap [ 2faCidrs, "sixth", "cidr" ]
-      - Description: "HTTPS: vpn.bu.edu/dbreport Off Campus"
-        IpProtocol: tcp
-        FromPort: 443
-        ToPort: 443
-        CidrIp: !FindInMap [ DbReportCidrs, "first", "cidr" ]
-      - Description: "HTTPS: vpn.bu.edu/dbreport On Campus"
-        IpProtocol: tcp
-        FromPort: 443
-        ToPort: 443
-        CidrIp: !FindInMap [ DbReportCidrs, "second", "cidr" ]
-      - Description: "HTTPS: General CRC Academic/Admin Systems"
-        IpProtocol: tcp
-        FromPort: 443
-        ToPort: 443
-        CidrIp: !FindInMap [ crc, "first", "cidr" ]
+      # - Description: "HTTPS: vpn.bu.edu/2fa On Campus, Group 1"
+      #   IpProtocol: tcp
+      #   FromPort: 443
+      #   ToPort: 443
+      #   CidrIp: !FindInMap [ 2faCidrs, "first", "cidr" ]
+      # - Description: "HTTPS: vpn.bu.edu/2fa On Campus, Group 2 "
+      #   IpProtocol: tcp
+      #   FromPort: 443
+      #   ToPort: 443
+      #   CidrIp: !FindInMap [ 2faCidrs, "second", "cidr" ]
+      # - Description: "HTTPS: vpn.bu.edu/2fa Off Campus"
+      #   IpProtocol: tcp
+      #   FromPort: 443
+      #   ToPort: 443
+      #   CidrIp: !FindInMap [ 2faCidrs, "third", "cidr" ]
+      # - Description: "HTTPS: vpn.bu.edu/2fa Off Campus"
+      #   IpProtocol: tcp
+      #   FromPort: 443
+      #   ToPort: 443
+      #   CidrIp: !FindInMap [ 2faCidrs, "fourth", "cidr" ]
+      # - Description: "HTTPS: vpn.bu.edu/2fa Off Campus"
+      #   IpProtocol: tcp
+      #   FromPort: 443
+      #   ToPort: 443
+      #   CidrIp: !FindInMap [ 2faCidrs, "fifth", "cidr" ]
+      # - Description: "HTTPS: vpn.bu.edu/2fa Off Campus"
+      #   IpProtocol: tcp
+      #   FromPort: 443
+      #   ToPort: 443
+      #   CidrIp: !FindInMap [ 2faCidrs, "sixth", "cidr" ]
+      # - Description: "HTTPS: vpn.bu.edu/dbreport Off Campus"
+      #   IpProtocol: tcp
+      #   FromPort: 443
+      #   ToPort: 443
+      #   CidrIp: !FindInMap [ DbReportCidrs, "first", "cidr" ]
+      # - Description: "HTTPS: vpn.bu.edu/dbreport On Campus"
+      #   IpProtocol: tcp
+      #   FromPort: 443
+      #   ToPort: 443
+      #   CidrIp: !FindInMap [ DbReportCidrs, "second", "cidr" ]
+      # - Description: "HTTPS: General CRC Academic/Admin Systems"
+      #   IpProtocol: tcp
+      #   FromPort: 443
+      #   ToPort: 443
+      #   CidrIp: !FindInMap [ crc, "first", "cidr" ]
         
-      - Description: "UDP: vpn.bu.edu/2fa On Campus, Group 1"
-        IpProtocol: udp
-        FromPort: 1043
-        ToPort: 1043
-        CidrIp: !FindInMap [ 2faCidrs, "first", "cidr" ]
-      - Description: "UDP: vpn.bu.edu/2fa On Campus, Group 2 "
-        IpProtocol: udp
-        FromPort: 1043
-        ToPort: 1043
-        CidrIp: !FindInMap [ 2faCidrs, "second", "cidr" ]
-      - Description: "UDP: vpn.bu.edu/2fa Off Campus"
-        IpProtocol: udp
-        FromPort: 1043
-        ToPort: 1043
-        CidrIp: !FindInMap [ 2faCidrs, "third", "cidr" ]
-      - Description: "UDP: vpn.bu.edu/2fa Off Campus"
-        IpProtocol: udp
-        FromPort: 1043
-        ToPort: 1043
-        CidrIp: !FindInMap [ 2faCidrs, "fourth", "cidr" ]
-      - Description: "UDP: vpn.bu.edu/2fa Off Campus"
-        IpProtocol: udp
-        FromPort: 1043
-        ToPort: 1043
-        CidrIp: !FindInMap [ 2faCidrs, "fifth", "cidr" ]
-      - Description: "UDP: vpn.bu.edu/2fa Off Campus"
-        IpProtocol: udp
-        FromPort: 1043
-        ToPort: 1043
-        CidrIp: !FindInMap [ 2faCidrs, "sixth", "cidr" ]
-      - Description: "UDP: vpn.bu.edu/dbreport Off Campus"
-        IpProtocol: udp
-        FromPort: 1043
-        ToPort: 1043
-        CidrIp: !FindInMap [ DbReportCidrs, "first", "cidr" ]
-      - Description: "UDP: vpn.bu.edu/dbreport On Campus"
-        IpProtocol: udp
-        FromPort: 1043
-        ToPort: 1043
-        CidrIp: !FindInMap [ DbReportCidrs, "second", "cidr" ]
-      - Description: "UDP: General CRC Academic/Admin Systems"
-        IpProtocol: udp
-        FromPort: 1043
-        ToPort: 1043
-        CidrIp: !FindInMap [ crc, "first", "cidr" ]
+      # - Description: "UDP: vpn.bu.edu/2fa On Campus, Group 1"
+      #   IpProtocol: udp
+      #   FromPort: 1043
+      #   ToPort: 1043
+      #   CidrIp: !FindInMap [ 2faCidrs, "first", "cidr" ]
+      # - Description: "UDP: vpn.bu.edu/2fa On Campus, Group 2 "
+      #   IpProtocol: udp
+      #   FromPort: 1043
+      #   ToPort: 1043
+      #   CidrIp: !FindInMap [ 2faCidrs, "second", "cidr" ]
+      # - Description: "UDP: vpn.bu.edu/2fa Off Campus"
+      #   IpProtocol: udp
+      #   FromPort: 1043
+      #   ToPort: 1043
+      #   CidrIp: !FindInMap [ 2faCidrs, "third", "cidr" ]
+      # - Description: "UDP: vpn.bu.edu/2fa Off Campus"
+      #   IpProtocol: udp
+      #   FromPort: 1043
+      #   ToPort: 1043
+      #   CidrIp: !FindInMap [ 2faCidrs, "fourth", "cidr" ]
+      # - Description: "UDP: vpn.bu.edu/2fa Off Campus"
+      #   IpProtocol: udp
+      #   FromPort: 1043
+      #   ToPort: 1043
+      #   CidrIp: !FindInMap [ 2faCidrs, "fifth", "cidr" ]
+      # - Description: "UDP: vpn.bu.edu/2fa Off Campus"
+      #   IpProtocol: udp
+      #   FromPort: 1043
+      #   ToPort: 1043
+      #   CidrIp: !FindInMap [ 2faCidrs, "sixth", "cidr" ]
+      # - Description: "UDP: vpn.bu.edu/dbreport Off Campus"
+      #   IpProtocol: udp
+      #   FromPort: 1043
+      #   ToPort: 1043
+      #   CidrIp: !FindInMap [ DbReportCidrs, "first", "cidr" ]
+      # - Description: "UDP: vpn.bu.edu/dbreport On Campus"
+      #   IpProtocol: udp
+      #   FromPort: 1043
+      #   ToPort: 1043
+      #   CidrIp: !FindInMap [ DbReportCidrs, "second", "cidr" ]
+      # - Description: "UDP: General CRC Academic/Admin Systems"
+      #   IpProtocol: udp
+      #   FromPort: 1043
+      #   ToPort: 1043
+      #   CidrIp: !FindInMap [ crc, "first", "cidr" ]
 
   ApplicationIngressToExistingRdsInstance:
    Type: AWS::EC2::SecurityGroupIngress

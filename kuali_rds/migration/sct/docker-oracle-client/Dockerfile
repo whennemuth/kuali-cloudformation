@@ -6,6 +6,8 @@ FROM centos
 
 # Install sqlplus client
 RUN \
+  dnf -y --disablerepo '*' --enablerepo=extras swap centos-linux-repos centos-stream-repos && \
+  dnf -y distro-sync && \
   cd /etc/yum.repos.d && \
   rm -f public-yum-ol7.repo && \
   curl https://yum.oracle.com/public-yum-ol7.repo -o public-yum-ol7.repo && \
@@ -15,7 +17,10 @@ RUN \
   yum-config-manager --enable ol7_oracle_instantclient && \
   printf "\n\nTHE FOLLOWING PACKAGES ARE AVAILABLE:\n" && \
   yum list oracle-instantclient* && \
-  yum install -y --nogpgcheck oracle-instantclient18.3-basic oracle-instantclient18.3-sqlplus
+  yum install -y --nogpgcheck \
+    oracle-instantclient18.3-basic \
+    oracle-instantclient18.3-sqlplus \
+    oracle-instantclient18.3-tools
 
 # Install aws cli and session manager
 RUN \

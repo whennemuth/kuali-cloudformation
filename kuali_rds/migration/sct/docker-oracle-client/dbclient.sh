@@ -53,6 +53,18 @@ getPwdForSctScriptMount() {
 getPwdForGenericSqlMount() {
   getPwdForMount $(pwd)/docker/sql/
 }
+processMounts() {
+  if [ -z "$INPUT_MOUNT" ] ; then
+    INPUT_MOUNT=$(getPwdForDefaultInputMount)
+  else
+    INPUT_MOUNT=$(getPwdForMount $INPUT_MOUNT)
+  fi
+  if [ -z "$OUTPUT_MOUNT" ] ; then
+    OUTPUT_MOUNT=$(getPwdForDefaultOutputMount)
+  else
+    OUTPUT_MOUNT=$(getPwdForMount $OUTPUT_MOUNT)
+  fi
+}
 
 build() {
   [ ! -f ../../../jumpbox/tunnel.sh ] && echo "Cannot find tunnel.sh" && exit 1
@@ -71,8 +83,7 @@ run() {
   [ -z "$(docker images oracle/sqlplus -q)" ] && echo "ERROR! Failed to build image oracle/sqlplus." && exit 1
   [ ! -d 'input' ] && mkdir input
   [ ! -d 'output' ] && mkdir output
-  [ -z "$INPUT_MOUNT" ] && INPUT_MOUNT=$(getPwdForDefaultInputMount)
-  [ -z "$OUTPUT_MOUNT" ] && OUTPUT_MOUNT=$(getPwdForDefaultOutputMount)
+  processMounts
 
   docker run \
     -ti \
@@ -90,8 +101,7 @@ shell() {
   [ -z "$(docker images oracle/sqlplus -q)" ] && echo "ERROR! Failed to build image oracle/sqlplus." && exit 1
   [ ! -d 'input' ] && mkdir input
   [ ! -d 'output' ] && mkdir output
-  [ -z "$INPUT_MOUNT" ] && INPUT_MOUNT=$(getPwdForDefaultInputMount)
-  [ -z "$OUTPUT_MOUNT" ] && OUTPUT_MOUNT=$(getPwdForDefaultOutputMount)
+  processMounts
 
   docker run \
     -ti \

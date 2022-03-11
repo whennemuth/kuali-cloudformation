@@ -177,21 +177,31 @@ setConnectionParms() {
 
 
 setConnectionURL() {
-  url='
+  sqlplusUrl='
     (DESCRIPTION=(
       ADDRESS_LIST=(FAILOVER=OFF)(LOAD_BALANCE=OFF)(ADDRESS=(PROTOCOL=TCP)
       (HOST='$DB_HOST')(PORT='$DB_PORT')
     ))(CONNECT_DATA=(SERVER=DEDICATED)(SERVICE_NAME='$DB_SID')))'
 
+  sqlldrUrl='
+    \"\(DESCRIPTION\=\(
+      ADDRESS_LIST\=\(FAILOVER\=OFF\)\(LOAD_BALANCE\=OFF\)\(ADDRESS\=\(PROTOCOL\=TCP\)
+      \(HOST\='$DB_HOST'\)\(PORT\='$DB_PORT'\)
+    \)\)\(CONNECT_DATA\=\(SERVER\=DEDICATED\)\(SERVICE_NAME\='$DB_SID'\)\)\)\"'
+
   if [ "$DRYRUN" == 'true' ] ; then
-    echo "sqlplus $DB_USER/$DB_PASSWORD@\"$url\""
+    if [ "${IMPORT,,}" == 'true' ] ; then
+      echo "sqlldr $DB_USER/$DB_PASSWORD@\"$sqlldrUrl\""
+    else
+      echo "sqlplus $DB_USER/$DB_PASSWORD@\"$sqlplusUrl\""
+    fi
     exit 0
   fi
 }
 
 canConnect() {
   local success='false'
-  if sqlplus $DB_USER/$DB_PASSWORD@"$url" < /dev/null | grep 'Connected to'; then
+  if sqlplus $DB_USER/$DB_PASSWORD@"$sqlplusUrl" < /dev/null | grep 'Connected to'; then
    echo "Connection test successful!"
    success='true'
   else
@@ -213,8 +223,17 @@ connectAndRun() {
     done
   elif [ -n "$ENCODED_SQL" ] ; then
     sh run-raw.sh
+  elif [ "${IMPORT,,}" == 'true' ] ; then
+    local ctl="$(cd /tmp/input && ls -1 *.ctl 2> /dev/null | head -1 || true)"
+    [ -z "$ctl" ] && echo "ERROR! No control (.ctl) file found." && exit 1
+    local log="/tmp/output/${ctl:0:-4}.log"
+    local bad="/tmp/output/${ctl:0:-4}.bad"
+    ctl="/tmp/input/$ctl"
+    userid=$DB_USER@$(echo $sqlldrUrl | sed -E 's/\s//g')/$DB_PASSWORD
+    echo sqlldr CONTROL=$ctl LOG=$log BAD=$bad skip=1 USERID=$userid
+    sqlldr CONTROL=$ctl LOG=$log BAD=$bad skip=1 USERID=$userid
   else
-    sqlplus $DB_USER/$DB_PASSWORD@"$url"
+    sqlplus $DB_USER/$DB_PASSWORD@"$sqlplusUrl"
   fi
 }
 
