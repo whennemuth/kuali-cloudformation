@@ -1019,11 +1019,11 @@ Resources:
                 ENV_FILE_FROM_S3_CORE: /opt/kuali/s3/core/environment.variables.s3
                 # Import users to cor-main from an atlas mongodb source identified by baseline (BASELINE env variable must be set).
                 # Import users to cor-main from an atlas mongodb source identified by baseline (BASELINE env variable must be set).
-                USER_IMPORT_MONGODB:  !If [ UseMongoEc2Instance, 'true', 'false' ]
+                USER_IMPORT_MONGODB:  !If [ CreateMongoEc2Instance, 'true', 'false' ]
                 # Otherwise import users from a dump file in an s3 subdirectory identified by baseline (BASELINE env variable must be set).
                 USER_IMPORT_FILE: 
                   !If
-                    - UseMongoEc2Instance
+                    - CreateMongoEc2Instance
                     - !Sub s3://${TemplateBucketName}/${Baseline}/core/userdump.json
                     - !Ref AWS::NoValue
               command: bash initialize-mongo-database.sh
