@@ -124,7 +124,7 @@ Resources:
   LambdaLogsGroupDelete:
     Type: AWS::Logs::LogGroup
     Condition: deleteLogs
-    DeletionPolicy: Delete
+    DeletionPolicy: Retain
     Properties:
       LogGroupName: !Sub /aws/lambda/${GlobalTag}-${Landscape}-bucket-emptier
       RetentionInDays: 30
