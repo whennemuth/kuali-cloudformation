@@ -60,18 +60,26 @@ stackAction() {
   if [ "$action" == 'delete-stack' ] ; then
     if [ -n "$PDF_BUCKET_NAME" ] ; then
       if bucketExists "$PDF_BUCKET_NAME" ; then
-        # Cloudformation can only delete a bucket if it is empty (and has no versioning), so empty it out here.
-        aws s3 rm s3://$PDF_BUCKET_NAME --recursive
-        # aws s3 rb --force $PDF_BUCKET_NAME
+        if isDryrun ; then
+          echo "DRYRUN: aws s3 rm s3://$PDF_BUCKET_NAME --recursive"
+        else
+          # Cloudformation can only delete a bucket if it is empty (and has no versioning), so empty it out here.
+          aws s3 rm s3://$PDF_BUCKET_NAME --recursive
+          # aws s3 rb --force $PDF_BUCKET_NAME
+        fi
       fi
     fi
     
     [ $? -gt 0 ] && echo "Cancelling..." && return 1
 
-    aws cloudformation delete-stack --stack-name $(getStackToDelete)
-    if ! waitForStackToDelete ; then
-      echo "Problem deleting stack!"
-      exit 1
+    if isDryrun ; then
+      echo "DRYRUN: aws cloudformation $action --stack-name $(getStackToDelete)"
+    else
+      aws cloudformation $action --stack-name $(getStackToDelete)
+      if ! waitForStackToDelete ; then
+        echo "Problem deleting stack!"
+        exit 1
+      fi
     fi
   else
     # checkSubnets will also assign a value to VPC_ID

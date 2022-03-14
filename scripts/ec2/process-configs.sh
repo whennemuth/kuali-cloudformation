@@ -163,7 +163,7 @@ processEnvironmentVariableFiles() {
 
 trim() {
   local input="${1:-$(</dev/stdin)}"
-  echo -n "$(printf "$input" | sed -E 's/^[ \t\n]*//' | sed -E 's/[ \t\n]*$//')"
+  echo -n "$(echo -n "$input" | sed -E 's/^[ \t\n]*//' | sed -E 's/[ \t\n]*$//')"
 }
 
 # Create a script to export all environment variables in the mounted directory before starting node
