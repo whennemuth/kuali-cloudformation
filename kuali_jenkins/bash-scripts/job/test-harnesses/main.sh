@@ -34,21 +34,7 @@
 # ADVANCED=false
 # ' | tr -d '\n')
 
-PARAMETERS=$(echo '
-DRYRUN=true&
-STACK=kuali-ec2-alb-warren2%7Cstg%7Cwarren2&
-STACK_ACTION=create&
-STACK_TYPE=ec2-alb&
-AUTHENTICATION=cor-main&
-DNS=route53&
-RDS_SOURCE=instance&
-RDS_INSTANCE_BY_LANDSCAPE=arn%3Aaws%3Ards%3Aus-east-1%3A770203350335%3Adb%3Akuali-oracle-warren&
-LANDSCAPE=warren2&
-WAF=false&
-ALB=false&
-MONGO=true&
-ADVANCED=false
-' | tr -d '\n')
+PARAMETERS=$(echo 'STACK=kuali-ec2-hitesh%7Cstg%7Chitesh&STACK_ACTION=delete')
 
 # This test harness must be run from the root of the entire project 
 
