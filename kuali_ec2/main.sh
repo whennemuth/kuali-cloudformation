@@ -70,10 +70,10 @@ stackAction() {
           # aws s3 rb --force $PDF_BUCKET_NAME
         fi
       else
-        echo "No such pdf service s3 bucket: s3://$PDF_BUCKET_NAME"
+        echo "WARNING: No such pdf service s3 bucket: s3://$PDF_BUCKET_NAME"
       fi
     else
-      echo "No pdf service s3 bucket specified."
+      echo "WARNING: No pdf service s3 bucket specified."
     fi
     
     [ $? -gt 0 ] && echo "Cancelling..." && return 1

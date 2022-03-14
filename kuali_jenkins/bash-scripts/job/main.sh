@@ -224,7 +224,7 @@ recreateStack() {
 # Delete an existing stack
 deleteStack() {
   outputHeading "Preparing to delete stack..."
-  local args=($(buildArgs STACK))
+  local args=($(buildArgs STACK LANDSCAPE))
   isDebug && local debug='-x'
   local cmd="sh $debug main.sh delete-stack ${args[@]}"
   cd $JENKINS_HOME/kuali-infrastructure/
