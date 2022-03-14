@@ -758,3 +758,8 @@ Outputs:
           - !Ref HostedZoneName
           - !Sub ${Landscape}.${HostedZoneName}
         - !GetAtt ALB.Outputs.DNSName
+
+  Cluster:
+    Description: THe name of the ecs cluster of ec2 hosts
+    Value: !GetAtt ECS.Outputs.Cluster
+

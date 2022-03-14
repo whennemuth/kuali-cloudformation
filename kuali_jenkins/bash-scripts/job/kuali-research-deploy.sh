@@ -421,6 +421,16 @@ deployToEc2Alb() {
 
 deployToEcs() {
   echo "Stack $STACK_NAME is of type \"ecs\""
+  # TODO: 
+  #   1) Get cluster name by stack output value.
+  #   2) Test redeployment by reintroducing git SHA parameter to maven build, build, and then call this function.
+  # local clusterName=${GlobalTag}-${Landscape}-cluster
+  local stack="$(aws cloudformation describe-stacks --stack-name $STACK_NAME)" 
+  local clusterName="$(echo "$stack" | jq -r '.Stacks[0].Outputs[] | select(.OutputKey == "Cluster").OutputValue')"
+  aws ecs update-service \
+    --service kuali-research \
+    --cluster $clusterName \
+    --force-new-deployment
 }
 
 deployToLegacyAccount() {

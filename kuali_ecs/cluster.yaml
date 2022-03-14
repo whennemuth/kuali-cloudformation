@@ -398,7 +398,7 @@ Resources:
         PropagateAtLaunch: true
       - Key: Name
         Value: !Sub ${GlobalTag}-${Landscape}-auto-scaling-group
-        PropagateAtLaunch: false
+        PropagateAtLaunch: true
     CreationPolicy:
       ResourceSignal:
         Count: 1
@@ -789,6 +789,7 @@ Resources:
               env:
                 TASK: process_kc-config_file
                 DNS_NAME: !Ref DNSName
+                RDS_HOSTNAME: !If [ RdsEndpointProvided, !Ref RdsEndpoint, !Ref AWS::NoValue ]
                 LANDSCAPE: !Ref Landscape
                 BASELINE: !Ref Baseline
                 AWS_DEFAULT_REGION: !Ref AWS::Region

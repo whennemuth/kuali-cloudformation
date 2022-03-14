@@ -95,7 +95,7 @@ buildWithMaven() {
       -Dgrm.off=true \
       -Dmaven.test.skip=true \
       -Dbuild.version="${UPCOMING_POM_VERSION}" \
-      -Dbuild.bu.git.ref="git:branch=${GIT_BRANCH},ref=${GIT_COMMIT}" \
+      -Dbuild.bu.git.ref="git:branch=${GIT_REF},ref=${GIT_COMMIT_ID}" \
       -Dclean-jsfrontend-node.off
   )
 
