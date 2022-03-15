@@ -92,7 +92,7 @@ buildArgs() {
 
   # The STACK parameter is actually 3 values: stack name, baseline, and landscape concatenated together with a pipe character
   splitStack() {
-    local stackparts=$(echo $STACK | awk 'BEGIN {RS="|"} {print $0}')
+    local stackparts="$(echo $STACK | awk 'BEGIN {RS="|"} {print $0}')"
     local counter=1
     while read part; do
       case $((counter++)) in
