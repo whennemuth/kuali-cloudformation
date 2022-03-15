@@ -224,11 +224,9 @@ recreateStack() {
 # Delete an existing stack
 deleteStack() {
   outputHeading "Preparing to delete stack..."
-set -x
   local args=($(buildArgs STACK LANDSCAPE))
   isDebug && local debug='-x'
   local cmd="sh $debug main.sh delete-stack ${args[@]}"
-set +x
   cd $JENKINS_HOME/kuali-infrastructure/
   # TODO: Users may figure out how to override the default naming conventions for stacks so that the name does not 
   # reflect the stack type. Might be worth replacing the next 7 lines of code with some alternative method of identifying stack type.
