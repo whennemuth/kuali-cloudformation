@@ -100,7 +100,7 @@ buildArgs() {
         2) BASELINE="$part" ;;
         3) LANDSCAPE="$part" ;;
       esac
-    done <<< $(echo "$stackparts")
+    done <<< "$(echo "$stackparts")"
   }
   getStackName() {
     [ -z "$STACK_NAME" ] && splitStack
