@@ -34,7 +34,21 @@
 # ADVANCED=false
 # ' | tr -d '\n')
 
-PARAMETERS=$(echo 'STACK=kuali-ec2-hitesh%7Cstg%7Chitesh&STACK_ACTION=delete')
+PARAMETERS=$(echo '
+DRYRUN=true&
+STACK_ACTION=create&
+STACK_TYPE=ecs&
+AUTHENTICATION=shibboleth&
+DNS=route53&
+RDS_SOURCE=instance&
+LANDSCAPE=stg&
+WAF=true&
+ALB=false&
+MONGO=false&
+ADVANCED=false
+' | tr -d '\n')
+
+# PARAMETERS=$(echo 'STACK=kuali-ec2-hitesh%7Cstg%7Chitesh&STACK_ACTION=delete')
 
 # This test harness must be run from the root of the entire project 
 

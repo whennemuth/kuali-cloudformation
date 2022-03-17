@@ -88,6 +88,7 @@ buildArgs() {
       eval "$pair"
       args=(${args[@]} $pair)
     fi
+    [ -n "$value" ] && true || false
   }
 
   # The STACK parameter is actually 3 values: stack name, baseline, and landscape concatenated together with a pipe character
@@ -140,24 +141,38 @@ buildArgs() {
       RDS_SOURCE)
         case "${RDS_SOURCE,,}" in
           instance)
-            putArg RDS_ARN=$(urldecode $RDS_INSTANCE_BY_LANDSCAPE) 'false'
+            if putArg RDS_ARN=$(urldecode $RDS_INSTANCE_BY_LANDSCAPE) 'false' ; then
+              local rdsval='true'
+            fi
             ;;
           owned-snapshot)
             local snapshotArn="$(urldecode $RDS_SNAPSHOT)"
             if [ -n "$snapshotArn" ] && [ ${#snapshotArn} -gt 10 ] ; then
               # If greater than 10 characters then it must be an arn, not a word like 'none' or 'new'
-              putArg RDS_SNAPSHOT_ARN="$snapshotArn" 'false'
+              if putArg RDS_SNAPSHOT_ARN="$snapshotArn" 'false' ; then
+                local rdsval='true'
+              fi
             else
-              putArg RDS_ARN_TO_CLONE="$(urldecode $RDS_INSTANCE_BY_BASELINE)" 'false'
+              if putArg RDS_ARN_TO_CLONE="$(urldecode $RDS_INSTANCE_BY_BASELINE)" 'false' ; then
+                local rdsval='true'
+              fi
             fi
             ;;
           orphaned-snapshot)
-            putArg RDS_SNAPSHOT_ARN=$(urldecode $RDS_SNAPSHOT_ORPHANS) 'false'
+            if putArg RDS_SNAPSHOT_ARN=$(urldecode $RDS_SNAPSHOT_ORPHANS) 'false' ; then
+              local rdsval='true'
+            fi
             ;;
           shared-snapshot)
-            putArg RDS_SNAPSHOT_ARN=$(urldecode $RDS_SNAPSHOT_SHARED) 'false'
+            if putArg RDS_SNAPSHOT_ARN=$(urldecode $RDS_SNAPSHOT_SHARED) 'false' ; then
+              local rdsval='true'
+            fi
             ;;
         esac
+        if [ "$rdsval" != 'true' ] ; then
+          echo "MISSING PARAMETER: No RDS instance or snapshotting information has been included."
+          exit 1
+        fi
         ;;
       ADVANCED)
         putArg RETAIN_LAMBDA_CLEANUP_LOGS=$ADVANCED_KEEP_LAMBDA_LOGS 'false'

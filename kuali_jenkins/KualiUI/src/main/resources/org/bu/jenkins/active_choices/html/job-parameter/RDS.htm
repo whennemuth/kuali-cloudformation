@@ -61,7 +61,8 @@
 		<div class="field" style='padding-left:30px;'>
 		  <div style='padding-bottom:5px;'>Select an existing RDS instance:</div>
 		  <select th:name="${ParameterName} ?: 'value'" id="rds-landscape" th:disabled="${deactivate_landscape}" onchange="sendData();">
-		  	<optgroup label="Select an existing RDS instance:">
+		  	<option 
+		       th:selected="${!ParameterValue}"><- Select One -></option>
 		     <option 
 		     	th:each="rdsInstance : ${rdsInstances}" 
 		     	th:text="${rdsInstance.getLandscape()}"
@@ -83,6 +84,8 @@
 		<div class="field" style='padding-left:30px;'>
 		  <div style='padding-bottom:5px;'>RDS instance by baseline:</div>
 		  <select th:name="${ParameterName} ?: 'value'" id="rds-instance" onchange="sendData();" >
+		  	<option 
+		       th:selected="${!ParameterValue}"><- Select One -></option>
 		  	<optgroup 
 		  		th:each="baselineList : ${rdsArnsByBaseline.entrySet()}" 
 		  		th:label="${'Baseline: ' + baselineList.getKey().getId()}">

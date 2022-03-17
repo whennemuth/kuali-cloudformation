@@ -103,6 +103,9 @@ public abstract class BasicDAOCache {
 
 	public BasicDAOCache put(AbstractAwsResource resource) {
 		EntryMessage m = getLogger().traceEntry("add(instance.getArn()={}", resource==null ? "null" : resource.getArn());
+		if(resource == null) {
+			return this;
+		}
 		AbstractAwsResource cached = cache.get(resource.getArn());
 		if(cached == null) {
 			cache.put(resource.getArn(), resource);

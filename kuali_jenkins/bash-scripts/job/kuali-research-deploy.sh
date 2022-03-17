@@ -421,14 +421,59 @@ deployToEc2Alb() {
 
 deployToEcs() {
   echo "Stack $STACK_NAME is of type \"ecs\""
-  # TODO: 
-  #   1) Get cluster name by stack output value.
-  #   2) Test redeployment by reintroducing git SHA parameter to maven build, build, and then call this function.
-  # local clusterName=${GlobalTag}-${Landscape}-cluster
-  local stack="$(aws cloudformation describe-stacks --stack-name $STACK_NAME)" 
-  local clusterName="$(echo "$stack" | jq -r '.Stacks[0].Outputs[] | select(.OutputKey == "Cluster").OutputValue')"
+  local clusterName="kuali-ecs-$LANDSCAPE-cluster"
+  local service="kuali-research"
+  # local stack="$(aws cloudformation describe-stacks --stack-name $STACK_NAME)" 
+  # local clusterName="$(echo "$stack" | jq -r '.Stacks[0].Outputs[] | select(.OutputKey == "Cluster").OutputValue' 2> /dev/null)"
+  
+  local taskDefArn="$(
+    aws ecs describe-services \
+      --services $service \
+      --cluster $clusterName \
+      --output text \
+      --query 'services[?status==`ACTIVE`&&deployments[?status==`PRIMARY`]].deployments[].{taskdef:taskDefinition}' 2> /dev/null
+  )"
+
+  [ -z "$taskDefArn" ] && echo "ERROR: Task definition arn lookup failed!" && exit 1
+
+  local taskDefName=$(echo $taskDefArn | cut -d'/' -f2 | cut -d':' -f1)
+  local taskDefJson=$(aws ecs describe-task-definition --task-definition $taskDefArn)
+  local taskDefRevision=$(echo "$taskDefJson" | jq -r '.taskDefinition.revision')
+  local existingImage=$(echo "$taskDefJson" | jq -r '.taskDefinition.containerDefinitions[0].image')
+
+  # Update the image the task definition is based on (may result in no textual change, unless switching from feature to release image or vice versa).
+
+  cat <<EOF >
+
+  Updating task definition:
+  Service: $service
+  Cluster: $clusterName
+  Task definition: $taskDefName
+  Task definition arn: $taskDefArn
+  Task definition revision: $taskDefRevision
+  Existing image: $existingImage
+  Update image: $TARGET_IMAGE
+
+EOF
+
+  echo "$taskDefJson" | jq '.taskDefinition.containerDefinitions[0].image='\"$TARGET_IMAGE\" > /tmp/taskdef.json
+
+  echo "Registering task definition..."
+  aws ecs register-task-definition \
+    --family $taskDefName \
+    --cli-input-json file:///tmp/taskdef.json
+
+  local updatedTaskDefJson=$(aws ecs describe-task-definition --task-definition $taskDefArn)
+  local newTaskDefRevision=$(echo "$updatedTaskDefJson" | jq -r '.taskDefinition.revision')
+  echo "New task definition revision: $newTaskDefRevision"
+  if [ "$taskDefRevision" == "$newTaskDefRevision" ] ; then
+    echo "ERROR! The $taskDefName task definition revision has not changed!"
+    exit 1
+  fi
+
+  echo "Updating the $service service to force new tasks whose containers will pull the new image..."
   aws ecs update-service \
-    --service kuali-research \
+    --service $service \
     --cluster $clusterName \
     --force-new-deployment
 }

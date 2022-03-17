@@ -44,11 +44,15 @@ public class RdsUtilities {
 	 * @return
 	 */
 	public String getRdsArn(Object parameterName, RdsInstanceCollectionType collectionType) {
+		return getRdsArn(parameterName, collectionType, false);
+	}
+	
+	public String getRdsArn(Object parameterName, RdsInstanceCollectionType collectionType, boolean defaultValue) {
 		switch(collectionType) {
 		case LIST_OF_RDS_INSTANCES:
-			return searchList(parameterName, null);
+			return searchList(parameterName, null, defaultValue);
 		case MAP_OF_RDS_INSTANCES_BY_BASELINE:
-			return searchMap(parameterName);
+			return searchMap(parameterName, defaultValue);
 		}
 		return null;
 	}
@@ -57,7 +61,7 @@ public class RdsUtilities {
 	 * Search through a list of RdsInstances for the arn of the first one whose baseline is found to match
 	 * the applicable landscape. If no such match can be obtained, then return the arn of the first RdsInstance in the list.
 	 */
-	private String searchList(Object parameterName, List<RdsInstance> rdsInstances) {
+	private String searchList(Object parameterName, List<RdsInstance> rdsInstances, boolean defaultValue) {
 		EntryMessage m = logger.traceEntry("getRdsArnForLandscape(jobParameter.getName()={})", jobParameter.getName());
 		
 		String rdsArn = jobParameter.getOtherParmValue(parameterName);
@@ -66,7 +70,11 @@ public class RdsUtilities {
 				rdsInstances = new ArrayList<RdsInstance>(new RdsInstanceDAO(credentials).getDeployedKualiRdsInstances());
 			}
 			
-			rdsArn = new RdsItemSearch(jobParameter.getOtherParmValue(ParameterName.LANDSCAPE), jobParameter, rdsInstances.get(0).getArn()) {
+			String dv = null;
+			if(defaultValue) {
+				dv = rdsInstances.get(0).getArn();
+			}
+			rdsArn = new RdsItemSearch(jobParameter.getOtherParmValue(ParameterName.LANDSCAPE), jobParameter, dv) {
 				@Override public String getMatch(Object rds, String landscape) {
 					AbstractAwsResource rdsInstance = (AbstractAwsResource) rds;
 					if(landscape != null && landscape.equalsIgnoreCase(rdsInstance.getBaseline())) {
@@ -86,16 +94,17 @@ public class RdsUtilities {
 	/**
 	 * Search through a map of RdsInstance lists, keyed by baseline for the arn of the first RdsInstance found under a key 
 	 * that matches the applicable landscape. If no such match can be obtained, then return the arn of the first RdsInstance under any key.
-	 * @param parameterName
+	 * @param parameterName The name of the parameter
+	 * @param defaultValue If no match found return the first item of the map, else null.
 	 * @return
 	 */
-	private String searchMap(Object parameterName) {
+	private String searchMap(Object parameterName, boolean defaultValue) {
 		EntryMessage m = logger.traceEntry("getRdsArnForBaseline(jobParameter.getName()={})", jobParameter.getName());
 		
 		String rdsArn = jobParameter.getOtherParmValue(parameterName);
 		if(rdsArn == null) {
 			Map<Landscape, List<RdsInstance>> map = new RdsInstanceDAO(credentials).getDeployedKualiRdsInstancesGroupedByBaseline();
-			rdsArn = searchList(parameterName, flattenMap(map));
+			rdsArn = searchList(parameterName, flattenMap(map), defaultValue);
 		}
 		
 		logger.traceExit(m);
