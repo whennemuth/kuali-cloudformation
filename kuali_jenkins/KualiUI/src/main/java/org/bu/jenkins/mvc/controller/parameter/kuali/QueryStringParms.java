@@ -27,7 +27,8 @@ public enum QueryStringParms {
 	GIT_SSH_KEY,
 	RENDER_NAME,
 	RENDER_DESCRIPTION,
-	BUILD_TYPE;
+	BUILD_TYPE,
+	FLUSH_STACK_CACHE;
 	public String arg() {
 		return this.name().replaceAll("_", "-").toLowerCase();
 	}

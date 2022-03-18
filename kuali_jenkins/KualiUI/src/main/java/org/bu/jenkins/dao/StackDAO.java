@@ -52,11 +52,25 @@ public class StackDAO extends AbstractAwsDAO {
 	public static final StackDAOCache CACHE = new StackDAOCache();
 	
 	public StackDAO(AWSCredentials credentials) {
-		super(credentials);
+		this(credentials, false);
 	}
 	
 	public StackDAO(AwsCredentialsProvider provider) {
+		this(provider, false);
+	}
+	
+	public StackDAO(AWSCredentials credentials, boolean refreshCache) {
+		super(credentials);
+		if(refreshCache) {
+			CACHE.flush();
+		}
+	}
+	
+	public StackDAO(AwsCredentialsProvider provider, boolean refreshCache) {
 		super(provider);
+		if(refreshCache) {
+			CACHE.flush();
+		}
 	}
 	
 	private CloudFormationClient getClient() {

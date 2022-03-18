@@ -5,20 +5,22 @@ DUMMY_PARAMETERS='true'
 # Use some random dummy entries for testing...
 
 # DRYRUN will not omit the send command, but a harmless command will be sent to the ec2 (write out a file with the date)
-DRYRUN='false'
+DRYRUN='true'
 # DEBUG will cause set -x to be invoked
 DEBUG='false'
-STACK_NAME='kuali-ec2-warren'
+STACK_NAME='kuali-ecs-warren'
 LANDSCAPE='warren'
 BASELINE='stg'
-ECR_REGISTRY_URL='770203350335.dkr.ecr.us-east-1.amazonaws.com'
-REGISTRY_REPO_NAME='kuali-coeus'
-POM_VERSION='2001.0040'
+TARGET_IMAGE='770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-coeus-feature:2001.0040'
+# ECR_REGISTRY_URL='770203350335.dkr.ecr.us-east-1.amazonaws.com'
+# REGISTRY_REPO_NAME='kuali-coeus'
+# POM_VERSION='2001.0040'
 NEW_RELIC_LOGGING='false'
 NEW_RELIC_LICENSE_KEY='dummy_value'
 NEW_RELIC_INFRASTRUCTURE_ENABLED='true'
 LOGJ2_CATALINA_LEVEL='INFO'
 LOGJ2_LOCALHOST_LEVEL='INFO'
+AWS_PROFILE=infnprd
 
 # This test harness must be run from the root of the entire project 
 

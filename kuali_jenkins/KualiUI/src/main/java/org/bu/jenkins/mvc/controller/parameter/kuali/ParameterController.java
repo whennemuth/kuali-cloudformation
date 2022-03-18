@@ -291,7 +291,8 @@ public class ParameterController extends AbstractParameterSet {
 					break;
 				case STACK:
 					logger.debug("Rendering: {}", ParameterName.STACK.name());
-					StackDAO stackList = new StackDAO(credentials);
+					boolean flushCache = "true".equalsIgnoreCase(config.getParameterMap().get(QueryStringParms.FLUSH_STACK_CACHE.arg()));
+					StackDAO stackList = new StackDAO(credentials, flushCache);
 					parameterView.setContextVariable("defaultInstructions", true);
 					parameterView.setContextVariable("stacks", stackList.getKualiApplicationStacks());
 					css = AbstractJob.getCssView(logger);

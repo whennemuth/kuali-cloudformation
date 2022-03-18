@@ -420,32 +420,36 @@ deployToEc2Alb() {
 }
 
 deployToEcs() {
+  # REFERENCE: https://doylew.medium.com/updating-aws-ecs-task-definition-and-scheduled-tasks-using-aws-cli-commands-through-deployment-jobs-7cef82262236
   echo "Stack $STACK_NAME is of type \"ecs\""
   local clusterName="kuali-ecs-$LANDSCAPE-cluster"
   local service="kuali-research"
+  local taskDefName="research"
   # local stack="$(aws cloudformation describe-stacks --stack-name $STACK_NAME)" 
   # local clusterName="$(echo "$stack" | jq -r '.Stacks[0].Outputs[] | select(.OutputKey == "Cluster").OutputValue' 2> /dev/null)"
   
-  local taskDefArn="$(
-    aws ecs describe-services \
-      --services $service \
-      --cluster $clusterName \
-      --output text \
-      --query 'services[?status==`ACTIVE`&&deployments[?status==`PRIMARY`]].deployments[].{taskdef:taskDefinition}' 2> /dev/null
-  )"
+  # local taskDefArn="$(
+  #   aws ecs describe-services \
+  #     --services $service \
+  #     --cluster $clusterName \
+  #     --output text \
+  #     --query 'services[?status==`ACTIVE`&&deployments[?status==`PRIMARY`]].deployments[].{taskdef:taskDefinition}' 2> /dev/null
+  # )"
+  # [ -z "$taskDefArn" ] && echo "ERROR: Task definition arn lookup failed!" && exit 1
+  # local taskDefName=$(echo $taskDefArn | cut -d'/' -f2 | cut -d':' -f1)
+  # There should be only one result, but pipe to head for the top line because latencies have been encountered where a prior task definition also showed up as a primary.
+  # local taskDefJson=$(aws ecs describe-task-definition --task-definition $taskDefArn | head -1)
 
-  [ -z "$taskDefArn" ] && echo "ERROR: Task definition arn lookup failed!" && exit 1
-
-  local taskDefName=$(echo $taskDefArn | cut -d'/' -f2 | cut -d':' -f1)
-  local taskDefJson=$(aws ecs describe-task-definition --task-definition $taskDefArn)
+  local taskDefJson=$(aws ecs describe-task-definition --task-definition $taskDefName)
   local taskDefRevision=$(echo "$taskDefJson" | jq -r '.taskDefinition.revision')
   local existingImage=$(echo "$taskDefJson" | jq -r '.taskDefinition.containerDefinitions[0].image')
 
   # Update the image the task definition is based on (may result in no textual change, unless switching from feature to release image or vice versa).
 
-  cat <<EOF >
+  cat <<EOF
 
   Updating task definition:
+  -------------------------
   Service: $service
   Cluster: $clusterName
   Task definition: $taskDefName
@@ -456,25 +460,49 @@ deployToEcs() {
 
 EOF
 
-  echo "$taskDefJson" | jq '.taskDefinition.containerDefinitions[0].image='\"$TARGET_IMAGE\" > /tmp/taskdef.json
+  # The input json must conform to what --generate-cli-skeleton would output, which does not include a number of extra fields, so remove them.
+  echo "$taskDefJson" |
+    jq --arg IMAGE "$TARGET_IMAGE" '.taskDefinition | .containerDefinitions[0].image = $IMAGE 
+      | del(.taskDefinitionArn) 
+      | del(.revision) 
+      | del(.status) 
+      | del(.requiresAttributes) 
+      | del(.compatibilities)
+      | del(.registeredAt)
+      | del(.registeredBy)' \
+    > containerdef.json
 
   echo "Registering task definition..."
   aws ecs register-task-definition \
+    --no-cli-pager \
     --family $taskDefName \
-    --cli-input-json file:///tmp/taskdef.json
+    --cli-input-json file://containerdef.json
 
-  local updatedTaskDefJson=$(aws ecs describe-task-definition --task-definition $taskDefArn)
-  local newTaskDefRevision=$(echo "$updatedTaskDefJson" | jq -r '.taskDefinition.revision')
-  echo "New task definition revision: $newTaskDefRevision"
-  if [ "$taskDefRevision" == "$newTaskDefRevision" ] ; then
-    echo "ERROR! The $taskDefName task definition revision has not changed!"
-    exit 1
-  fi
+  local counter=1
+  while true ; do
+    local updatedTaskDefJson=$(aws ecs describe-task-definition --task-definition $taskDefName)
+    local newTaskDefRevision=$(echo "$updatedTaskDefJson" | jq -r '.taskDefinition.revision')
+    echo "New task definition revision: $newTaskDefRevision"
+    if [ "$taskDefRevision" == "$newTaskDefRevision" ] ; then
+      echo "No revision number change detected for task definition $taskDefName, checking again..."
+    else
+      echo "New revision number detected for task definition ${taskDefName}: $newTaskDefRevision"
+      break
+    fi
+    ((counter++))
+    if [ $counter -gt 5 ] ; then
+      echo "ERROR! It has been 10 seconds and the revision for task definition $taskDefName has not advanced."
+      exit 1
+    fi
+    sleep 2
+  done
 
   echo "Updating the $service service to force new tasks whose containers will pull the new image..."
   aws ecs update-service \
+    --no-cli-pager \
     --service $service \
     --cluster $clusterName \
+    --task-definition ${taskDefName}:$newTaskDefRevision \
     --force-new-deployment
 }
 
