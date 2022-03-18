@@ -302,8 +302,7 @@ public class StackCreateDeleteController extends AbstractJob {
 							parameterView.setContextVariable("rdsInstances", rdsInstances);	
 							String rdsArn = rdsUtils.getRdsArn(
 									ParameterName.RDS_INSTANCE_BY_LANDSCAPE, 
-									RdsUtilities.RdsInstanceCollectionType.LIST_OF_RDS_INSTANCES,
-									false);
+									RdsUtilities.RdsInstanceCollectionType.LIST_OF_RDS_INSTANCES);
 							parameterView.setContextVariable("ParameterValue", rdsArn);
 							include = true;								
 						}
@@ -315,8 +314,7 @@ public class StackCreateDeleteController extends AbstractJob {
 							Map<Landscape, List<RdsInstance>> map = rdsDAO.getDeployedKualiRdsInstancesGroupedByBaseline();
 							String rdsArn = rdsUtils.getRdsArn(
 									ParameterName.RDS_INSTANCE_BY_BASELINE, 
-									RdsUtilities.RdsInstanceCollectionType.MAP_OF_RDS_INSTANCES_BY_BASELINE,
-									false);
+									RdsUtilities.RdsInstanceCollectionType.MAP_OF_RDS_INSTANCES_BY_BASELINE);
 							parameterView.setContextVariable("rdsArnsByBaseline", map);
 							parameterView.setContextVariable("ParameterValue",  rdsArn);
 							include = true;								
@@ -330,7 +328,7 @@ public class StackCreateDeleteController extends AbstractJob {
 							String rdsArn = rdsUtils.getRdsArn(
 									ParameterName.RDS_INSTANCE_BY_BASELINE, 
 									RdsUtilities.RdsInstanceCollectionType.MAP_OF_RDS_INSTANCES_BY_BASELINE);
-							if(rdsArn != null) {
+							if( ! isEmpty(rdsArn)) {
 								AbstractAwsResource rdsInstance = rdsDAO.getRdsInstanceByArn(rdsArn);
 								parameterView.setContextVariable("rdsInstance", rdsInstance);
 								include = true;									
@@ -375,7 +373,7 @@ public class StackCreateDeleteController extends AbstractJob {
 								String rdsArn = rdsUtils.getRdsArn(
 										ParameterName.RDS_INSTANCE_BY_LANDSCAPE, 
 										RdsUtilities.RdsInstanceCollectionType.LIST_OF_RDS_INSTANCES);
-								if(rdsArn != null) {
+								if( ! isEmpty(rdsArn)) {
 									AbstractAwsResource rdsInstance = rdsDAO.getRdsInstanceByArn(rdsArn);
 									if( ! landscape.equalsIgnoreCase(rdsInstance.getBaseline())) {
 										warning = String.format(
@@ -391,7 +389,7 @@ public class StackCreateDeleteController extends AbstractJob {
 								String rdsArn = rdsUtils.getRdsArn(
 										ParameterName.RDS_INSTANCE_BY_BASELINE, 
 										RdsUtilities.RdsInstanceCollectionType.MAP_OF_RDS_INSTANCES_BY_BASELINE);
-								if(rdsArn != null) {
+								if( ! isEmpty(rdsArn)) {
 									AbstractAwsResource rdsInstance = rdsDAO.getRdsInstanceByArn(rdsArn);
 									if( ! landscape.equalsIgnoreCase(rdsInstance.getBaseline())) {
 										warning = String.format(

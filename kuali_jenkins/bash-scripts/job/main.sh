@@ -67,6 +67,11 @@ validateChoices() {
     err "MISSING: RDS_SOURCE"
     exit 1
   fi
+  [ 'empty' == "${RDS_INSTANCE_BY_LANDSCAPE,,}" ] && RDS_INSTANCE_BY_LANDSCAPE=''
+  [ 'empty' == "${RDS_INSTANCE_BY_BASELINE,,}" ] && RDS_INSTANCE_BY_BASELINE=''
+  [ 'empty' == "${RDS_SNAPSHOT_ORPHANS,,}" ] && RDS_SNAPSHOT_ORPHANS=''
+  [ 'empty' == "${RDS_SNAPSHOT_SHARED,,}" ] && RDS_SNAPSHOT_SHARED=''
+  [ 'empty' == "${RDS_SNAPSHOT,,}" ] && RDS_SNAPSHOT=''
   echo "Parameter choices ok."
 }
 
@@ -148,7 +153,7 @@ buildArgs() {
           owned-snapshot)
             local snapshotArn="$(urldecode $RDS_SNAPSHOT)"
             if [ -n "$snapshotArn" ] && [ ${#snapshotArn} -gt 10 ] ; then
-              # If greater than 10 characters then it must be an arn, not a word like 'none' or 'new'
+              # If greater than 10 characters then it must be an arn, not a word like 'none' or 'new' or 'empty'
               if putArg RDS_SNAPSHOT_ARN="$snapshotArn" 'false' ; then
                 local rdsval='true'
               fi

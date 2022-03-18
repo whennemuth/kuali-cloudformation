@@ -26,6 +26,12 @@ public abstract class AbstractParameterSet {
 	    e.printStackTrace(pw);
 	    return "<pre>" + sw.toString() + "</pre>";
 	}
+	
+	public static boolean isEmpty(String s) {
+		if(s == null) return true;
+		if("empty".equalsIgnoreCase(s)) return true;
+		return false;
+	}
 
 	public abstract String getRenderedParameter(JobParameterConfiguration configuration);
 

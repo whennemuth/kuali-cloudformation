@@ -62,7 +62,7 @@
 		  <div style='padding-bottom:5px;'>Select an existing RDS instance:</div>
 		  <select th:name="${ParameterName} ?: 'value'" id="rds-landscape" th:disabled="${deactivate_landscape}" onchange="sendData();">
 		  	<option 
-		       th:selected="${!ParameterValue}"><- Select One -></option>
+		       th:selected="${!ParameterValue}" th:value="'empty'"><- Select One -></option>
 		     <option 
 		     	th:each="rdsInstance : ${rdsInstances}" 
 		     	th:text="${rdsInstance.getLandscape()}"
@@ -85,7 +85,7 @@
 		  <div style='padding-bottom:5px;'>RDS instance by baseline:</div>
 		  <select th:name="${ParameterName} ?: 'value'" id="rds-instance" onchange="sendData();" >
 		  	<option 
-		       th:selected="${!ParameterValue}"><- Select One -></option>
+		       th:selected="${!ParameterValue}" th:value="'empty'"><- Select One -></option>
 		  	<optgroup 
 		  		th:each="baselineList : ${rdsArnsByBaseline.entrySet()}" 
 		  		th:label="${'Baseline: ' + baselineList.getKey().getId()}">
@@ -134,7 +134,7 @@
 		  <div style='padding-bottom:5px;'>Snapshot:</div>
 		  <select th:name="${ParameterName} ?: 'value'" id="rds-snapshot-shared" onchange="sendData();" >
 		  	<option 
-		       th:selected="${!ParameterValue}"><- Select One -></option>
+		       th:selected="${!ParameterValue}" th:value="'empty'"><- Select One -></option>
 		  	<option 
 		       th:each="snapshot : ${sharedSnapshots}" 
 		       th:text="${snapshot.getName()}"
@@ -151,7 +151,7 @@
 		  <div style='padding-bottom:5px;'>Snapshot:</div>
 		  <select th:name="${ParameterName} ?: 'value'" id="rds-snapshot-orphans" onchange="sendData();" >
 		  	<option 
-		       th:selected="${!ParameterValue}"><- Select One -></option>
+		       th:selected="${!ParameterValue}" value=""><- Select One -></option>
 		    <optgroup 
 		    	th:each="baselineList : ${snapshotArnsByBaseline.entrySet()}"
 		    	th:label="${'Baseline: ' + baselineList.getKey().getId()}">

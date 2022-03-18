@@ -59,22 +59,18 @@ public class RdsUtilities {
 	
 	/**
 	 * Search through a list of RdsInstances for the arn of the first one whose baseline is found to match
-	 * the applicable landscape. If no such match can be obtained, then return the arn of the first RdsInstance in the list.
+	 * the applicable landscape. If no such match can be obtained and defaultValue==true, then return the arn of the first RdsInstance in the list.
 	 */
 	private String searchList(Object parameterName, List<RdsInstance> rdsInstances, boolean defaultValue) {
 		EntryMessage m = logger.traceEntry("getRdsArnForLandscape(jobParameter.getName()={})", jobParameter.getName());
 		
 		String rdsArn = jobParameter.getOtherParmValue(parameterName);
-		if(rdsArn == null) {
+		if(isEmpty(rdsArn) && defaultValue) {
 			if(rdsInstances == null) {
 				rdsInstances = new ArrayList<RdsInstance>(new RdsInstanceDAO(credentials).getDeployedKualiRdsInstances());
 			}
 			
-			String dv = null;
-			if(defaultValue) {
-				dv = rdsInstances.get(0).getArn();
-			}
-			rdsArn = new RdsItemSearch(jobParameter.getOtherParmValue(ParameterName.LANDSCAPE), jobParameter, dv) {
+			rdsArn = new RdsItemSearch(jobParameter.getOtherParmValue(ParameterName.LANDSCAPE), jobParameter, rdsInstances.get(0).getArn()) {
 				@Override public String getMatch(Object rds, String landscape) {
 					AbstractAwsResource rdsInstance = (AbstractAwsResource) rds;
 					if(landscape != null && landscape.equalsIgnoreCase(rdsInstance.getBaseline())) {
@@ -88,13 +84,13 @@ public class RdsUtilities {
 		}		
 		
 		logger.traceExit(m);
-		return rdsArn;
+		return isEmpty(rdsArn) ? null : rdsArn;
 	}
 	
 	/**
 	 * Search through a map of RdsInstance lists, keyed by baseline for the arn of the first RdsInstance found under a key 
 	 * that matches the applicable landscape. If no such match can be obtained, then return the arn of the first RdsInstance under any key.
-	 * @param parameterName The name of the parameter
+	 * @param parameterName  The name of the parameter
 	 * @param defaultValue If no match found return the first item of the map, else null.
 	 * @return
 	 */
@@ -122,6 +118,12 @@ public class RdsUtilities {
 			}
 		}
 		return list;
+	}
+	
+	private static boolean isEmpty(String s) {
+		if(s == null) return true;
+		if("empty".equalsIgnoreCase(s)) return true;
+		return false;
 	}
 	
 	/**
