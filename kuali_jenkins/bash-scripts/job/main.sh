@@ -124,25 +124,25 @@ buildArgs() {
   for parm in $@ ; do
     case $parm in
       STACK) 
-        putArg FULL_STACK_NAME=$(getStackName) ;;
+        putArg FULL_STACK_NAME=$(getStackName) || true ;;
       LANDSCAPE) 
-        putArg LANDSCAPE=$(getLandscape) ;;
+        putArg LANDSCAPE=$(getLandscape) || true ;;
       AUTHENTICATION)
         local shib='false'
         [ "${AUTHENTICATION,,}" == 'shibboleth' ] && shib='true'
-        putArg USING_SHIBBOLETH=$shib
+        putArg USING_SHIBBOLETH=$shib || true
         ;;
       DNS)
         local route53='false'
         [ "${DNS,,}" == 'route53' ] && route53='true'
-        putArg USING_ROUTE53=$route53
+        putArg USING_ROUTE53=$route53 || true
         ;;
       WAF)
-        putArg CREATE_WAF=$WAF 'false' ;;
+        putArg CREATE_WAF=$WAF 'false' || true ;;
       ALB)
-        putArg ENABLE_ALB_LOGGING=$ALB 'false' ;;
+        putArg ENABLE_ALB_LOGGING=$ALB 'false' || true ;;
       MONGO)
-        putArg CREATE_MONGO=$MONGO ;;
+        putArg CREATE_MONGO=$MONGO || true ;;
       RDS_SOURCE)
         case "${RDS_SOURCE,,}" in
           instance)
@@ -180,12 +180,12 @@ buildArgs() {
         fi
         ;;
       ADVANCED)
-        putArg RETAIN_LAMBDA_CLEANUP_LOGS=$ADVANCED_KEEP_LAMBDA_LOGS 'false'
+        putArg RETAIN_LAMBDA_CLEANUP_LOGS=$ADVANCED_KEEP_LAMBDA_LOGS 'false' || true
         if [ -n "$ADVANCED_MANUAL_ENTRIES" ] ; then
           while read line ; do
             local pair=($(echo $line | sed 's/=/ /g'))
             if [ ${#pair[@]} -eq 2 ] ; then
-              putArg "$line"
+              putArg "$line" || true
             else
               echo "BAD MANUAL ENTRY - MUST FOLLOW KEY=VALUE"
               exit 1
@@ -196,13 +196,13 @@ buildArgs() {
     esac
   done
   
-  # [ -z "$SKIP_S3_UPLOAD" ] && putArg SKIP_S3_UPLOAD=true
-  [ -z "$DEEP_VALIDATION" ] && putArg DEEP_VALIDATION=false
-  [ -z "$PROMPT" ] && putArg PROMPT=false
-  [ "$DEBUG" == true ] && putArg DEBUG=true
-  [ "$DRYRUN" == true ] && putArg DEBUG=true && putArg DRYRUN=true
+  # [ -z "$SKIP_S3_UPLOAD" ] && putArg SKIP_S3_UPLOAD=true || true
+  [ -z "$DEEP_VALIDATION" ] && putArg DEEP_VALIDATION=false || true
+  [ -z "$PROMPT" ] && putArg PROMPT=false || true
+  isDebug && putArg DEBUG=true || true
+  isDryrun && putArg DRYRUN=true || true
   # Since the user can pick a different stack type (ec2, ec2-alb, ecs), the name of the stack to delete may not be the name of the stack it gets recreated as.
-  [ "$STACK_ACTION" == 'recreate' ] && [ -n "$STACK" ] && putArg STACK_TO_DELETE=$(getStackName)
+  [ "$STACK_ACTION" == 'recreate' ] && [ -n "$STACK" ] && putArg STACK_TO_DELETE=$(getStackName) || true
 } 
 
 
