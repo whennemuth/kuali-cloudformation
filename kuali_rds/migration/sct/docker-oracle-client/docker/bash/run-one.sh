@@ -22,7 +22,7 @@ if [ "$DRYRUN" != 'true' ] ; then
   # Restore some blank lines after "/" commit markers (between transaction blocks) to provide separation
   sed -i 's/^\/$/\/\n\n/g' $FILE_TO_RUN
 
-  sqlplus -s $DB_USER/$DB_PASSWORD@"$url" <<-EOF
+  sqlplus -s $DB_USER/$DB_PASSWORD@"$sqlplusUrl" <<-EOF
     WHENEVER SQLERROR EXIT SQL.SQLCODE;
     SET FEEDBACK OFF
     spool $LOG_PATH
@@ -32,7 +32,7 @@ if [ "$DRYRUN" != 'true' ] ; then
 EOF
 else
   cat <<EOF
-  sqlplus -s $DB_USER/$DB_PASSWORD@"$url" <<-EOF
+  sqlplus -s $DB_USER/$DB_PASSWORD@"$sqlplusUrl" <<-EOF
     WHENEVER SQLERROR EXIT SQL.SQLCODE;
     SET FEEDBACK OFF
     spool $LOG_PATH

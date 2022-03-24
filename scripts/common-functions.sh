@@ -2179,7 +2179,7 @@ jqInstalled() {
 # Prompt the user and/or run it according to certain flags.
 runStackActionCommand() {
   
-  if isDebug || isDryrun ; then
+  if isDryrun ; then
     outputHeading "DRYRUN: Would execute the following to trigger cloudformation..."
     cat $cmdfile
     exit 0
@@ -2189,7 +2189,7 @@ runStackActionCommand() {
     printf "\nExecuting the following command(s):\n\n$(cat $cmdfile)\n"
     local answer='y'
   else
-    printf "\nExecute the following command:\n\n$(cat $cmdfile)\n\n(y/n): "
+    printf "\nExecute the following command?:\n\n$(cat $cmdfile)\n\n(y/n): "
     read answer
   fi
 

@@ -26,6 +26,8 @@ fi
 
 [ "$DEBUG" == 'true' ] && set -x
 
+
+
 getPwdForMount() {
   local dir="$1"
   local subdir="$2"
@@ -66,6 +68,42 @@ processMounts() {
   fi
 }
 
+# Return the value of either aws_access_key_id or aws_secret_access_key for cli authentication.
+# This assumes the variable is set in the environment and can simply be echoed out.
+# If not, check if a name profile has been set for aws_profile (or profile) and use it in a lookup for the key or secret.
+# If a prefix parameter is provided, prepend it to key, secret, or profile variable name(s) before echoing out result.
+getAwsCredential() {
+  local credtype="${1,,}"
+  local prefix="${2^^}"
+  [ -n "$prefix" ] && [ "${prefix: -1}" != '_' ] && prefix="${prefix}_"
+  case "$credtype" in
+    id|aws_access_key_id)
+      local credname='aws_access_key_id'
+      local varname="${prefix}${credname^^}"
+      ;;
+    key|aws_secret_access_key)
+      local credname='aws_secret_access_key'
+      local varname="${prefix}${credname^^}"
+      ;;
+    *)
+      return -1
+      ;;
+  esac
+
+  local val="${!varname}"
+  if [ -n "$val" ] ; then
+    echo "$val"
+  else
+    local profileVarName="${prefix}AWS_PROFILE"
+    local val=$(eval "aws --profile=${!profileVarName} configure get $credname" 2> /dev/null)
+    if [ -z "$val" ] ; then
+      local profileVarName="${prefix}PROFILE"
+      local val=$(eval "aws --profile=${!profileVarName} configure get $credname" 2> /dev/null)
+    fi
+    echo "$val"
+  fi
+}
+
 build() {
   [ ! -f ../../../jumpbox/tunnel.sh ] && echo "Cannot find tunnel.sh" && exit 1
   [ ! -f ../../../../scripts/common-functions.sh ] && echo "Cannot find common-functions.sh" && exit 1
@@ -85,6 +123,17 @@ run() {
   [ ! -d 'output' ] && mkdir output
   processMounts
 
+  removeProfileArg() {
+    local args=()
+    for arg in $@ ; do
+      local arglower=${arg,,}
+      [ "aws_profile=" == "${arglower:0:12}" ] && continue
+      [ "profile=" == "${arglower:0:8}" ] && continue
+      args=(${args[@]} $arg)
+    done
+    echo ${args[@]}
+  }
+
   docker run \
     -ti \
     --rm \
@@ -93,7 +142,7 @@ run() {
     -v $INPUT_MOUNT:/tmp/input/ \
     -v $OUTPUT_MOUNT:/tmp/output/ \
     oracle/sqlplus \
-    $@
+    $(removeProfileArg $@)
 }
 
 shell() {
@@ -147,14 +196,14 @@ toggleConstraintsAndTriggers() {
   run $@ encoded_sql="$encoded_sql" "log_path=toggle_constraints_triggers.log"
 }
 
-checkLandscape() {
+validateLandscape() {
   if [ -z "$LANDSCAPE" ] ; then
     echo "Missing landscape parameter!"
     exit 1
   fi
 }
 
-checkBaseline() {
+validateBaseline() {
   if [ -z "$BASELINE" ] ; then
   cat <<EOF
   Required parameter missing: BASELINE
@@ -164,11 +213,22 @@ EOF
   fi
 }
 
-checkAwsCredentials() {
+validateAwsCredentials() {
   if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ] ; then
     echo "Required parameter(s) missing: AWS_ACCESS_KEY_ID and/or AWS_SECRET_ACCESS_KEY"
     exit 1
   fi
+}
+
+# If the script was called providing a named profile(s) instead of key and secret, set the key and secret from a lookup against the named
+# profile (the docker container cannot be passed a profile, must be key and secret - not mounting the aws config/credentials file to the container)
+checkAwsCredentials() {
+  [ -z "$AWS_ACCESS_KEY_ID" ] && AWS_ACCESS_KEY_ID=$(getAwsCredential 'id')
+  [ -z "$AWS_SECRET_ACCESS_KEY" ] && AWS_SECRET_ACCESS_KEY=$(getAwsCredential 'key')
+  [ -z "$LEGACY_AWS_ACCESS_KEY_ID" ] && LEGACY_AWS_ACCESS_KEY_ID=$(getAwsCredential 'id' 'legacy')
+  [ -z "$LEGACY_AWS_SECRET_ACCESS_KEY" ] && LEGACY_AWS_SECRET_ACCESS_KEY=$(getAwsCredential 'key' 'legacy')
+  [ -z "$TARGET_AWS_ACCESS_KEY_ID" ] && TARGET_AWS_ACCESS_KEY_ID=$(getAwsCredential 'id' 'target')
+  [ -z "$TARGET_AWS_SECRET_ACCESS_KEY" ] && TARGET_AWS_SECRET_ACCESS_KEY=$(getAwsCredential 'key' 'target')
 }
 
 updateSequences() {
@@ -319,14 +379,14 @@ case "$task" in
   shell)
     shell ;;
   get-mount)
-    checkLandscape
+    validateLandscape
     getPwdForDefaultInputMount
     getPwdForSctScriptMount
     getPwdForGenericSqlMount
     ;;
   run-sct-scripts)
-    checkLandscape
-    checkAwsCredentials
+    validateLandscape
+    validateAwsCredentials
     INPUT_MOUNT="$(getPwdForSctScriptMount)"
     if [ -n "$(echo "$START_AT" | grep -P '^\d+$')" ] ; then
       runFrom $@
@@ -342,11 +402,14 @@ case "$task" in
     echo 'FINISHED (next step is data migration).'
     ;;
   toggle-constraints-triggers)
+    checkAwsCredentials
     toggleConstraintsAndTriggers $@ ;;
-  update-sequences) 
+  update-sequences)
+    checkAwsCredentials 
     updateSequences $@
     ;;
   table-counts)
+    checkAwsCredentials
     run $@ files_to_run=inventory.sql log_path=source-counts.log ;;
   compare-table-counts)
     INPUT_MOUNT=$(getPwdForGenericSqlMount)

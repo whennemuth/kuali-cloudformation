@@ -74,12 +74,13 @@ You can drive what the container does with name=value parameter pairs:
   ```
   # Disable all constraints and triggers
   # NOTE: "DISABLE" is the default for toggle_constraints and toggle_triggers, so you can omit them.
+  sh dbclient.sh toggle-constraints-triggers \
     aws_access_key_id=[your key] \
     aws_secret_access_key=[your secret] \
     landscape=ci
     
   # Enable all constraints and triggers:
-  sh dbclient.sh toggle-constraints-triggers\
+  sh dbclient.sh toggle-constraints-triggers \
     aws_access_key_id=[your key] \
     aws_secret_access_key=[your secret] \
     landscape=ci \
@@ -104,7 +105,7 @@ You can drive what the container does with name=value parameter pairs:
      target_aws_secret_access_key=[your target secret] \
      aws_region=us-east-1 \
      template_bucket_name=kuali-research-ec2-setup \
-     baseline=stg
+     baseline=stg \
      landscape=mylandscape
    ```
   

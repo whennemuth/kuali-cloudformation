@@ -15,7 +15,7 @@ for encodedSegment in $(echo $ENCODED_SQL | awk 'BEGIN{RS="@"}{print $1}') ; do
   echo "Processing $raw_sql > $LOG_PATH..."
 
   if [ "$DRYRUN" != 'true' ] ; then
-    sqlplus -s $DB_USER/$DB_PASSWORD@"$url" <<-EOF
+    sqlplus -s $DB_USER/$DB_PASSWORD@"$sqlplusUrl" <<-EOF
       WHENEVER SQLERROR EXIT SQL.SQLCODE;
       -- SET FEEDBACK OFF
       spool $LOG_PATH
@@ -25,7 +25,7 @@ for encodedSegment in $(echo $ENCODED_SQL | awk 'BEGIN{RS="@"}{print $1}') ; do
 EOF
   else
     cat <<EOF
-    sqlplus -s $DB_USER/$DB_PASSWORD@"$url" <<-EOF
+    sqlplus -s $DB_USER/$DB_PASSWORD@"$sqlplusUrl" <<-EOF
       WHENEVER SQLERROR EXIT SQL.SQLCODE;
       -- SET FEEDBACK OFF
       spool $LOG_PATH

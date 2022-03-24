@@ -189,21 +189,25 @@ setConnectionURL() {
       \(HOST\='$DB_HOST'\)\(PORT\='$DB_PORT'\)
     \)\)\(CONNECT_DATA\=\(SERVER\=DEDICATED\)\(SERVICE_NAME\='$DB_SID'\)\)\)\"'
 
-  if [ "$DRYRUN" == 'true' ] ; then
-    if [ "${IMPORT,,}" == 'true' ] ; then
-      echo "sqlldr $DB_USER/$DB_PASSWORD@\"$sqlldrUrl\""
-    else
-      echo "sqlplus $DB_USER/$DB_PASSWORD@\"$sqlplusUrl\""
-    fi
-    exit 0
-  fi
+  # if [ "$DRYRUN" == 'true' ] ; then
+  #   if [ "${IMPORT,,}" == 'true' ] ; then
+  #     echo "sqlldr $DB_USER/$DB_PASSWORD@\"$sqlldrUrl\""
+  #   else
+  #     echo "sqlplus $DB_USER/$DB_PASSWORD@\"$sqlplusUrl\""
+  #   fi
+  #   exit 0
+  # fi
 }
 
 canConnect() {
   local success='false'
-  if sqlplus $DB_USER/$DB_PASSWORD@"$sqlplusUrl" < /dev/null | grep 'Connected to'; then
-   echo "Connection test successful!"
-   success='true'
+  if [ "$DRYRUN" == 'true' ] ; then
+    echo "sqlplus $DB_USER/$DB_PASSWORD@"$sqlplusUrl""
+    echo "DRYRUN: Assume test connection successful"
+    success='true'
+  elif sqlplus $DB_USER/$DB_PASSWORD@"$sqlplusUrl" < /dev/null | grep 'Connected to' ; then
+    echo "Connection test successful!"
+    success='true'
   else
     echo "Connection test failed!"
   fi
