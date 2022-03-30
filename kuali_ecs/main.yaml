@@ -624,7 +624,7 @@ Resources:
           !Ref GlobalTag
         Landscape:
           !Ref Landscape
-        EnvVarFile:
+        EnvVarFileS3Arn:
           !Sub arn:aws:s3:::${TemplateBucketName}/${Baseline}/core/environment.variables.s3.env
         VpcId:
           !Ref VpcId
@@ -650,7 +650,7 @@ Resources:
           !Ref GlobalTag
         Landscape:
           !Ref Landscape
-        EnvVarFile:
+        EnvVarFileS3Arn:
           !Sub arn:aws:s3:::${TemplateBucketName}/${Baseline}/pdf/environment.variables.s3.env
         VpcId:
           !Ref VpcId
@@ -680,7 +680,7 @@ Resources:
           !Ref GlobalTag
         Landscape:
           !Ref Landscape
-        EnvVarFile:
+        EnvVarFileS3Arn:
           !Sub arn:aws:s3:::${TemplateBucketName}/${Baseline}/portal/environment.variables.s3.env
         VpcId:
           !Ref VpcId

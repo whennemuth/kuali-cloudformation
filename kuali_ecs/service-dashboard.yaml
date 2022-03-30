@@ -19,6 +19,11 @@ Parameters:
     AllowedPattern: "[a-zA-Z\\d]{1,12}"
     ConstraintDescription: Up to 12 letters and/or numbers
 
+  EnvVarFileS3Arn:
+    Description: Specify the arn of a name/value pairs file in s3 for the task definition to use as environment variables for containers.
+    Type: String
+    AllowedPattern: "arn:aws:s3.*"
+
   VpcId:
     Type: AWS::EC2::VPC::Id
     Description: The id of the vpc this is a subnet of.
@@ -83,7 +88,7 @@ Resources:
         #   Value:
         #     !Ref Landscape
         EnvironmentFiles:
-        - Value: !Ref EnvVarFile
+        - Value: !Ref EnvVarFileS3Arn
         - Type: s3
         PortMappings:
         - HostPort: 0

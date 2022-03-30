@@ -112,7 +112,7 @@ Resources:
         #   Value:
         #     !Ref Landscape
         EnvironmentFiles:
-        - Value: !Ref S3EnvVarFile
+        - Value: !Ref EnvVarFileS3Arn
         - Type: s3
         PortMappings:
         - HostPort: 0
