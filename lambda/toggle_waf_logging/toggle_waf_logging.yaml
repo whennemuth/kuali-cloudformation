@@ -138,7 +138,7 @@ Resources:
   LambdaLogsGroupDelete:
     Type: AWS::Logs::LogGroup
     Condition: deleteLogs
-    DeletionPolicy: Retain
+    DeletionPolicy: Delete
     Properties:
       LogGroupName: !Sub /aws/lambda/${GlobalTag}-${Landscape}-waf-logging-toggler
       RetentionInDays: 30
