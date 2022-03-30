@@ -78,10 +78,12 @@ Resources:
         Essential: true
         Image: !Ref PortalImage
         MemoryReservation: 256
-        Environment:
-        - Name: LANDSCAPE
-          Value:
-            !Ref Landscape
+        # Environment:
+        # - Name: LANDSCAPE
+        #   Value:
+        #     !Ref Landscape
+        EnvironmentFiles:
+        - /opt/kuali/s3/portal/environment.variables.s3
         PortMappings:
         - HostPort: 0
           ContainerPort: 3005

@@ -77,10 +77,12 @@ Resources:
         Essential: true
         Image: !Ref CoreImage
         MemoryReservation: 200
-        Environment:
-        - Name: LANDSCAPE
-          Value:
-            !Ref Landscape
+        # Environment:
+        # - Name: LANDSCAPE
+        #   Value:
+        #     !Ref Landscape
+        EnvironmentFiles:
+        - /opt/kuali/s3/core/environment.variables.s3
         PortMappings:
         - HostPort: 0
           ContainerPort: 3000
