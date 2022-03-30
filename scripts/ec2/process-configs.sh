@@ -158,6 +158,10 @@ processEnvironmentVariableFiles() {
       # Create the export.sh file
       createExportFile "$envfile"
     fi
+
+    if [ "${ENV_FILE_EXTENSION,,}" == 'true' ] ; then
+      mv $envfile "${envfile}.env"
+    fi
   done
 }
 
