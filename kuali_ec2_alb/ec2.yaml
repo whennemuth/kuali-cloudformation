@@ -621,7 +621,7 @@ Resources:
                     image: ${CoreImage}
                     container_name: cor-main
                     restart: unless-stopped
-                    env_file: /opt/kuali/s3/core/environment.variables.s3
+                    env_file: /opt/kuali/s3/core/environment.variables.s3.env
                     volumes:
                       - /opt/kuali/s3/core:/var/core-config
                     logging:
@@ -666,7 +666,7 @@ Resources:
                     restart: unless-stopped
                     volumes:
                       - /opt/kuali/s3/portal:/var/portal-config
-                    env_file: /opt/kuali/s3/portal/environment.variables.s3 
+                    env_file: /opt/kuali/s3/portal/environment.variables.s3.env 
                     logging:
                       driver: awslogs
                       options:
@@ -681,7 +681,7 @@ Resources:
                     image: ${PdfImage}
                     container_name: research-pdf
                     restart: unless-stopped
-                    env_file: /opt/kuali/s3/pdf/environment.variables.s3
+                    env_file: /opt/kuali/s3/pdf/environment.variables.s3.env
                     logging:
                       driver: awslogs
                       options:
@@ -716,9 +716,9 @@ Resources:
                 ENTITY_ID: !Ref EntityId
                 DNS_NAME: !Ref DNSName
                 USING_ROUTE53: !Ref UsingRoute53
-                ENV_FILE_FROM_S3_CORE: /opt/kuali/s3/core/environment.variables.s3
-                ENV_FILE_FROM_S3_PORTAL: /opt/kuali/s3/portal/environment.variables.s3
-                ENV_FILE_FROM_S3_PDF: /opt/kuali/s3/pdf/environment.variables.s3
+                ENV_FILE_FROM_S3_CORE: /opt/kuali/s3/core/environment.variables.s3.env
+                ENV_FILE_FROM_S3_PORTAL: /opt/kuali/s3/portal/environment.variables.s3.env
+                ENV_FILE_FROM_S3_PDF: /opt/kuali/s3/pdf/environment.variables.s3.env
                 MONGO_EC2_IP: !If [ UseMongoEc2Instance, !Ref MongoEc2Ip, '' ]
                 PDF_BUCKET_NAME: !Ref PdfS3BucketName
                 AWS_DEFAULT_REGION: !Ref AWS::Region
@@ -799,7 +799,7 @@ Resources:
                       DbName: core-development
                   - ''
                 # An empty MONGO_URI parameter will trigger a search for mongo parameters in this properties file:
-                ENV_FILE_FROM_S3_CORE: /opt/kuali/s3/core/environment.variables.s3
+                ENV_FILE_FROM_S3_CORE: /opt/kuali/s3/core/environment.variables.s3.env
                 # Import users to cor-main from an atlas mongodb source identified by baseline (BASELINE env variable must be set).
                 USER_IMPORT_MONGODB:  !If [ UseMongoEc2Instance, 'true', 'false' ]
                 # Otherwise import users from a dump file in an s3 subdirectory identified by baseline (BASELINE env variable must be set).

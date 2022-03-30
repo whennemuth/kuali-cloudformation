@@ -195,7 +195,7 @@ The search option in the dashboard menu is powered by Elasticsearch:
    
    Remove the dashboard docker containers and re-run with these environment variables included.
    
-   Currently all environment variables are stored in "environment.variables.s3" files in our kuali-conf bucket and are automatically downloaded as part of the jenkins job for running the dashboard app.
+   Currently all environment variables are stored in "environment.variables.s3.env" files in our kuali-conf bucket and are automatically downloaded as part of the jenkins job for running the dashboard app.
    
    Then when you navigate to the dashboard in the browser you should see the "Search" menu item to the left.
    

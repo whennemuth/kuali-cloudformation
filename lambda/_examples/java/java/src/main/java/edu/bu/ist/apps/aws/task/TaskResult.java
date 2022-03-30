@@ -194,7 +194,7 @@ public class TaskResult {
 		S3File s3file = new S3File(new S3FileParms()
 				.setRegion("us-east-1")
 				.setBucketname("kuali-conf")
-				.setFilename("qa/core/environment.variables.s3")
+				.setFilename("qa/core/environment.variables.s3.env")
 				.setProfilename("ecr.access")
 				.setLogger((String msg) -> System.out.println(msg)));
 		

@@ -82,7 +82,8 @@ Resources:
         #   Value:
         #     !Ref Landscape
         EnvironmentFiles:
-        - /opt/kuali/s3/core/environment.variables.s3.env
+        - Value: !Ref EnvVarFile
+        - Type: s3
         PortMappings:
         - HostPort: 0
           ContainerPort: 3000

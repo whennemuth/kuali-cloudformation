@@ -37,7 +37,7 @@ Resources:
         !Ref AWS::Region
       s3bucket: kuali-conf
       s3file:
-        !Sub "${Landscape}/core/environment.variables.s3"
+        !Sub "${Landscape}/core/environment.variables.s3.env"
       outputmask: |
         { class: edu.bu.ist.apps.aws.task.BasicOutputMask, 
           parameters: { 

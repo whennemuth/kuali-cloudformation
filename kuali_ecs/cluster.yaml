@@ -754,9 +754,9 @@ Resources:
                 ENTITY_ID: !Ref EntityId
                 DNS_NAME: !Ref DNSName
                 USING_ROUTE53: !Ref UsingRoute53
-                ENV_FILE_FROM_S3_CORE: /opt/kuali/s3/core/environment.variables.s3
-                ENV_FILE_FROM_S3_PORTAL: /opt/kuali/s3/portal/environment.variables.s3
-                ENV_FILE_FROM_S3_PDF: /opt/kuali/s3/pdf/environment.variables.s3
+                ENV_FILE_FROM_S3_CORE: /opt/kuali/s3/core/environment.variables.s3.env
+                ENV_FILE_FROM_S3_PORTAL: /opt/kuali/s3/portal/environment.variables.s3.env
+                ENV_FILE_FROM_S3_PDF: /opt/kuali/s3/pdf/environment.variables.s3.env
                 ENV_FILE_EXTENSION: 'true'
                 MONGO_EC2_IP: !If [ UseMongoEc2Instance, !Ref MongoEc2Ip, '' ]
                 PDF_BUCKET_NAME: !Ref PdfS3BucketName
@@ -772,7 +772,8 @@ Resources:
               env:
                 TASK: create_kc_env_file
                 CREATE_EXPORT_FILE: 'true'
-                TARGET_FILE: /opt/kuali/s3/kc/kc.env
+                TARGET_FILE: /opt/kuali/s3/kc/environment.variables.s3.env
+                TARGET_S3_FILE: !Sub s3://${TemplateBucketName}/${Baseline}/kc/temp/${Landscape}.environment.variables.s3.env
                 LANDSCAPE: !Ref Landscape
                 BASELINE: !Ref Baseline
                 NEW_RELIC_ENVIRONMENT: !Ref Landscape
@@ -845,7 +846,7 @@ Resources:
                       DbName: core-development
                   - ''
                 # An empty MONGO_URI parameter will trigger a search for mongo parameters in this properties file:
-                ENV_FILE_FROM_S3_CORE: /opt/kuali/s3/core/environment.variables.s3
+                ENV_FILE_FROM_S3_CORE: /opt/kuali/s3/core/environment.variables.s3.env
                 # Import users to cor-main from an atlas mongodb source identified by baseline (BASELINE env variable must be set).
                 USER_IMPORT_MONGODB:  !If [ UseMongoEc2Instance, 'true', 'false' ]
                 # Otherwise import users from a dump file in an s3 subdirectory identified by baseline (BASELINE env variable must be set).

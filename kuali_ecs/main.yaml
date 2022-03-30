@@ -624,6 +624,8 @@ Resources:
           !Ref GlobalTag
         Landscape:
           !Ref Landscape
+        EnvVarFile:
+          !Sub arn:aws:s3:::${TemplateBucketName}/${Baseline}/core/environment.variables.s3.env
         VpcId:
           !Ref VpcId
         ClusterId:
@@ -648,6 +650,8 @@ Resources:
           !Ref GlobalTag
         Landscape:
           !Ref Landscape
+        EnvVarFile:
+          !Sub arn:aws:s3:::${TemplateBucketName}/${Baseline}/pdf/environment.variables.s3.env
         VpcId:
           !Ref VpcId
         ClusterId:
@@ -676,6 +680,8 @@ Resources:
           !Ref GlobalTag
         Landscape:
           !Ref Landscape
+        EnvVarFile:
+          !Sub arn:aws:s3:::${TemplateBucketName}/${Baseline}/portal/environment.variables.s3.env
         VpcId:
           !Ref VpcId
         ClusterId:
@@ -700,6 +706,8 @@ Resources:
           !Ref GlobalTag
         Landscape:
           !Ref Landscape
+        EnvVarFileS3Arn:
+          !Sub arn:aws:s3:::${TemplateBucketName}/${Baseline}/kc/temp/${Landscape}.environment.variables.s3
         VpcId:
           !Ref VpcId
         ClusterId:

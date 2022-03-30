@@ -24,7 +24,7 @@ downloadConfigsFromS3() {
 processEnvironmentVariableFiles() {
   local common_name="$(getCommonName)"
 
-  # Loop over the collection of environment.variables.s3 files.
+  # Loop over the collection of environment.variables.s3.env files.
   for f in $(env | grep 'ENV_FILE_FROM_S3') ; do
     envfile="$(echo $f | cut -d'=' -f2)"
     if grep -iq 'pdf' <<<"$envfile" ; then
@@ -234,6 +234,8 @@ createKcEnvironmentVariableFile() {
   echo "NEW_RELIC_INFRASTRUCTURE_ENABLED=$NEW_RELIC_INFRASTRUCTURE_ENABLED" >> $TARGET_FILE
   echo "JAVA_ENV=$JAVA_ENV" >> $TARGET_FILE
   echo "DNS_NAME=$DNS_NAME" >> $TARGET_FILE
+
+  aws s3 cp $TARGET_FILE $TARGET_S3_FILE
 
   if [ "${CREATE_EXPORT_FILE,,}" == 'true' ] ; then
     # Create the export.sh file
