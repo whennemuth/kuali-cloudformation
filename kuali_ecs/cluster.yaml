@@ -757,7 +757,7 @@ Resources:
                 ENV_FILE_FROM_S3_CORE: /opt/kuali/s3/core/environment.variables.s3.env
                 ENV_FILE_FROM_S3_PORTAL: /opt/kuali/s3/portal/environment.variables.s3.env
                 ENV_FILE_FROM_S3_PDF: /opt/kuali/s3/pdf/environment.variables.s3.env
-                ENV_FILE_EXTENSION: 'true'
+                # ENV_FILE_EXTENSION: 'true'
                 MONGO_EC2_IP: !If [ UseMongoEc2Instance, !Ref MongoEc2Ip, '' ]
                 PDF_BUCKET_NAME: !Ref PdfS3BucketName
                 AWS_DEFAULT_REGION: !Ref AWS::Region
