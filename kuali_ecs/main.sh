@@ -327,9 +327,9 @@ EOF
       # If any prior version of this stack had the RetainLambdaCleanupLogs set to 'true', then the retention policy of the following
       # log groups was set to 'retain', which means they survived the last stack deletion and will now cause errors during this
       # stack creation as attempts are made to create the log groups again. They must be deleted first.
-      aws --profile=infnprd logs delete-log-group --log-group-name /aws/lambda/${GlobalTag}-${Landscape}-bucket-emptier 2> /dev/null
-      aws --profile=infnprd logs delete-log-group --log-group-name /aws/lambda/${GlobalTag}-${Landscape}-waf-logging-toggler 2> /dev/null
-      aws --profile=infnprd logs delete-log-group --log-group-name /aws/lambda/${GlobalTag}-${Landscape}-alb-logging-toggler 2> /dev/null
+      aws --profile=infnprd logs delete-log-group --log-group-name /aws/lambda/${FULL_STACK_NAME}-bucket-emptier 2> /dev/null
+      aws --profile=infnprd logs delete-log-group --log-group-name /aws/lambda/${FULL_STACK_NAME}-waf-logging-toggler 2> /dev/null
+      aws --profile=infnprd logs delete-log-group --log-group-name /aws/lambda/${FULL_STACK_NAME}-alb-logging-toggler 2> /dev/null
     fi
 
     runStackActionCommand
