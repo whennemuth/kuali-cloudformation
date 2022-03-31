@@ -614,6 +614,7 @@ Resources:
         EnableNewRelicInfrastructure:
           !Ref EnableNewRelicInfrastructure
 
+  # NOTE: This role is only necessary for the s3 access   
   TaskExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -641,8 +642,6 @@ Resources:
           - Effect: Allow
             Resource: "*"
             Action:
-            - s3:GetObject
-            - s3:GetBucketLocation
             - logs:CreateLogGroup
             - logs:CreateLogStream
             - logs:DescribeLogGroups
