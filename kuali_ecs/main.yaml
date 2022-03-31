@@ -613,6 +613,31 @@ Resources:
           !Ref EnableNewRelicAPM
         EnableNewRelicInfrastructure:
           !Ref EnableNewRelicInfrastructure
+          
+  TaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName:
+       !Sub ${GlobalTag}-${Landscape}-task-execution
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - ecs.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Policies:
+      - PolicyName:
+         !Sub ${GlobalTag}-${Landscape}-taskdef-s3-get
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Resource:
+            - arn:aws:s3:::kuali-*
+            Action:
+            - s3:GetObject
+            - s3:GetBucketLocation
 
   KualiCoreService:
     Type: AWS::CloudFormation::Stack
@@ -624,6 +649,8 @@ Resources:
           !Ref GlobalTag
         Landscape:
           !Ref Landscape
+        TaskExecutionRoleArn:
+          !GetAtt TaskExecutionRole.arn
         EnvVarFileS3Arn:
           !Sub arn:aws:s3:::${TemplateBucketName}/${Baseline}/core/environment.variables.s3.env
         VpcId:
@@ -650,6 +677,8 @@ Resources:
           !Ref GlobalTag
         Landscape:
           !Ref Landscape
+        TaskExecutionRoleArn:
+          !GetAtt TaskExecutionRole.arn
         EnvVarFileS3Arn:
           !Sub arn:aws:s3:::${TemplateBucketName}/${Baseline}/pdf/environment.variables.s3.env
         VpcId:
@@ -680,6 +709,8 @@ Resources:
           !Ref GlobalTag
         Landscape:
           !Ref Landscape
+        TaskExecutionRoleArn:
+          !GetAtt TaskExecutionRole.arn
         EnvVarFileS3Arn:
           !Sub arn:aws:s3:::${TemplateBucketName}/${Baseline}/portal/environment.variables.s3.env
         VpcId:
@@ -706,6 +737,8 @@ Resources:
           !Ref GlobalTag
         Landscape:
           !Ref Landscape
+        TaskExecutionRoleArn:
+          !GetAtt TaskExecutionRole.arn
         EnvVarFileS3Arn:
           !Sub arn:aws:s3:::${TemplateBucketName}/${Baseline}/kc/temp/${Landscape}.environment.variables.s3
         VpcId:

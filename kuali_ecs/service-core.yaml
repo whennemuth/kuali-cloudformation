@@ -53,6 +53,10 @@ Parameters:
     Type: String
     Description: The ECS service auto scaling role ARN.
 
+  TaskExecutionRoleArn:
+    Type: String
+    Description: The role assumed by the task definition. Needed here to acquire env-file from s3.
+
   CoreImage:
     Type: String
     Description: 'Example: 770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-core:2001.0040'
@@ -70,6 +74,7 @@ Resources:
     Properties:
       Family: core
       NetworkMode: bridge
+      ExecutionRoleArn: !Ref TaskExecutionRoleArn
       RequiresCompatibilities:
       - EC2
       Volumes:
