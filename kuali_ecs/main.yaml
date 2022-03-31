@@ -757,7 +757,7 @@ Resources:
         TaskExecutionRoleArn:
           !GetAtt TaskExecutionRole.Arn
         EnvVarFileS3Arn:
-          !Sub arn:aws:s3:::${TemplateBucketName}/${Baseline}/kc/temp/${Landscape}.environment.variables.s3
+          !Sub arn:aws:s3:::${TemplateBucketName}/${Baseline}/kc/temp/${Landscape}.environment.variables.s3.env
         VpcId:
           !Ref VpcId
         ClusterId:
