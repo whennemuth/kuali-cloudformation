@@ -101,8 +101,8 @@ Resources:
         #   Value:
         #     !Ref Landscape
         EnvironmentFiles:
-        - value: !Ref EnvVarFileS3Arn
-        - type: s3
+        - Value: !Ref EnvVarFileS3Arn
+          Type: s3
         PortMappings:
         - HostPort: 0
           ContainerPort: 3006
