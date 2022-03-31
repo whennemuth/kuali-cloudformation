@@ -614,7 +614,11 @@ Resources:
         EnableNewRelicInfrastructure:
           !Ref EnableNewRelicInfrastructure
 
-  # NOTE: This role is only necessary for the s3 access   
+  # NOTE: This role is only necessary for the s3 access on the env-file.
+  # The role in the ec2 profile would grant the logging and ecr privileges, but the service will only accept s3 access through a task execution role.
+  # Once the task execution role is added, the service stops searching for the remaining policy actions at the ec2 level and requires that they too be
+  # a part of the execution role, which is why they must now be added as well. Not sure what makes s3 so special, but there it is.
+  # If s3 access is no longer needed, (remove the env-file property on the taskdef), you can remove this task execution role altogether. 
   TaskExecutionRole:
     Type: AWS::IAM::Role
     Properties:
