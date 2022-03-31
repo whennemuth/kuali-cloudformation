@@ -497,6 +497,10 @@ Resources:
           unzip -d /var/lib/CloudWatchMonitoringScripts-1.2.2.zip
           rm -f /var/lib/CloudWatchMonitoringScripts-1.2.2.zip
 
+          # This is an ecs optimized instance, which means the ecs-agent is running. 
+          # The agent will try to register this instance in a cluster and clutter cloudtrail with insufficient permissions messages, so turn off the agent.
+          service ecs stop
+          
           # Create a log directory for the output of ssm commands sent by a jenkins server
           [ ! -d /var/log/jenkins ] && mkdir -p /var/log/jenkins
           

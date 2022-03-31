@@ -171,6 +171,11 @@ trim() {
 }
 
 # Create a script to export all environment variables in the mounted directory before starting node
+# NOTE: This was originally intended for getting around the fact that the ecs launch type for ec2 (not fargate) did not
+# support environment variable files. The file created here would be mounted to the container and the initialization run
+# by the container would source this file and get each variable exported.
+# However, aws has since lifted this restriction on the ec2 launch type, so this function becomes redundant.
+# SEE: https://aws.amazon.com/about-aws/whats-new/2020/05/amazon-elastic-container-service-supports-environment-files-ec2-launch-type/ 
 createExportFile() {
   # Turn a name=value line into an "export name='value'" line
   getLineExport() {
