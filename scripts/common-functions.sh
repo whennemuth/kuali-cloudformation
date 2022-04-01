@@ -2219,6 +2219,15 @@ runStackActionCommand() {
   esac
 }
 
+getStackParameter() {
+  local parmname="$1"
+  local stackname="$2"
+  aws cloudformation describe-stacks \
+    --stack-name=$stackname \
+    --query 'Stacks[].{Parameters:Parameters}' | \
+    jq -r '.[0].Parameters[] | select(.ParameterKey == "'$parmname'").ParameterValue' 2> /dev/null
+}
+
 awsVersion() {
   aws --version 2>&1 | awk '{print $1}' | cut -d'/' -f2 | cut -d'.' -f1
 }
