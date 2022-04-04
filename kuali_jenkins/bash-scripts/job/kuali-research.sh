@@ -234,6 +234,7 @@ buildDeployJobCall() {
   addJobParm 'deploy' 'DRYRUN' "$DEBUG"
   addJobParm 'deploy' 'STACK_NAME' "\"$STACK_NAME\""
   addJobParm 'deploy' 'LANDSCAPE' "$LANDSCAPE"
+  addJobParm 'deploy' 'REMOTE_DEBUG' "$REMOTE_DEBUG"
   addJobParm 'deploy' 'NEW_RELIC_LOGGING' "$(newrelic && echo 'true' || echo 'false')"
   addJobParm 'deploy' 'TARGET_IMAGE' "$(getYoungestRegistryImage 'promote-to')"
 }
@@ -243,6 +244,7 @@ buildLegacyDeployJobCall() {
   addJobParm 'deploy' 'DRYRUN' "$DEBUG"
   addJobParm 'deploy' 'STACK_NAME' "legacy"
   addJobParm 'deploy' 'LANDSCAPE' "$LANDSCAPE"
+  addJobParm 'deploy' 'REMOTE_DEBUG' "$REMOTE_DEBUG"
   addJobParm 'deploy' 'NEW_RELIC_LOGGING' "$(newrelic && echo 'true' || echo 'false')"
   addJobParm 'deploy' 'TARGET_IMAGE' "$(getYoungestRegistryImage 'promote-to' $LEGACY_DEPLOY)"
   addJobParm 'deploy' 'LEGACY_LANDSCAPE' "$LEGACY_DEPLOY"

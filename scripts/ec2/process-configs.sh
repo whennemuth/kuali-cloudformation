@@ -170,7 +170,7 @@ trim() {
   echo -n "$(echo -n "$input" | sed -E 's/^[ \t\n]*//' | sed -E 's/[ \t\n]*$//')"
 }
 
-# Create a script to export all environment variables in the mounted directory before starting node
+# Create a script to export all environment variables in the mounted directory before starting node.
 # NOTE: This was originally intended for getting around the fact that the ecs launch type for ec2 (not fargate) did not
 # support environment variable files. The file created here would be mounted to the container and the initialization run
 # by the container would source this file and get each variable exported.

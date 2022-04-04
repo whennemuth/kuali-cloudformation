@@ -654,6 +654,19 @@ Resources:
                 log_stream_name = {instance_id}/var/log/cfn-init
                 datetime_format = %Y-%m-%d %H:%M:%S,
                 # multi_line_start_pattern = \d{4}\-\d{2}\-\d{2} \d{2}:\d{2}:\d{2},\d{3}
+
+                [/opt/kuali/nginx/access.log]
+                file = /opt/kuali/nginx/access.log
+                log_group_name = ${GlobalTag}-${Landscape}
+                log_stream_name = nginx-access-log
+                datetime_format = %Y-%m-%dT%H:%M:%S.%f
+
+                [/opt/kuali/nginx/error.log]
+                file = /opt/kuali/nginx/error.log
+                log_group_name = ${GlobalTag}-${Landscape}
+                log_stream_name = nginx-error-log
+                datetime_format = %Y-%m-%dT%H:%M:%S.%f
+
             /opt/kuali/scripts/process-configs.sh:
               source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/cloudformation/scripts/ec2/process-configs.sh
               mode: "000775"
@@ -787,6 +800,7 @@ Resources:
                       - NEW_RELIC_AGENT_ENABLED=${!NEW_RELIC_AGENT_ENABLED}
                       - NEW_RELIC_INFRASTRUCTURE_ENABLED=${!NEW_RELIC_INFRASTRUCTURE_ENABLED}
                       - JAVA_ENV=${!NEW_RELIC_ENVIRONMENT}
+                      - REMOTE_DEBUG=true
                       - EC2_HOSTNAME=${!EC2_HOST}
                     logging:
                       driver: awslogs
@@ -797,7 +811,8 @@ Resources:
                         awslogs-create-group: "false"
                     expose:
                       - "8080"
-                    # ports:
+                    ports:
+                      - 1043:1043
                     #   - 8080:8080
                     #   - 8009:8009
 

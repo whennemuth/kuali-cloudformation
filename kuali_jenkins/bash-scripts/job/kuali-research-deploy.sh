@@ -32,7 +32,9 @@ validInputs() {
   [ "$LOGJ2_CATALINA_LEVEL" == 'default' ] && LOGJ2_CATALINA_LEVEL="info"
   [ -z "$LOGJ2_LOCALHOST_LEVEL" ] && LOGJ2_LOCALHOST_LEVEL="info"
   [ -z "$LOGJ2_CATALINA_LEVEL" ] && LOGJ2_CATALINA_LEVEL="info"
-
+  if [ -z "$REMOTE_DEBUG" ] ; then
+    [ "${STACK_TYPE,,}" == 'ec2' ] && REMOTE_DEBUG='true' || REMOTE_DEBUG='false'
+  fi
   [ -z "$msg" ] && true || false
 }
 
@@ -52,6 +54,7 @@ printVariables() {
   echo "NEW_RELIC_INFRASTRUCTURE_ENABLED=$NEW_RELIC_INFRASTRUCTURE_ENABLED"
   echo "LOGJ2_CATALINA_LEVEL=$LOGJ2_CATALINA_LEVEL"
   echo "LOGJ2_LOCALHOST_LEVEL=$LOGJ2_LOCALHOST_LEVEL"
+  echo "REMOTE_DEBUG=$REMOTE_DEBUG"
 }
 
 usingNewRelic() {
@@ -120,6 +123,7 @@ getCommand() {
       echo \"      - NEW_RELIC_INFRASTRUCTURE_ENABLED=$NEW_RELIC_INFRASTRUCTURE_ENABLED\" >> \$f
       echo \"      - LOGJ2_CATALINA_LEVEL=$LOGJ2_CATALINA_LEVEL\" >> \$f
       echo \"      - LOGJ2_LOCALHOST_LEVEL=$LOGJ2_LOCALHOST_LEVEL\" >> \$f
+      echo \"      - REMOTE_DEBUG=$REMOTE_DEBUG\" >> \$f
       echo \"      - JAVA_ENV=$LANDSCAPE\" >> \$f
       
       region=\$(curl -s http://169.254.169.254/latest/dynamic/instance-identity/document | jq .region -r)
@@ -197,6 +201,7 @@ getCommand() {
         -e EC2_HOSTNAME=\$(echo \$HOSTNAME) \\
         -e LOGJ2_CATALINA_LEVEL=\"$LOGJ2_CATALINA_LEVEL\" \\
         -e LOGJ2_LOCALHOST_LEVEL=\"$LOGJ2_LOCALHOST_LEVEL\" \\
+        -e REMOTE_DEBUG=$REMOTE_DEBUG \\
         -h \$(echo \$HOSTNAME) \\
         -v /opt/kuali/main/config:/opt/kuali/main/config \\
         -v /var/log/kuali/printing:/opt/kuali/logs/printing/logs \\
@@ -533,8 +538,8 @@ deployToLegacyAccount() {
 
 deploy() {
   outputSubHeading "Determining type of stack for: $STACK_NAME ..."
-  local stackType="$(getStackType)"
-  case "$stackType" in
+  STACK_TYPE="$(getStackType)"
+  case "$STACK_TYPE" in
     ec2)
       deployToEc2 ;;
     ec2-alb)
