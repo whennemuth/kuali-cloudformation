@@ -60,6 +60,8 @@ pullFromGithub() {
       "ref=$GIT_REF" \
       "commit=$GIT_COMMIT_ID" \
       "user=jenkins@bu.edu"
+
+      for f in $(ls $MAVEN_WORKSPACE/coeus-impl/src/main/resources/wsdl) ; do dos2unix $MAVEN_WORKSPACE/coeus-impl/src/main/resources/wsdl/$f; done
   )
   [ $? -eq 0 ] && true || false
 }
