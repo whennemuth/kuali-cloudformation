@@ -411,7 +411,6 @@ Resources:
           #!/bin/bash
 
           yum install -y aws-cfn-bootstrap
-          yum install -y dos2unix
 
           # Perform initialization, output is logged to /var/log/cfn-init.log
           /opt/aws/bin/cfn-init \
