@@ -66,6 +66,19 @@ setGlobalVariables() {
 
   BACKUP_DIR="$JENKINS_HOME/backup/kuali-research/war/$BRANCH"
 
+  if [ -n "$WAR_FILE" ] ; then
+    local backups="$(dirname $BACKUP_DIR)"
+    case "${WAR_FILE,,}" in
+      feature)
+        WAR_FILE="$(ls -1 $backups/feature/*.war | head -1)"
+        ;;
+      bu-master)
+        WAR_FILE="$(ls -1 $backups/bu-master/*.war | head -1)"
+        ;;
+    esac
+    [ ! -f "$WAR_FILE" ] && echo "ERROR! No such war file: $WAR_FILE" && exit 1
+  fi
+
   outputSubHeading "Parameters:"
   echo "MAVEN_WORKSPACE=$MAVEN_WORKSPACE"
   echo "BACKUP_DIR=$BACKUP_DIR"
@@ -79,6 +92,7 @@ setGlobalVariables() {
   echo "LANDSCAPE=$LANDSCAPE"
   echo "BASELINE=$BASELINE"
   echo "STACK_NAME=$STACK_NAME"
+  echo "WAR_FILE=$WAR_FILE"
   echo " "
 }
 
@@ -105,7 +119,14 @@ isJenkinsServer() { [ -d /var/lib/jenkins ] && true || false ; }
 isFeatureBuild() { [ "$BUILD_TYPE" == "feature" ] && true || false ; }
 isPreRelease() { [ "$BUILD_TYPE" == "pre-release" ] && true || false ; }
 isRelease() { [ "$BUILD_TYPE" == "release" ] && true || false ; }
-lastWar() { find $BACKUP_DIR -iname coeus-webapp-*.war 2> /dev/null ; }
+reuseWar() { [ -n "$WAR_FILE" ] && true || false ; }
+lastWar() {
+  if reuseWar ; then
+    echo $WAR_FILE
+  else
+    find $BACKUP_DIR -iname coeus-webapp-*.war 2> /dev/null
+  fi
+}
 isSandbox() { [ "${LANDSCAPE,,}" == "sandbox" ] && true || false ; }
 isCI() { [ "${LANDSCAPE,,}" == "ci" ] && true || false ; }
 isStaging() { ([ "${LANDSCAPE,,}" == "stg" ] || [ "${LANDSCAPE,,}" == "stage" ] || [ "${LANDSCAPE,,}" == "staging" ]) && true || false ; }
@@ -124,6 +145,9 @@ getPomVersion() {
     getYoungestRegistryImage 'promote-from' | cut -d':' -f2
   }
 
+  if reuseWar ; then
+    POM_VERSION="$(echo $WAR_FILE | grep -oP '[\d\.]+(?=\.war$)')"
+  fi
   if [ -z "$POM_VERSION" ] ; then
     if isFeatureBuild ; then
       # Get the pom version of what is currently being built
@@ -181,7 +205,9 @@ getYoungestRegistryImage() {
 buildWarJobCall() {
   local built='false'
 
-  if isFeatureBuild || isPreRelease ; then
+  if reuseWar ; then
+    built='true'
+  elif isFeatureBuild || isPreRelease ; then
     if isFeatureBuild ; then
       if isProd ; then
         echo "INVALID CHOICE: Feature builds not allowed against the production environment!"

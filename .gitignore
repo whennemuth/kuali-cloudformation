@@ -11,3 +11,4 @@ secrets/*
 kuali-research-docker
 kuali-research-docker/*
 containerdef.json
+tempwar-*
