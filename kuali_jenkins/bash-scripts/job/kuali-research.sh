@@ -68,7 +68,7 @@ setGlobalVariables() {
 
   local advanced=()
   if [ -n "$ADVANCED" ] ; then
-    while read line ; do
+    for line in $(echo "$ADVANCED") ; do
       local pair=($(echo $line | sed 's/=/ /g'))
       if [ ${#pair[@]} -eq 2 ] ; then
         local name="${pair[0]}"
@@ -78,7 +78,7 @@ setGlobalVariables() {
       else
         echo "Skipping advanced entry: "$line" - DOES NOT FOLLOW KEY=VALUE PATTERN"
       fi
-    done <<< $(echo "$ADVANCED")
+    done
   fi
 
   if [ -n "$WAR_FILE" ] ; then
