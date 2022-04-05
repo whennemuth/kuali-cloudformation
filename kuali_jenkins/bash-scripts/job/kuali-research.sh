@@ -258,8 +258,8 @@ buildWarJobCall() {
 
 buildDockerBuildImageJobCall() {
   addJobParm 'build-image' 'DEBUG' "$DEBUG"
-  addJobParm 'build-image' 'POM_VERSION' "\$(getPomVersion)"
-  addJobParm 'build-image' 'JENKINS_WAR_FILE' "\$(lastWar)"
+  addJobParm 'build-image' 'POM_VERSION' "$(reuseWar && getPomVersion || echo "\$(getPomVersion)")"
+  addJobParm 'build-image' 'JENKINS_WAR_FILE' "$(reuseWar && lastWar || echo "\$(lastWar)")"
   addJobParm 'build-image' 'REGISTRY_REPO_NAME' "$(getPushEcrRepoName)"
   addJobParm 'build-image' 'ECR_REGISTRY_URL' "$ECR_REGISTRY_URL"
   # This file should be there as long as the -Dcopy.javaagent.off arg is not set to true when running mvn
@@ -269,7 +269,7 @@ buildDockerBuildImageJobCall() {
 buildDockerPushImageJobCall() {
   addJobParm 'push-image' 'DEBUG' "$DEBUG"
   addJobParm 'push-image' 'ECR_REGISTRY_URL' "$ECR_REGISTRY_URL"
-  addJobParm 'push-image' 'POM_VERSION' "\$(getPomVersion)"
+  addJobParm 'push-image' 'POM_VERSION' "$(reuseWar && getPomVersion || echo "\$(getPomVersion)")" 
   addJobParm 'push-image' 'REGISTRY_REPO_NAME' "$(getPushEcrRepoName)"
 }
 
