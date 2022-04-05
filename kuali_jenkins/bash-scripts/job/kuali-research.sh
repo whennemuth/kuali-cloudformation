@@ -66,17 +66,37 @@ setGlobalVariables() {
 
   BACKUP_DIR="$JENKINS_HOME/backup/kuali-research/war/$BRANCH"
 
+  local advanced=()
+  if [ -n "$ADVANCED" ] ; then
+    while read line ; do
+      local pair=($(echo $line | sed 's/=/ /g'))
+      if [ ${#pair[@]} -eq 2 ] ; then
+        local name="${pair[0]}"
+        local value="${pair[1]}"
+        eval "${name^^}=${value}"
+        advanced=(${advanced[@]} ${name^^}=${value})
+      else
+        echo "Skipping advanced entry: "$line" - DOES NOT FOLLOW KEY=VALUE PATTERN"
+      fi
+    done <<< $(echo "$ADVANCED")
+  fi
+
   if [ -n "$WAR_FILE" ] ; then
     local backups="$(dirname $BACKUP_DIR)"
     case "${WAR_FILE,,}" in
       feature)
-        WAR_FILE="$(ls -1 $backups/feature/*.war | head -1)"
+        local candidates="$backups/feature/*.war"
+        WAR_FILE="$(ls -1 $candidates | head -1)"
         ;;
       bu-master)
-        WAR_FILE="$(ls -1 $backups/bu-master/*.war | head -1)"
+        local candidates="$backups/bu-master/*.war"
+        WAR_FILE="$(ls -1 $candidates | head -1)"
+        ;;
+      *)
+        local candidates="$WAR_FILE"
         ;;
     esac
-    [ ! -f "$WAR_FILE" ] && echo "ERROR! No such war file: $WAR_FILE" && exit 1
+    ([ -z "$WAR_FILE" ] || [ ! -f "$WAR_FILE" ]) && echo "ERROR! No such war file at: $candidates" && exit 1
   fi
 
   outputSubHeading "Parameters:"
@@ -92,7 +112,11 @@ setGlobalVariables() {
   echo "LANDSCAPE=$LANDSCAPE"
   echo "BASELINE=$BASELINE"
   echo "STACK_NAME=$STACK_NAME"
-  echo "WAR_FILE=$WAR_FILE"
+  if [ ${#advanced[@]} -gt 0 ] ; then
+    for line in ${advanced[@]} ; do
+      echo $line
+    done
+  fi
   echo " "
 }
 

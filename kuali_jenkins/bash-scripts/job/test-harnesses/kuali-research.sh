@@ -16,8 +16,15 @@ ECR_REGISTRY_URL=770203350335.dkr.ecr.us-east-1.amazonaws.com
 AWS_PROFILE=infnprd
 LEGACY_DEPLOY='stg'
 LEGACY_LANDSCAPE='stg'
-WAR_FILE=$(pwd)/$(mktemp tempwar-XXXXXXXXXX-coeus-webapp-2001.0040.war)
 JENKINS_HOME=$(dirname $(pwd))
+ADVANCED="$(cat <<EOF
+  myvar1=apples
+  myvar2=oranges
+  myvar3=pears
+  # WAR_FILE=feature
+  WAR_FILE=$(pwd)/$(mktemp tempwar-XXXXXXXXXX-coeus-webapp-2001.0040.war)
+EOF
+)"
 
 # This test harness must be run from the root of the entire project 
 
