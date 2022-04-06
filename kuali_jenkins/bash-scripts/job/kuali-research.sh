@@ -231,7 +231,7 @@ getYoungestRegistryImage() {
 getSpringInstrumentJar() {
   local jar="$MAVEN_WORKSPACE/target/javaagent/spring-instrument.jar"
   if [ ! -f "$jar" ] ; then
-    aws s3 cp s3://$TEMPLATE_BUCKET/spring-instrument.jar $jar
+    aws s3 cp s3://$TEMPLATE_BUCKET/spring-instrument.jar $jar > /dev/null 2>&1
   fi
   echo "$jar"
 }
