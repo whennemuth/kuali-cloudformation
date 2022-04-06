@@ -1,8 +1,9 @@
 #!/bin/bash
 source ../scripts/common-functions.sh
 
+declare TEMPLATE_BUCKET=${TEMPLATE_BUCKET:-"kuali-conf"}
 declare -A defaults=(
-  [TEMPLATE_BUCKET_PATH]='s3://kuali-conf/cloudformation/kuali_waf'
+  [TEMPLATE_BUCKET_PATH]='s3://'$TEMPLATE_BUCKET'/cloudformation/kuali_waf'
   [TEMPLATE_PATH]='.'
 )
 

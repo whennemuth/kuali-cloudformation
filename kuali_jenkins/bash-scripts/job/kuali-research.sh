@@ -7,6 +7,8 @@
 
 set -a
 
+TEMPLATE_BUCKET=${TEMPLATE_BUCKET:-"kuali-conf"}
+
 jobIDs=(
   build-war
   build-image
@@ -226,6 +228,14 @@ getYoungestRegistryImage() {
   getLatestImage "repo_name=$repo" "account_nbr=$acct" "release=$release"
 }
 
+getSpringInstrumentJar() {
+  local jar="$MAVEN_WORKSPACE/target/javaagent/spring-instrument.jar"
+  if [ ! -f "$jar" ] ; then
+    aws s3 cp s3://$TEMPLATE_BUCKET/spring-instrument.jar $jar
+  fi
+  echo "$jar"
+}
+
 buildWarJobCall() {
   local built='false'
 
@@ -263,7 +273,7 @@ buildDockerBuildImageJobCall() {
   addJobParm 'build-image' 'REGISTRY_REPO_NAME' "$(getPushEcrRepoName)"
   addJobParm 'build-image' 'ECR_REGISTRY_URL' "$ECR_REGISTRY_URL"
   # This file should be there as long as the -Dcopy.javaagent.off arg is not set to true when running mvn
-  addJobParm 'build-image' 'SPRING_INSTRUMENT_JAR' "$MAVEN_WORKSPACE/target/javaagent/spring-instrument.jar"
+  addJobParm 'build-image' 'SPRING_INSTRUMENT_JAR' "$(getSpringInstrumentJar)"
 }
 
 buildDockerPushImageJobCall() {

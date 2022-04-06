@@ -1,10 +1,11 @@
 #!/bin/bash
 
+declare TEMPLATE_BUCKET=${TEMPLATE_BUCKET:-"kuali-conf"}
 declare -A defaults=(
   [STACK_NAME]='kuali-dms-oracle'
   [GLOBAL_TAG]='kuali-dms-oracle'
   [LANDSCAPE]='sb'
-  [TEMPLATE_BUCKET_PATH]='s3://kuali-conf/cloudformation/kuali_rds'
+  [TEMPLATE_BUCKET_PATH]='s3://'$TEMPLATE_BUCKET'/cloudformation/kuali_rds'
   [TEMPLATE_PATH]='.'
   [NO_ROLLBACK]='true'
   # [MULTI_AZ]=['???']

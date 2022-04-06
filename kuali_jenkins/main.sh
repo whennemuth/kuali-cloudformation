@@ -1,9 +1,10 @@
 #!/bin/bash
 
+declare TEMPLATE_BUCKET=${TEMPLATE_BUCKET:-"kuali-conf"}
 declare -A defaults=(
   [STACK_NAME]='kuali-jenkins'
   [GLOBAL_TAG]='kuali-jenkins'
-  [TEMPLATE_BUCKET_PATH]='s3://kuali-conf/cloudformation/kuali_jenkins'
+  [TEMPLATE_BUCKET_PATH]='s3://'$TEMPLATE_BUCKET'/cloudformation/kuali_jenkins'
   [TEMPLATE_PATH]='.'
   [NO_ROLLBACK]='true'
   [S3_REFRESH]='true'

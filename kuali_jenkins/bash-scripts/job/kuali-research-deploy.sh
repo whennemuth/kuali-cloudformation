@@ -9,6 +9,8 @@ parseArgs $@
 
 isDebug && set -x
 
+TEMPLATE_BUCKET=${TEMPLATE_BUCKET:-"kuali-conf"}
+
 validInputs() {
   outputSubHeading "Checking required environment variables and setting default values..."
   local msg=""
@@ -22,7 +24,7 @@ validInputs() {
     [ -z "$CROSS_ACCOUNT_ROLE_ARN" ] && msg="ERROR: Missing CROSS_ACCOUNT_ROLE_ARN" && echo "$msg"
   fi
   if usingNewRelic ; then
-    NEW_RELIC_LICENSE_KEY="$(aws s3 cp s3://kuali-conf/newrelic/newrelic.license.key - 2> /dev/null)"
+    NEW_RELIC_LICENSE_KEY="$(aws s3 cp s3://$TEMPLATE_BUCKET/newrelic/newrelic.license.key - 2> /dev/null)"
     [ -z "$NEW_RELIC_LICENSE_KEY" ] && \
       msg="ERROR: Could not lookup NEW_RELIC_LICENSE_KEY value in s3." && \
       echo "$msg"

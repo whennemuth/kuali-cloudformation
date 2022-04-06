@@ -15,6 +15,7 @@ source ../../scripts/common-functions.sh
 
 parseArgs $@
 
+TEMPLATE_BUCKET=${TEMPLATE_BUCKET:-"kuali-conf"}
 defaultDockerhubUser='wrh1'
 dockerhubPswd=${PASSWORD}
 dockerhubUser=${USER:-"$([ -n "$PASSWORD" ] && echo $defaultDockerhubUser)"}
@@ -138,7 +139,7 @@ jenkinsPull() {
     local kualiUIImage=$(getEcrRegistryName)/$imageShortName
   fi
 
-  local S3Script='s3://kuali-conf/cloudformation/kuali_jenkins/scripts/jenkins-docker.sh'
+  local S3Script='s3://'$TEMPLATE_BUCKET'/cloudformation/kuali_jenkins/scripts/jenkins-docker.sh'
   local targetScript='/etc/init.d/jenkins-docker.sh'
 
   aws s3 cp ../bash-scripts/jenkins-docker.sh $S3Script 

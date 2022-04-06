@@ -1,10 +1,11 @@
 #!/bin/bash
 
+declare TEMPLATE_BUCKET=${TEMPLATE_BUCKET:-"kuali-conf"}
 declare -A defaults=(
   [STACK_NAME]='kuali-pdf-s3'
   [GLOBAL_TAG]='kuali-pdf-s3'
   [LANDSCAPE]='sb'
-  [TEMPLATE_BUCKET_PATH]='s3://kuali-conf/cloudformation/kuali_ec2'
+  [TEMPLATE_BUCKET_PATH]='s3://'$TEMPLATE_BUCKET'/cloudformation/kuali_ec2'
   [TEMPLATE_PATH]='.'
   [NO_ROLLBACK]='true'
   # [PROFILE]='???'

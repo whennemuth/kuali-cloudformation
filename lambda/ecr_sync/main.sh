@@ -1,8 +1,9 @@
+declare TEMPLATE_BUCKET=${TEMPLATE_BUCKET:-"kuali-conf"}
 declare -A defaults=(
   [STACK_NAME]='kuali-trusted-lambda-role'
   [SERVICE]='research-administration'
   [FUNCTION]='kuali'
-  [TEMPLATE_BUCKET_PATH]='s3://kuali-conf/cloudformation/kuali_ecr_sync'
+  [TEMPLATE_BUCKET_PATH]='s3://'$TEMPLATE_BUCKET'/cloudformation/kuali_ecr_sync'
   [TEMPLATE_PATH]='.'
   [NO_ROLLBACK]='true'
   # ----- All other parameters have defaults set in the yaml file itself

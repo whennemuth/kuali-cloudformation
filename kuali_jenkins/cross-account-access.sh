@@ -1,8 +1,9 @@
+declare TEMPLATE_BUCKET=${TEMPLATE_BUCKET:-"kuali-conf"}
 declare -A defaults=(
   [STACK_NAME]='kuali-trusted-css-jenkins-role'
   [SERVICE]='research-administration'
   [FUNCTION]='kuali'
-  [TEMPLATE_BUCKET_PATH]='s3://kuali-conf/cloudformation/kuali_jenkins'
+  [TEMPLATE_BUCKET_PATH]='s3://'$TEMPLATE_BUCKET'/cloudformation/kuali_jenkins'
   [TEMPLATE_PATH]='.'
   [NO_ROLLBACK]='true'
   # ----- All other parameters have defaults set in the yaml file itself

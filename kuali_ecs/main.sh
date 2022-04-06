@@ -1,9 +1,10 @@
 #!/bin/bash
 
+declare TEMPLATE_BUCKET=${TEMPLATE_BUCKET:-"kuali-conf"}
 declare -A defaults=(
   [STACK_NAME]='kuali-ecs'
   [GLOBAL_TAG]='kuali-ecs'
-  [TEMPLATE_BUCKET_PATH]='s3://kuali-conf/cloudformation/kuali_ecs'
+  [TEMPLATE_BUCKET_PATH]='s3://'$TEMPLATE_BUCKET'/cloudformation/kuali_ecs'
   [TEMPLATE_PATH]='.'
   [KC_IMAGE]='getLatestImage repo_name=kuali-coeus'
   [CORE_IMAGE]='getLatestImage repo_name=kuali-core'
@@ -193,13 +194,13 @@ stackAction() {
 
         # Upload lambda code used by custom resources
         outputHeading "Building, zipping, and uploading lambda code behind custom resources..."
-        zipPackageAndCopyToS3 '../lambda/bucket_emptier' 's3://kuali-conf/cloudformation/kuali_lambda/bucket_emptier.zip'
+        zipPackageAndCopyToS3 '../lambda/bucket_emptier' 's3://'$TEMPLATE_BUCKET'/cloudformation/kuali_lambda/bucket_emptier.zip'
         [ $? -gt 0 ] && echo "ERROR! Could not upload bucket_emptier.zip to s3." && exit 1
         if [ "${ENABLE_ALB_LOGGING,,}" != 'false' ] || [ "${CREATE_WAF,,}" == 'true' ] ; then
-          zipPackageAndCopyToS3 '../lambda/toggle_alb_logging' 's3://kuali-conf/cloudformation/kuali_lambda/toggle_alb_logging.zip'
+          zipPackageAndCopyToS3 '../lambda/toggle_alb_logging' 's3://'$TEMPLATE_BUCKET'/cloudformation/kuali_lambda/toggle_alb_logging.zip'
           [ $? -gt 0 ] && echo "ERROR! Could not upload toggle_alb_logging.zip to s3." && exit 1
           
-          zipPackageAndCopyToS3 '../lambda/toggle_waf_logging' 's3://kuali-conf/cloudformation/kuali_lambda/toggle_waf_logging.zip'
+          zipPackageAndCopyToS3 '../lambda/toggle_waf_logging' 's3://'$TEMPLATE_BUCKET'/cloudformation/kuali_lambda/toggle_waf_logging.zip'
           [ $? -gt 0 ] && echo "ERROR! Could not upload toggle_waf_logging.zip to s3." && exit 1
         fi
       fi

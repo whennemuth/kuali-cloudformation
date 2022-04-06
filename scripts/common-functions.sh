@@ -4,6 +4,8 @@ cmdfile=last-cmd.sh
 
 BASELINE_LANDSCAPES=('sb' 'ci' 'qa' 'stg' 'prod')
 
+TEMPLATE_BUCKET=${TEMPLATE_BUCKET:-"kuali-conf"}
+
 declare -A kualiTags=(
   [Service]='research-administration'
   [Function]='kuali'
@@ -2265,7 +2267,7 @@ checkLegacyAccount() {
     if ! isBuCloudInfAccount ; then
       LEGACY_ACCOUNT='true'
       [ -z "$SILENT" ] && echo 'Current profile indicates legacy account.'
-      defaults['TEMPLATE_BUCKET_PATH']=$(echo "${defaults['TEMPLATE_BUCKET_PATH']}" | sed 's/kuali-conf/kuali-research-ec2-setup/')
+      defaults['TEMPLATE_BUCKET_PATH']=$(echo "${defaults['TEMPLATE_BUCKET_PATH']}" | sed 's/'$TEMPLATE_BUCKET'/kuali-research-ec2-setup/')
       if [ "$BASELINE" != 'prod' ] && [ -n "${defaults['HOSTED_ZONE']}" ] ; then
         defaults['HOSTED_ZONE']="kuali-research-$BASELINE.bu.edu"
       fi

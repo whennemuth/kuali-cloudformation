@@ -1,9 +1,10 @@
 #!/bin/bash
 
+declare TEMPLATE_BUCKET=${TEMPLATE_BUCKET:-"kuali-conf"}
 declare -A defaults=(
   [STACK_NAME]='kuali-ec2'
   [GLOBAL_TAG]='kuali-ec2'
-  [TEMPLATE_BUCKET_PATH]='s3://kuali-conf/cloudformation/kuali_ec2'
+  [TEMPLATE_BUCKET_PATH]='s3://'$TEMPLATE_BUCKET'/cloudformation/kuali_ec2'
   [TEMPLATE_PATH]='.'
   [KC_IMAGE]='getLatestImage repo_name=kuali-coeus'
   [CORE_IMAGE]='getLatestImage repo_name=kuali-core'

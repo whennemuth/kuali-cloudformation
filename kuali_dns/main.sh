@@ -1,9 +1,10 @@
 #!/bin/bash
 
+declare TEMPLATE_BUCKET=${TEMPLATE_BUCKET:-"kuali-conf"}
 declare -A defaults=(
   [STACK_NAME]='kuali-dns'
   [GLOBAL_TAG]='kuali-dns'
-  [TEMPLATE_BUCKET_PATH]='s3://kuali-conf/cloudformation/kuali_dns'
+  [TEMPLATE_BUCKET_PATH]='s3://'$TEMPLATE_BUCKET'/cloudformation/kuali_dns'
   [TEMPLATE_PATH]='.'
   [NO_ROLLBACK]='true'
   # [DOMAIN_NAME]='kuali.research.bu.edu'
