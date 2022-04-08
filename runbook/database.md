@@ -63,4 +63,7 @@ This is a sequencing of steps involved in migrating the kuali-research oracle da
 12. **Update sequences**
    Use the [helper script](..\kuali_rds\migration\sct\docker-oracle-client\README.md) to update sequences on the new RDS database. Why is this necessary? The ongoing migration [Change data capture](https://docs.aws.amazon.com/dms/latest/userguide/CHAP_Task.CDC.html) (CDC) process keeps all data in sync, but not the sequences that produce unique numbers for primary key fields. CDC keeps these primary key field in sync, but the corresponding sequences need to be "caught up" in the target database to avoid primary key constraint violation that are sure to occur if the sequences are left as is.
    **IMPORTANT!**: The legacy EC2-hosted database, if shutdown, needs to be turned back on for the sequence update process to work.
+   
+13. **New Snapshot**
+   Take a manual snapshot of the RDS database before creating any application stacks that will try to access it.
 

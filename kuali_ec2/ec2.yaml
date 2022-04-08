@@ -57,7 +57,7 @@ Parameters:
 
   HostedZoneName:
     Type: String
-    Description: If included, a DNS record will be created and registered with the specified HostedZone
+    Description: If included, a DNS record for the RDS database will be created and registered with the specified HostedZone
     Default: empty
 
   # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/retrieve-ecs-optimized_AMI.html
@@ -182,7 +182,7 @@ Parameters:
   # --------------------------------------------------------------------------------------------
   #       RDS parameters for pre-existing instance - rds instance pre-exists (is NOT getting created in this stack).
   # --------------------------------------------------------------------------------------------
-  RdsEndpointAddress:
+  RdsPrivateEndpoint:
     Type: String
     Description: Create a dns record with the hosted zone for the pre-existing rds instance that has this endpoint address.
     Default: empty
@@ -201,7 +201,11 @@ Conditions:
   NewrelicLicsenseKeyProvided: !Equals [!Ref NewrelicLicsenseKey, empty]
   CreateRdsInstanceFromSnapshot: !Not [!Equals [!Ref RdsSnapshotARN, empty]]
   UseExistingRdsInstance: !Not [ Condition: CreateRdsInstanceFromSnapshot ]
-  CreateDnsRecordForRds: !And [ Condition: UseExistingRdsInstance, !Not [ !Equals [ !Ref RdsEndpointAddress, empty]]]
+  CreateDnsRecordForRds: 
+    !And
+      - Condition: UseExistingRdsInstance
+      - !Not [ !Equals [ !Ref RdsPrivateEndpoint, empty]]
+      - !Not [ !Equals [ !Ref HostedZoneName, empty]]
 
 
 Mappings:
@@ -688,6 +692,11 @@ Resources:
               mode: "000744"
               owner: root
               group: root
+            /opt/kuali/nginx/certs/create-ssl-cert.sh:
+              source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/cloudformation/scripts/ec2/create-ssl-cert.sh
+              mode: "000775"
+              owner: root
+              group: root
             /opt/kuali/scripts/start.docker.containers.sh:
               content: !Sub |
                 #!/bin/bash
@@ -709,25 +718,10 @@ Resources:
                 # export EC2_HOST=$(curl -s http://169.254.169.254/latest/meta-data/public-hostname)
                 export EC2_HOST=$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4)
 
-                # Create certificate configuration file:
-                cfgfile=/opt/kuali/nginx/certs/mycert.cfg
-                req="distinguished_name = req_distinguished_name \n req_extensions = req_ext \n prompt = no"
-                rdn="C=US \n ST=MA \n L=Boston \n O=BU \n OU=IST \n CN=${!EC2_HOST}"
-                ext="subjectAltName = @alt_names"
-                alt="IP.1 = ${!EC2_HOST}"
-                config="[req] \n ${!req} \n\n[req_distinguished_name] \n ${!rdn} \n\n[req_ext] \n ${!ext} \n\n[v3_req] \n ${!ext} \n\n[alt_names] \n ${!alt}"
-                printf "${!config}" > ${!cfgfile}
-
                 # Create certificates from scratch
-                mkdir -p /opt/kuali/nginx/certs
-                openssl req -newkey rsa:4096 \
-                  -x509 \
-                  -sha256 \
-                  -days 3650 \
-                  -nodes \
-                  -out /opt/kuali/nginx/certs/myec2.crt \
-                  -keyout /opt/kuali/nginx/certs/myec2.key \
-                  -config "${!cfgfile}"          
+                sh /opt/kuali/scripts/create-ssl-cert.sh \
+                  host=${!EC2_HOST} \
+                  cert_dir=/opt/kuali/nginx/certs
 
                 # Perform a placeholder replacement in nginx.conf with this ec2 public host name
                 sed -i "s/EC2_HOST/$(echo ${!EC2_HOST} | sed 's/\//\\\//g')/g" /opt/kuali/nginx/nginx.conf
