@@ -718,7 +718,7 @@ Resources:
                 export EC2_HOST=$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4)
 
                 # Create certificates from scratch
-                sh /opt/kuali/scripts/create-ssl-cert.sh \
+                sh /opt/kuali/nginx/certs/create-ssl-cert.sh \
                   host=${!EC2_HOST} \
                   cert_dir=/opt/kuali/nginx/certs
 
