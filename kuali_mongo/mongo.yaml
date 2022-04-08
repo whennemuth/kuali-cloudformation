@@ -212,6 +212,7 @@ Resources:
   EC2Instance:
     Type: AWS::EC2::Instance
     Description: EC2 instance for hosting mongo databases.
+    DependsOn: EC2InstanceLogsGroup
     CreationPolicy:
       ResourceSignal:
         Count: 1
