@@ -272,7 +272,7 @@ Resources:
       Parameters:
         Landscape: !Ref Landscape
         HostedZoneName: !Ref HostedZoneName
-        DbEndpointAddress: !Ref RdsEndpointAddress
+        DbEndpointAddress: !Ref RdsPrivateEndpoint
 
   EC2Role:
     Type: AWS::IAM::Role
