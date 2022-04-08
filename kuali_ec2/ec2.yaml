@@ -397,7 +397,6 @@ Resources:
   EC2InstanceLogsGroup:
     Type: AWS::Logs::LogGroup
     DeletionPolicy: Delete
-    DependsOn: RdsInstance
     Properties:
       LogGroupName: !Sub ${GlobalTag}-${Landscape}
       RetentionInDays: !If [ IsProd, 365, 30 ]
