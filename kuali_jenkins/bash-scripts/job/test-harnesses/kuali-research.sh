@@ -32,4 +32,4 @@ source $(pwd)/kuali_jenkins/bash-scripts/job/test-harnesses/util.sh
 
 source $(pwd)/kuali_jenkins/bash-scripts/job/kuali-research.sh
 
-rm -f "$WAR_FILE" 2> /dev/null
+rm -f tempwar-*.war 2> /dev/null

@@ -2381,11 +2381,51 @@ zipPackageAndCopyToS3() {
 }
 
 getEc2InstanceName() {
+  local instanceId="$1"
   aws ec2 describe-instances \
     --instance-id $instanceId \
     --output text \
     --query 'Reservations[].Instances[].Tags[?Key==`Name`]' \
     | awk '{print $2}' 2> /dev/null
+}
+
+setEc2InstanceJson() {
+  local instanceId="$1"
+  if [ -f ec2-instance-json ] ; then
+    local id="$(cat ec2-instance-json | jq -r '.InstanceId' 2> /dev/null)"
+    [ "$instanceId" == "$id" ] && return 0
+  fi
+  aws ec2 describe-instances \
+    --instance-id $instanceId \
+    --output json \
+    --query 'Reservations[].Instances[0]' | jq '.[0]' > ec2-instance-json
+}
+
+getEc2InstanceField() {
+  local instanceId="$1"
+  local field="$2"
+  local retain=${3:-'false'}
+  setEc2InstanceJson "$1" > /dev/null 2>&1
+  cat ec2-instance-json | jq -r '.'$field
+  [ $retain != 'retain' ] && rm -f ec2-instance-json > /dev/null 2>&1
+}
+
+getEc2InstanceIp() {
+  local instanceId="$1"
+  local retain=${2:-'false'}
+  getEc2InstanceField "$instanceId" 'PrivateIpAddress' "$retain"
+}
+
+getEc2InstanceAZ() {
+  local instanceId="$1"
+  local retain=${2:-'false'}
+  getEc2InstanceField "$instanceId" 'Placement.AvailabilityZone' "$retain"
+}
+
+getEc2InstancePrivateDnsName() {
+  local instanceId="$1"
+  local retain=${2:-'false'}
+  getEc2InstanceField "$instanceId" 'PrivateDnsName' "$retain"
 }
 
 # Offer the user a picklist of id:name pairs for ec2 instances that match the tagging filters provided as parameters. Optionally,

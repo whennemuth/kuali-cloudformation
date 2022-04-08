@@ -84,11 +84,12 @@ ec2-based jenkins host in the CSS (Common security services) aws account.
   - **GIT_COMMIT_ID**
     This selection indicates exactly what is being built and deployed with respect to the source code.
     You typically set the value here indirectly through the other "GIT_" prefixed parameters. Experiment with these other parameters, and how it works becomes quickly self-explanatory.
-  
-  An [Event Bridge Rule](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-rules.html) has been set up as a "listener" for docker registry changes. Any docker image that is pushed to either the feature or release kuali repositories in the current registry is automatically replicated to the corresponding registry in our "legacy" AWS account where one or more landscapes may still be up and running. This involves a lambda function that is triggered to perform the replication if a cloudwatch event for [ECR](https://docs.aws.amazon.com/AmazonECR/latest/userguide/what-is-ecr.html) pushes is detected for kuali. In this way, anything that is built in the current CSS account will be available in for deployment in the "legacy" account. For this reason, there is one other job selection that is worth mentioning:
+    An [Event Bridge Rule](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-rules.html) has been set up as a "listener" for docker registry changes. Any docker image that is pushed to either the feature or release kuali repositories in the current registry is automatically replicated to the corresponding registry in our "legacy" AWS account where one or more landscapes may still be up and running. This involves a lambda function that is triggered to perform the replication if a cloudwatch event for [ECR](https://docs.aws.amazon.com/AmazonECR/latest/userguide/what-is-ecr.html) pushes is detected for kuali. In this way, anything that is built in the current CSS account will be available in for deployment in the "legacy" account. For this reason, there is one other job selection that is worth mentioning:
   
   - **LEGACY_DEPLOY**
     This selection indicates that you additionally want the feature or release indicated by the BUILD_TYPE parameter deployed to the "legacy" landscape that you select.
+  - **ADVANCED**
+    
   
 3. #### Run the Job
 
