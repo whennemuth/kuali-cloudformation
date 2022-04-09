@@ -199,7 +199,8 @@ Conditions:
   IsTest: !Not [!And [!Equals [!Ref Landscape, prod], !Equals [!Ref Landscape, stg]]]
   IsProd: !Equals [!Ref Landscape, prod]
   NewrelicLicsenseKeyProvided: !Equals [!Ref NewrelicLicsenseKey, empty]
-  CreateRdsInstanceFromSnapshot: !Not [!Equals [!Ref RdsSnapshotARN, empty]]
+  RdsEndpointProvided: !Not [!Equals [!Ref RdsPrivateEndpoint, empty]]
+  CreateRdsInstanceFromSnapshot: !Not [!Equals [!Ref RdsSnapshotARN, empty]]  
   UseExistingRdsInstance: !Not [ Condition: CreateRdsInstanceFromSnapshot ]
   CreateDnsRecordForRds: 
     !And
@@ -984,6 +985,7 @@ Resources:
               env:
                 TASK: process_kc-config_file
                 DNS_NAME: local
+                RDS_HOSTNAME: !If [ RdsEndpointProvided, !Ref RdsPrivateEndpoint, !Ref AWS::NoValue ]
                 LANDSCAPE: !Ref Landscape
                 BASELINE: !Ref Baseline
                 AWS_DEFAULT_REGION: !Ref AWS::Region

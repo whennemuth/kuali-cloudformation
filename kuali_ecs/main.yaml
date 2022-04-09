@@ -320,9 +320,9 @@ Conditions:
   CreateAlbLogsBuckets: !Or [!Equals [!Ref EnableALBLogging, 'true' ], Condition: CreateWAF]
   UseKeypair: !Not [!Equals [!Ref EC2KeypairName, empty]]
   IsProd: !Equals [!Ref Landscape, prod]
-  CreateRdsInstanceFromSnapshot: !Not [!Equals [!Ref RdsSnapshotARN, empty]]
-  UseExistingRdsInstance: !Not [ Condition: CreateRdsInstanceFromSnapshot ]
   CreateJumpboxInstance: !Not [!Equals [!Ref RdsJumpboxInstanceType, empty]]
+  CreateRdsInstanceFromSnapshot: !Not [!Equals [!Ref RdsSnapshotARN, empty]]  
+  UseExistingRdsInstance: !Not [ Condition: CreateRdsInstanceFromSnapshot ]
   RdsRoute53EndpointProvided: !Not [!Equals [!Ref RdsRoute53Endpoint, empty]]
   RdsPrivateEndpointProvided: !Not [!Equals [!Ref RdsPrivateEndpoint, empty]]
   CreateDnsRecordForRds: 
