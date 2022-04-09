@@ -719,6 +719,7 @@ Resources:
 
                 # Create certificates from scratch
                 sh /opt/kuali/nginx/certs/create-ssl-cert.sh \
+                  create-cert \
                   host=${!EC2_HOST} \
                   cert_dir=/opt/kuali/nginx/certs \
                   cert_name=mycert
