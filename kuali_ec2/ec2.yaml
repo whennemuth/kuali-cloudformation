@@ -720,7 +720,8 @@ Resources:
                 # Create certificates from scratch
                 sh /opt/kuali/nginx/certs/create-ssl-cert.sh \
                   host=${!EC2_HOST} \
-                  cert_dir=/opt/kuali/nginx/certs
+                  cert_dir=/opt/kuali/nginx/certs \
+                  cert_name=mycert
 
                 # Perform a placeholder replacement in nginx.conf with this ec2 public host name
                 sed -i "s/EC2_HOST/$(echo ${!EC2_HOST} | sed 's/\//\\\//g')/g" /opt/kuali/nginx/nginx.conf
@@ -901,8 +902,8 @@ Resources:
                     server_name EC2_HOST;
                     listen 443 ssl http2;
                     ssl on;
-                    ssl_certificate /etc/nginx/ssl/myec2.crt;
-                    ssl_certificate_key /etc/nginx/ssl/myec2.key;
+                    ssl_certificate /etc/nginx/ssl/mycert.crt;
+                    ssl_certificate_key /etc/nginx/ssl/mycert.key;
 
                     # Paths to kc
                     location = / {

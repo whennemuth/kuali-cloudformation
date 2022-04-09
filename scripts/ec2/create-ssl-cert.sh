@@ -6,7 +6,7 @@ setDefaults() {
   # Set variables
   [ -z "$HOST" ] && HOST="$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4)"
   [ -z "$CERT_DIR" ] && CERT_DIR="/opt/kuali/nginx/certs"
-  [ -z "$CERT_NAME" ] && CONFIG_NAME="$DEFAULT_CERT_NAME"
+  [ -z "$CERT_NAME" ] && CERT_NAME="$DEFAULT_CERT_NAME"
   [ -z "$CONFIG_FILE" ] && CONFIG_FILE="$CERT_DIR/$CERT_NAME.cfg"
   [ -z "$CERT_FILE" ] && CERT_FILE="$CERT_DIR/$CERT_NAME.crt"
   [ -z "$KEY_FILE" ] && KEY_FILE="$CERT_DIR/$CERT_NAME.key"
