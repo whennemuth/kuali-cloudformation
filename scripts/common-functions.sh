@@ -2521,18 +2521,21 @@ isABaselineLandscape() {
 getStackByTag() {
   local tagname="$1"
   local tagvalue="$2"
+  local category="$3"
   aws resourcegroupstaggingapi get-resources \
   --resource-type-filters cloudformation:stack \
   --output text \
   --tag-filters \
     'Key=Service,Values='${kualiTags["Service"]} \
     'Key=Function,Values='${kualiTags["Function"]} \
+    $([ -n "$category" ] && echo Key=Category,Values=$category) \
     "Key=$tagname,Values=$tagvalue"
 }
 
 stackExistsForLandscape() {
   local landscape="${1:-$LANDSCAPE}"
-  local stack="$(getStackByTag 'Landscape' $landscape)"
+  local category="$2"
+  local stack="$(getStackByTag 'Landscape' $landscape $category)"
   [ -n "$stack" ] && true || false
 }
 
@@ -2564,8 +2567,9 @@ checkLandscapeParameters() {
   [ "$task" == 'delete-stack' ] && return 0
   echo ""
   outputHeading "Checking Landscape parameters..."
+  local category="$1"
   [ -z "$LANDSCAPE" ] && echo "Missing landscape parameter!" && exit 1
-  if [ "$task" == 'create-stack' ] && stackExistsForLandscape ; then
+  if [ "$task" == 'create-stack' ] && stackExistsForLandscape $LANDSCAPE $category ; then
     echo "A cloudformation stack for the $LANDSCAPE landscape already exists!"
     exit 1
   fi

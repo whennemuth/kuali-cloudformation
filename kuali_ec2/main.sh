@@ -146,7 +146,7 @@ EOF
     fi
 
     
-    checkLandscapeParameters
+    checkLandscapeParameters 'application'
     
     checkRDSParameters    # Based on landscape and other parameters, perform rds cloning if indicated.
     

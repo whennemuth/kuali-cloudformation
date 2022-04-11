@@ -232,7 +232,7 @@ EOF
       add_parameter $cmdfile 'PdfS3BucketName' 'PDF_BUCKET_NAME'
     fi
 
-    checkLandscapeParameters
+    checkLandscapeParameters 'application' 'database'
 
     checkRDSParameters    # Based on landscape and other parameters, perform rds cloning if indicated.
     

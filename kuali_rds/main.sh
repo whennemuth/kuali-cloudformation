@@ -143,7 +143,7 @@ EOF
       addParameter $cmdfile 'HostedZoneName' $HOSTED_ZONE
     fi
 
-    checkLandscapeParameters
+    checkLandscapeParameters 'database'
 
     checkRDSParameters
 
