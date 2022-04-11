@@ -257,6 +257,16 @@ Resources:
             #   StringEquals:
             #     aws:ResourceTag/Name: !Sub kuali-oracle-${Landscape}
             #     rds:db-tag/Name: !Sub kuali-oracle-${Landscape}
+      - PolicyName:
+          !Sub "${GlobalTag}-${Landscape}-acm-readonly-access"
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Action:
+            - acm:Describe*
+            - acm:Get*
+            - acm:List*
+            Resource: "*"
       - !If 
         - UseMongoEc2Instance
         - PolicyName:
@@ -509,7 +519,25 @@ Resources:
 
           # Create a log directory for any output of ssm commands sent by a jenkins server
           [ ! -d /var/log/jenkins ] && mkdir -p /var/log/jenkins
-          
+
+          if [ ${UsingRoute53} == 'true' ] ; then
+            # Retrieve the ssl certificate used by the load balancer. It needs to be available to the
+            # container (through a mount) so it can be imported into the java keystore for REST api access.
+            cn=${DNSName}
+            if [ "${Landscape}" != 'prod' ] ; then
+              # Change "landscape.some.domain.bu.edu" to "*.some.domain.bu.edu" 
+              cn="*$(echo "${DNSName}" | grep -oE '(\.[^\.]+)+$')"
+            fi
+            [ ! -d /opt/kuali/certs ] && mkdir -p /opt/kuali/certs
+            (
+              cd /opt/kuali/certs
+              sh sslcert.sh get-cert \
+                s3_bucket=${TemplateBucketName} \
+                domain_name=${!cn}
+                region=${AWS::Region}
+            )
+          fi
+
           # Implement all the metadata in AWS::CloudFormation::Init
           /opt/aws/bin/cfn-init \
               -v \
@@ -731,6 +759,11 @@ Resources:
             /opt/kuali/scripts/send-custom-cloudwatch-metrics.sh:
               source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/cloudformation/scripts/ec2/cloudwatch-metrics.sh
               mode: "000744"
+              owner: root
+              group: root
+            /opt/kuali/certs/sslcert.sh:
+              source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/cloudformation/scripts/ec2/sslcert.sh
+              mode: "000775"
               owner: root
               group: root
         01_get_configs_from_s3:

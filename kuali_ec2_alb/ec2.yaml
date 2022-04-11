@@ -287,6 +287,16 @@ Resources:
             #   StringEquals:
             #     aws:ResourceTag/Name: !Sub kuali-oracle-${Landscape}
             #     rds:db-tag/Name: !Sub kuali-oracle-${Landscape}
+      - PolicyName:
+          !Sub "${GlobalTag}-${Landscape}-acm-readonly-access"
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Action:
+            - acm:Describe*
+            - acm:Get*
+            - acm:List*
+            Resource: "*"
       - !If 
         - UseMongoEc2Instance
         - PolicyName:
@@ -576,6 +586,11 @@ Resources:
               mode: "000744"
               owner: root
               group: root
+            /opt/kuali/certs/sslcert.sh:
+              source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/cloudformation/scripts/ec2/sslcert.sh
+              mode: "000775"
+              owner: root
+              group: root
             /opt/kuali/scripts/start.docker.containers.sh:
               content: !Sub |
                 #!/bin/bash
@@ -599,6 +614,24 @@ Resources:
                 #  - JAVA_ENV
                 # But not this one, so set it here:
                 export DNS_NAME="${!DNS_NAME}"
+
+                if [ ${UsingRoute53} == 'true' ] ; then
+                  # Retrieve the ssl certificate used by the load balancer. It needs to be available to the
+                  # container (through a mount) so it can be imported into the java keystore for REST api access.
+                  cn=${DNSName}
+                  if [ "${Landscape}" != 'prod' ] ; then
+                    # Change "landscape.some.domain.bu.edu" to "*.some.domain.bu.edu" 
+                    cn="*$(echo "${DNSName}" | grep -oE '(\.[^\.]+)+$')"
+                  fi
+                  [ ! -d /opt/kuali/certs ] && mkdir -p /opt/kuali/certs
+                  (
+                    cd /opt/kuali/certs
+                    sh sslcert.sh get-cert \
+                      s3_bucket=${TemplateBucketName} \
+                      domain_name=${!cn}
+                      region=${AWS::Region}
+                  )
+                fi
 
                 # Remove all existing containers
                 /usr/local/bin/docker-compose down 2> /dev/null || true
@@ -649,6 +682,7 @@ Resources:
                       - /opt/kuali/kc_attachments:/opt/tomcat/temp/dev/attachments
                       - /opt/kuali/kc_tomcat_logs:/opt/tomcat/logs
                       - /opt/kuali/kc_newrelic_logs:/var/log/newrelic
+                      - /opt/kuali/certs/:/opt/kuali/certs:ro
                     environment:
                       - NEW_RELIC_LICENSE_KEY=${!NEW_RELIC_LICENSE_KEY}
                       - NEW_RELIC_AGENT_ENABLED=${!NEW_RELIC_AGENT_ENABLED}

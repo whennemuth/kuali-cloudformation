@@ -718,7 +718,8 @@ Resources:
                 # export EC2_HOST=$(curl -s http://169.254.169.254/latest/meta-data/public-hostname)
                 export EC2_HOST=$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4)
 
-                # Create certificates from scratch
+                # Create certificates from scratch. It needs to be available to the
+                # container (through a mount) so it can be imported into the java keystore for REST api access.
                 sh /opt/kuali/nginx/certs/sslcert.sh \
                   create-cert \
                   host=${!EC2_HOST} \

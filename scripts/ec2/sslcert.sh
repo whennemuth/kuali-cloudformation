@@ -33,16 +33,30 @@
 #   https://docs.oracle.com/javase/1.5.0/docs/tooldocs/solaris/keytool.html#importCmd
 #   https://magicmonster.com/kb/prg/java/ssl/pkix_path_building_failed/
 
-DEFAULT_CERT_NAME='mycert'
+getCertName() {
+  if [ -n "$CERT_NAME" ] ; then
+    echo $CERT_NAME
+  elif [ "$task" == 'get-cert' ] ; then
+    # Will be retrieving the certificate from acm (and potentially backing it up to s3)
+    if [ -n "$S3_FILE" ] ; then
+      echo "$S3_FILE" | awk 'BEGIN {RS="/"} {print $1}' | tail -1
+    elif [ -n "$S3_BUCKET" ] ; then
+      echo 'acm_nonprod_certificate'
+    fi
+  else
+    # Will be creating a new self-signed certificate
+    echo 'mycert'
+  fi
+}
 
+# These are defaults for certificate creation only (not importing or getting)
 setDefaults() {
   # Set variables
   [ -z "$HOST" ] && HOST="$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4)"
   [ -z "$CERT_DIR" ] && CERT_DIR="/opt/kuali/nginx/certs"
-  [ -z "$CERT_NAME" ] && CERT_NAME="$DEFAULT_CERT_NAME"
-  [ -z "$CONFIG_FILE" ] && CONFIG_FILE="$CERT_DIR/$CERT_NAME.cfg"
-  [ -z "$CERT_FILE" ] && CERT_FILE="$CERT_DIR/$CERT_NAME.crt"
-  [ -z "$KEY_FILE" ] && KEY_FILE="$CERT_DIR/$CERT_NAME.key"
+  [ -z "$CONFIG_FILE" ] && CONFIG_FILE="$CERT_DIR/$(getCertName).cfg"
+  [ -z "$CERT_FILE" ] && CERT_FILE="$CERT_DIR/$(getCertName).crt"
+  [ -z "$KEY_FILE" ] && KEY_FILE="$CERT_DIR/$(getCertName).key"
   
   # Create directories or clean them.
   [ ! -d $CERT_DIR ] && mkdir -p $CERT_DIR
@@ -103,7 +117,7 @@ importCertificate() {
   if [ -z "$CACERTS_FILE" ] ; then
     CACERTS_FILE="$(find / -iname cacerts -type f | head -1 2> /dev/null)"
   fi
-  [ -z "$CERT_FILE" ] && CERT_FILE="/opt/kuali/certs/${DEFAULT_CERT_NAME}.crt"
+  [ -z "$CERT_FILE" ] && CERT_FILE="/opt/kuali/certs/$(getCertName).crt"
   if [ -f "$CERT_FILE" ] ; then
     echo "Found certificate to import at: $CERT_FILE"
   else
@@ -151,6 +165,86 @@ importCertificate() {
   printKeystoreEntry
 }
 
+# The certificate to import into the java keystore is either located in an s3 bucket or must be obtained
+# from a load balancer using acm methods of the aws cli, in which case, the certificate is assumed to be publicly trusted (not private PKI).
+getCertificate() {
+  local src=${SOURCE:-${1:-"unspecified"}}
+  local certname=${CERT_NAME:-"$(getCertName)"}
+  local replace=${REPLACE:-"false"}
+  local region=${REGION:-"us-east-1"}
+  if [ "$replace" != 'true' ] && [ -f ${certname}.crt ] ; then
+    echo "$(pwd)/${certname}.crt already exists and replace = $replace - cancelling certificate retrieval..."
+    return 0
+  fi
+  rm -f ${certname}.crt 2> /dev/null
+
+  # If a full s3 file url is not provided, then a bucket name must be provided which is assumed to have 
+  # a certificate with the default name is at its root
+  s3Url() {
+    if [ -n "$S3_FILE" ] && [ "${S3_FILE:0:5}" != 's3://' ] ; then
+      echo "s3://${S3_FILE}"
+      return 0
+    elif [ -n "$S3_BUCKET" ] ; then
+      if [ "${S3_BUCKET:0:5}" != 's3://' ] ; then
+        echo "s3://$S3_BUCKET/$certname"
+      else
+        echo "$S3_BUCKET/$certname"
+      fi
+    fi
+    echo "$S3_FILE"
+  }
+  s3UrlProvided() { [ -n "$(s3Url)" ] && true || false ; }
+
+  case "${src,,}" in
+    s3)
+      if s3UrlProvided ; then
+        echo "Attempting to download certificate from $(s3Url)..."
+        aws s3 cp $(s3Url) ${certname}.crt 2> /dev/null
+      fi
+      ;;
+    acm)
+      echo "Attempting to download certificate from acm..."
+      local domain=${DOMAIN_NAME:-"*.kuali.research.bu.edu"}
+      local certarn="$(aws acm list-certificates \
+        --region $region \
+        --output text \
+        --query 'CertificateSummaryList[?DomainName==`'$domain'`].{arn:CertificateArn}')"
+
+      if [ -n "$certarn" ] ; then
+        # Export the certificate into a file
+        local certdata="$(aws acm get-certificate \
+          --region $region \
+          --certificate-arn $certarn | jq -r '.Certificate' \
+          > ${certname}.crt)"
+
+        looksLikeACertificate() {
+          local top="$(cat "${certname}.crt" | head -1)"
+          [ "$top" == '-----BEGIN CERTIFICATE-----' ] && true || false
+        }
+
+        if looksLikeACertificate ; then
+          echo "SUCCESS! $certarn downloaded as ${certname}.crt"
+          if s3UrlProvided ; then
+            echo "Backup of certificate to ${s3Url}..."
+            aws s3 cp ${certname}.crt $(s3Url)
+          fi
+        else
+          echo "ERROR! Problems downloading $certarn: Does not look like a certificate"
+        fi
+      else
+        echo "ERROR! Could not determine arn of certificate for domain $domain from acm."
+        echo "REST requests to the kuali api (snaplogic) may not work."
+      fi
+      ;;
+    unspecified)
+      getCertificate 's3'
+      if [ ! -f ${certname}.crt ] ; then
+        getCertificate 'acm'
+      fi
+      ;;
+  esac
+}
+
 # Turn key=value pairs, each passed as an individual commandline parameter 
 # to this script, into variables with corresponding values assigned.
 parseArgs() {
@@ -168,6 +262,9 @@ shift
 parseArgs $@ 2>&1
 
 case "$task" in
+  get-cert)
+    getCertificate
+    ;;
   create-config)
     createConfigFile
     ;;
