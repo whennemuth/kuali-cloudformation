@@ -204,7 +204,7 @@ getCertificate() {
       ;;
     acm)
       echo "Attempting to download certificate from acm..."
-      local domain=${DOMAIN_NAME:-"*.kuali.research.bu.edu"}
+      local domain=${DNS_NAME:-"*.kuali.research.bu.edu"}
       local certarn="$(aws acm list-certificates \
         --region $region \
         --output text \
@@ -245,6 +245,27 @@ getCertificate() {
   esac
 }
 
+# This call will have been made by one of the command of one of the configsets triggered by cfn-init.
+# It is equivalent to calling get-cert, but with some wrapping validation logic specific to the cfn-init environment.
+cfnInit() {
+  echo "Retrieving ssl certificate..."
+  echo "USING_ROUTE53 = $USING_ROUTE53"
+  echo "LANDSCAPE = $LANDSCAPE"
+  echo "S3_BUCKET = $S3_BUCKET"
+  echo "REGION = $REGION"
+  echo "DNS_NAME (exact) = $DNS_NAME"
+  if [ "${USING_ROUTE53}" == 'true' ] ; then
+    # Retrieve the ssl certificate used by the load balancer. It needs to be available to the
+    # container (through a mount) so it can be imported into the java keystore for REST api access.
+    if [ "${LANDSCAPE,,}" != 'prod' ] ; then
+      # Change "landscape.some.domain.bu.edu" to "*.some.domain.bu.edu" 
+      export DNS_NAME="*$(echo "${DNS_NAME}" | grep -oE '(\.[^\.]+)+$')"
+      echo "DNS_NAME (wildcarded) = $DNS_NAME"
+    fi
+    getCertificate
+  fi
+}
+
 # Turn key=value pairs, each passed as an individual commandline parameter 
 # to this script, into variables with corresponding values assigned.
 parseArgs() {
@@ -257,9 +278,16 @@ parseArgs() {
   done
 }
 
-task="${1,,}"
-shift
-parseArgs $@ 2>&1
+if [ -n "$TASK" ] ; then
+  # If TASK is already in the environment, then so are are all the other variables - No need for parseArgs.
+  # Indicates that we are running as part of an aws cfn-init process.
+  task="${TASK,,}"
+else
+  # We are running manually, and all variables must be passed in as name/value pairs (except for task)
+  task="${1,,}"
+  shift
+  parseArgs $@ 2>&1
+fi
 
 case "$task" in
   get-cert)
@@ -276,5 +304,7 @@ case "$task" in
     # Example: sh /opt/kuali/certs/sslcert.sh import-cert
     importCertificate
     ;;
-  
+  cfn-init)
+    cfnInit
+    ;;
 esac

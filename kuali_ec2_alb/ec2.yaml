@@ -445,31 +445,33 @@ Resources:
       AWS::CloudFormation::Init:
         configSets:
           AllConfigs:
-          - getFiles
-          - ConfigSet: RunCommands
+            - getFiles
+            - ConfigSet: RunCommands
           GetFiles:
-          - getFiles
+            - getFiles
           RunCommands:
-          - ConfigSet: GetConfigsFromS3
-          - ConfigSet: ProcessEnvFiles
-          - ConfigSet: ProcessKcConfigFile
-          - ConfigSet: StartProcesses
+            - ConfigSet: GetConfigsFromS3
+            - ConfigSet: ProcessEnvFiles
+            - ConfigSet: ProcessKcConfigFile
+            - ConfigSet: RetrieveSSLCerts
+            - ConfigSet: StartProcesses
           StartProcesses:
-          - 04_docker_run_containers
-          - 05_initialize_core_mongodb_content
-          # - 06_start_cron_for_custom_cloudwatch_metrics
+            - 05_docker_run_containers
+            - 06_initialize_core_mongodb_content
           GetConfigsFromS3:
-          - 01_get_configs_from_s3
+            - 01_get_configs_from_s3
           ProcessEnvFiles:
-          - 02_process_env_files
+            - 02_process_env_files
           ProcessKcConfigFile:
-          - 03_process_kc-config_file
+            - 03_process_kc-config_file
+          RetrieveSSLCerts:
+            - 04_retrieve_ssl_certs
           RunDockerContainers:
-          - 04_docker_run_containers
+            - 05_docker_run_containers
           InitializeCoreMongodbContent:
-          - 05_initialize_core_mongodb_content
+            - 06_initialize_core_mongodb_content
           StartCronForCustomCloudwatchMetrics:
-          - 06_start_cron_for_custom_cloudwatch_metrics
+            - 07_start_cron_for_custom_cloudwatch_metrics
 
         getFiles:
           packages:
@@ -614,24 +616,6 @@ Resources:
                 #  - JAVA_ENV
                 # But not this one, so set it here:
                 export DNS_NAME="${!DNS_NAME}"
-
-                if [ ${UsingRoute53} == 'true' ] ; then
-                  # Retrieve the ssl certificate used by the load balancer. It needs to be available to the
-                  # container (through a mount) so it can be imported into the java keystore for REST api access.
-                  cn=${DNSName}
-                  if [ "${Landscape}" != 'prod' ] ; then
-                    # Change "landscape.some.domain.bu.edu" to "*.some.domain.bu.edu" 
-                    cn="*$(echo "${DNSName}" | grep -oE '(\.[^\.]+)+$')"
-                  fi
-                  [ ! -d /opt/kuali/certs ] && mkdir -p /opt/kuali/certs
-                  (
-                    cd /opt/kuali/certs
-                    sh sslcert.sh get-cert \
-                      s3_bucket=${TemplateBucketName} \
-                      domain_name=${!cn}
-                      region=${AWS::Region}
-                  )
-                fi
 
                 # Remove all existing containers
                 /usr/local/bin/docker-compose down 2> /dev/null || true
@@ -778,7 +762,19 @@ Resources:
                 BASELINE: !Ref Baseline
                 AWS_DEFAULT_REGION: !Ref AWS::Region
               command: bash process-configs.sh
-        04_docker_run_containers:
+        04_retrieve_ssl_certs:
+          commands:
+            retrieve_ssl_certs:
+              cwd: /opt/kuali/certs
+              env:
+                TASK: cfn-init
+                USING_ROUTE53: !Ref UsingRoute53
+                LANDSCAPE: !Ref Landscape
+                DNS_NAME: !Ref DNSName
+                S3_BUCKET: !Ref TemplateBucketName
+                REGION: !Ref AWS::Region
+              command: bash sslcert.sh
+        05_docker_run_containers:
           commands:
             docker_run_containers:
               cwd: /opt/kuali/scripts
@@ -807,7 +803,7 @@ Resources:
                 files:
                 - /etc/awslogs/awslogs.conf
                 - /etc/awslogs/awscli.conf
-        05_initialize_core_mongodb_content:
+        06_initialize_core_mongodb_content:
           commands:
             initialize_core_mongodb_content:
               cwd: /opt/kuali/scripts
@@ -847,7 +843,7 @@ Resources:
                     - !Sub s3://${TemplateBucketName}/${Baseline}/core/userdump.json
                     - !Ref AWS::NoValue
               command: bash initialize-mongo-database.sh
-        06_start_cron_for_custom_cloudwatch_metrics:
+        07_start_cron_for_custom_cloudwatch_metrics:
           commands:
             start_cron_for_custom_cloudwatch_metrics:
               command: crontab -u root /opt/kuali/scripts/crontab

@@ -106,6 +106,9 @@ Resources:
       - Name: KC-newrelic-logs-Bind-Mount
         Host:
           SourcePath: /opt/kuali/kc_newrelic_logs
+      - Name: KC-certs-Bind-Mount
+        Host:
+          SourcePath: /opt/kuali/certs
       ContainerDefinitions:
       - Name: kuali-research
         User: root
@@ -150,6 +153,9 @@ Resources:
           ReadOnly: false
         - SourceVolume: KC-newrelic-logs-Bind-Mount
           ContainerPath: /var/log/newrelic
+          ReadOnly: false
+        - SourceVolume: KC-certs-Bind-Mount
+          ContainerPath: /opt/kuali/certs
           ReadOnly: false
 
   LogGroup:

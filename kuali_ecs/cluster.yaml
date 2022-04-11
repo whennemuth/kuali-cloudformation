@@ -520,24 +520,6 @@ Resources:
           # Create a log directory for any output of ssm commands sent by a jenkins server
           [ ! -d /var/log/jenkins ] && mkdir -p /var/log/jenkins
 
-          if [ ${UsingRoute53} == 'true' ] ; then
-            # Retrieve the ssl certificate used by the load balancer. It needs to be available to the
-            # container (through a mount) so it can be imported into the java keystore for REST api access.
-            cn=${DNSName}
-            if [ "${Landscape}" != 'prod' ] ; then
-              # Change "landscape.some.domain.bu.edu" to "*.some.domain.bu.edu" 
-              cn="*$(echo "${DNSName}" | grep -oE '(\.[^\.]+)+$')"
-            fi
-            [ ! -d /opt/kuali/certs ] && mkdir -p /opt/kuali/certs
-            (
-              cd /opt/kuali/certs
-              sh sslcert.sh get-cert \
-                s3_bucket=${TemplateBucketName} \
-                domain_name=${!cn}
-                region=${AWS::Region}
-            )
-          fi
-
           # Implement all the metadata in AWS::CloudFormation::Init
           /opt/aws/bin/cfn-init \
               -v \
@@ -580,31 +562,31 @@ Resources:
       AWS::CloudFormation::Init:
         configSets:
           AllConfigs:
-          - getFiles
-          - ConfigSet: RunCommands
+            - getFiles
+            - ConfigSet: RunCommands
           GetFiles:
-          - getFiles
+            - getFiles
           RunCommands:
-          - ConfigSet: GetConfigsFromS3
-          - ConfigSet: ProcessEnvFiles
-          - ConfigSet: ProcessKcConfigFile
-          - ConfigSet: StartProcesses
-          StartProcesses:
-          - 04_add_instance_to_cluster
-          # - 05_initialize_core_mongodb_content
-          # - 06_start_cron_for_custom_cloudwatch_metrics
+            - ConfigSet: GetConfigsFromS3
+            - ConfigSet: ProcessEnvFiles
+            - ConfigSet: ProcessKcConfigFile
+            - ConfigSet: RetrieveSSLCerts
+            - ConfigSet: AddInstanceToCluster
           GetConfigsFromS3:
-          - 01_get_configs_from_s3
+            - 01_get_configs_from_s3
           ProcessEnvFiles:
-          - 02_process_env_files
+            - 02_process_env_files
           ProcessKcConfigFile:
-          - 03_process_kc-config_file
-          AddInstanceToCluster:
-          - 04_add_instance_to_cluster
+            - 03_process_kc-config_file
+          RetrieveSSLCerts:
+            - 04_retrieve_ssl_certs
           InitializeCoreMongodbContent:
-          - 05_initialize_core_mongodb_content
+            - 05_initialize_core_mongodb_content
           StartCronForCustomCloudwatchMetrics:
-          - 06_start_cron_for_custom_cloudwatch_metrics
+            - 06_start_cron_for_custom_cloudwatch_metrics
+          AddInstanceToCluster:
+            - 07_add_instance_to_cluster
+
 
         getFiles:
           packages:
@@ -659,7 +641,6 @@ Resources:
                 getConfigs() { runconfig 'GetConfigsFromS3'; }
                 createEnvFile() { runconfig 'ProcessEnvFiles'; }
                 processKcConfig() { runconfig 'ProcessKcConfigFile'; }
-                startProcesses() { runconfig 'StartProcesses'; }
                 initMongo() { runconfig 'InitializeCoreMongodbContent'; }
                 addToCluster() { runconfig 'AddInstanceToCluster'; }
 
@@ -830,27 +811,18 @@ Resources:
                 BASELINE: !Ref Baseline
                 AWS_DEFAULT_REGION: !Ref AWS::Region
               command: bash process-configs.sh
-        04_add_instance_to_cluster:
+        04_retrieve_ssl_certs:
           commands:
-            add_instance_to_cluster:
-              command:
-                !Sub echo ECS_CLUSTER=${ECSCluster} >> /etc/ecs/ecs.config
-          services:
-            sysvinit:
-              cfn-hup:
-                enabled: true
-                ensureRunning: true
-                files:
-                - /etc/cfn/cfn-hup.conf
-                - /etc/cfn/hooks.d/cfn-auto-reloader.conf
-              # awslogs:
-              # NOTE: If you are using Amazon Linux 2, the awslogs service is now called "awslogsd"
-              awslogsd:
-                enabled: true
-                ensureRunning: true
-                files:
-                - /etc/awslogs/awslogs.conf
-                - /etc/awslogs/awscli.conf
+            retrieve_ssl_certs:
+              cwd: /opt/kuali/certs
+              env:
+                TASK: cfn-init
+                USING_ROUTE53: !Ref UsingRoute53
+                LANDSCAPE: !Ref Landscape
+                DNS_NAME: !Ref DNSName
+                S3_BUCKET: !Ref TemplateBucketName
+                REGION: !Ref AWS::Region
+              command: bash sslcert.sh
         05_initialize_core_mongodb_content:
           commands:
             initialize_core_mongodb_content:
@@ -897,6 +869,27 @@ Resources:
               env:
                 LANDSCAPE: !Ref Landscape
                 AWS_DEFAULT_REGION: !Ref AWS::Region
+        07_add_instance_to_cluster:
+          commands:
+            add_instance_to_cluster:
+              command:
+                !Sub echo ECS_CLUSTER=${ECSCluster} >> /etc/ecs/ecs.config
+          services:
+            sysvinit:
+              cfn-hup:
+                enabled: true
+                ensureRunning: true
+                files:
+                - /etc/cfn/cfn-hup.conf
+                - /etc/cfn/hooks.d/cfn-auto-reloader.conf
+              # awslogs:
+              # NOTE: If you are using Amazon Linux 2, the awslogs service is now called "awslogsd"
+              awslogsd:
+                enabled: true
+                ensureRunning: true
+                files:
+                - /etc/awslogs/awslogs.conf
+                - /etc/awslogs/awscli.conf
 
 Outputs:
 
