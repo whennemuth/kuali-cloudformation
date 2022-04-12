@@ -36,7 +36,7 @@
 getCertName() {
   if [ -n "$CERT_NAME" ] ; then
     echo $CERT_NAME
-  elif [ "$task" == 'get-cert' ] ; then
+  elif [ "$task" == 'get-cert' ] || [ "$task" == 'cfn-init' ]; then
     # Will be retrieving the certificate from acm (and potentially backing it up to s3)
     if [ -n "$S3_FILE" ] ; then
       echo "$S3_FILE" | awk 'BEGIN {RS="/"} {print $1}' | tail -1
@@ -45,7 +45,7 @@ getCertName() {
     fi
   else
     # Will be creating a new self-signed certificate
-    echo 'mycert'
+    echo 'self-signed-cert'
   fi
 }
 
@@ -124,7 +124,12 @@ importCertificate() {
     echo "No certificate found to import into keystore: $CERT_FILE not found."
     return 0
   fi
-  ALIAS=${ALIAS:-"kuali-self-signed-cert"}
+
+  if isAcmCertificate ; then
+    ALIAS=${ALIAS:-"kuali-acm-cert"}
+  else
+    ALIAS=${ALIAS:-"kuali-self-signed-cert"}
+  fi
 
   alreadyImported() {
     local entry="$(
@@ -169,14 +174,14 @@ importCertificate() {
 # from a load balancer using acm methods of the aws cli, in which case, the certificate is assumed to be publicly trusted (not private PKI).
 getCertificate() {
   local src=${SOURCE:-${1:-"unspecified"}}
-  local certname=${CERT_NAME:-"$(getCertName)"}
+  local certname=${CERT_NAME:-"$(getCertName).crt"}
   local replace=${REPLACE:-"false"}
   local region=${REGION:-"us-east-1"}
-  if [ "$replace" != 'true' ] && [ -f ${certname}.crt ] ; then
-    echo "$(pwd)/${certname}.crt already exists and replace = $replace - cancelling certificate retrieval..."
+  if [ "$replace" != 'true' ] && [ -f $certname ] ; then
+    echo "$(pwd)/$certname already exists and replace = $replace - cancelling certificate retrieval..."
     return 0
   fi
-  rm -f ${certname}.crt 2> /dev/null
+  rm -f $certname 2> /dev/null
 
   # If a full s3 file url is not provided, then a bucket name must be provided which is assumed to have 
   # a certificate with the default name is at its root
@@ -199,7 +204,7 @@ getCertificate() {
     s3)
       if s3UrlProvided ; then
         echo "Attempting to download certificate from $(s3Url)..."
-        aws s3 cp $(s3Url) ${certname}.crt 2> /dev/null
+        aws s3 cp $(s3Url) $certname 2> /dev/null
       fi
       ;;
     acm)
@@ -212,21 +217,21 @@ getCertificate() {
 
       if [ -n "$certarn" ] ; then
         # Export the certificate into a file
-        local certdata="$(aws acm get-certificate \
+        aws acm get-certificate \
           --region $region \
           --certificate-arn $certarn | jq -r '.Certificate' \
-          > ${certname}.crt)"
+          > $certname
 
         looksLikeACertificate() {
-          local top="$(cat "${certname}.crt" | head -1)"
+          local top="$(cat "$certname" | head -1)"
           [ "$top" == '-----BEGIN CERTIFICATE-----' ] && true || false
         }
 
         if looksLikeACertificate ; then
-          echo "SUCCESS! $certarn downloaded as ${certname}.crt"
+          echo "SUCCESS! $certarn downloaded as $certname"
           if s3UrlProvided ; then
             echo "Backup of certificate to ${s3Url}..."
-            aws s3 cp ${certname}.crt $(s3Url)
+            aws s3 cp $certname $(s3Url)
           fi
         else
           echo "ERROR! Problems downloading $certarn: Does not look like a certificate"
@@ -238,11 +243,15 @@ getCertificate() {
       ;;
     unspecified)
       getCertificate 's3'
-      if [ ! -f ${certname}.crt ] ; then
+      if [ ! -f $certname ] ; then
         getCertificate 'acm'
       fi
       ;;
   esac
+}
+
+isAcmCertificate() {
+ [ -n "$(openssl x509 -text -noout -in $(getCertName) | grep 'Issuer:' | grep -o 'CN=Amazon')" ] && true || false
 }
 
 # This call will have been made by one of the command of one of the configsets triggered by cfn-init.
@@ -297,7 +306,7 @@ case "$task" in
     createConfigFile
     ;;
   create-cert)
-    # Example: sh /opt/kuali/nginx/certs/sslcert.sh create-cert host=${!EC2_HOST} cert_dir=/opt/kuali/nginx/certs cert_name=mycert
+    # Example: sh /opt/kuali/nginx/certs/sslcert.sh create-cert host=${!EC2_HOST} cert_dir=/opt/kuali/nginx/certs cert_name=self-signed-cert
     createCertificate
     ;;
   import-cert)
