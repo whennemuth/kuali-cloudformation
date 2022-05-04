@@ -49,10 +49,16 @@ EOF
 }
 
 tunnelMethodSSM() {
-  aws ssm start-session \
-    --target $EC2_INSTANCE_ID \
-    --document-name AWS-StartPortForwardingSession \
+  cat <<EOF > $cmdfile
+  aws ssm start-session \\
+    --target $EC2_INSTANCE_ID \\
+    --document-name AWS-StartPortForwardingSession \\
     --parameters '{"portNumber":["'$REMOTE_PORT'"],"localPortNumber":["'$LOCAL_PORT'"]}'
+EOF
+
+  echo "$(pwd)/${cmdfile}:"
+  cat $cmdfile
+  [ "$DRYRUN" != 'true' ] && sh $cmdfile
 }
 
 tunnelMethodSSH() {
@@ -86,22 +92,34 @@ tunnelMethodSSH() {
     ec2-user@$ip
 EOF
 
-echo "$(pwd)/${cmdfile}:"
-cat $cmdfile
-# sh $cmdfile
+  echo "$(pwd)/${cmdfile}:"
+  cat $cmdfile
+  [ "$DRYRUN" != 'true' ] && sh $cmdfile 
 }
 
+
+# Find and kill an orphaned process this is still running a port forwarding session
+# Assuming the port is 1043, Run the following to see all processes on that port:
+#      netstat -ano | grep ':1043'
+# The 5th column of the output will list the PID. If more than one result, determine the right one and note the PID
+# Run the following to kill the process
+#      taskkill /PID number /F
+# where number is the PID
 tunnelEC2() {
   if [ -z "$EC2_INSTANCE_ID" ] ; then
     [ ! -f ec2-instance-id ] && return 0
     EC2_INSTANCE_ID=$(cat ec2-instance-id)
     rm -f ec2-instance-id
     if [ -n "$EC2_INSTANCE_ID" ] && [ "${EC2_INSTANCE_ID,,}" != 'cancel' ] ; then
-      if [ "${task,,}" == 'jvm-agent' ] ; then
-        tunnelMethodSSH
-      else
-        tunnelMethodSSM
-      fi
+      local method="$METHOD"
+      [ -z "$method" ] && [ "${task,,}" == 'jvm-agent' ] && method='ssh'
+      [ -z "$method" ] && method='ssm'
+      case $method in
+        ssm)
+          tunnelMethodSSM ;;
+        ssh)
+          tunnelMethodSSH ;;
+      esac
     fi
   else
     echo "Could not find running ec2 instance(s) that match!"

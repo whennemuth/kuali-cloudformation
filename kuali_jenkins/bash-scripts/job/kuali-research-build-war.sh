@@ -50,17 +50,22 @@ validParameters() {
 }
 
 pullFromGithub() {
-  outputSubHeading "Fetching $GIT_REF from $GIT_REPO_URL ..."
-  (
-    githubFetchAndReset \
-      "rootdir=$MAVEN_WORKSPACE" \
-      "repo=$GIT_REPO_URL" \
-      "key=~/.ssh/bu_github_id_kc_rsa" \
-      "reftype=$GIT_REF_TYPE" \
-      "ref=$GIT_REF" \
-      "commit=$GIT_COMMIT_ID" \
-      "user=jenkins@bu.edu"
-  )
+  if [ "$GIT_PULL_SOURCE" != 'false' ] ; then
+    local key=${GIT_DEPLOY_KEY:-"~/.ssh/bu_github_id_kc_rsa"}
+    outputSubHeading "Fetching $GIT_REF from $GIT_REPO_URL ..."
+    (
+      githubFetchAndReset \
+        "rootdir=$MAVEN_WORKSPACE" \
+        "repo=$GIT_REPO_URL" \
+        "key=$key" \
+        "reftype=$GIT_REF_TYPE" \
+        "ref=$GIT_REF" \
+        "commit=$GIT_COMMIT_ID" \
+        "user=jenkins@bu.edu"
+    )
+  else
+    true
+  fi
   [ $? -eq 0 ] && true || false
 }
 

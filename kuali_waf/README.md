@@ -87,3 +87,33 @@ sh upload.sh profile=[your profile]
 - [aws-waf-and-shield-advanced-developer-guide](https://github.com/awsdocs/aws-waf-and-shield-advanced-developer-guide)
   Contains tons of in depth documentation on WAF specifics.
 - [How can I detect false positives caused by AWS Managed Rules and add them to a safe list?](https://aws.amazon.com/premiumsupport/knowledge-center/waf-detect-false-positives-from-amrs/)
+
+
+
+### Kuali-specific Rule(s):
+
+A specific service-to-service https request made by rice for user information gets blocked by the WAF as is.
+The relevant part of the stack trace looks like this:
+
+```
+Caused by: org.apache.cxf.transport.http.HTTPException: HTTP response '403: Forbidden' when communicating with https://stg.kuali.research.bu.edu/kc/remoting/soap/kim/v2_0/identityService
+	at org.apache.cxf.transport.http.HTTPConduit$WrappedOutputStream.doProcessResponseCode(HTTPConduit.java:1618) ~[cxf-rt-transports-http-3.3.5.jar:3.3.5]
+	at org.apache.cxf.transport.http.HTTPConduit$WrappedOutputStream.handleResponseInternal(HTTPConduit.java:1625) ~[cxf-rt-transports-http-3.3.5.jar:3.3.5]
+	at org.apache.cxf.transport.http.HTTPConduit$WrappedOutputStream.handleResponse(HTTPConduit.java:1570) ~[cxf-rt-transports-http-3.3.5.jar:3.3.5]
+	at org.apache.cxf.transport.http.HTTPConduit$WrappedOutputStream.close(HTTPConduit.java:1371) ~[cxf-rt-transports-http-3.3.5.jar:3.3.5]
+	at org.apache.cxf.transport.AbstractConduit.close(AbstractConduit.java:56) ~[cxf-core-3.3.5.jar:3.3.5]
+	at org.apache.cxf.transport.http.HTTPConduit.close(HTTPConduit.java:671) ~[cxf-rt-transports-http-3.3.5.jar:3.3.5]
+	at org.apache.cxf.interceptor.MessageSenderInterceptor$MessageSenderEndingInterceptor.handleMessage(MessageSenderInterceptor.java:63) ~[cxf-core-3.3.5.jar:3.3.5]
+	...
+```
+
+The WAF log includes the following entry that explains the blockage: [log entry](WAF_Blocked_Request.json)
+
+For some reason the `CrossSiteScripting_BODY` rule in `AWS-AWSManagedRulesCommonRuleSet` doesn't like the `"xmlns:soap"` attribute value of: `"http://schemas.xmlsoap.org/soap/envelope/"`
+It is not clear what it is about this is being rejected, but it is within a legitimate request and needs to be allowed.
+Therefore the following modifications are made:
+
+- A custom "Rice-Identity-Service-Rule" rule is added that bypasses XSS Body blocking for requests containing `"remoting/soap/kim/v2_0/identityService"` in the URI. Everything else is blocked if it was labelled by the CrossSiteScripting_BODY rule - its blocking was turned off, but it would still label the request if a match was found that would have otherwise been a blocker. Obviously for this to work, the CrossSiteScripting_BODY needs to be higher in priority so that it can run first in order to apply the label
+- The AWS-AWSManagedRulesCommonRuleSet.CrossSiteScripting_BODY rule is deactivated (set to "COUNT").
+  This will prevent interference with the exception in the Rice-Identity-Service-Rule. The Rice-Identity-Service-Rule will re-engage the rule if its own exception has been satisfied.
+- *NOTE: The Main XssRule is deactivated because due to redundancy - the same actions & criterion are duplicated in AWSManagedRulesCommonRuleSet.*

@@ -456,6 +456,8 @@ Resources:
                   - Name: GenericRFI_BODY
                   - Name: GenericRFI_QUERYARGUMENTS
                   - Name: NoUserAgent_HEADER
+                  # Including this rule in exclusions - See the readme file for explanation.
+                  - Name: CrossSiteScripting_BODY
           - !Ref 'AWS::NoValue'
         - Name: !Sub '${ParentStackName}WhitelistRule'
           Priority: 2
@@ -633,7 +635,9 @@ Resources:
           - Name: !Sub '${ParentStackName}XssRule'
             Priority: 30
             Action:
-              Block: {}
+              # NOTE: Disabling this rule because the AWSManagedRulesCommonRuleSet has members that do the same thing.
+              # Block: {}
+              Count: {}
             VisibilityConfig:
               SampledRequestsEnabled: true
               CloudWatchMetricsEnabled: true
@@ -674,6 +678,31 @@ Resources:
                         - Priority: 2
                           Type: HTML_ENTITY_DECODE
           - !Ref 'AWS::NoValue'
+        - Name: Rice-Identity-Service-Rule
+          Priority: 10
+          Statement:
+            AndStatement:
+              Statements:
+              - LabelMatchStatement:
+                  Scope: LABEL
+                  Key: awswaf:managed:aws:core-rule-set:CrossSiteScripting_Body
+              - NotStatement:
+                  Statement:
+                    ByteMatchStatement:
+                      SearchString: "remoting/soap/kim/v2_0/identityService"
+                      FieldToMatch:
+                        UriPath: {}
+                      TextTransformations:
+                      - Priority: 0
+                        Type: NONE
+                      PositionalConstraint: CONTAINS
+          Action:
+            Block: {}
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: Rice-Identity-Service-Rule
+
 
 Outputs:
 # Arns
