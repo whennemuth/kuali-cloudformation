@@ -5,8 +5,15 @@ AWSTemplateFormatVersion: '2010-09-09'
 # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_Route53.html
 # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/quickref-route53.html
 
+# NOTE ON SECURITY:
+# Currently the database dns name is a subdomain of the main kuali domain name (example: stg.db.kuali.research.bu.edu or db.kuali.research.bu.edu).
+# The resolved IP address can only be reached by application servers sitting in adjacent subnets as the RDS instance in the same vpc or from desktop
+# clients as long as they are logged into the bu dbreport vpn (due to security group restrictions).
+# However, if the security requirements ever require it to be necessary to restrict database dns resolution itself to on-campus/internal requests,
+# Then a separate, private hosted zone would need to be created for the database alone.
+# RELATED: https://aws.amazon.com/premiumsupport/knowledge-center/route53-resolve-with-inbound-endpoint/
 
-Description: This template deploys an application load balancer that exposes the EC2 Instance (except for ssh access)
+Description: Deploy a hosted zone to handle delegated dns resolution requests for kuali application and database endpoints.
 
 Parameters:
 
@@ -33,11 +40,6 @@ Parameters:
     Type: String
     Default: kuali.research.bu.edu
 
-  DBDomainName:
-    Description: The domain name for the private hosted zone designated for rds host endpoints
-    Type: String
-    Default: db.kuali.research.bu.edu
-
   CreateHostedZoneLogGroup:
     Description: Log activity for the app hosted zone to cloudwatch?
     Type: String
@@ -46,37 +48,18 @@ Parameters:
     - "yes"
     - "no"
 
-  CreateHostedZoneDbLogGroup:
-    Description: Log activity for the database hosted zone to cloudwatch?
+  HostedZoneLoggingPolicyName:
+    Description: Log activity for the app hosted zone to cloudwatch?
     Type: String
-    Default: "yes"
-    AllowedValues:
-    - "yes"
-    - "no"
+    Default: "empty"
 
 
 Conditions:
     CreateLogGroup: !Equals [!Ref CreateHostedZoneLogGroup, 'yes']
-    CreateDbLogGroup: !Equals [!Ref CreateHostedZoneDbLogGroup, 'yes']
+    CreateLoggingPolicy: !And [ Condition: CreateLogGroup, !Not [!Equals [!Ref HostedZoneLoggingPolicyName, 'empty']]]
 
 
 Resources:
-
-  HostedZoneLogGroup:
-    Type: AWS::Logs::LogGroup
-    Condition: CreateLogGroup
-    DeletionPolicy: Delete
-    Properties:
-      LogGroupName: !Sub /aws/route53/${GlobalTag}-hosted-zone
-      RetentionInDays: 30
-
-  HostedZoneDbLogGroup:
-    Type: AWS::Logs::LogGroup
-    Condition: CreateDbLogGroup
-    DeletionPolicy: Delete
-    Properties:
-      LogGroupName: !Sub /aws/route53/${GlobalTag}-db-hosted-zone
-      RetentionInDays: 30
 
   # This won't work. You must manually created a resouce-based policy first.
   # Route53 is a service that, for logging, supports attaching permission policies to it as a resource, not a principal.
@@ -103,6 +86,37 @@ Resources:
   #               - logs:CreateLogStream
   #             Resource: !GetAtt HostedZoneLogGroup.Arn
 
+  CloudwatchLoggingResourcePolicy:
+    Type: AWS::Logs::ResourcePolicy
+    DeletionPolicy: Retain
+    Condition: CreateLoggingPolicy
+    Properties:
+      PolicyName: !Ref HostedZoneLoggingPolicyName
+      PolicyDocument: !Sub "{
+        \"Version\": \"2012-10-17\", 
+        \"Statement\": [
+            {
+              \"Effect\": \"Allow\",
+              \"Principal\": {
+                \"Service\": \"route53.amazonaws.com\"
+              },
+              \"Action\": [
+                \"logs:PutLogEvents\",
+                \"logs:CreateLogStream\"
+              ],
+              \"Resource\": \"arn:aws:logs:us-east-1:${AWS::AccountId}:log-group:/aws/route53/*\"
+            }
+          ]
+        }"
+
+  HostedZoneLogGroup:
+    Type: AWS::Logs::LogGroup
+    Condition: CreateLogGroup
+    DeletionPolicy: Delete
+    Properties:
+      LogGroupName: !Sub /aws/route53/${GlobalTag}-hosted-zone
+      RetentionInDays: 30
+
   DNS: 
     Type: AWS::Route53::HostedZone
     Properties: 
@@ -114,24 +128,6 @@ Resources:
       HostedZoneTags: 
         - Key: Name
           Value: !Sub ${GlobalTag}-hosted-zone
-        - Key: Service
-          Value: !Ref Service
-        - Key: Function
-          Value: !Ref Function
-
-  # SEE: https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/routing-to-rds-db.html
-  # RELATED: https://aws.amazon.com/premiumsupport/knowledge-center/route53-resolve-with-inbound-endpoint/
-  DBDNS: 
-    Type: AWS::Route53::HostedZone
-    Properties: 
-      Name: !Ref DBDomainName
-      HostedZoneConfig: 
-        Comment: !Sub Hosted zone for ${DBDomainName}
-      QueryLoggingConfig:
-        CloudWatchLogsLogGroupArn: !GetAtt HostedZoneDbLogGroup.Arn
-      HostedZoneTags: 
-        - Key: Name
-          Value: !Sub ${GlobalTag}-db-hosted-zone
         - Key: Service
           Value: !Ref Service
         - Key: Function

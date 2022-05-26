@@ -6,7 +6,7 @@
 # If not, however, then a search within the java keystore (cacerts file) must return a corresponding certificate, matched by the common name of the incoming request.
 # If this criterion is not met, the following will show up in a BIG stack trace:
 #
-# Caused by: org.apache.cxf.transport.http.HTTPException: HTTP response '403: Forbidden' when communicating with https://stg.kuali.research.bu.edu/kc/remoting/soap/kim/v2_0/identityService
+# Caused by: org.apache.cxf.transport.http.HTTPException: HTTP response '403: Forbidden' when communicating with https://stg.kualitest.research.bu.edu/kc/remoting/soap/kim/v2_0/identityService
 # 	at org.apache.cxf.transport.http.HTTPConduit$WrappedOutputStream.doProcessResponseCode(HTTPConduit.java:1618) ~[cxf-rt-transports-http-3.3.5.jar:3.3.5]
 # or...
 # Caused by: java.lang.RuntimeException: HostnameVerifier, socket reset for TTL
@@ -15,8 +15,8 @@
 # There are two scenarios in which this problem might arise:
 # 1) Self-signed certificates. Obviously no CA knows about these.
 # 2) Domain is registered with CA as a wildcarded common name and the REST call is made from a subdomain that the wildcard stands in for.
-#    For example, *.kuali.research.bu.edu is registered with the CA, and a REST call is made using stg.kuali.research.bu.edu.
-#    This poses no problem for a browser, but the java library is not sophisticated and will search for a literal match of "stg.kuali.research.bu.edu" from the CA.
+#    For example, *.kualitest.research.bu.edu is registered with the CA, and a REST call is made using stg.kualitest.research.bu.edu.
+#    This poses no problem for a browser, but the java library is not sophisticated and will search for a literal match of "stg.kualitest.research.bu.edu" from the CA.
 #    No match will be found and so the keystore must have an entry that matches.
 #
 # This script is used to both create and import the certificate prevent the errors during REST calls.
@@ -209,7 +209,9 @@ getCertificate() {
       ;;
     acm)
       echo "Attempting to download certificate from acm..."
-      local domain=${DNS_NAME:-"*.kuali.research.bu.edu"}
+      local defaultDNS="*.kualitest.research.bu.edu"
+      [ "${LANDSCAPE,,}" == 'prod' ] && defaultDNS="*.kuali.research.bu.edu"
+      local domain=${DNS_NAME:-${defaultDNS}}
       local certarn="$(aws acm list-certificates \
         --region $region \
         --output text \

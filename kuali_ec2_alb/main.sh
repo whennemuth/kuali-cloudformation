@@ -13,8 +13,8 @@ declare -A defaults=(
   [NO_ROLLBACK]='true'
   [PDF_BUCKET_NAME]="$GLOBAL_TAG-$LANDSCAPE-pdf"
   [DEEP_VALIDATION]='true'
-  [HOSTED_ZONE]='kuali.research.bu.edu'
   # ----- Most of the following are defaulted in the yaml file itself:
+  # [HOSTED_ZONE]='kualitest.research.bu.edu'
   # [PROFILE]='???'
   # [LANDSCAPE]='sb'
   # [KC_IMAGE]='770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-coeus-sandbox:2001.0040'
@@ -224,6 +224,13 @@ EOF
       # HOSTED_ZONE_NAME="$(getHostedZoneNameByLandscape $LANDSCAPE)"
       # [ -z "$HOSTED_ZONE_NAME" ] && echo "ERROR! Cannot acquire hosted zone name. Cancelling..." && exit 1
       # add_parameter $cmdfile 'HostedZoneName' 'HOSTED_ZONE_NAME'
+      if [ -z "$HOSTED_ZONE" ] ; then
+        if [ "$LANDSCAPE" == 'prod' ] ; then
+          HOSTED_ZONE='kuali.research.bu.edu'
+        else
+          HOSTED_ZONE='kualitest.research.bu.edu'
+        fi
+      fi
       [ -z "$(getHostedZoneId $HOSTED_ZONE)" ] && echo "ERROR! Cannot detect hosted zone for $HOSTED_ZONE" && exit 1
       addParameter $cmdfile 'HostedZoneName' $HOSTED_ZONE
     fi
@@ -337,7 +344,7 @@ runTask() {
       setCertArn ;;
     test)
       # cd ../s3/ci
-      # setAcmCertArn 'kuali.research.bu.edu'
+      # setAcmCertArn 'kualitest.research.bu.edu'
       
       sh main.sh set-cert-arn \
         landscape=ci \

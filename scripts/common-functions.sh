@@ -326,7 +326,7 @@ uploadStack() {
   fi
   
   # Create an s3 bucket for the app if it doesn't already exist
-  if ! bucketExists "$TEMPLATE_BUCKET_NAME" ; then
+  if ! isAccessibleBucket "$TEMPLATE_BUCKET_NAME" ; then
     aws s3 mb s3://$TEMPLATE_BUCKET_NAME
   fi
 
@@ -375,7 +375,7 @@ EOF
 }
 
 # Add on key=value parameter entry to the construction of an aws cli function call to 
-# perform a create/update stack action.
+# perform a create/update stack action. Only the name is provided, not the value, which must be determined here.
 add_parameter() {
   eval 'local value=$'$3
   [ -z "$value" ] && return 0
@@ -494,7 +494,7 @@ createEc2KeyPair() {
   local cleanup="$2"
   # Create an s3 bucket for the app if it doesn't already exist
   
-  if ! bucketExists "$TEMPLATE_BUCKET_NAME" ; then
+  if ! isAccessibleBucket "$TEMPLATE_BUCKET_NAME" ; then
     aws s3 mb s3://$TEMPLATE_BUCKET_NAME
   fi
 
@@ -872,7 +872,7 @@ createSelfSignedCertificate() {
   )
 
   # Create an s3 bucket for the app if it doesn't already exist
-  if ! bucketExists "$TEMPLATE_BUCKET_NAME" ; then
+  if ! isAccessibleBucket "$TEMPLATE_BUCKET_NAME" ; then
     aws s3 mb s3://$TEMPLATE_BUCKET_NAME
   fi
 
@@ -1140,10 +1140,24 @@ subnetExists() {
   [ "$lookupResult" == "$subnetId" ] && true || false
 }
 
+# If a bucket does not exist in this account, it may be a bucket in another account for which this account has access.
+# Access is determined by performing ls against the bucket. 
+# DISCLAIMER: This is an arbitrary test because the bucket may exist, but without the list-objects policy action granted
+# Alternatively, the bucket may still exist somewhere out there globally.
+# For now the list-objects test covers the use cases so far.
+isAccessibleBucket() {
+  local bucketname="$1"
+  local accessible='false'
+  if ! bucketExistsInThisAccount $bucketname ; then
+    aws ls $bucketname
+    [ $? == 0 ] && accessible='true'
+  fi
+  [ $accessible == 'true' ] && true || false
+}
 
 # Will determine if an S3 bucket exists, even if it is empty.
 # NOTE: You must call scripts that use this with bash, not sh, else the pipe to the while loop syntax will not be recognized.
-bucketExists() {
+bucketExistsInThisAccount() {
   local bucketname="$1"
 
   findBucket() {
@@ -2289,7 +2303,7 @@ copyToBucket() {
 emptyBuckets() {
   local success='true'
   for bucket in $@ ; do
-    if bucketExists "$bucket" ; then
+    if bucketExistsInThisAccount "$bucket" ; then
       echo "aws s3 rm s3://$bucket --recursive..."
       aws s3 rm s3://$bucket --recursive
       local errcode=$?

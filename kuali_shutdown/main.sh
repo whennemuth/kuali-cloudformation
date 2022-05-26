@@ -66,7 +66,7 @@ stackAction() {
     # Upload lambda code
     if [ "$PACKAGE_JAVASCRIPT" != 'false' ] ; then
       outputHeading "Building, zipping, and uploading lambda code..."
-      if ! bucketExists "$CODE_BUCKET_NAME" ; then
+      if ! bucketExistsInThisAccount "$CODE_BUCKET_NAME" ; then
         if askYesNo "The bucket $CODE_BUCKET_NAME does not exist create it?" ; then
           aws s3 mb s3://$CODE_BUCKET_NAME
           [ $? -gt 0 ] && echo "ERROR! Could not create bucket s3://$CODE_BUCKET_NAME, Cancelling..." && exit 1

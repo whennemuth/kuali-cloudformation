@@ -25,6 +25,8 @@ Parameters:
 Resources:
 
   # See: https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/resource-record-sets-values-basic.html
+  # NOTE: cannot be an Alias (A) record because RDS only supports being routed to via a CNAME record.
+  #   See: https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/routing-to-rds-db.html
   KualiDNSRecord:
     Type: AWS::Route53::RecordSet
     Properties:

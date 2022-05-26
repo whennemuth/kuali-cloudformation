@@ -48,7 +48,7 @@ omitpaths=(
 
 # MAIN FUNCTION:
 migrate() {
-  if ! bucketExists $TARGET_BUCKET $TARGET_PROFILE ; then
+  if ! bucketExistsInThisAccount $TARGET_BUCKET $TARGET_PROFILE ; then
     if askYesNo "$TARGET_BUCKET does not exist. Create?" ; then
       aws --profile=$TARGET_PROFILE s3 mb s3://$TARGET_BUCKET
     else

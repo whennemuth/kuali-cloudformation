@@ -13,18 +13,23 @@ This setup is depicted below:![dns1](./dns1.png)
 The improvements in this setup focus on shifting most of the name to address resolution of [dns](https://en.wikipedia.org/wiki/Domain_Name_System) to [route 53](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/Welcome.html).
 The BU dns server(s) role is reduced down to having a single wild-carded entry. Any traffic whose addressing matches the wild-card is sent through [route 53](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/Welcome.html) for the remainder of the name resolution.
 
-Since [route 53](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/Welcome.html) can have records added dynamically to the [hosted zone](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/AboutHZWorkingWith.html) designated for "`*`.kuali.research.bu.edu" by cloud formation during creation of an application stack, no ticketing or cross-department coordination is necessary to create the [dns](https://en.wikipedia.org/wiki/Domain_Name_System) routing for that new environment.
-Also, the "`*`" portion of the "`*`.kuali.research.bu.edu" can be substituted with any environment name.
+Since [route 53](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/Welcome.html) can have records added dynamically to the [hosted zone](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/AboutHZWorkingWith.html) designated for "`*`.kualitest.research.bu.edu" by cloud formation during creation of an application stack, no ticketing or cross-department coordination is necessary to create the [dns](https://en.wikipedia.org/wiki/Domain_Name_System) routing for that new environment.
+Also, the "`*`" portion of the "`*`.kualitest.research.bu.edu" can be substituted with any environment name.
 The setup is depicted below:
 
 ![dns1](./dns2.png)
 
 If run without parameters, this stack will produce a hosted zone with two primary records having default values:
 
-- Application: `"kuali.research.bu.edu"`
-- Database: `"db.kuali.research.bu.edu"`
+- Application: `"kualitest.research.bu.edu"`
+- Database: `"db.kualitest.research.bu.edu"`
 
-Further records added will be for subdomains, ie: `"myenvironment.kuali.research.bu.edu"`
+Further records added will be for subdomains, ie: `"myenvironment.kualitest.research.bu.edu"`
+
+NOTE:
+
+- For AWS Load balancers, an A record can be used.
+- For An RDS instance, A records would be preferred, but are not supported and CNAME records are used.
 
 ### Prerequisites:
 

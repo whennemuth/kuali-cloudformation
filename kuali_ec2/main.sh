@@ -61,7 +61,7 @@ stackAction() {
   if [ "$action" == 'delete-stack' ] ; then
     if [ -n "$PDF_BUCKET_NAME" ] ; then
       echo "Must empty the pdf service s3 bucket"
-      if bucketExists "$PDF_BUCKET_NAME" ; then
+      if bucketExistsInThisAccount "$PDF_BUCKET_NAME" ; then
         if isDryrun ; then
           echo "DRYRUN: aws s3 rm s3://$PDF_BUCKET_NAME --recursive"
         else
@@ -210,7 +210,7 @@ runTask() {
     test)
       # getHostedZoneNameByLandscape 'ci' ;;
       # test ;;
-      setAcmCertArn 'ci.kuali.research.bu.edu'
+      setAcmCertArn 'ci.kualitest.research.bu.edu'
       echo $CERTIFICATE_ARN ;;
     *)
       if [ -n "$task" ] ; then

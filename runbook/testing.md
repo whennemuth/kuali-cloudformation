@@ -16,7 +16,7 @@ No functional changes are made to the app itself, but the "change of address",  
 ### DIFFERENCES:
 
 1. **Addressing**
-   Domain names will change for application and the database. Example: `stg.kuali.research.bu.edu` vs. `kuali-research-stg.bu.edu`.
+   Domain names will change for application and the database. Example: `stg.kualitest.research.bu.edu` vs. `kuali-research-stg.bu.edu`.
 2. **Database**
    - Old: EC2 host, oracle enterprise edition 12
    - New: RDS host, oracle standard edition 19

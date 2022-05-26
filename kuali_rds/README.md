@@ -45,7 +45,7 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
      This allows for one stack per environment in the same account.
    - The `multi_az` parameter defaults to false, so you must explicitly indicate true if want a standby replica and not just a single rds instance.
      **Important:** *Multi-AZ deployments are not a read scaling solution, you cannot use a standby replica to serve read traffic. The standby is only there for failover.*
-   - **DNS:** If you are recreating the stack and want to avoid the hassle of having end users update the database host with the new RDS endpoint value, include a `"USING_ROUTE53=true"` parameter. The database will be reachable at `[landscape].kuali.research.bu.edu`. End users can retain that hostname in their connection string and retain access even though the RDS database is new and has a different endpoint value.
+   - **DNS:** If you are recreating the stack and want to avoid the hassle of having end users update the database host with the new RDS endpoint value, include a `"USING_ROUTE53=true"` parameter. The database will be reachable at `[landscape].db.kualitest.research.bu.edu` for non-prod stacks and `prod.db.kuali.research.bu.edu` for the prod stack. End users can retain that hostname in their connection string and retain access even though the RDS database is new and has a different endpoint value.
    
    You will always be presented with the final cli stack creation command so that you can look at all the parameters it contains and will have the option to abort. Saves fear of guesswork. Those parameters you don't see can be located in the yaml template for the default value.
    

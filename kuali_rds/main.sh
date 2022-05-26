@@ -9,8 +9,8 @@ declare -A defaults=(
   [NO_ROLLBACK]='true'
   [ENGINE]='oracle-se2'
   [MAJOR_VERSION]='19'
-  [HOSTED_ZONE]='kuali.research.bu.edu'
   # ----- Some of the following are defaulted in the yaml file itself:
+  # [HOSTED_ZONE]='kualitest.research.bu.edu'
   # [LANDSCAPE]='???'
   # [PROFILE]='???'
   # [VPC_ID]='???'
@@ -139,6 +139,13 @@ EOF
       # HOSTED_ZONE_NAME="$(getHostedZoneNameByLandscape $LANDSCAPE)"
       # [ -z "$HOSTED_ZONE_NAME" ] && echo "ERROR! Cannot acquire hosted zone name. Cancelling..." && exit 1
       # add_parameter $cmdfile 'HostedZoneName' 'HOSTED_ZONE_NAME'
+      if [ -z "$HOSTED_ZONE" ] ; then
+        if [ "$LANDSCAPE" == 'prod' ] ; then
+          HOSTED_ZONE='kuali.research.bu.edu'
+        else
+          HOSTED_ZONE='kualitest.research.bu.edu'
+        fi
+      fi
       [ -z "$(getHostedZoneId $HOSTED_ZONE)" ] && echo "ERROR! Cannot detect hosted zone for $HOSTED_ZONE" && exit 1
       addParameter $cmdfile 'HostedZoneName' $HOSTED_ZONE
     fi
