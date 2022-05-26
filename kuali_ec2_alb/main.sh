@@ -93,6 +93,16 @@ stackAction() {
 
     # Get the arn of any ssl cert (acm or self-signed in iam)
     outputHeading "Checking certificates..."
+    if [ "${USING_ROUTE53,,}" == 'true' ] ; then
+      if [ -z "$HOSTED_ZONE" ] ; then
+        if [ "$LANDSCAPE" == 'prod' ] ; then
+          HOSTED_ZONE='kuali.research.bu.edu'
+        else
+          HOSTED_ZONE='kualitest.research.bu.edu'
+        fi
+      fi
+      [ -z "$(getHostedZoneId $HOSTED_ZONE)" ] && echo "ERROR! Cannot detect hosted zone for $HOSTED_ZONE" && exit 1
+    fi
     setCertArn
 
     checkKeyPair
@@ -216,23 +226,12 @@ EOF
     add_parameter $cmdfile 'UsingShibboleth' 'USING_SHIBBOLETH'
     add_parameter $cmdfile 'RdsJumpboxInstanceType' 'JUMPBOX_INSTANCE_TYPE'
 
-    if [ "${CREATE_MONGO,,}" == 'true' ] ; then
-      add_parameter $cmdfile 'MongoSubnetId' 'PRIVATE_SUBNET1'
+    if [ -n "$HOSTED_ZONE" ] ; then
+      addParameter $cmdfile 'HostedZoneName' $HOSTED_ZONE
     fi
 
-    if [ "${USING_ROUTE53,,}" == 'true' ] ; then
-      # HOSTED_ZONE_NAME="$(getHostedZoneNameByLandscape $LANDSCAPE)"
-      # [ -z "$HOSTED_ZONE_NAME" ] && echo "ERROR! Cannot acquire hosted zone name. Cancelling..." && exit 1
-      # add_parameter $cmdfile 'HostedZoneName' 'HOSTED_ZONE_NAME'
-      if [ -z "$HOSTED_ZONE" ] ; then
-        if [ "$LANDSCAPE" == 'prod' ] ; then
-          HOSTED_ZONE='kuali.research.bu.edu'
-        else
-          HOSTED_ZONE='kualitest.research.bu.edu'
-        fi
-      fi
-      [ -z "$(getHostedZoneId $HOSTED_ZONE)" ] && echo "ERROR! Cannot detect hosted zone for $HOSTED_ZONE" && exit 1
-      addParameter $cmdfile 'HostedZoneName' $HOSTED_ZONE
+    if [ "${CREATE_MONGO,,}" == 'true' ] ; then
+      add_parameter $cmdfile 'MongoSubnetId' 'PRIVATE_SUBNET1'
     fi
 
     if [ "${PDF_BUCKET_NAME,,}" != 'none' ] ; then  
