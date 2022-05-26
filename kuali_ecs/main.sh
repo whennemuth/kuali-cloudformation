@@ -253,9 +253,6 @@ EOF
     fi
 
     if [ "${USING_ROUTE53,,}" == 'true' ] ; then
-      # HOSTED_ZONE_NAME="$(getHostedZoneNameByLandscape $LANDSCAPE)"
-      # [ -z "$HOSTED_ZONE_NAME" ] && echo "ERROR! Cannot acquire hosted zone name. Cancelling..." && exit 1
-      # add_parameter $cmdfile 'HostedZoneName' 'HOSTED_ZONE_NAME'
       if [ -z "$HOSTED_ZONE" ] ; then
         if [ "$LANDSCAPE" == 'prod' ] ; then
           HOSTED_ZONE='kuali.research.bu.edu'

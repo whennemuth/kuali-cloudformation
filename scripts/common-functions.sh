@@ -587,8 +587,12 @@ setAcmCertArn() {
   local domainName="$1"
   [ "$LANDSCAPE" != 'prod' ] && domainName="*.$domainName"
   local arn="$(getAcmCertArn $domainName)"
-  [ -n "$arn" ] && CERTIFICATE_ARN="$arn" && return 0
+  CERTIFICATE_ARN="$arn"
+}
 
+importAndSetAcmCertArn() {
+
+  local domainName="$1"
   local checkS3=${2:-'true'}
   local keyfiles=0
   local certfiles=0
@@ -648,8 +652,13 @@ setAcmCertArn() {
       fi
     fi
   else
-    if askYesNo "Insufficient, unqualified, or no certificate/key files found in $(pwd)\nCheck s3 for them?" ; then
-      downloadAcmCertsFromS3 'import' "$domainName"
+    local msg="Insufficient, unqualified, or no certificate/key files found in $(pwd)"
+    if [ "${PROMPT,,}" == 'true' ] ; then
+      if askYesNo "$msg\nCheck s3 for them?" ; then
+        downloadAcmCertsFromS3 'import' "$domainName"
+      fi
+    else
+      echo "$msg"
     fi
   fi
 }
@@ -754,7 +763,10 @@ setCertArn() {
   # printCertLookupSteps
   if [ "${USING_ROUTE53,,}" == 'true' ] ; then
     setAcmCertArn "$HOSTED_ZONE"
-    [ -z "$CERTIFICATE_ARN" ] && echo "Acm service has no entry for $HOSTED_ZONE."
+    if [ -z "$CERTIFICATE_ARN" ] ; then
+      echo "Acm service has no certificate entry for $HOSTED_ZONE.\nCancelling..."
+      exit 1
+    fi
   else
     echo "Not using route53, which requires a self-signed certificate (which is permissable with iam certificate, but not acm certificate)"
   fi
