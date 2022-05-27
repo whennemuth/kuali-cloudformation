@@ -224,6 +224,7 @@ EOF
     add_parameter $cmdfile 'EnableALBLogging' 'ENABLE_ALB_LOGGING'
     add_parameter $cmdfile 'RetainLambdaCleanupLogs' 'RETAIN_LAMBDA_CLEANUP_LOGS'
     add_parameter $cmdfile 'UsingShibboleth' 'USING_SHIBBOLETH'
+    add_parameter $cmdfile 'ShibbolethHost' 'SHIB_HOST'
     add_parameter $cmdfile 'RdsJumpboxInstanceType' 'JUMPBOX_INSTANCE_TYPE'
 
     if [ -n "$HOSTED_ZONE" ] ; then

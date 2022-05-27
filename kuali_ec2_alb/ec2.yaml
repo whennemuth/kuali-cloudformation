@@ -160,6 +160,17 @@ Parameters:
     - "false"
     ConstraintDescription: Enter "true" or "false" only.
 
+  ShibbolethHost:
+    Type: String
+    Description: >
+      The UsingShibboleth parameter alone will cause the auto-selection of either of these two values based on landscape. 
+      However, that auto-selection will be overriden with this value if it is set.
+    AllowedValues:
+    - auto
+    - shib-test.bu.edu
+    - shib.bu.edu
+    Default: auto
+
   InstanceProfile:
     Type: String
     Description: If the instance profile already exists, provide its name here.
@@ -195,6 +206,7 @@ Conditions:
   IsProd: !Equals [!Ref Landscape, prod]
   IsTest: !Not [!And [!Equals [!Ref Landscape, prod], !Equals [!Ref Landscape, stg]]]
   UsingShibboleth: !Equals [!Ref UsingShibboleth, 'true']
+  IsShibHostProvided: !Not [!Equals [!Ref ShibbolethHost, auto]]
   NewrelicLicsenseKeyProvided: !Equals [!Ref NewrelicLicsenseKey, empty]
   RdsEndpointProvided: !Not [!Equals [!Ref RdsEndpoint, empty]]
 
@@ -747,7 +759,10 @@ Resources:
                 SHIB_HOST: 
                   !If
                     - UsingShibboleth
-                    - !If [ IsTest, 'shib-test.bu.edu', 'shib.bu.edu' ]
+                    - !If 
+                      - IsShibHostProvided
+                      - !Ref ShibbolethHost
+                      - !If [ IsTest, 'shib-test.bu.edu', 'shib.bu.edu' ]
                     - !Ref AWS::NoValue
               command: bash process-configs.sh
         03_process_kc-config_file:
@@ -820,7 +835,10 @@ Resources:
                 SHIB_HOST: 
                   !If
                     - UsingShibboleth
-                    - !If [ IsTest, 'shib-test.bu.edu', 'shib.bu.edu' ]
+                    - !If 
+                      - IsShibHostProvided
+                      - !Ref ShibbolethHost
+                      - !If [ IsTest, 'shib-test.bu.edu', 'shib.bu.edu' ]
                     - !Ref AWS::NoValue
                 MONGO_INSTANCE_ID: !Ref MongoInstanceId
                 MONGO_URI:

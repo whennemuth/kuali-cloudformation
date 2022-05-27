@@ -25,6 +25,7 @@ Metadata:
           - EnableWAF
           - HostedZoneName
           - UsingShibboleth
+          - ShibbolethHost
       - Label: 
           default: "Amazon EC2 Configuration"
         Parameters: 
@@ -238,6 +239,17 @@ Parameters:
     - "true"
     - "false"
     ConstraintDescription: Enter "true" or "false" only.
+
+  ShibbolethHost:
+    Type: String
+    Description: >
+      The UsingShibboleth parameter alone will cause the auto-selection of either of these two values based on landscape. 
+      However, that auto-selection will be overriden with this value if it is set.
+    AllowedValues:
+    - empty
+    - shib-test.bu.edu
+    - shib.bu.edu
+    Default: empty
 
   # --------------------------------------------------------------------------------------------
   #       RDS create from snapshotParameters:
@@ -596,6 +608,8 @@ Resources:
             - !Ref AWS::NoValue
         UsingShibboleth:
           !Ref UsingShibboleth
+        ShibbolethHost:
+          !Ref ShibbolethHost
         MinClusterSize:
           !Ref MinClusterSize
         MaxClusterSize:
