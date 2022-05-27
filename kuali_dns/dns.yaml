@@ -4,6 +4,7 @@ AWSTemplateFormatVersion: '2010-09-09'
 # https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/CreatingNewSubdomain.html
 # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/AWS_Route53.html
 # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/quickref-route53.html
+# https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/DomainNameFormat.html
 
 # NOTE ON SECURITY:
 # Currently the database dns name is a subdomain of the main kuali domain name (example: stg.db.kuali.research.bu.edu or db.kuali.research.bu.edu).
