@@ -246,7 +246,10 @@ Parameters:
 
   RequestThreshold:
     Type: Number
-    Default: 100
+    # Default: 100
+    # Upping this parameter because kuali is very chatty and a single session can easily go over 100 request per 5 minute interval.
+    # TODO: Come up with a more nuanced approach to identify "good" (our clients) ip addresses vs. "blockable" ones.
+    Default: 1000
     MinValue: 0
     Description:  >-
       If you chose yes for the Activate HTTP Flood Protection parameter, enter the maximum
