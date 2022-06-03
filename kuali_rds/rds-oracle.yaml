@@ -385,6 +385,14 @@ Resources:
         - !Ref LogGroupRetention
         - !If [ IsProd, 365, 30 ]
 
+  ParameterGroup:
+    Type: 'AWS::RDS::DBParameterGroup'
+    Properties:
+      Description: Single parameter group to indicate the db initializes with prior version compatibility set.
+      Family: !Sub ${Engine}-${RdsEngineVersion}
+      Parameters:
+        compatible: '12.1.0.2.0'
+
   DBInstance:
     Type: AWS::RDS::DBInstance
     # DependsOn: MasterUserPassword
