@@ -1161,7 +1161,7 @@ isAccessibleBucket() {
   local bucketname="$1"
   local accessible='false'
   if ! bucketExistsInThisAccount $bucketname ; then
-    aws ls $bucketname
+    aws s3 ls $bucketname
     [ $? == 0 ] && accessible='true'
   fi
   [ $accessible == 'true' ] && true || false

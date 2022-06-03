@@ -99,7 +99,10 @@ Alternatively, the only way to provide enough protection without a WAF is to res
     This will prevent interference with the exception in the Rice-Identity-Service-Rule. The Rice-Identity-Service-Rule will re-engage the rule if its own exception has been satisfied.
   - *NOTE: The Main XssRule is deactivated because due to redundancy - the same actions & criterion are duplicated in AWSManagedRulesCommonRuleSet.*
 
-    
+3. **Flood protection:**
+   One of the WebAcl blocking rules activates after the 50th http request is detected against the load balancer within a 5 minute interval originating from the same IP address. It has been found that busy clicking, combined with "chatty" api calls of kc can easily exceed this limit. When exceeded, the user will start to see 403 status codes in their browser. To avoid this, the request threshold of the WebAcl HttpFloodProtectionRateBasedRule has been increased to 2000. This limit should go beyond what any single user can rack up for http hits in 5 minutes.
+
+     
 
 ### Upload the template to S3:
 
