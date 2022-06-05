@@ -119,6 +119,7 @@ EOF
     add_parameter $cmdfile 'DBInstanceClass' 'DB_INSTANCE_CLASS'
     add_parameter $cmdfile 'MultiAZ' 'MULTI_AZ'
     add_parameter $cmdfile 'Engine' 'ENGINE'
+    add_parameter $cmdfile 'RdsMajorVersion' 'MAJOR_VERSION'
     add_parameter $cmdfile 'DBName' 'DB_NAME'
     add_parameter $cmdfile 'Port' 'PORT'
     add_parameter $cmdfile 'LicenseModel' 'LICENSE_MODEL'

@@ -132,6 +132,18 @@ Parameters:
     - oracle-se1
     - oracle-se
 
+  RdsMajorVersion:
+    Type: String
+    Description: tbd
+    Default: 19
+    AllowedValues:
+    - 21
+    - 19
+    - 18
+    - 12.2
+    - 12.1
+    - 11.2
+
   # Pick the latest version for a family as follows:
   #   aws rds describe-db-engine-versions \
   #     --engine oracle-ee \
@@ -389,9 +401,22 @@ Resources:
     Type: 'AWS::RDS::DBParameterGroup'
     Properties:
       Description: Single parameter group to indicate the db initializes with prior version compatibility set.
-      Family: !Sub ${Engine}-${RdsEngineVersion}
+      Family: !Sub ${Engine}-${RdsMajorVersion}
       Parameters:
         compatible: '12.1.0.2.0'
+      Tags:
+      - Key: Name
+        Value: !Sub ${GlobalTag}-${Landscape}-pg
+      - Key: App
+        Value: Kuali
+      - Key: Landscape
+        Value: !Ref Landscape
+      - Key: Baseline
+        Value: !Ref Baseline
+      - Key: Service
+        Value: !Ref Service
+      - Key: Function
+        Value: !Ref Function
 
   DBInstance:
     Type: AWS::RDS::DBInstance
@@ -412,6 +437,7 @@ Resources:
       DBInstanceClass: !Ref DBInstanceClass
       DBInstanceIdentifier: !Sub ${GlobalTag}-${Landscape}
       DBName: !Ref DBName
+      DBParameterGroupName: !Ref ParameterGroup
       DBSnapshotIdentifier: 
         !If
         - CreateFromSnapshot
