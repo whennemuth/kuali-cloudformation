@@ -459,11 +459,8 @@ Resources:
         - audit
         - alert
         - listener
-      EnablePerformanceInsights:
-        !If 
-        - IsProd
-        - true
-        - !Ref AWS::NoValue
+      # https://aws.amazon.com/rds/performance-insights/pricing/
+      EnablePerformanceInsights: true
       Engine: !Ref Engine
       EngineVersion: !Ref RdsEngineVersion
       Iops:
@@ -476,11 +473,12 @@ Resources:
       MasterUsername: !Sub '{{resolve:secretsmanager:kuali/${Baseline}/kuali-oracle-rds-admin-password:SecretString:MasterUsername}}'
       MasterUserPassword: !Sub '{{resolve:secretsmanager:kuali/${Baseline}/kuali-oracle-rds-admin-password:SecretString:MasterUserPassword}}'
       MultiAZ: !Ref MultiAZ # If true, it should create a second standby rds instance in the second subnet of the subnet group.
+      # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-rds-database-instance.html#cfn-rds-dbinstance-performanceinsightsretentionperiod
       PerformanceInsightsRetentionPeriod: 
         !If 
         - IsProd
-        - 30
-        - !Ref AWS::NoValue
+        - 731
+        - 7
       Port: !Ref Port
       # https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_WorkingWithAutomatedBackups.html#USER_WorkingWithAutomatedBackups.BackupWindow
       PreferredBackupWindow: 22:00-23:00
