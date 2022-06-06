@@ -444,16 +444,16 @@ Resources:
         - !Ref RdsSnapshotARN
         - !Ref AWS::NoValue
       DBSubnetGroupName: !Ref DBSubnetGroup
-      DeletionProtection:
-        !If
-        - IsProd
-        - true
-        - !Ref AWS::NoValue
-      DeleteAutomatedBackups:
-        !If
-        - IsProd
-        - false
-        - true
+      DeletionProtection: false
+        # !If
+        # - IsProd
+        # - true
+        # - !Ref AWS::NoValue
+      DeleteAutomatedBackups: true
+        # !If
+        # - IsProd
+        # - false
+        # - true
       EnableCloudwatchLogsExports:
         - trace
         - audit
