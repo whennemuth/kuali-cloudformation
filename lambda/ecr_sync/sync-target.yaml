@@ -17,6 +17,13 @@ Parameters:
     Description: The Function within the Service.
     Type: String
     Default: kuali
+
+  Landscape:
+    Description: Specify a name for your landscape
+    Type: String
+    AllowedPattern: "[a-zA-Z\\d]{1,12}"
+    ConstraintDescription: Up to 12 letters and/or numbers
+    Default: empty
   
   TrustedAccount:
     Type: String
@@ -28,6 +35,13 @@ Parameters:
     Description: The name of the trusted role from the trusted account
     Default: kuali-ecr-sync-trusted-role
 
+
+Conditions:
+
+  IsLandscapeProvided: !Not [ !Equals [ !Ref Landscape, empty ] ]
+  IsDefaultTrustedRoleName: !Equals [ !Ref TrustedRoleName, kuali-ecr-sync-trusted-role ]
+  # The role name is still based on the default and is only "custom" in that it has the landscape value injected into it.
+  CustomTrustedRoleName: !And [ IsDefaultTrustedRoleName, IsLandscapeProvided ]
 
 Resources:
 
@@ -41,7 +55,11 @@ Resources:
           - Effect: Allow
             Principal:
               AWS: 
-                - !Sub arn:aws:iam::${TrustedAccount}:role/${TrustedRoleName}
+                - 
+                  !If 
+                    - CustomTrustedRoleName
+                    - !Sub arn:aws:iam::${TrustedAccount}:role/kuali-${Landscape}-ecr-sync-trusted-role
+                    - !Sub arn:aws:iam::${TrustedAccount}:role/${TrustedRoleName}
                 - !Sub arn:aws:iam::${TrustedAccount}:root
             Action: sts:AssumeRole
       Path: /

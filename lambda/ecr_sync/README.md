@@ -42,11 +42,15 @@ For that, two stack templates are provided here:
    sh main.sh create-stack \
      profile=[profile of trusted account] \
      sync_participant=source \
-     trusting_account=730096353738
+     trusting_account=730096353738 \
+     landscape=stg
    ```
 
    When the stack has finished creating, all resources will have been created, EXCEPT the delegating trust policy that specifies the trusting role in the target account, which hasn't been created yet.
    This stack will have a single output specifying the arn of the role it created.
+
+   > **Landscape Parameter:** You can omit the landscape parameter if there will only be one deployed stack in the account.
+   > This will simplify resource names in that they will have a landscape qualifier omitted. If you do this, you must also omit the Landscape parameter when building the "Trusting" account role stack in the target account *(Next step)*
 
 2. Create the "Trusting" account role:
 
@@ -54,7 +58,8 @@ For that, two stack templates are provided here:
    sh main.sh create-stack \
      profile=[profile of trusting account] \
      sync_participant=target \
-     trusted_account=770203350335
+     trusted_account=770203350335 \
+     landscape=stg
    ```
 
    This stack will also have a single output specifying the arn of the role it created.
