@@ -146,12 +146,7 @@ Resources:
                 Action: 
                   - ecr:*
                 Resource:
-                  - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/kuali-coeus
-                  - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/kuali-coeus-feature
-                  - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/kuali-core
-                  - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/kuali-core-feature
-                  - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/kuali-portal
-                  - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/kuali-research-pdf
+                  - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/kuali-*
               - Effect: Allow
                 Action:
                   - ecr:GetAuthorizationToken

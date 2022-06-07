@@ -76,6 +76,11 @@ Resources:
                 Resource:
                   - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/coeus
                   - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/coeus-feature
+                  - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/core
+                  - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/core-feature
+                  - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/portal
+                  - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/portal-feature
+                  - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/research-pdf
               - Effect: Allow
                 Action:
                   - ecr:GetAuthorizationToken

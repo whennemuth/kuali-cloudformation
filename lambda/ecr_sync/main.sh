@@ -100,6 +100,7 @@ EOF
 
     add_parameter $cmdfile 'Service' 'SERVICE'
     add_parameter $cmdfile 'Function' 'FUNCTION'
+    add_parameter $cmdfile 'Landscape' 'LANDSCAPE'
     add_parameter $cmdfile 'VpcId' 'VpcId'
     add_parameter $cmdfile 'CampusSubnet' 'CAMPUS_SUBNET1'
     add_parameter $cmdfile 'TrustingAccount' 'TRUSTING_ACCOUNT'
