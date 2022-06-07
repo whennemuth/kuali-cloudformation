@@ -56,11 +56,22 @@ validateParms() {
 stackAction() {
   local action=$1   
 
+  if [ -z "$FULL_STACK_NAME" ] ; then
+    if [ -n "$LANDSCAPE" ] ; then
+      FULL_STACK_NAME=${STACK_NAME}-${LANDSCAPE}
+    else
+      FULL_STACK_NAME=${STACK_NAME}
+    fi
+  fi
   if [ "$action" == 'delete-stack' ] ; then
-    aws cloudformation $action --stack-name $STACK_NAME
-    if ! waitForStackToDelete ; then
-      echo "Problem deleting stack!"
-      exit 1
+    if isDryrun ; then
+      echo "DRYRUN: aws cloudformation $action --stack-name $(getStackToDelete)"
+    else
+      aws cloudformation $action --stack-name $(getStackToDelete)
+      if ! waitForStackToDelete ; then
+        echo "Problem deleting stack!"
+        exit 1
+      fi
     fi
   else
     if [ "${SYNC_PARTICIPANT,,}" == 'source' ] ; then
@@ -79,7 +90,7 @@ stackAction() {
     cat <<-EOF > $cmdfile
     aws \\
       cloudformation $action \\
-      --stack-name ${STACK_NAME} \\
+      --stack-name ${FULL_STACK_NAME} \\
       $([ $task != 'create-stack' ] && echo '--no-use-previous-template') \\
       $([ "$NO_ROLLBACK" == 'true' ] && [ $task == 'create-stack' ] && echo '--on-failure DO_NOTHING') \\
       --template-body "file://./$YAML_FILE" \\
@@ -100,7 +111,7 @@ EOF
     echo "      --tags '[" >> $cmdfile
     addStandardTags
     addTag $cmdfile 'Category' 'ecr'
-    addTag $cmdfile 'Subcategory' 'iam'
+    addTag $cmdfile 'Subcategory' 'replication'
     echo "      ]'" >> $cmdfile
 
     runStackActionCommand

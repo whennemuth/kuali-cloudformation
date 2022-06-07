@@ -17,6 +17,13 @@ Parameters:
     Description: The Function within the Service.
     Type: String
     Default: kuali
+
+  Landscape:
+    Description: Specify a name for your landscape
+    Type: String
+    AllowedPattern: "[a-zA-Z\\d]{1,12}"
+    ConstraintDescription: Up to 12 letters and/or numbers
+    Default: empty
   
   TrustingRoleName:
     Type: String
@@ -25,8 +32,9 @@ Parameters:
 
   TrustingAccount:
     Type: String
-    Description: The trusting target account
+    Description: The trusting target account. Not the prod account.
     Default: 730096353738
+    # Default: 115619461932 (prod) 
 
   VpcId:
     Type: AWS::EC2::VPC::Id
@@ -53,12 +61,21 @@ Parameters:
     Default: t3.small
 
 
+Conditions:
+
+  IsLegacyTarget: !Equals [!Ref TrustingAccount, '730096353738']
+  IsLandscapeProvided: !Not [ !Equals [ !Ref Landscape, empty ] ]
+
 Resources:
 
   LambdaRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: kuali-ecr-sync-lambda-role
+      RoleName: 
+        !If
+          - IsLandscapeProvided
+          - !Sub kuali-${Landscape}-ecr-sync-lambda-role
+          - kuali-ecr-sync-lambda-role
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -68,7 +85,11 @@ Resources:
             Action: sts:AssumeRole
       Path: /
       Policies:
-        - PolicyName: kuali-ecr-sync-ssm-policy
+        - PolicyName:             
+            !If
+              - IsLandscapeProvided
+              - !Sub kuali${Landscape}-ecr-sync-ssm-policy
+              - kuali-ecr-sync-ssm-policy
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -89,7 +110,12 @@ Resources:
   EC2Role:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub kuali-ecr-sync-trusted-role
+      RoleName: 
+        kuali-ecr-sync-trusted-role
+        !If
+          - IsLandscapeProvided
+          - !Sub kuali-${Landscape}-ecr-sync-trusted-role
+          - kuali-ecr-sync-trusted-role
       AssumeRolePolicyDocument:
         Statement:
         - Effect: Allow
@@ -102,7 +128,11 @@ Resources:
         - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
         - !Ref CrossAccountTrustPolicy
       Policies:
-        - PolicyName: kuali-ecr-sync-trusted-policy
+        - PolicyName: 
+            !If
+              - IsLandscapeProvided
+              - !Sub kuali-${Landscape}-ecr-sync-trusted-policy
+              - kuali-ecr-sync-trusted-policy
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -118,6 +148,10 @@ Resources:
                 Resource:
                   - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/kuali-coeus
                   - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/kuali-coeus-feature
+                  - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/kuali-core
+                  - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/kuali-core-feature
+                  - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/kuali-portal
+                  - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/kuali-research-pdf
               - Effect: Allow
                 Action:
                   - ecr:GetAuthorizationToken
@@ -134,7 +168,11 @@ Resources:
   EC2InstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:
-      InstanceProfileName: !Sub kuali-ecr-sync-trusted-profile
+      InstanceProfileName: 
+        !If
+          - IsLandscapeProvided
+          - !Sub kuali-${Landscape}-ecr-sync-trusted-profile
+          - kuali-ecr-sync-trusted-profile        
       Path: "/"
       Roles:
       - !Ref EC2Role
@@ -158,14 +196,30 @@ Resources:
           action-type: [PUSH]
           # image-tag: [latest]
           repository-name: 
-            - kuali-coeus
-            - kuali-coeus-feature
+            !If 
+              - IsLegacyTarget
+              - - kuali-coeus
+                - kuali-coeus-feature
+                - kuali-core
+                - kuali-core-feature
+                - kuali-portal
+                - kuali-portal-feature
+                - kuali-researh-pdf
+              - - kuali-coeus
+                - kuali-core
+                - kuali-portal
+                - kuali-research-pdf
           result: [SUCCESS]
         detail-type: [ECR Image Action]
         source: [aws.ecr]
       Targets:
         - Arn: !GetAtt SyncReposFunction.Arn
-          Id: kuali-repository-sync
+          Id: 
+            !If
+              - IsLandscapeProvided
+              - !Sub kuali-${Landscape}-repository-sync
+              - kuali-repository-sync        
+            
 
   PermissionForEventsToInvokeLambda:
     Type: AWS::Lambda::Permission
@@ -179,7 +233,11 @@ Resources:
     Type: AWS::Logs::LogGroup
     DeletionPolicy: Delete
     Properties:
-      LogGroupName: !Sub /aws/lambda/${Service}-${Function}-ecr-sync
+      LogGroupName: 
+        !If 
+          - IsLandscapeProvided
+          - !Sub /aws/lambda/${Service}-${Function}-${Landscape}-ecr-sync
+          - !Sub /aws/lambda/${Service}-${Function}-ecr-sync
       RetentionInDays: 90
 
   # Create a log group that anticipates the default name that lambda will log to.
@@ -188,22 +246,29 @@ Resources:
     Type: AWS::Logs::LogGroup
     DeletionPolicy: Delete
     Properties:
-      LogGroupName: !Sub /aws/ec2/${Service}-${Function}-ecr-sync
+      LogGroupName: 
+        !If 
+          - IsLandscapeProvided
+          - !Sub /aws/ec2/${Service}-${Function}-${Landscape}-ecr-sync
+          - !Sub /aws/ec2/${Service}-${Function}-ecr-sync
       RetentionInDays: 90
 
   SyncReposFunction:
     Type: AWS::Lambda::Function
     DependsOn: LambdaLogsGroup 
     Properties:
-      FunctionName: !Sub ${Service}-${Function}-ecr-sync
+      FunctionName: 
+        !If
+          - IsLandscapeProvided
+          - !Sub ${Service}-${Function}-${Landscape}-ecr-sync
+          - !Sub ${Service}-${Function}-ecr-sync
       Description: Function that repeats image pushes to an ecr in another account
       Runtime: nodejs12.x
       Role: !GetAtt LambdaRole.Arn
       Handler: index.PushImage
       Environment:
         Variables:
-          Repo: coeus
-          FeatureRepo: coeus-feature
+          TARGET_TYPE: !If [ IsLegacyTarget, 'legacy', 'css' ]
       Code:
         ZipFile: !Sub |
           var AWS = require('aws-sdk');
@@ -216,6 +281,7 @@ Resources:
               console.log("-------------------- CONTEXT --------------------");
               console.log(JSON.stringify(context, null, 2));
 
+              var targetType = process.env.TARGET_TYPE || 'css';
               var args = {
                 source: event,
                 target: {
@@ -223,7 +289,8 @@ Resources:
                   region: "${AWS::Region}",
                   role: "arn:aws:iam::${TrustingAccount}:role/${TrustingRoleName}"
                 },
-                dryrun: "false"
+                dryrun: "false",
+                targetType: targetType
               }
 
               ssm.sendCommand(
@@ -260,12 +327,24 @@ Resources:
   EC2InstanceSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: !Sub Defines access for the ${Service}-${Function}-ecr-sync ec2 instance.
-      GroupName: !Sub ${Service}-${Function}-ecr-sync-sg
+      GroupDescription: 
+        !If
+          - IsLandscapeProvided
+          - !Sub Defines access for the ${Service}-${Function}-${Landscape}-ecr-sync ec2 instance.
+          - !Sub Defines access for the ${Service}-${Function}-ecr-sync ec2 instance.
+      GroupName: 
+        !If
+          - IsLandscapeProvided
+          - !Sub ${Service}-${Function}-${Landscape}-ecr-sync-sg
+          - !Sub ${Service}-${Function}-ecr-sync-sg
       VpcId: !Ref VpcId
       Tags:
       - Key: Name
-        Value: !Sub ${Service}-${Function}-ecr-sync-sg
+        Value: 
+          !If
+            - IsLandscapeProvided
+            - !Sub ${Service}-${Function}-${Landscape}-ecr-sync-sg
+            - !Sub ${Service}-${Function}-ecr-sync-sg
 
   EC2Instance:
     Type: AWS::EC2::Instance
@@ -295,7 +374,11 @@ Resources:
       - !GetAtt EC2InstanceSecurityGroup.GroupId
       Tags:
       - Key: Name
-        Value: !Sub ${Service}-${Function}-ecr-sync
+        Value: 
+          !If
+            - IsLandscapeProvided
+            - !Sub ${Service}-${Function}-${Landscape}-ecr-sync
+            - !Sub ${Service}-${Function}-ecr-sync
       - Key: Service
         Value: !Ref Service
       - Key: Function
@@ -372,9 +455,25 @@ Resources:
 
                 push() {
                   TARGET_ACCOUNT=$(echo $args | jq -r '.target.account')
-                  case "$SOURCE_REPO" in
-                    kuali-coeus) local targetRepo='coeus' ;;
-                    kuali-coeus-feature) local targetRepo='coeus-feature' ;;
+                  TARGET_TYPE="$(echo $args | jq -r '.targetType' 2>&1)"
+                  [ -z "$TARGET_TYPE" ] && echo 'No target type provided, defaulting to css' && TARGET_TYPE='css'
+                  echo "TARGET_TYPE = $TARGET_TYPE"
+                  # Strip off the leading "kuali-" part of the repo name if sending image to legacy aws account.
+                  case "$TARGET_TYPE" in
+                    legacy) 
+                      if [ "${SOURCE_REPO:0:6}" == 'kuali-' ] ; then
+                        local targetRepo="${SOURCE_REPO:6}"
+                      else
+                        local targetRepo="$SOURCE_REPO"
+                      fi
+                      ;;
+                    css)
+                      local targetRepo="$SOURCE_REPO"
+                      ;;
+                    *)
+                      echo "TARGET_TYPE: expected [ 'css' or 'legacy' ], found $TARGET_TYPE"
+                      exit 1
+                      ;;
                   esac
                   if [ -n "$targetRepo" ] ; then
                     local targetImage="${TARGET_ACCOUNT}.dkr.ecr.${REGION}.amazonaws.com/${targetRepo}:${TAG}"
