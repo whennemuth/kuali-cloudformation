@@ -41,7 +41,7 @@ Conditions:
   IsLandscapeProvided: !Not [ !Equals [ !Ref Landscape, empty ] ]
   IsDefaultTrustedRoleName: !Equals [ !Ref TrustedRoleName, kuali-ecr-sync-trusted-role ]
   # The role name is still based on the default and is only "custom" in that it has the landscape value injected into it.
-  CustomTrustedRoleName: !And [ IsDefaultTrustedRoleName, IsLandscapeProvided ]
+  CustomTrustedRoleName: !And [ Condition: IsDefaultTrustedRoleName, Condition: IsLandscapeProvided ]
 
 Resources:
 
