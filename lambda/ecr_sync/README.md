@@ -80,6 +80,49 @@ For that, two stack templates are provided here:
    ```
 
    "busybox" tagged versions of the "coeus-feature" repository should appear in the trusting account ecr moments later.
+   
+   **Unit Test:**
+   You can also "unit test" by invoking the lambda function directly *(does not need to be triggered by event)*.
+   You can do this in one of two ways:
+   
+   1. "Impersonate" the EventBridge service by calling the lambda function directly with the cli:
+   
+      ```
+      local reponame=${1:-"kuali-coeus-feature"}
+      local imagetag=${2:-"busybox"}
+      local digest=${3:-"unknown-digest"}
+      aws --profile=infnprd lambda invoke \
+        --function-name research-administration-kuali-prod-ecr-sync \
+        --cli-binary-format raw-in-base64-out \
+        --payload '
+          {
+            "version": "0",
+            "id": "13cde686-328b-6117-af20-0e5566167482",
+            "detail-type": "ECR Image Action",
+            "source": "aws.ecr",
+            "account": "770203350335",
+            "time": "2022-06-09T00:00:00Z",
+            "region": "us-east-1",
+            "resources": [],
+            "detail": {
+              "result": "SUCCESS",
+              "repository-name": "'$reponame'",
+              "image-digest": "sha256:'$digest'",
+              "action-type": "PUSH",
+              "image-tag": "'$imagetag'"
+            }
+          }' \
+        lambda-test.json
+      ```
+   
+      Change the field values appropriately and run the test. The corresponding image should show up in the target repository.
+   
+   2. Bring the lambda function up in the aws management console and navigate as follows:
+   
+      - Navigate here: `"Test" tab --> "Create new event" --> "Event JSON":`
+      - Paste the same json used in the --payload field of the cli example above into the "Event JSON" field.
+      - Change the field values appropriately and run the test. The corresponding image should show up in the target repository.
+   
 
 #### References:
 

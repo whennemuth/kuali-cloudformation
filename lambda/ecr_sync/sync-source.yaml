@@ -111,7 +111,6 @@ Resources:
     Type: AWS::IAM::Role
     Properties:
       RoleName: 
-        kuali-ecr-sync-trusted-role
         !If
           - IsLandscapeProvided
           - !Sub kuali-${Landscape}-ecr-sync-trusted-role
