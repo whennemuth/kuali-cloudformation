@@ -91,7 +91,7 @@ For that, two stack templates are provided here:
       local reponame=${1:-"kuali-coeus-feature"}
       local imagetag=${2:-"busybox"}
       local digest=${3:-"unknown-digest"}
-      aws --profile=infnprd lambda invoke \
+      aws lambda invoke \
         --function-name research-administration-kuali-prod-ecr-sync \
         --cli-binary-format raw-in-base64-out \
         --payload '

@@ -63,8 +63,6 @@ Resources:
                 - !Sub arn:aws:iam::${TrustedAccount}:root
             Action: sts:AssumeRole
       Path: /
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess
       Policies:
         - PolicyName: kuali-ecr-sync-trusting-policy
           PolicyDocument:
@@ -72,8 +70,13 @@ Resources:
             Statement:
               - Effect: Allow
                 Action:
+                  - 'cloudtrail:LookupEvents'
+                Resource: '*'
+              - Effect: Allow
+                Action:
                   - ecr:*
                 Resource:
+                  # Legacy
                   - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/coeus
                   - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/coeus-feature
                   - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/core
@@ -81,6 +84,14 @@ Resources:
                   - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/portal
                   - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/portal-feature
                   - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/research-pdf
+                  # CSS
+                  - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/kuali-coeus
+                  - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/kuali-coeus-feature
+                  - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/kuali-core
+                  - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/kuali-core-feature
+                  - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/kuali-portal
+                  - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/kuali-portal-feature
+                  - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/kuali-research-pdf
               - Effect: Allow
                 Action:
                   - ecr:GetAuthorizationToken

@@ -242,7 +242,7 @@ Resources:
         Function: !Ref Function
         RetainLogs: !Ref RetainLambdaCleanupLogs
 
-  # The lambda backing this custom resource will detect if a stack deletion is in progress and only then the will operate.
+  # The lambda backing this custom resource will detect if a stack deletion is in progress and only then will operate.
   # The function of this lambda is to empty the s3 bucket of waf logs so that cloudformation will succeed in deleting it.
   EmptyWafLoggingBucket:
     Type: Custom::Functions
