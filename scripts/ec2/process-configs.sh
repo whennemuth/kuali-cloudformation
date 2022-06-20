@@ -46,6 +46,7 @@ processEnvironmentVariableFiles() {
     #    Assumes that if route 53 is not in use, then a load balancer or ec2 instance ip is the app address, which entails self-signed cert.
     case "$app" in
       core)
+        local targetS3EnvFile="${TARGET_S3_FILE_CORE}"
         if [ -n "$MONGO_EC2_IP" ] || [ -n "$MONGO_URI" ]; then
           removeLine $envfile 'MONGO_PRIMARY_SHARD'
           removeLine $envfile 'MONGO_USER'
@@ -88,6 +89,7 @@ processEnvironmentVariableFiles() {
         checkValue $envfile 'START_CMD'
         ;;
       pdf)
+        local targetS3EnvFile="${TARGET_S3_FILE_PDF}"
         if [ -n "$MONGO_EC2_IP" ] || [ -n "$SPRING_DATA_MONGODB_URI" ] ; then
           setNewValue $envfile 'SPRING_DATA_MONGODB_URI' "mongodb://${MONGO_EC2_IP}:27019/test?retryWrites=true&w=majority"
           # or... (Would not be setting both MONGO_EC2_IP and SPRING_DATA_MONGODB_URI at the same time).
@@ -112,6 +114,7 @@ processEnvironmentVariableFiles() {
         checkValue $envfile 'AWS_REGION'
         ;;
       portal)
+        local targetS3EnvFile="${TARGET_S3_FILE_PORTAL}"
         if [ -n "$MONGO_EC2_IP" ] || [ -n "$MONGODB_URI" ]; then
           # removeLine $envfile 'MONGODB_USERNAME'
           # removeLine $envfile 'MONGODB_PASSWORD'
@@ -157,6 +160,13 @@ processEnvironmentVariableFiles() {
     if [ "${CREATE_EXPORT_FILE,,}" == 'true' ] ; then
       # Create the export.sh file
       createExportFile "$envfile"
+    elif [ -n "$targetS3EnvFile" ] ; then
+      # Copy the parsed environment variable file to an s3 location where ecs task containers are configured to look for them.
+      echo "ECS deployment: Copying $(pwd)/$envfile to $targetS3EnvFile..."
+      aws s3 cp $envfile $targetS3EnvFile
+    else
+      echo "INVALID STATE! No environment variable file available for $app container."
+      exit 1
     fi
 
     if [ "${ENV_FILE_EXTENSION,,}" == 'true' ] ; then
@@ -170,11 +180,12 @@ trim() {
   echo -n "$(echo -n "$input" | sed -E 's/^[ \t\n]*//' | sed -E 's/[ \t\n]*$//')"
 }
 
-# Create a script to export all environment variables in the mounted directory before starting node.
+# Create a script to export all environment variables in the mounted directory before starting container.
 # NOTE: This was originally intended for getting around the fact that the ecs launch type for ec2 (not fargate) did not
 # support environment variable files. The file created here would be mounted to the container and the initialization run
 # by the container would source this file and get each variable exported.
-# However, aws has since lifted this restriction on the ec2 launch type, so this function becomes redundant.
+# However, aws has since lifted this restriction on the ec2 launch type by making environment variable files an option if they
+# are located in an s3 bucket, so this function becomes redundant.
 # SEE: https://aws.amazon.com/about-aws/whats-new/2020/05/amazon-elastic-container-service-supports-environment-files-ec2-launch-type/ 
 createExportFile() {
   # Turn a name=value line into an "export name='value'" line
@@ -282,6 +293,8 @@ setNewValue() {
   echo "$name=$newvalue" >> $file
 }
 
+# Determine if the variable, specified by name, can be found in the shell environment.
+# If it can, add or replace the corresponding variable in the environment variable file.
 checkValue() {
   local file=$1
   local name=$2

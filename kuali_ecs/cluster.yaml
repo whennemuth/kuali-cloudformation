@@ -777,13 +777,16 @@ Resources:
               env:
                 TASK: process_env_files
                 LANDSCAPE: !Ref Landscape
-                CREATE_EXPORT_FILE: 'true'
+                # CREATE_EXPORT_FILE: 'true'
                 ENTITY_ID: !Ref EntityId
                 DNS_NAME: !Ref DNSName
                 USING_ROUTE53: !Ref UsingRoute53
                 ENV_FILE_FROM_S3_CORE: /opt/kuali/s3/core/environment.variables.s3.env
                 ENV_FILE_FROM_S3_PORTAL: /opt/kuali/s3/portal/environment.variables.s3.env
                 ENV_FILE_FROM_S3_PDF: /opt/kuali/s3/pdf/environment.variables.s3.env
+                TARGET_S3_FILE_CORE: !Sub s3://${TemplateBucketName}/${Baseline}/core/temp/${Landscape}.environment.variables.s3.env
+                TARGET_S3_FILE_PORTAL: !Sub s3://${TemplateBucketName}/${Baseline}/portal/temp/${Landscape}.environment.variables.s3.env
+                TARGET_S3_FILE_PDF: !Sub s3://${TemplateBucketName}/${Baseline}/pdf/temp/${Landscape}.environment.variables.s3.env
                 # ENV_FILE_EXTENSION: 'true'
                 MONGO_EC2_IP: !If [ UseMongoEc2Instance, !Ref MongoEc2Ip, '' ]
                 PDF_BUCKET_NAME: !Ref PdfS3BucketName
@@ -801,7 +804,7 @@ Resources:
               cwd: /opt/kuali/scripts
               env:
                 TASK: create_kc_env_file
-                CREATE_EXPORT_FILE: 'true'
+                # CREATE_EXPORT_FILE: 'true'
                 TARGET_FILE: /opt/kuali/s3/kc/environment.variables.s3.env
                 TARGET_S3_FILE: !Sub s3://${TemplateBucketName}/${Baseline}/kc/temp/${Landscape}.environment.variables.s3.env
                 LANDSCAPE: !Ref Landscape

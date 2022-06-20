@@ -683,7 +683,7 @@ Resources:
         TaskExecutionRoleArn:
           !GetAtt TaskExecutionRole.Arn
         EnvVarFileS3Arn:
-          !Sub arn:aws:s3:::${TemplateBucketName}/${Baseline}/core/environment.variables.s3.env
+          !Sub arn:aws:s3:::${TemplateBucketName}/${Baseline}/core/temp/${Landscape}.environment.variables.s3.env
         VpcId:
           !Ref VpcId
         ClusterId:
@@ -711,7 +711,7 @@ Resources:
         TaskExecutionRoleArn:
           !GetAtt TaskExecutionRole.Arn
         EnvVarFileS3Arn:
-          !Sub arn:aws:s3:::${TemplateBucketName}/${Baseline}/pdf/environment.variables.s3.env
+          !Sub arn:aws:s3:::${TemplateBucketName}/${Baseline}/pdf/temp/${Landscape}.environment.variables.s3.env
         VpcId:
           !Ref VpcId
         ClusterId:
@@ -743,7 +743,7 @@ Resources:
         TaskExecutionRoleArn:
           !GetAtt TaskExecutionRole.Arn
         EnvVarFileS3Arn:
-          !Sub arn:aws:s3:::${TemplateBucketName}/${Baseline}/portal/environment.variables.s3.env
+          !Sub arn:aws:s3:::${TemplateBucketName}/${Baseline}/portal/temp/${Landscape}.environment.variables.s3.env
         VpcId:
           !Ref VpcId
         ClusterId:
