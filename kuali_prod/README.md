@@ -19,40 +19,61 @@ The following steps are taken to accomplish this:
 - Edit Object Ownership policy for the bucket: 
 
   - BEFORE: "ACLs enabled" w/ "Bucket owner preferred"
-  - AFTE: "ACLs disabled" "Bucket owner enforced"
+  - AFTER: "ACLs disabled" "Bucket owner enforced"
 
-- Apply the following bucket policy:
+- Apply the following bucket policy *(prod account #:115619461932)* :
 
   ```
   {
-  	"Version": "2012-10-17",
-  	"Statement": [
-  		{
-  			"Sid": "AllowProdCommonBucketAccess",
-  			"Effect": "Allow",
-  			"Principal": {
-  				"AWS": "115619461932"
-  			},
-  			"Action": [
-  				"s3:DeleteObject",
-  				"s3:DeleteObject*",
-  				"s3:GetObject",
-  				"s3:GetObject*",
-  				"s3:ListBucket",
-  				"s3:PutObject",
-  				"s3:PutObject*",
-  				"s3:Replicate*",
-  				"s3:RestoreObject"
-  			],
-  			"Resource": [
-  				"arn:aws:s3:::kuali-conf/*",
-  				"arn:aws:s3:::kuali-conf"
-  			]
-  		}
-  	]
+      "Version": "2012-10-17",
+      "Statement": [
+          {
+              "Sid": "AllowProdCommonBucketAccess",
+              "Effect": "Allow",
+              "Principal": {
+                  "AWS": "115619461932"
+              },
+              "Action": [
+                  "s3:DeleteObject*",
+                  "s3:GetObject*",
+                  "s3:ListBucket",
+                  "s3:PutObject*",
+                  "s3:Replicate*",
+                  "s3:RestoreObject"
+              ],
+              "Resource": [
+                  "arn:aws:s3:::kuali-conf/*",
+                  "arn:aws:s3:::kuali-conf"
+              ]
+          },
+          {
+              "Sid": "AllowProdEcsTaskExecutionBucketAccess",
+              "Effect": "Allow",
+              "Principal": {
+                  "AWS": "arn:aws:iam::115619461932:role/kuali-ecs-prod-task-execution"
+              },
+              "Action": [
+                  "s3:ListBucket",
+                  "s3:GetBucketLocation"
+              ],
+              "Resource": "arn:aws:s3:::kuali-conf"
+          },
+          {
+              "Sid": "AllowProdEcsTaskExecutionBucketObjectAccess",
+              "Effect": "Allow",
+              "Principal": {
+                  "AWS": "arn:aws:iam::115619461932:role/kuali-ecs-prod-task-execution"
+              },
+              "Action": [
+                  "s3:GetObject",
+                  "s3:PutObject"
+              ],
+              "Resource": "arn:aws:s3:::kuali-conf/*"
+          }
+      ]
   }
   ```
-
+  
   
 
 #### Secrets

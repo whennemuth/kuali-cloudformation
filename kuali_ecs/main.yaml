@@ -651,15 +651,15 @@ Resources:
          !Sub ${GlobalTag}-${Landscape}-taskdef-s3-get
         PolicyDocument:
           Statement:
-          - Effect: Allow
-            Resource:
-            - arn:aws:s3:::kuali-*
-            Action:
+          - Action:
             - s3:GetObject
             - s3:GetBucketLocation
-          - Effect: Allow
-            Resource: "*"
-            Action:
+            - s3:ListBucket
+            Resource:
+            - arn:aws:s3:::kuali-*
+            - arn:aws:s3:::kuali-*/*
+            Effect: Allow
+          - Action:
             - logs:CreateLogGroup
             - logs:CreateLogStream
             - logs:DescribeLogGroups
@@ -669,6 +669,9 @@ Resources:
             - ecr:BatchGetImage
             - ecr:GetDownloadUrlForLayer
             - ecr:GetAuthorizationToken
+            Resource: "*"
+            Effect: Allow
+
 
   KualiCoreService:
     Type: AWS::CloudFormation::Stack

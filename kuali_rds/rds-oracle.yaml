@@ -66,6 +66,9 @@ Parameters:
     Description: The S3 bucket kuali research cloudformation templates, config files, keys, etc. are stored
     Default: kuali-conf
 
+  # https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.DBInstanceClass.html
+  # https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Oracle.Concepts.InstanceClasses.html#Oracle.Concepts.InstanceClasses.Supported
+  # https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/CHAP_BestPractices.html
   DBInstanceClass:
     Description: |
       The compute and memory capacity of the DB instance. 
@@ -75,12 +78,13 @@ Parameters:
     AllowedValues:
     - db.m5.large
     - db.m5.xlarge
-    - db.m5.2xlarge
-    - db.m5.4xlarge
     - db.r5.large
     - db.r5.xlarge
-    - db.r5.2xlarge
-    - db.r5.4xlarge
+    # Cannot use these because they are BYOL only.
+    # - db.r5b.large
+    # - db.r5b.xlarge
+    # - db.r6i.large
+    # - db.r6i.xlarge
 
   JumpboxInstanceType:
     Type: String
