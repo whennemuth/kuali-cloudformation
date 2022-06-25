@@ -19,6 +19,15 @@ canLookupInS3() {
   [ $reqs -eq 5 ] && true || false
 }
 
+canLookupInSecretsManager() {
+  [ -z "$BASELINE" ] && BASELINE="$LANDSCAPE"
+  [ -n "$AWS_ACCESS_KEY_ID" ] && ((reqs++))
+  [ -n "$AWS_SECRET_ACCESS_KEY" ] && ((reqs++))
+  [ -n "$AWS_REGION" ] && ((reqs++))
+  [ -n "$BASELINE" ] && ((reqs++))
+  [ $reqs -eq 4 ] && true || false
+}
+
 dbParmsComplete() {
   local reqs=0
   [ -n "$DB_HOST" ] && ((reqs++))
@@ -40,10 +49,8 @@ setExplicitDbParms() {
   [ -n "$DB_HOST" ] && DB_HOST="$DB_HOST"
   [ -n "$DB_PASSWORD" ] && DB_PASSWORD="$DB_PASSWORD"
   [ -n "$DB_USER" ] && DB_USER="$DB_USER"
-  [ -n "$DB_SID" ] && DB_SID="$DB_SID"
-  [ -n "$DB_PORT" ] && DB_PORT="$DB_PORT"
-  [ -z "$DB_SID" ] && DB_SID="Kuali"
-  [ -z "$DB_PORT" ] && DB_PORT="1521"
+  [ -n "$DB_SID" ] && DB_SID=${DB_SID:-"Kuali"}
+  [ -n "$DB_PORT" ] && DB_PORT=${DB_PORT:-"1521"}
 }
 
 printDbParms() {

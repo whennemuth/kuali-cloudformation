@@ -261,6 +261,17 @@ The [AWS Schema Conversion tool](https://docs.aws.amazon.com/SchemaConversionToo
        2. Locate each corresponding statement in  `12.create.user.roles.sql` and comment them out.
           This will avoid attempts to create roles that now already exist.
 
+       Also, there are some grants that need to be commented out because the target objects no longer exist in the database:
+
+       ```
+       GRANT READ ON SYS.SQLT$STAGE TO SQLT_USER_ROLE
+       /
+       GRANT WRITE ON SYS.SQLT$STAGE TO SQLT_USER_ROLE
+       /
+       ```
+
+       
+
    13. **Remaining users:**
        Choose from the remaining users you want to also include. Some of the choices include people who no longer work at BU or defunct application users. These you can omit.
 
@@ -292,20 +303,22 @@ The [AWS Schema Conversion tool](https://docs.aws.amazon.com/SchemaConversionToo
          
        
    14. **Create DMS logs schema:**
+
     If the database is to be involved later with the aws data migration service, prepare a schema for the logging the service does.
     Copy the following file:
-
+    
     ```
     kuali_rds/migration/sct/sql/create.dmslogs.schema.sql
     ```
-
+    
     with the following name in the same directory you are putting all of the generated sql files:
-
+    
     ```
     14.create.dmslogs.schema.sql
     ```
 
-    
+
+​    
 
 15. #### Clean up the generated SQL:
 
@@ -339,6 +352,19 @@ The [AWS Schema Conversion tool](https://docs.aws.amazon.com/SchemaConversionToo
        The schema conversion tool includes grants to objects in the oracle recycling bin: BIN$[item name].
        These will cause errors, are unnecessary, and can be removed.
 
+    - **Grants to other users for ALTER SYSTEM**
+       A user may have the privileges to alter any system object in the source oracle database.
+       The schema conversion tool outputs the corresponding grant as follows *(example for KULUSERMAINT user)*:
+
+       ```
+       GRANT ALTER SYSTEM TO KULUSERMAINT
+       ```
+       
+       In an RDS database, the admin user, while having DBA privileges, is restricted from performing such a grant.
+       This is outlined here: [DBA Limitations](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Oracle.Concepts.limitations.html#Oracle.Concepts.dba-limitations), with advice outlined [here](https://aws.amazon.com/premiumsupport/knowledge-center/rds-oracle-user-privileges-roles/), and [here](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Appendix.Oracle.CommonDBATasks.System.html#Appendix.Oracle.CommonDBATasks.TransferPrivileges). 
+       The upshot of this is that you can only grant privileges to other users on system objects, one object at a time.
+       Therefore, grants like this are cleaned up by commenting them out with a note to address the object specific grants later on.
+       
     - **Drop statements**
        The schema conversion tool assumes that you may be applying a conversion to schemas that already exist or re-applying to a prior conversion. For this reason it includes drop statements for tables, sequences, indexes, etc. and recreates them. It does not use any form of "drop if exists" logic in the SQL. For this reason, the script will run spitting out errors for these drops and consuming time. These drop statements are at the top of the SQL file and can be removed since we will always be running from scratch.
 

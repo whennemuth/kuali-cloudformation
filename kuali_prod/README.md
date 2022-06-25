@@ -50,31 +50,44 @@ The following steps are taken to accomplish this:
               "Sid": "AllowProdEcsTaskExecutionBucketAccess",
               "Effect": "Allow",
               "Principal": {
-                  "AWS": "arn:aws:iam::115619461932:role/kuali-ecs-prod-task-execution"
+                  "AWS": "*"
               },
               "Action": [
                   "s3:ListBucket",
                   "s3:GetBucketLocation"
               ],
-              "Resource": "arn:aws:s3:::kuali-conf"
+              "Resource": "arn:aws:s3:::kuali-conf",
+              "Condition" : {
+                  "StringEquals": {
+                  	"aws:PrincipalArn": "arn:aws:iam::115619461932:role/kuali-ecs-prod-task-execution"
+                  }
+              }
           },
           {
               "Sid": "AllowProdEcsTaskExecutionBucketObjectAccess",
               "Effect": "Allow",
               "Principal": {
-                  "AWS": "arn:aws:iam::115619461932:role/kuali-ecs-prod-task-execution"
+                  "AWS": "*"
               },
               "Action": [
                   "s3:GetObject",
                   "s3:PutObject"
               ],
-              "Resource": "arn:aws:s3:::kuali-conf/*"
+              "Resource": "arn:aws:s3:::kuali-conf/*",
+              "Condition" : {
+                  "StringEquals": {
+                  	"aws:PrincipalArn": "arn:aws:iam::115619461932:role/kuali-ecs-prod-task-execution"
+                  }
+              }
           }
       ]
   }
   ```
   
-  
+  > *NOTE: In the above bucket policy, you will run into trouble if you set the role arn for kuali-ecs-prod-task-execution as the principal directly.*
+  > *This is because, while it will work initially, as soon as you re-cloudform the stack in the trusted account and the kuali-ecs-prod-task-execution is recreated, it maintains the same ARN, but it is the role-id that the bucket policy is really "pointing at". This will become evident after this trusted role is recreated - you can check the bucket policy and find that the policy arn set as the principal has been replaced with the role-id of the prior, deleted kuali-ecs-prod-task-execution role. The ecs agent will no longer be able to pull the environment variable out of s3 across accounts.*
+
+
 
 #### Secrets
 

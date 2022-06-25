@@ -108,6 +108,12 @@ removeRecycleBinGrants() {
   sed -i 's/.*\.BIN\$.*//g' $sqlfile
 }
 
+removeAlterSystemGrants() {
+  local sqlfile="$1"
+  echo "Removing any alter system grants in $sqlfile..."
+  sed -i 's/GRANT ALTER SYSTEM TO.*/-- \0 (Not allowed for RDS DBA to grant this, see git readme notes for alternative)/g' $sqlfile
+}
+
 # Remove all the drop statements from the specified SQL file.
 # Assumes that these statements all occur at the top of the file and all lines above and including the last occurrence can be removed.
 removeDropStatements() {
@@ -163,6 +169,7 @@ cleanSqlFile() {
       user)
         removeDirectoryGrant "$sqlfile"
         removeRecycleBinGrants "$sqlfile"
+        removeAlterSystemGrants "$sqlfile"
         ;;
       role)
         removeRecycleBinGrants "$sqlfile"

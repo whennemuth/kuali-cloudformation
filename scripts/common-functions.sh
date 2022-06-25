@@ -1416,7 +1416,8 @@ refreshRdsIngress() {
 }
 
 getRandomPassword() {
-  date +%s | sha256sum | base64 | head -c 32
+  local length=${1:-"32"}
+  date +%s | sha256sum | base64 | head -c $length
 }
 
 getRdsArn() {
