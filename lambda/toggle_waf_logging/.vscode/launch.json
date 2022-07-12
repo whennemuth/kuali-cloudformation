@@ -1,0 +1,22 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "env": {
+        "DEBUG_MODE": "local",
+        "AWS_SDK_LOAD_CONFIG": "1",
+        "AWS_PROFILE": "infnprd"
+      },
+      "cwd": "${workspaceFolder}/lambda/toggle_waf_logging",
+      "name": "Toggle WAF Logging 1",
+      "type": "node",
+      "request": "launch",
+      "program": "debug.js",
+      "args": [
+        "{ WebAclArn: 'arn:aws:wafv2:us-east-1:770203350335:regional/webacl/kuali-ec2-alb-ci-WAF-1K836IL85EGS0-WAF-1QTT9XDG7DBBB/c832f859-564e-4ff7-b9c9-9de072dd303c' }",
+        "{ FirehoseArn: 'arn:aws:firehose:us-east-1:770203350335:deliverystream/aws-waf-logs-kuali-ec2-alb-ci' }"
+      ]
+    }
+  ],
+  "compounds": []
+}

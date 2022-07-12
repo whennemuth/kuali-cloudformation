@@ -223,6 +223,8 @@ Resources:
       Principal: events.amazonaws.com
       SourceArn : !GetAtt AmazonCloudWatchEventRule.Arn
 
+  # Create a log group that anticipates the default name that lambda will log to.
+  # This way it can be deleted by cloudformation and not get orphaned.
   LambdaLogsGroup:
     Type: AWS::Logs::LogGroup
     DeletionPolicy: Delete
@@ -234,8 +236,6 @@ Resources:
           - !Sub /aws/lambda/${Service}-${Function}-ecr-sync
       RetentionInDays: 90
 
-  # Create a log group that anticipates the default name that lambda will log to.
-  # This way it can be deleted by cloudformation and not get orphaned.
   EC2LogsGroup:
     Type: AWS::Logs::LogGroup
     DeletionPolicy: Delete

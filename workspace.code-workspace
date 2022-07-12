@@ -1,0 +1,36 @@
+{
+  "folders": [
+    {
+			"name": "root",
+			"path": "."
+		},
+    {
+      "name": "bucket-emptier",
+      "path": "lambda/bucket_emptier"
+    },
+    {
+      "name": "ecr-sync",
+      "path": "lambda/ecr_sync"
+    },
+    {
+      "name": "shutdown-scheduler",
+      "path": "lambda/shutdown_scheduler"
+    },
+    {
+      "name": "toggle-alb-logging",
+      "path": "lambda/toggle_alb_logging"
+    },
+    {
+      "name": "toggle-waf-logging",
+      "path": "lambda/toggle_waf_logging"
+    },
+    {
+      "name": "zip",
+      "path": "lambda/zip"
+    },
+    {
+      "name": "rds-events",
+      "path": "lambda/rds_events"
+    }
+  ]
+}

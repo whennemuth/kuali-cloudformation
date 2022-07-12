@@ -1,0 +1,217 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "rds db from record",
+      "type": "node",
+      "request": "launch",
+      "program": "debug.js",
+      "args": [
+        "database-from-record",
+        "./mocks/MockRdsData1.json"
+      ]
+    },
+    {
+      "name": "rds db from lookup",
+      "type": "node",
+      "request": "launch",
+      "program": "debug.js",
+      "args": [
+        "database-lookup",
+        "arn:aws:rds:us-east-1:770203350335:db:kuali-oracle-stg"
+      ],
+      "env": {
+        "AWS_REGION": "us-east-1",
+        "AWS_PROFILE": "infnprd"
+      }
+    },
+    {
+      "name": "rds record load (mocked)",
+      "type": "node",
+      "request": "launch",
+      "program": "debug.js",
+      "args": [
+        "record-load-mocked",
+        "./mocks/MockRdsData1.json"
+      ],
+      "env": {
+        "AWS_REGION": "us-east-1",
+        "AWS_PROFILE": "infnprd",
+        "BUCKET_NAME": "kuali-conf"
+      }
+    },
+    {
+      "name": "rds record load (s3)",
+      "type": "node",
+      "request": "launch",
+      "program": "debug.js",
+      "args": [
+        "record-load-s3",
+        "created",
+        "kuali-oracle-stg"
+      ],
+      "env": {
+        "AWS_REGION": "us-east-1",
+        "AWS_PROFILE": "infnprd",
+        "BUCKET_NAME": "kuali-conf"
+      }
+    },
+    {
+      "name": "rds record persist (s3)",
+      "type": "node",
+      "request": "launch",
+      "program": "debug.js",
+      "args": [
+        "record-persist",
+        "./mocks/MockRdsData1.json"
+      ],
+      "env": {
+        "AWS_REGION": "us-east-1",
+        "AWS_PROFILE": "infnprd",
+        "BUCKET_NAME": "kuali-conf"
+      }
+    },
+    {
+      "name": "rds record move (s3)",
+      "type": "node",
+      "request": "launch",
+      "program": "debug.js",
+      "args": [
+        "record-move",
+        "./mocks/MockRdsData1.json",
+        "created",
+        "pending"
+      ],
+      "env": {
+        "AWS_REGION": "us-east-1",
+        "AWS_PROFILE": "infnprd",
+        "BUCKET_NAME": "kuali-conf"
+      }
+    },
+    {
+      "name": "hostedzone load",
+      "request": "launch",
+      "type": "node",
+      "program": "debug.js",
+      "args": [
+        "hostedzone-load",
+        "feature"
+      ],
+      "env": {
+        "AWS_REGION": "us-east-1",
+        "AWS_PROFILE": "infnprd",
+        "HOSTED_ZONE_NAME": "kualitest.research.bu.edu"
+      }
+    },
+    {
+      "name": "hostedzone update",
+      "request": "launch",
+      "type": "node",
+      "program": "debug.js",
+      "args": [
+        "hostedzone-update",
+        "feature",
+        "abc.xyz.bu.edu"
+      ],
+      "env": {
+        "AWS_REGION": "us-east-1",
+        "AWS_PROFILE": "infnprd",
+        "HOSTED_ZONE_NAME": "kualitest.research.bu.edu"
+      }
+    },
+    {
+      "name": "rds create event all mocked",
+      "type": "node",
+      "request": "launch",
+      "program": "debug.js",
+      "args": [
+        "create-event-all-mocks",
+        "./mocks/MockRdsCreateEvent1.js",
+        "./mocks/MockRdsData1.json"
+      ],
+      "env": {
+        "AWS_REGION": "us-east-1",
+        "AWS_PROFILE": "infnprd",
+        "BUCKET_NAME": "kuali-conf",
+        "HOSTED_ZONE_NAME": "kualitest.research.bu.edu"
+      }
+    },
+    {
+      "name": "rds create event rds mocked",
+      "type": "node",
+      "request": "launch",
+      "program": "debug.js",
+      "args": [
+        "create-event-rds-mocked",
+        "./mocks/MockRdsCreateEvent1.js",
+        "./mocks/MockRdsData1.json"
+      ],
+      "env": {
+        "AWS_REGION": "us-east-1",
+        "AWS_PROFILE": "infnprd",
+        "BUCKET_NAME": "kuali-conf",
+        "HOSTED_ZONE_NAME": "kualitest.research.bu.edu"
+      }
+    },
+    {
+      "name": "rds create event",
+      "type": "node",
+      "request": "launch",
+      "program": "debug.js",
+      "args": [
+        "create-event",
+        "./mocks/MockRdsCreateEvent1.js"
+      ],
+      "env": {
+        "AWS_REGION": "us-east-1",
+        "AWS_PROFILE": "infnprd",
+        "BUCKET_NAME": "kuali-conf",
+        "HOSTED_ZONE_NAME": "kualitest.research.bu.edu"
+      }
+    },
+    {
+      "name": "rds delete event mocked",
+      "type": "node",
+      "request": "launch",
+      "program": "debug.js",
+      "args": [
+        "delete-event-all-mocks",
+        "./mocks/MockRdsDeleteEvent1.js",
+        "./mocks/MockRdsData1.json"
+      ],
+      "env": {
+        "AWS_REGION": "us-east-1",
+        "AWS_PROFILE": "infnprd",
+        "BUCKET_NAME": "kuali-conf",
+        "HOSTED_ZONE_NAME": "kualitest.research.bu.edu"
+      }
+    },
+    {
+      "name": "rds delete event",
+      "type": "node",
+      "request": "launch",
+      "program": "debug.js",
+      "args": [
+        "delete-event",
+        "./mocks/MockRdsDeleteEvent1.js"
+      ],
+      "env": {
+        "AWS_REGION": "us-east-1",
+        "AWS_PROFILE": "infnprd",
+        "BUCKET_NAME": "kuali-conf",
+        "HOSTED_ZONE_NAME": "kualitest.research.bu.edu"
+      }
+    },
+    {
+      "name": "Testing",
+      "type": "node",
+      "request": "launch",
+      "program": "debug.js",
+      "args": [
+        "test"
+      ]
+    }
+
+  ],
+  "compounds": []
+}

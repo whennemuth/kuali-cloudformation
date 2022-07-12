@@ -1,4 +1,4 @@
-## Lambda Function: *Remove S3 Buckets*
+## Lambda Function: *S3 Bucket emptier*
 
 A stack delete operation will fail if any logging has been enabled for the [ALB](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/introduction.html) or [WAF](https://docs.aws.amazon.com/waf/latest/developerguide/waf-chapter.html).
 Cloud-formation will not delete s3 buckets with contents in them - the stack delete operation will fail if they have any.

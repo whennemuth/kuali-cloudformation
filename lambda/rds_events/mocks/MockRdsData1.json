@@ -1,0 +1,152 @@
+{
+  "DBInstanceIdentifier": "kuali-oracle-stg",
+  "DBInstanceClass": "db.m5.large",
+  "Engine": "oracle-se2",
+  "DBInstanceStatus": "available",
+  "MasterUsername": "admin",
+  "DBName": "KUALI",
+  "Endpoint": {
+    "Address": "kuali-oracle-stg.clb9d4mkglfd.us-east-1.rds.amazonaws.com",
+    "Port": 1521,
+    "HostedZoneId": "Z2R2ITUGPM61AM"
+  },
+  "AllocatedStorage": 500,
+  "InstanceCreateTime": "2022-04-08T19:55:21.123Z",
+  "PreferredBackupWindow": "22:00-23:00",
+  "BackupRetentionPeriod": 10,
+  "DBSecurityGroups": [],
+  "VpcSecurityGroups": [
+    {
+      "VpcSecurityGroupId": "sg-08ab79baa11bad5e0",
+      "Status": "active"
+    }
+  ],
+  "DBParameterGroups": [
+    {
+      "DBParameterGroupName": "default.oracle-se2-19",
+      "ParameterApplyStatus": "in-sync"
+    }
+  ],
+  "AvailabilityZone": "us-east-1c",
+  "DBSubnetGroup": {
+    "DBSubnetGroupName": "kuali-rds-oracle-stg-dbsubnetgroup-yf628guugpk8",
+    "DBSubnetGroupDescription": "Subnet available for the Oracle Instance",
+    "VpcId": "vpc-0290de1785982a52f",
+    "SubnetGroupStatus": "Complete",
+    "Subnets": [
+      {
+        "SubnetIdentifier": "subnet-08afdf870ee85d511",
+        "SubnetAvailabilityZone": {
+          "Name": "us-east-1d"
+        },
+        "SubnetOutpost": {},
+        "SubnetStatus": "Active"
+      },
+      {
+        "SubnetIdentifier": "subnet-0d4acd358fba71d20",
+        "SubnetAvailabilityZone": {
+          "Name": "us-east-1c"
+        },
+        "SubnetOutpost": {},
+        "SubnetStatus": "Active"
+      }
+    ],
+    "SupportedNetworkTypes": []
+  },
+  "PreferredMaintenanceWindow": "sat:20:00-sat:21:00",
+  "PendingModifiedValues": {},
+  "LatestRestorableTime": "2022-06-28T17:13:46.000Z",
+  "MultiAZ": false,
+  "EngineVersion": "19.0.0.0.ru-2022-01.rur-2022-01.r1",
+  "AutoMinorVersionUpgrade": true,
+  "ReadReplicaDBInstanceIdentifiers": [],
+  "ReadReplicaDBClusterIdentifiers": [],
+  "LicenseModel": "license-included",
+  "OptionGroupMemberships": [
+    {
+      "OptionGroupName": "default:oracle-se2-19",
+      "Status": "in-sync"
+    }
+  ],
+  "CharacterSetName": "WE8MSWIN1252",
+  "NcharCharacterSetName": "AL16UTF16",
+  "PubliclyAccessible": false,
+  "StatusInfos": [],
+  "StorageType": "gp2",
+  "DbInstancePort": 0,
+  "StorageEncrypted": false,
+  "DbiResourceId": "db-24RBQLV7G5I4IHZBB3RI36557E",
+  "CACertificateIdentifier": "rds-ca-2019",
+  "DomainMemberships": [],
+  "CopyTagsToSnapshot": true,
+  "MonitoringInterval": 0,
+  "DBInstanceArn": "arn:aws:rds:us-east-1:770203350335:db:kuali-oracle-stg",
+  "IAMDatabaseAuthenticationEnabled": false,
+  "PerformanceInsightsEnabled": true,
+  "PerformanceInsightsKMSKeyId": "arn:aws:kms:us-east-1:770203350335:key/772bc617-0b5c-4cc1-be90-483a8256826a",
+  "PerformanceInsightsRetentionPeriod": 7,
+  "EnabledCloudwatchLogsExports": [
+    "alert",
+    "audit",
+    "listener",
+    "trace"
+  ],
+  "ProcessorFeatures": [],
+  "DeletionProtection": false,
+  "AssociatedRoles": [],
+  "TagList": [
+    {
+      "Key": "App",
+      "Value": "Kuali"
+    },
+    {
+      "Key": "Function",
+      "Value": "kuali"
+    },
+    {
+      "Key": "aws:cloudformation:stack-name",
+      "Value": "kuali-rds-oracle-stg"
+    },
+    {
+      "Key": "Category",
+      "Value": "database"
+    },
+    {
+      "Key": "Landscape",
+      "Value": "feature"
+    },
+    {
+      "Key": "aws:cloudformation:stack-id",
+      "Value": "arn:aws:cloudformation:us-east-1:770203350335:stack/kuali-rds-oracle-stg/f36b0810-b774-11ec-be23-0a61f8730b65"
+    },
+    {
+      "Key": "Subcategory",
+      "Value": "oracle"
+    },
+    {
+      "Key": "Version",
+      "Value": "1"
+    },
+    {
+      "Key": "Service",
+      "Value": "research-administration"
+    },
+    {
+      "Key": "aws:cloudformation:logical-id",
+      "Value": "DBInstance"
+    },
+    {
+      "Key": "Baseline",
+      "Value": "stg"
+    },
+    {
+      "Key": "Name",
+      "Value": "kuali-oracle-stg"
+    }
+  ],
+  "DBInstanceAutomatedBackupsReplications": [],
+  "CustomerOwnedIpEnabled": false,
+  "ActivityStreamStatus": "stopped",
+  "BackupTarget": "region",
+  "NetworkType": "IPV4"
+}

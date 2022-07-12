@@ -147,7 +147,7 @@ EOF
     # SEE: https://docs.aws.amazon.com/dms/latest/userguide/CHAP_Security.html
     # and: https://docs.aws.amazon.com/dms/latest/userguide/CHAP_Tasks.AssessmentReport2.html
     for rolename in "dms-vpc-role" "dms-cloudwatch-logs-role" "dms-access-for-tasks" ; do
-      local match="$(aws --profile=legacy iam list-roles --output text --query 'Roles[?RoleName==`'$rolename'`].RoleName')"
+      local match="$(aws iam list-roles --output text --query 'Roles[?RoleName==`'$rolename'`].RoleName')"
       if [ "$match" == $rolename ] ; then
         echo "Required role: \"$rolename\" already exists and will not be part of stack creation"
       else
@@ -157,7 +157,7 @@ EOF
         add_parameter $cmdfile 'CreateDmsAccessForTasksRole' 'true'
       fi
     done
-    # [ "$(aws --profile=legacy iam list-roles --output text --query 'Roles[?RoleName==`dms-vpc-role`].RoleName')" == 'dms-vpc-role' ] && echo 'exists' || echo 'not found'
+    # [ "$(aws iam list-roles --output text --query 'Roles[?RoleName==`dms-vpc-role`].RoleName')" == 'dms-vpc-role' ] && echo 'exists' || echo 'not found'
 
     runStackActionCommand
 

@@ -1,0 +1,20 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "env": {
+        "DEBUG_MODE": "local",
+        "AWS_SDK_LOAD_CONFIG": "1",
+        "AWS_PROFILE": "infnprd"
+      },
+      "cwd": "${workspaceFolder}",
+      "name": "Toggle ALB Logging 1",
+      "type": "node",
+      "request": "launch",
+      "program": "debug.js",
+      "args": [
+        "{ AlbArn: 'arn:aws:elasticloadbalancing:us-east-1:770203350335:loadbalancer/app/kuali-ec2-alb-ci-ALB/f40c3f208a1ba443' }"
+      ]
+    }
+  ]
+}

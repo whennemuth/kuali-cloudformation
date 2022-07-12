@@ -1,0 +1,15 @@
+{
+  "name": "rds_replacement",
+  "dependencies": {
+    "cfn-response": "latest",
+    "date-and-time": "^2.4.0"
+  },
+  "devDependencies": {
+    "aws-sdk": "latest",
+    "zip": "file:../zip"
+  },
+  "scripts": {
+    "pack-old": "sh -c 'npm install' & node node_modules/zip/zip.js type:js",
+    "pack": "npm install && node node_modules/zip/zip.js type:js"
+  }
+}

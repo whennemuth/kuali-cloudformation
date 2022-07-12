@@ -1,0 +1,48 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "env": {
+        "DEBUG_MODE": "local_mocked",
+        "AWS_SDK_LOAD_CONFIG": "1",
+        "AWS_PROFILE": "infnprd"
+      },
+      "cwd": "${workspaceFolder}/lambda/bucket_emptier",
+      "name": "Empty s3 bucket mocked",
+      "type": "node",
+      "request": "launch",
+      "program": "debug.js",
+      "args": [
+        "{ BucketName: 'bucket2' }",
+        "{ MaxKeys: 2}"
+      ]
+    },
+    {
+      "env": {
+        "DEBUG_MODE": "local_unmocked",
+        "AWS_SDK_LOAD_CONFIG": "1",
+        "AWS_PROFILE": "infnprd"
+      },
+      "cwd": "${workspaceFolder}/lambda/bucket_emptier",
+      "name": "Empty s3 bucket unmocked",
+      "type": "node",
+      "request": "launch",
+      "program": "debug.js",
+      "args": [
+        "{ BucketName: 'some_really_obscure_name_eelmrvlsiennmvsldee' }",
+        "{ MaxKeys: 50}"
+      ]
+    },
+    {
+      "cwd": "${workspaceFolder}/lambda/bucket_emptier",
+      "name": "Pack",
+      "type": "node",
+      "request": "launch",
+      "program": "../zip.js",
+      "args": [
+        "bucket_emptier.js"
+      ]
+    }    
+  ],
+  "compounds": []
+}

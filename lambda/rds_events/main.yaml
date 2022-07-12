@@ -1,0 +1,147 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: >
+  This stack comprises a lambda function triggered by a cloudwatch event rule that is activated on creation
+  or deletion of rds databases. The lambda function determines if the database is indentified with kuali 
+  research by tagging and performs the necessary record keeping in s3 combined with route53 updates to 
+  ensure that database requests continue being routed to the proper rds target endpoint.
+
+Parameters:
+
+  Service:
+    Description: Service catalog name.
+    Type: String
+    Default: research-administration
+
+  Function:
+    Description: The Function within the Service.
+    Type: String
+    Default: kuali
+
+  BucketName:
+    Description: The bucket in which rds lifecycle event record keeping is to be done and zipped code for the lambda can be found.
+    Type: String
+    Default: kuali-conf
+
+  HostedZoneName:
+    Description: The name of the hosted zone that contains the resource records that route rds traffic.
+    Type: String
+
+
+Resources:
+
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: kuali-rds-event-handler-lambda-role
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Path: /
+      Policies:
+        - PolicyName: kuali-rds-event-handler-lambda-policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action: 
+                  - logs:*
+                Resource: 
+                  - !GetAtt LambdaLogsGroup.Arn
+              - Effect: Allow
+                Action: 
+                  - s3:*
+                Resource:
+                  - !Sub arn:aws:s3:::${BucketName}
+                  - !Sub arn:aws:s3:::${BucketName}/*
+              - Effect: Allow
+                Action: 
+                  - route53:List*
+                  - route53:Get*
+                  - route53:Describe*
+                Resource: '*'
+              # Unfortunately, there does not seem to be a way to restrict actions to a specific hosted zone.
+              # Per the following reference:
+              # https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/access-control-overview.html#access-control-manage-access-intro
+              # "Route 53 supports only identity-based policies (IAM policies)", not resource-based policies.
+              # 
+              # Per the following reference:
+              # https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_aws-services-that-work-with-iam.html#networking_svcs
+              # Authorization based on tags is not supported.
+              #
+              # Need to figure out a way to prevent this lambda function from being able to "touch" any other hosted zone than
+              # a kuali hosted zone, without being able to cite the hosted zone id (would do no use anyway), using name only.
+              # Currently the lambda function itself will filter only provide an action against a hosted zone if it determines
+              # the name matches that of a kuali hosted zone, and likewise for the record - perhaps that is enough?
+              - Effect: Allow
+                Action: 
+                  - route53:ChangeResourceRecordSets
+                Resource: 
+                  - arn:aws:route53:::hostedzone/*
+              - Effect: Allow
+                Action: 
+                  - route53:GetChange
+                Resource: 
+                  - arn:aws:route53:::change/*
+              - Effect: Allow
+                Action:
+                  - rds:Describe*
+                  - rds:ListTagsForResource
+                Resource:
+                  arn:aws:rds:*:*:db:kuali*
+
+  RdsLifecycleEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      EventPattern:
+        source: [aws.rds]
+        detail-type: [RDS DB Instance Event]
+        detail:
+          SourceType: [DB_INSTANCE]
+          EventID:
+            # Creation event
+            - RDS-EVENT-0005
+            # Deletion event
+            - RDS-EVENT-0003
+      Targets:
+        - Arn: !GetAtt RdsLifecycleFunction.Arn
+          Id: kuali-rds-lifecycle-event-lambda
+
+  PermissionForEventsToInvokeLambda:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt RdsLifecycleFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn : !GetAtt RdsLifecycleEventRule.Arn
+
+  # Create a log group that anticipates the default name that lambda will log to.
+  # This way it can be deleted by cloudformation and not get orphaned.
+  LambdaLogsGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    Properties:
+      LogGroupName: /aws/lambda/kuali-rds-lifecycle-event-handler
+      RetentionInDays: 90
+
+  RdsLifecycleFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: LambdaLogsGroup 
+    Properties:
+      FunctionName: kuali-rds-lifecycle-event-handler
+      Description: Function that makes route53 corrections for target rds instance replacements
+      Runtime: nodejs12.x
+      Role: !GetAtt LambdaRole.Arn
+      Handler: RdsLifecycleEvent.handler
+      Timeout: 60
+      Environment:
+        Variables:
+          HOSTED_ZONE_NAME: !Ref HostedZoneName
+          BUCKET_NAME: !Ref BucketName
+      Code:
+        S3Bucket: !Ref BucketName
+        S3Key: cloudformation/kuali_lambda/rds_replacement.zip
