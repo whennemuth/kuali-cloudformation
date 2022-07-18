@@ -105,6 +105,10 @@ Resources:
           EventID:
             # Creation event
             - RDS-EVENT-0005
+            # The DB instance has been restored from a DB snapshot.
+            - RDS-EVENT-0043
+            # The DB instance has been restored from a point-in-time backup
+            - RDS-EVENT-0019
             # Deletion event
             - RDS-EVENT-0003
       Targets:

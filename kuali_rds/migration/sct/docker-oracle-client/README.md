@@ -85,6 +85,15 @@ You can drive what the container does with name=value parameter pairs:
     aws_secret_access_key=[your secret] \
     landscape=ci \
     toggle_constraints=ENABLE toggle_triggers=ENABLE
+    
+  # Same command, but with host/user/password details explicitly provided:
+  sh dbclient.sh toggle-constraints-triggers \
+    db_host=prod.db.kuali.research.bu.edu \
+    db_user=admin \
+    db_password=[password] \
+    landscape=prod \
+    toggle_constraints=ENABLE \
+    toggle_triggers=ENABLE
   ```
 
      

@@ -8,6 +8,7 @@ const header="\n****************************************************************
  * @param {*} event 
  */
 var DBEvent = function(event) {
+  this.isRdsInstanceEvent = () => { return false; }
   this.isDelete = () => { return false; }
   this.isCreate = () => { return false; }
   this.getArn = () => { return null; }
@@ -17,8 +18,18 @@ var DBEvent = function(event) {
   }
   with(event) {
     if(source == 'aws.rds' && detail.SourceType == 'DB_INSTANCE') {
-      this.isDelete = () => { return detail.EventCategories[0] == 'deletion' || detail.EventID == 'RDS-EVENT-0003'; };
-      this.isCreate = () => { return detail.EventCategories[0] == 'creation' || detail.EventID == 'RDS-EVENT-0005'; };
+      this.isRdsInstanceEvent = () => { return true; }
+      this.isDelete = () => { 
+        return detail.EventCategories[0] == 'deletion' || detail.EventID == 'RDS-EVENT-0003';
+      };
+      this.isCreate = () => {
+        switch(detail.EventID) {
+          case 'RDS-EVENT-0005': return true; // created
+          case 'RDS-EVENT-0043': return true; // restored from a DB snapshot
+          case 'RDS-EVENT-0019': return true; // restored from a point-in-time backup
+          default: return false;
+        }
+      };
       this.getArn = () => { return detail.SourceArn; }
     }
   }
@@ -157,6 +168,9 @@ exports.handler = function(event, context) {
     else if(dbEvent.isDelete()) {
       dbEvent.logEvent('deletion');
       new DBDeleteScenario(AWS).execute(dbEvent.getArn());
+    }
+    else if(dbEvent.isRdsInstanceEvent()) {
+      console.log(`Rds instance event noticed: ${dbEvent.detail.EventID}: ${dbEvent.detail.SourceIdentifier}`);
     }
   }
   catch(e) {
