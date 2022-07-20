@@ -1,5 +1,3 @@
-const { load } = require("./HostedZone");
-
 const Database = function(data) {
   this.getData = () => {
     return data;
@@ -35,18 +33,35 @@ const Database = function(data) {
   this.getJSON = () => {
     return JSON.stringify(data, null, 2);
   }
+  this.hasSameLandscapeAs = otherdb => {
+    return this.getLandscape() == otherdb.getLandscape();
+  }
 };
 
-const find = function(AWS, dbArn, callback) {
+const find = function(AWS, dbArn) {
   var rds = new AWS.RDS();
   var id = dbArn.split(":").pop();
-  rds.describeDBInstances({ DBInstanceIdentifier: id}, function(err, data) {
-    var db = null;
-    if ( ! err) {
-      var db = new Database(data.DBInstances[0]);
+
+  return new Promise(
+    (resolve) => {
+      try {
+        resolve((async () =>{
+          var data = null;
+          await rds.describeDBInstances({ DBInstanceIdentifier: id }).promise()
+            .then(d => { 
+              data = d; 
+            })
+            .catch(err => { 
+              throw(err); 
+            });
+          return new Database(data.DBInstances[0])      
+        })());
+      }
+      catch (err) {
+        throw(err);
+      }
     }
-    callback(err, db);
-  });
+  );
 };
 
 const loadDb = function(dbdata) {

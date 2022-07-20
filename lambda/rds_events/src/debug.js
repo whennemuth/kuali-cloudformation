@@ -1,0 +1,172 @@
+const RdsDb = require('./RdsDatabase.js');
+const LifecycleRecord = require('./RdsLifecycleRecord.js');
+const HostedZone = require('./HostedZone.js');
+const { Route53Resolver } = require('aws-sdk');
+const MockFactory = require('../mocks/MockFactory.js')
+
+var debugChoice = process.argv[2];
+
+(async () => {
+  /* Run a test indentified by the first argument passed in by the launch configuration */
+  try {
+    switch(debugChoice) {
+  
+      /**
+       * Test the DBInstance class against a mocked rds database.
+       */
+      case 'database-from-record':
+        var DbInstance = new RdsDb();
+        var dbMockFile = process.argv[3];
+        var rdsDb = await DbInstance.find(MockFactory.getAwsRdsMock(dbMockFile), 'mockArn');
+        console.log(JSON.stringify(rdsDb.getData(), null, 2));
+        console.log(JSON.stringify(rdsDb.getTags(), null, 2));
+        console.log(rdsDb.getEndpointAddress());
+        console.log(rdsDb.getLandscape());
+        break;
+      
+      
+      /**
+       * Test the DBInstance class against an existing rds database.
+       */
+      case 'database-lookup':
+        var dbArn = process.argv[3];
+        var AWS = require('aws-sdk');
+        var DbInstance = new RdsDb();
+        var rdsDb = await DbInstance.find(AWS, dbArn);
+        console.log(JSON.stringify(rdsDb.getData(), null, 2));
+        console.log(JSON.stringify(rdsDb.getTags(), null, 2));
+        console.log(rdsDb.getEndpointAddress());
+        console.log(rdsDb.getLandscape());
+        break;
+  
+      /**
+       * Test the RdsLifeCycleRecord class load function by mocking the s3 service to return "canned" json details of an rds database 
+       */
+      case 'record-load-mocked':
+        var dbMockFile = process.argv[3];
+        var DbInstance = new RdsDb();
+        var rdsDb = await DbInstance.find(MockFactory.getAwsRdsMock(dbMockFile), 'mockArn');
+        var lcRec = new LifecycleRecord(MockFactory.getAwsS3Mock(rdsDb), rdsDb.getArn());
+        var json = await lcRec.load('created');
+        console.log(`Retrieval from mocked s3 of rds db creation result ${json}`);
+        break;  
+  
+      /**
+       * Test the RdsLifeCycleRecord class load function against the s3 service to return json details of an rds database.
+       * NOTE: Depends on an actual file existing in the s3 bucket as indicated by the state and rdsId arguments.
+       */
+      case 'record-load-s3':
+        var state = process.argv[3];
+        var rdsId = process.argv[4];
+        var AWS = require('aws-sdk');
+        var lcRec = new LifecycleRecord(AWS, rdsId);
+        var json = await lcRec.load(state);
+        console.log(`Retrieval from s3 of rds db creation result ${json}`);
+        break;         
+  
+      /**
+       * Upload a sample of rds database details json to the s3 bucket.
+       */
+      case 'record-persist':
+        var dbMockFile = process.argv[3];
+        var DbInstance = new RdsDb();
+        var rdsDb = await DbInstance.find(MockFactory.getAwsRdsMock(dbMockFile), 'mockArn');
+        var AWS = require('aws-sdk');
+        var lcRec = new LifecycleRecord(AWS, rdsDb);
+        var result = await lcRec.persist();
+        console.log(`S3 record creation of rds db creation result ${JSON.stringify(result, null, 2)}`);
+        break;  
+  
+      case 'record-move':
+        var dbMockFile = process.argv[3];
+        var fromState = process.argv[4];
+        var toState = process.argv[5];
+        var DbInstance = new RdsDb();
+        var rdsDb = await DbInstance.find(MockFactory.getAwsRdsMock(dbMockFile), 'mockArn');
+        var AWS = require('aws-sdk');
+        var lcRec = new LifecycleRecord(AWS, rdsDb);
+        var result = await lcRec.move(fromState, toState);
+        console.log(`S3 object move result: ${JSON.stringify(result, null, 2)}`);
+        break;  
+  
+      case 'hostedzone-load':
+        var AWS = require('aws-sdk');
+        var landscape = process.argv[3];
+        var hostedzone = await HostedZone.lookup(AWS, process.env.HOSTED_ZONE_NAME);
+        var dbRec = hostedzone.getDbRecordForLandscape(landscape);
+        var dbRecJson = JSON.stringify(dbRec, null, 2);
+        console.log(dbRecJson);
+        break;      
+      
+      case 'hostedzone-update':
+        var AWS = require('aws-sdk');
+        var landscape = process.argv[3];
+        var newTarget = process.argv[4];
+        var hostedzone = await HostedZone.lookup(AWS, process.env.HOSTED_ZONE_NAME);
+        var dbRec = hostedzone.getDbRecordForLandscape(landscape);
+        if(hostedzone.exists()) {
+          var data = await hostedzone.updateDbResourceRecordSetTarget(AWS, dbRec, newTarget);
+          console.log(`Resource record update success\n${JSON.stringify(data, null, 2)}`);
+        }
+        break;  
+  
+      case 'create-event-all-mocks':
+        var eventMockFile = process.argv[3];
+        var mockEvent = require(eventMockFile);
+        var dbMockFile = process.argv[4];
+        var AWSMock = MockFactory.getFullMock(dbMockFile);
+        var rdsr = require('./RdsLifecycleEvent.js');
+        rdsr.handler(mockEvent, { getMockAWS: () => { return AWSMock; } });
+        break;  
+  
+      /**
+       * Simulate an EventBridge rule being triggered that indicates a kuali database has been either created or deleted.
+       * It doesn't matter if the rds database exists in the aws account because it is being mocked.
+       * All other api activity (s3, route53) is not mocked and will be executed against the aws account.
+       */
+      case 'create-event-rds-mocked':
+        var rdsr = require('./RdsLifecycleEvent.js');
+        var eventMockFile = process.argv[3];
+        var mockEvent = require(eventMockFile);
+        var dbMockFile = process.argv[4];
+        var AWSMock = MockFactory.getAwsRdsMock(dbMockFile);
+        rdsr.handler(mockEvent, { getMockAWS: () => { return AWSMock; }});
+        break;
+  
+      case 'delete-event-all-mocks':
+        var rdsr = require('./RdsLifecycleEvent.js');
+        var eventMockFile = process.argv[3];
+        var mockEvent = require(eventMockFile);
+        var dbMockFile = process.argv[4];
+        var AWSMock = MockFactory.getFullMock(dbMockFile); 
+        rdsr.handler(mockEvent, { getMockAWS: () => { return AWSMock; }});
+        break;  
+      
+      /**
+       * Simulate an EventBridge rule being triggered that indicates a kuali database has been either created or deleted.
+       * This is not a unit test - the overall nodejs project is to be run by a lambda function targeted by EventBridge, 
+       * so this is a way to see what would happen in that lambda function from end to end.
+       * NOTE: The associated rds database must exist in the aws account.
+       */
+      case 'create-event': case 'delete-event':
+        var rdsr = require('./RdsLifecycleEvent.js');
+        var eventMockFile = process.argv[3];
+        var mockEvent = require(eventMockFile);
+        rdsr.handler(mockEvent, {});
+        break;
+      
+      case 'zip':
+        const zip = require('../../zip/zip.js');
+        console.log('zip done.');
+        break;
+        
+      case 'test':
+        const date = require('date-and-time');
+        console.log(date.format(new Date(),'YYYY-MM-DD-HH.mm.ss'));
+        break;
+    }
+  }
+  catch (err) {
+    console.log(err, err.stack);
+  }
+})();

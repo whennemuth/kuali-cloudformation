@@ -5,17 +5,17 @@
       "name": "rds db from record",
       "type": "node",
       "request": "launch",
-      "program": "debug.js",
+      "program": "./src/debug.js",
       "args": [
         "database-from-record",
-        "./mocks/MockRdsData1.json"
+        "../mocks/MockRdsData1.json"
       ]
     },
     {
       "name": "rds db from lookup",
       "type": "node",
       "request": "launch",
-      "program": "debug.js",
+      "program": "./src/debug.js",
       "args": [
         "database-lookup",
         "arn:aws:rds:us-east-1:770203350335:db:kuali-oracle-stg"
@@ -29,10 +29,10 @@
       "name": "rds record load (mocked)",
       "type": "node",
       "request": "launch",
-      "program": "debug.js",
+      "program": "./src/debug.js",
       "args": [
         "record-load-mocked",
-        "./mocks/MockRdsData1.json"
+        "../mocks/MockRdsData1.json"
       ],
       "env": {
         "AWS_REGION": "us-east-1",
@@ -44,7 +44,7 @@
       "name": "rds record load (s3)",
       "type": "node",
       "request": "launch",
-      "program": "debug.js",
+      "program": "./src/debug.js",
       "args": [
         "record-load-s3",
         "created",
@@ -60,10 +60,10 @@
       "name": "rds record persist (s3)",
       "type": "node",
       "request": "launch",
-      "program": "debug.js",
+      "program": "./src/debug.js",
       "args": [
         "record-persist",
-        "./mocks/MockRdsData1.json"
+        "../mocks/MockRdsData1.json"
       ],
       "env": {
         "AWS_REGION": "us-east-1",
@@ -75,10 +75,10 @@
       "name": "rds record move (s3)",
       "type": "node",
       "request": "launch",
-      "program": "debug.js",
+      "program": "./src/debug.js",
       "args": [
         "record-move",
-        "./mocks/MockRdsData1.json",
+        "../mocks/MockRdsData1.json",
         "created",
         "pending"
       ],
@@ -92,7 +92,7 @@
       "name": "hostedzone load",
       "request": "launch",
       "type": "node",
-      "program": "debug.js",
+      "program": "./src/debug.js",
       "args": [
         "hostedzone-load",
         "feature"
@@ -107,7 +107,7 @@
       "name": "hostedzone update",
       "request": "launch",
       "type": "node",
-      "program": "debug.js",
+      "program": "./src/debug.js",
       "args": [
         "hostedzone-update",
         "feature",
@@ -123,11 +123,11 @@
       "name": "rds create event all mocked",
       "type": "node",
       "request": "launch",
-      "program": "debug.js",
+      "program": "./src/debug.js",
       "args": [
         "create-event-all-mocks",
-        "./mocks/MockRdsCreateEvent1.js",
-        "./mocks/MockRdsData1.json"
+        "../mocks/MockRdsCreateEvent1.js",
+        "../mocks/MockRdsData1.json"
       ],
       "env": {
         "AWS_REGION": "us-east-1",
@@ -140,11 +140,11 @@
       "name": "rds create event rds mocked",
       "type": "node",
       "request": "launch",
-      "program": "debug.js",
+      "program": "./src/debug.js",
       "args": [
         "create-event-rds-mocked",
-        "./mocks/MockRdsCreateEvent1.js",
-        "./mocks/MockRdsData1.json"
+        "../mocks/MockRdsCreateEvent1.js",
+        "../mocks/MockRdsData1.json"
       ],
       "env": {
         "AWS_REGION": "us-east-1",
@@ -157,10 +157,10 @@
       "name": "rds create event",
       "type": "node",
       "request": "launch",
-      "program": "debug.js",
+      "program": "./src/debug.js",
       "args": [
         "create-event",
-        "./mocks/MockRdsCreateEvent1.js"
+        "../mocks/MockRdsCreateEvent1.js"
       ],
       "env": {
         "AWS_REGION": "us-east-1",
@@ -173,11 +173,11 @@
       "name": "rds delete event mocked",
       "type": "node",
       "request": "launch",
-      "program": "debug.js",
+      "program": "./src/debug.js",
       "args": [
         "delete-event-all-mocks",
-        "./mocks/MockRdsDeleteEvent1.js",
-        "./mocks/MockRdsData1.json"
+        "../mocks/MockRdsDeleteEvent1.js",
+        "../mocks/MockRdsData1.json"
       ],
       "env": {
         "AWS_REGION": "us-east-1",
@@ -190,10 +190,10 @@
       "name": "rds delete event",
       "type": "node",
       "request": "launch",
-      "program": "debug.js",
+      "program": "./src/debug.js",
       "args": [
         "delete-event",
-        "./mocks/MockRdsDeleteEvent1.js"
+        "../mocks/MockRdsDeleteEvent1.js"
       ],
       "env": {
         "AWS_REGION": "us-east-1",
@@ -203,10 +203,20 @@
       }
     },
     {
+      "name": "export",
+      "type": "node",
+      "request": "launch",
+      "program": "./src/debug.js",
+      "args": [
+        "zip",
+        "type:js"
+      ]
+    },
+    {
       "name": "Testing",
       "type": "node",
       "request": "launch",
-      "program": "debug.js",
+      "program": "./src/debug.js",
       "args": [
         "test"
       ]

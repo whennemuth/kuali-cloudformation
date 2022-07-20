@@ -140,7 +140,7 @@ Resources:
       Description: Function that makes route53 corrections for target rds instance replacements
       Runtime: nodejs12.x
       Role: !GetAtt LambdaRole.Arn
-      Handler: RdsLifecycleEvent.handler
+      Handler: src/RdsLifecycleEvent.handler
       Timeout: 60
       Environment:
         Variables:

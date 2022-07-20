@@ -42,13 +42,42 @@ function ZipFile(fp) {
     }
   };
   this.addFile = (filepath) => {
-    console.log(`Adding ${filepath} to zip file...`);
-    zip.addLocalFile(filepath);
+    if(fs.existsSync(filepath)) {
+      console.log(`Adding ${filepath} to zip file...`);
+      zip.addLocalFile(filepath);
+    }
+    else {
+      console.log(`${filepath} is not a file, skipping...`);
+    }
   };
-  this.addFilesOfType = (ext) => {
+  this.addDirectory = (ext, dirpath) => {
+    if(fs.existsSync(dirpath)) {
+      console.log(`Adding ${dirpath} directory and all ${ext} content to zip file...`);
+      let re = new RegExp(`.*\.${ext}$`, 'i');
+      zip.addLocalFolder(dirpath, dirpath, re);
+    }
+    else {
+      console.log(`${dirpath} is not a directory, skipping...`);
+    }
+  }
+  this.addFilesOfType = (ext, root) => {
     let re = new RegExp(`.*\.${ext}$`, 'i');
-    let files = fs.readdirSync('.').filter(file => re.test(file));
-    files.forEach(f => this.addFile(f));
+    let files = fs.readdirSync(root).filter(file => {
+      var jsfile = re.test(file);
+      var dir = fs.statSync(root + '/' + file).isDirectory();
+      var nm = (file == 'node_modules' || file == './node_modules');
+      var vs = (file == '.vscode' || file == './.vscode');
+      var qualifiedDir = (dir && ! nm && ! vs);
+      return (jsfile || qualifiedDir);
+    });
+    files.forEach(f => {
+      if(fs.statSync(f).isDirectory()) {
+        this.addDirectory(ext, f);
+      }
+      else {
+        this.addFile(f);
+      }      
+    });
   };
   this.write = () => {
     console.log(`Writing ${filepath}...`);
@@ -64,7 +93,7 @@ zipFile.addFile('package.json');
 args.forEach(file => {
   if(/^type:/.test(file)) {
     let ext = file.split(":")[1].toLocaleLowerCase();
-    zipFile.addFilesOfType(ext);
+    zipFile.addFilesOfType(ext, '.');
   }
   else {
     zipFile.addFile(file);
