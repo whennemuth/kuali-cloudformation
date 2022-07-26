@@ -95,7 +95,7 @@
       "program": "./src/debug.js",
       "args": [
         "hostedzone-load",
-        "feature"
+        "kuali-oracle-stg.clb9d4mkglfd.us-east-1.rds.amazonaws.com"
       ],
       "env": {
         "AWS_REGION": "us-east-1",
@@ -110,7 +110,7 @@
       "program": "./src/debug.js",
       "args": [
         "hostedzone-update",
-        "feature",
+        "kuali-oracle-stg.clb9d4mkglfd.us-east-1.rds.amazonaws.com",
         "abc.xyz.bu.edu"
       ],
       "env": {
@@ -200,6 +200,60 @@
         "AWS_PROFILE": "infnprd",
         "BUCKET_NAME": "kuali-conf",
         "HOSTED_ZONE_NAME": "kualitest.research.bu.edu"
+      }
+    },
+    {
+      "name": "get stacks for kc (mocked)",
+      "program": "./src/debug.js",
+      "request": "launch",
+      "type": "node",
+      "args": [
+        "get-stacks-for-kc",
+        "stg"
+      ],
+      "env": {
+        "AWS_REGION": "us-east-1",
+        "AWS_PROFILE": "infnprd",
+      }
+    },
+    {
+      "name": "update stacks for kc (mocked)",
+      "program": "./src/debug.js",
+      "request": "launch",
+      "type": "node",
+      "args": [
+        "update-stacks-for-kc",
+        "stg"
+      ],
+      "env": {
+        "AWS_REGION": "us-east-1",
+        "AWS_PROFILE": "infnprd",
+      }
+    },
+    {
+      "name": "get stacks for batch (mocked)",
+      "program": "./src/debug.js",
+      "request": "launch",
+      "type": "node",
+      "args": [
+        "get-stacks-for-batch"
+      ],
+      "env": {
+        "AWS_REGION": "us-east-1",
+        "AWS_PROFILE": "infnprd",
+      }
+    },
+    {
+      "name": "update stacks for batch (mocked)",
+      "program": "./src/debug.js",
+      "request": "launch",
+      "type": "node",
+      "args": [
+        "update-stacks-for-batch"
+      ],
+      "env": {
+        "AWS_REGION": "us-east-1",
+        "AWS_PROFILE": "infnprd",
       }
     },
     {

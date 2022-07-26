@@ -1,10 +1,13 @@
 const KualiHostedZone = function(hsdata, rrdata) {
+
   this.exists = () => {
     return hsdata ? true : false;
   }
+
   this.getData = () => {
     return hsdata;
   }
+
   this.getTags = () => {
     if( ! this.tags) {
       this.tags = hsdata.TagList.reduce((tagObj, mapEntry) => {
@@ -15,6 +18,7 @@ const KualiHostedZone = function(hsdata, rrdata) {
     }
     return this.tags;
   }
+
   this.getName = () => {
     var name = hsdata.HostedZone.Name;
     if(name.endsWith('.')) {
@@ -22,18 +26,38 @@ const KualiHostedZone = function(hsdata, rrdata) {
     }
     return name;
   }
-  this.getDbRecordForLandscape = landscape => {
-    return rrdata.ResourceRecordSets.find(element => {
-      return element.Name.startsWith(`${landscape}.db.`)
+
+  this.getDbRecordsForTargetEndpoint = targetRdsEndpoint => {
+    const records = [];
+    rrdata.ResourceRecordSets.forEach(element => {
+      if(/\.db\./.test(element.Name)) {
+        for (let index = 0; index < element.ResourceRecords.length; index++) {
+          const rr = element.ResourceRecords[index];
+          if(rr.Value == targetRdsEndpoint) {
+            records.push(element);
+            break;
+          }
+        }
+      }
     });
+    return records;
   }
-  this.updateDbResourceRecordSetTarget = async (AWS, dbRec, newTarget) => {
+
+  this.updateDbResourceRecordSetTarget = async (AWS, dbRec, oldTarget, newTarget) => {
     return new Promise(
       (resolve) => {
         try {
+          // Start with a clone of the hosted zone resource recordset
           var newDbRec = {};
           Object.assign(newDbRec, dbRec);
-          newDbRec.ResourceRecords[0].Value = newTarget;
+
+          // Find in the clone the resource record for the old db endpoint and switch it for the new one.
+          newDbRec.ResourceRecords[
+            newDbRec.ResourceRecords.findIndex(rec => { 
+              return rec.Value == oldTarget 
+            })
+          ].Value = newTarget;
+
           var params = {
             HostedZoneId: hsdata.HostedZone.Id,
             ChangeBatch: {
@@ -57,6 +81,27 @@ const KualiHostedZone = function(hsdata, rrdata) {
               .catch(err => {
                 throw(err);
               });
+            return data;
+          })());
+        }
+        catch(err) {
+          throw(err);
+        }
+      }
+    );
+  }
+  
+  this.updateDbResourceRecordSetTargets = async (AWS, dbRecs, oldTarget, newTarget) => {
+    return new Promise(
+      (resolve) => {
+        try {
+          resolve((async () => {
+            var data = []
+            for (let index = 0; index < dbRecs.length; index++) {
+              const dbRec = dbRecs[index];
+              var retval = await this.updateDbResourceRecordSetTarget(AWS, dbRec, oldTarget, newTarget);
+              data.push(retval);
+            }
             return data;
           })());
         }

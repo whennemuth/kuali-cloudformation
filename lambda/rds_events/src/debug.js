@@ -1,8 +1,10 @@
 const RdsDb = require('./RdsDatabase.js');
 const LifecycleRecord = require('./RdsLifecycleRecord.js');
 const HostedZone = require('./HostedZone.js');
-const { Route53Resolver } = require('aws-sdk');
-const MockFactory = require('../mocks/MockFactory.js')
+const rdsr = require('./RdsLifecycleEvent.js');
+const CloudFormationInventoryForKC = require('./CloudFormationInventoryForKC.js');
+const CloudFormationInventoryForBatch = require('./CloudFormationInventoryForBatch.js');
+const MockFactory = require('../mocks/MockFactory.js');
 
 var debugChoice = process.argv[2];
 
@@ -91,21 +93,21 @@ var debugChoice = process.argv[2];
   
       case 'hostedzone-load':
         var AWS = require('aws-sdk');
-        var landscape = process.argv[3];
+        var oldTarget = process.argv[3];
         var hostedzone = await HostedZone.lookup(AWS, process.env.HOSTED_ZONE_NAME);
-        var dbRec = hostedzone.getDbRecordForLandscape(landscape);
-        var dbRecJson = JSON.stringify(dbRec, null, 2);
-        console.log(dbRecJson);
+        var dbRecs = hostedzone.getDbRecordsForTargetEndpoint(oldTarget);
+        console.log(JSON.stringify(dbRecs, null, 2));
         break;      
       
       case 'hostedzone-update':
         var AWS = require('aws-sdk');
-        var landscape = process.argv[3];
+        // var AWS = MockFactory.getAwsRoute53Mock();
+        var oldTarget = process.argv[3];
         var newTarget = process.argv[4];
         var hostedzone = await HostedZone.lookup(AWS, process.env.HOSTED_ZONE_NAME);
-        var dbRec = hostedzone.getDbRecordForLandscape(landscape);
+        var dbRecs = hostedzone.getDbRecordsForTargetEndpoint(oldTarget);
         if(hostedzone.exists()) {
-          var data = await hostedzone.updateDbResourceRecordSetTarget(AWS, dbRec, newTarget);
+          var data = await hostedzone.updateDbResourceRecordSetTargets(AWS, dbRecs, oldTarget, newTarget);
           console.log(`Resource record update success\n${JSON.stringify(data, null, 2)}`);
         }
         break;  
@@ -115,7 +117,6 @@ var debugChoice = process.argv[2];
         var mockEvent = require(eventMockFile);
         var dbMockFile = process.argv[4];
         var AWSMock = MockFactory.getFullMock(dbMockFile);
-        var rdsr = require('./RdsLifecycleEvent.js');
         rdsr.handler(mockEvent, { getMockAWS: () => { return AWSMock; } });
         break;  
   
@@ -125,16 +126,14 @@ var debugChoice = process.argv[2];
        * All other api activity (s3, route53) is not mocked and will be executed against the aws account.
        */
       case 'create-event-rds-mocked':
-        var rdsr = require('./RdsLifecycleEvent.js');
         var eventMockFile = process.argv[3];
         var mockEvent = require(eventMockFile);
         var dbMockFile = process.argv[4];
-        var AWSMock = MockFactory.getAwsRdsMock(dbMockFile);
+        var AWSMock = MockFactory.getUnmockedExceptRds(dbMockFile);
         rdsr.handler(mockEvent, { getMockAWS: () => { return AWSMock; }});
         break;
   
       case 'delete-event-all-mocks':
-        var rdsr = require('./RdsLifecycleEvent.js');
         var eventMockFile = process.argv[3];
         var mockEvent = require(eventMockFile);
         var dbMockFile = process.argv[4];
@@ -149,12 +148,53 @@ var debugChoice = process.argv[2];
        * NOTE: The associated rds database must exist in the aws account.
        */
       case 'create-event': case 'delete-event':
-        var rdsr = require('./RdsLifecycleEvent.js');
         var eventMockFile = process.argv[3];
         var mockEvent = require(eventMockFile);
         rdsr.handler(mockEvent, {});
         break;
-      
+
+      case 'get-stacks-for-kc':
+        var baseline = process.argv[3];
+        var AWS = require('aws-sdk');
+        var inventory = new CloudFormationInventoryForKC(AWS, baseline);
+        var stacks = await inventory.getStacks();
+        stacks.forEach(stack => {
+          console.log(stack.detailsString);
+        });
+        break;
+
+      case 'update-stacks-for-kc':
+        var baseline = process.argv[3];
+        var AWSMock = MockFactory.getFullMock();
+        var inventory = new CloudFormationInventoryForKC(AWSMock, baseline);
+        var stacks = await inventory.getStacks();
+        for (let index = 0; index < stacks.length; index++) {
+          const stack = stacks[index];
+          const data = await stack.updateRdsVpcSecurityGroupId(AWSMock, 'sg-new-id');
+          console.log(JSON.stringify(data, null, 2));
+        }
+        break;
+
+      case 'get-stacks-for-batch':
+        var AWS = require('aws-sdk');
+        var inventory = new CloudFormationInventoryForBatch(AWS);
+        var stacks = await inventory.getStacks();
+        stacks.forEach(stack => {
+          console.log(stack.detailsString);
+        });
+        break;
+
+      case 'update-stacks-for-batch':
+        var AWSMock = MockFactory.getFullMock();
+        var inventory = new CloudFormationInventoryForBatch(AWSMock);
+        var stacks = await inventory.getStacks();
+        for (let index = 0; index < stacks.length; index++) {
+          const stack = stacks[index];
+          const data = await stack.updateRdsVpcSecurityGroupId(AWSMock, 'sg-new-id');
+          console.log(JSON.stringify(data, null, 2));
+        }
+        break;
+            
       case 'zip':
         const zip = require('../../zip/zip.js');
         console.log('zip done.');

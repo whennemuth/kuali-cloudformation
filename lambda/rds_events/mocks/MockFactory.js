@@ -87,12 +87,57 @@ exports.getAwsRoute53Mock = function() {
   }
 }
 
+exports.getAwsResourceGroupsTaggingAPIMock = function() {
+  const unmocked = new (require('aws-sdk')).ResourceGroupsTaggingAPI();
+  return {
+    ResourceGroupsTaggingAPI: function() {
+      this.getResources = params => {
+        return unmocked.getResources(params);
+      }
+    }
+  }
+}
+
+exports.getAwsCloudFormationMock = function() {
+  const unmocked = new (require('aws-sdk')).CloudFormation();
+  return {
+    CloudFormation: function() {
+      this.listStacks = params => {
+        return unmocked.listStacks(params);
+      }
+      this.describeStacks = params => {
+        return unmocked.describeStacks(params);
+      }
+      this.updateStack = params => {
+        return getAwsResponse({
+          StackId: `Mock stack ID for ${params.StackName}`
+        });
+      }
+    }
+  }
+}
+
+exports.getUnmockedExceptRds = function (rdsMockFile) {
+  const unmocked = require('aws-sdk');
+  return new function() {
+    this.RDS = exports.getAwsRdsMock(rdsMockFile).RDS;
+    this.route53 = unmocked.route53;
+    this.S3 = unmocked.S3;
+    this.CloudFormation = unmocked.CloudFormation;
+    this.ResourceGroupsTaggingAPI = unmocked.ResourceGroupsTaggingAPI;
+  }
+}
+
 exports.getFullMock = function (rdsMockFile) {
   return new function() {
-    var DbInstance = new RdsDb();
-    var rdsDb = DbInstance.load(require(rdsMockFile));
-    this.Route53 = exports.getAwsRoute53Mock().Route53;    
-    this.RDS = exports.getAwsRdsMock(rdsMockFile).RDS;
-    this.S3 = exports.getAwsS3Mock(rdsDb).S3;
+    this.Route53 = exports.getAwsRoute53Mock().Route53;
+    if(rdsMockFile) {
+      var DbInstance = new RdsDb();
+      var rdsDb = DbInstance.load(require(rdsMockFile));
+      this.RDS = exports.getAwsRdsMock(rdsMockFile).RDS;
+      this.S3 = exports.getAwsS3Mock(rdsDb).S3;
+    }        
+    this.CloudFormation = exports.getAwsCloudFormationMock().CloudFormation;
+    this.ResourceGroupsTaggingAPI = exports.getAwsResourceGroupsTaggingAPIMock().ResourceGroupsTaggingAPI;
   }
 }

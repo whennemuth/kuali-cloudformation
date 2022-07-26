@@ -39,11 +39,23 @@ module.exports = function(AWS, rdsParm) {
     var rdsId = rdsDb.getID();
   }
 
+  this.getRdsId = (state) => {
+    if(state == 'pending') {
+      if(rdsDb) {
+        return rdsDb.getReplacesId() || rdsId;
+      }
+    }
+    return rdsId;
+  }
+
   /**
    * Determine if a bucket object exists. Will return "found" upon success.
    */
   this.find = (state) => {
-    const key = `${Folders.getByState(state)}/${rdsId}`
+    if(state == 'pending') {
+
+    }
+    const key = `${Folders.getByState(state)}/${this.getRdsId(state)}`
     const s3path = `${env.BUCKET_NAME}/${key}`
     console.log(`Searching for rds db lifecycle record: ${s3path}...`);
     const params = {
@@ -83,7 +95,7 @@ module.exports = function(AWS, rdsParm) {
    * The file contains the details of the rds object as returned by the rds.describeDBInstances api method.
    */
   this.load = (state) => {
-    const key = `${Folders.getByState(state)}/${rdsId}`
+    const key = `${Folders.getByState(state)}/${this.getRdsId(state)}`
     const s3path = `${env.BUCKET_NAME}/${key}`
     console.log(`About to locate and load the rds db lifecycle record: ${s3path}...`);
     const params = {
@@ -124,7 +136,7 @@ module.exports = function(AWS, rdsParm) {
   };
 
   /**
-   * Save the json comprising an rds intance details as an s3 file named according to the endpoint address.
+   * Save the json comprising an rds instance details as an s3 file named according to the baseline landscape or the rds instance.
    */
   this.persist = () => {
     const key = `${Folders.CREATED}/${rdsId}`

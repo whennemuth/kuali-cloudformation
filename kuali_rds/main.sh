@@ -164,6 +164,9 @@ EOF
     addStandardTags
     addTag $cmdfile 'Category' 'database'
     addTag $cmdfile 'Subcategory' 'oracle'
+    if [ -n "$INSTANCE_TO_REPLACE" ] ; then
+      addTag $cmdfile 'Replaces' "$INSTANCE_TO_REPLACE"
+    fi
     echo "      ]'" >> $cmdfile
 
     runStackActionCommand
@@ -185,6 +188,8 @@ runTask() {
       stackAction "delete-stack" 2> /dev/null
       if waitForStackToDelete ${STACK_NAME}-${LANDSCAPE} ; then
         task='create-stack'
+        local globalTag=${GLOBAL_TAG:-${defaults['GLOBAL_TAG']}}
+        INSTANCE_TO_REPLACE="${globalTag}-${LANDSCAPE}"
         stackAction "create-stack"
       else
         echo "ERROR! Stack deletion failed. Cancelling..."
