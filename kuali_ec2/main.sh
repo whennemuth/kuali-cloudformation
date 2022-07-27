@@ -139,6 +139,7 @@ EOF
 
     if [ "${CREATE_MONGO,,}" == 'true' ] ; then
       add_parameter $cmdfile 'MongoSubnetId' 'PRIVATE_SUBNET1'
+      copyToBucket '../kuali_mongo/mongo.yaml' "s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_mongo/"
     fi
 
     if [ "${PDF_BUCKET_NAME,,}" != 'none' ] ; then  
