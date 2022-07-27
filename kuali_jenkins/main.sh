@@ -213,9 +213,9 @@ EOF
     fi
 
     if [ "$action" == 'create-stack' ] ; then
-      addParameter $cmdfile 'EC2AMI_raw' "$(getLatestEc2Ami)"
+      addParameter $cmdfile 'EC2AMI' "$(getLatestEc2Ami)"
     elif [ "$action" == 'update-stack' ] ; then
-      addParameter $cmdfile 'EC2AMI_raw' "$(getStackParameter EC2AMI_raw ${FULL_STACK_NAME})"
+      addParameter $cmdfile 'EC2AMI' "$(getStackParameter EC2AMI ${FULL_STACK_NAME})"
     fi
 
     echo "      ]'" >> $cmdfile

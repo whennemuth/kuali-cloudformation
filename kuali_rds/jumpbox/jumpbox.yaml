@@ -20,15 +20,14 @@ Parameters:
     ConstraintDescription: Up to 12 letters and/or numbers
 
   # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/retrieve-ecs-optimized_AMI.html
-  ECSAMI:
-    Description: AMI ID
-    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
-    Default: /aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id
+  # ECSAMI:
+  #   Description: AMI ID
+  #   Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+  #   Default: /aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id
 
-  ECSAMI_raw:
+  ECSAMI:
     Description: A specific ecs optimized ami.
     Type: String
-    Default: empty
 
   JumpboxInstanceType:
     Type: String
@@ -90,10 +89,6 @@ Parameters:
       For example, for daily at midnight EST, enter '0 5 * * *'
     Type: String
     Default: '0 8 * * *'
-
-
-Conditions:
-  UseSpecificAMI: !Not [ !Equals [ !Ref ECSAMI_raw, empty ] ]
 
 
 Resources:
@@ -211,7 +206,7 @@ Resources:
       - Key: self-stoppable
         Value: 'true'
       ImageId: 
-        !If [ UseSpecificAMI, !Ref ECSAMI_raw, !Ref ECSAMI ]
+        !Ref ECSAMI
       InstanceType:
         !Ref JumpboxInstanceType
       SecurityGroupIds: 

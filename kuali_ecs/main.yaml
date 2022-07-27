@@ -252,15 +252,14 @@ Parameters:
     Default: auto
 
   # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/retrieve-ecs-optimized_AMI.html
-  ECSAMI:
-    Description: A reference to the latest ecs optimized ami stored in the ssm parameter store.
-    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
-    Default: /aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id
+  # ECSAMI:
+  #   Description: A reference to the latest ecs optimized ami stored in the ssm parameter store.
+  #   Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+  #   Default: /aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id
 
-  ECSAMI_raw:
+  ECSAMI:
     Description: A specific ecs optimized ami.
     Type: String
-    Default: empty
 
   # --------------------------------------------------------------------------------------------
   #       RDS create from snapshotParameters:
@@ -343,7 +342,6 @@ Conditions:
   CreateAlbLogsBuckets: !Or [!Equals [!Ref EnableALBLogging, 'true' ], Condition: CreateWAF]
   UseKeypair: !Not [!Equals [!Ref EC2KeypairName, empty]]
   IsProd: !Equals [!Ref Landscape, prod]
-  UseSpecificAMI: !Not [ !Equals [ !Ref ECSAMI_raw, empty ] ]
   CreateJumpboxInstance: !Not [!Equals [!Ref RdsJumpboxInstanceType, empty]]
   CreateRdsInstanceFromSnapshot: !Not [!Equals [!Ref RdsSnapshotARN, empty]]  
   UseExistingRdsInstance: !Not [ Condition: CreateRdsInstanceFromSnapshot ]
@@ -553,8 +551,8 @@ Resources:
           !Ref TemplateBucketName
         ApplicationSecurityGroupId:
           !GetAtt SecurityGroups.Outputs.ECSHostSecurityGroup
-        ECSAMI_raw:
-          !If [ UseSpecificAMI, !Ref ECSAMI_raw, !Ref ECSAMI ]
+        ECSAMI:
+          !Ref ECSAMI
 
   ECS:
     Type: AWS::CloudFormation::Stack
@@ -641,8 +639,8 @@ Resources:
           !Ref EnableNewRelicAPM
         EnableNewRelicInfrastructure:
           !Ref EnableNewRelicInfrastructure
-        ECSAMI_raw:
-          !If [ UseSpecificAMI, !Ref ECSAMI_raw, !Ref ECSAMI ]
+        ECSAMI:
+          !Ref ECSAMI
 
   # NOTE: This role is only necessary for the s3 access on the env-file.
   # The role in the ec2 profile would grant the logging and ecr privileges, but the service will only accept s3 access through a task execution role.

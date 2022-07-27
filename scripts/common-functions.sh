@@ -2043,12 +2043,12 @@ getLatestImage() {
 
 getLatestEcsAmi() {
   export MSYS_NO_PATHCONV=1
-  aws ssm get-parameters --names /aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id --region us-east-1 --query "Parameters[0].Value"
+  aws ssm get-parameters --names /aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id --region us-east-1 --query "Parameters[0].Value" | sed 's/"//g'
 }
 
 getLatestEc2Ami() {
   export MSYS_NO_PATHCONV=1
-  aws ssm get-parameters --names /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2 --region us-east-1 --query "Parameters[0].Value"
+  aws ssm get-parameters --names /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2 --region us-east-1 --query "Parameters[0].Value" | sed 's/"//g'
 }
 
 getKcRepoName() {

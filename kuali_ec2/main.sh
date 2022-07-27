@@ -146,9 +146,9 @@ EOF
     fi
 
     if [ "$action" == 'create-stack' ] ; then
-      addParameter $cmdfile 'ECSAMI_raw' "$(getLatestEcsAmi)"
+      addParameter $cmdfile 'ECSAMI' "$(getLatestEcsAmi)"
     elif [ "$action" == 'update-stack' ] ; then
-      addParameter $cmdfile 'ECSAMI_raw' "$(getStackParameter ECSAMI_raw ${FULL_STACK_NAME})"
+      addParameter $cmdfile 'ECSAMI' "$(getStackParameter ECSAMI ${FULL_STACK_NAME})"
     fi
     
     checkLandscapeParameters 'application'

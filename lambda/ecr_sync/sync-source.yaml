@@ -45,15 +45,14 @@ Parameters:
     Description: Id of the private application subnet that admits access from bu vpns through transit gateway attachment.
 
   # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/retrieve-ecs-optimized_AMI.html
-  EC2AMI:
-    Description: AMI ID
-    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
-    Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2
+  # EC2AMI:
+  #   Description: AMI ID
+  #   Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+  #   Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2
 
-  EC2AMI_raw:
+  EC2AMI:
     Description: A specific ecs optimized ami.
     Type: String
-    Default: empty
 
   EC2InstanceType:
     Type: String
@@ -70,7 +69,6 @@ Conditions:
 
   IsLegacyTarget: !Equals [!Ref TrustingAccount, '730096353738']
   IsLandscapeProvided: !Not [ !Equals [ !Ref Landscape, empty ] ]
-  UseSpecificAMI: !Not [ !Equals [ !Ref EC2AMI_raw, empty ] ]
 
 Resources:
 
@@ -359,7 +357,7 @@ Resources:
         Timeout: PT15M
     Properties:
       ImageId: 
-        !If [ UseSpecificAMI, !Ref EC2AMI_raw, !Ref EC2AMI ]
+        !Ref EC2AMI
       InstanceType:
         !Ref EC2InstanceType
       IamInstanceProfile:

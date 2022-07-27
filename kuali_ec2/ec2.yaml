@@ -61,15 +61,14 @@ Parameters:
     Default: empty
 
   # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/retrieve-ecs-optimized_AMI.html
-  ECSAMI:
-    Description: AMI ID
-    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
-    Default: /aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id
+  # ECSAMI:
+  #   Description: AMI ID
+  #   Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+  #   Default: /aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id
 
-  ECSAMI_raw:
+  ECSAMI:
     Description: A specific ecs optimized ami.
     Type: String
-    Default: empty
 
   EC2InstanceType:
     Type: String
@@ -203,7 +202,6 @@ Conditions:
   UseKeypair: !Not [!Equals [!Ref EC2KeypairName, empty]]
   IsTest: !Not [!And [!Equals [!Ref Landscape, prod], !Equals [!Ref Landscape, stg]]]
   IsProd: !Equals [!Ref Landscape, prod]
-  UseSpecificAMI: !Not [ !Equals [ !Ref ECSAMI_raw, empty ] ]
   NewrelicLicsenseKeyProvided: !Equals [!Ref NewrelicLicsenseKey, empty]
   RdsEndpointProvided: !Not [!Equals [!Ref RdsPrivateEndpoint, empty]]
   CreateRdsInstanceFromSnapshot: !Not [!Equals [!Ref RdsSnapshotARN, empty]]  
@@ -429,8 +427,8 @@ Resources:
           !Ref TemplateBucketName
         ApplicationSecurityGroupId:
           !GetAtt EC2InstanceSecurityGroup.GroupId
-        ECSAMI_raw:
-          !If [ UseSpecificAMI, !Ref ECSAMI_raw, !Ref ECSAMI ]
+        ECSAMI:
+          !Ref ECSAMI
       
   EC2Instance:
     Type: AWS::EC2::Instance
@@ -453,7 +451,7 @@ Resources:
       - Key: Function
         Value: !Ref Function
       ImageId: 
-        !If [ UseSpecificAMI, !Ref ECSAMI_raw, !Ref ECSAMI ]
+        !Ref ECSAMI
       InstanceType:
         !Ref EC2InstanceType
       SecurityGroupIds:

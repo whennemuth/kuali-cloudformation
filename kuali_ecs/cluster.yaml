@@ -59,15 +59,14 @@ Parameters:
     Description: Id of the second private application subnet that admits access from bu vpns through transit gateway attachment.
 
   # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/retrieve-ecs-optimized_AMI.html
-  ECSAMI:
-    Description: AMI ID
-    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
-    Default: /aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id
+  # ECSAMI:
+  #   Description: AMI ID
+  #   Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+  #   Default: /aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id
 
-  ECSAMI_raw:
+  ECSAMI:
     Description: A specific ecs optimized ami.
     Type: String
-    Default: empty
 
   InstanceType:
     Type: String
@@ -213,7 +212,6 @@ Conditions:
   IsShibHostProvided: !Not [!Equals [!Ref ShibbolethHost, auto]]
   NewrelicLicsenseKeyProvided: !Equals [!Ref NewrelicLicsenseKey, empty]
   RdsEndpointProvided: !Not [!Equals [!Ref RdsEndpoint, empty]]
-  UseSpecificAMI: !Not [ !Equals [ !Ref ECSAMI_raw, empty ] ]
 
 
 Resources:
@@ -493,7 +491,7 @@ Resources:
       LaunchConfigurationName:
         !Sub ${GlobalTag}-${Landscape}
       ImageId:
-        !If [ UseSpecificAMI, !Ref ECSAMI_raw, !Ref ECSAMI ]
+        !Ref ECSAMI
       InstanceType:
         !Ref InstanceType
       SecurityGroups:
