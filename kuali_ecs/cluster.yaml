@@ -64,6 +64,11 @@ Parameters:
     Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
     Default: /aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id
 
+  ECSAMI_raw:
+    Description: A specific ecs optimized ami.
+    Type: String
+    Default: empty
+
   InstanceType:
     Type: String
     Description: What type of EC2 instance should be used for hosting?
@@ -208,6 +213,7 @@ Conditions:
   IsShibHostProvided: !Not [!Equals [!Ref ShibbolethHost, auto]]
   NewrelicLicsenseKeyProvided: !Equals [!Ref NewrelicLicsenseKey, empty]
   RdsEndpointProvided: !Not [!Equals [!Ref RdsEndpoint, empty]]
+  UseSpecificAMI: !Not [ !Equals [ !Ref ECSAMI_raw, empty ] ]
 
 
 Resources:
@@ -487,7 +493,7 @@ Resources:
       LaunchConfigurationName:
         !Sub ${GlobalTag}-${Landscape}
       ImageId:
-        !Ref ECSAMI
+        !If [ UseSpecificAMI, !Ref ECSAMI_raw, !Ref ECSAMI ]
       InstanceType:
         !Ref InstanceType
       SecurityGroups:

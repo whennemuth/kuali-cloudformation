@@ -40,10 +40,18 @@ const Stack = function(stackSummary, rdsVpcSecGrpParmName) {
               })
             }
             else {
-              prev.push({
-                ParameterKey: curr.ParameterKey,
-                UsePreviousValue : true
-              })
+              if(curr.ResolvedValue) {
+                prev.push({
+                  ParameterKey: curr.ParameterKey,
+                  ParameterValue: curr.ResolvedValue
+                });
+              }
+              else {
+                prev.push({
+                  ParameterKey: curr.ParameterKey,
+                  UsePreviousValue : true
+                });
+              }
             }
             return prev;
           }, stackparms)

@@ -203,7 +203,7 @@
       }
     },
     {
-      "name": "get stacks for kc (mocked)",
+      "name": "get stacks for kc",
       "program": "./src/debug.js",
       "request": "launch",
       "type": "node",
@@ -217,7 +217,21 @@
       }
     },
     {
-      "name": "update stacks for kc (mocked)",
+      "name": "update stacks for kc (mock update)",
+      "program": "./src/debug.js",
+      "request": "launch",
+      "type": "node",
+      "args": [
+        "update-stacks-for-kc-mocked",
+        "stg"
+      ],
+      "env": {
+        "AWS_REGION": "us-east-1",
+        "AWS_PROFILE": "infnprd",
+      }
+    },
+    {
+      "name": "update stacks for kc",
       "program": "./src/debug.js",
       "request": "launch",
       "type": "node",
@@ -231,7 +245,7 @@
       }
     },
     {
-      "name": "get stacks for batch (mocked)",
+      "name": "get stacks for batch",
       "program": "./src/debug.js",
       "request": "launch",
       "type": "node",
@@ -244,12 +258,12 @@
       }
     },
     {
-      "name": "update stacks for batch (mocked)",
+      "name": "update stacks for batch (mock update)",
       "program": "./src/debug.js",
       "request": "launch",
       "type": "node",
       "args": [
-        "update-stacks-for-batch"
+        "update-stacks-for-batch-mocked"
       ],
       "env": {
         "AWS_REGION": "us-east-1",

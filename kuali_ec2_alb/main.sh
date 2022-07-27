@@ -239,6 +239,12 @@ EOF
       add_parameter $cmdfile 'PdfS3BucketName' 'PDF_BUCKET_NAME'
     fi
 
+    if [ "$action" == 'create-stack' ] ; then
+      addParameter $cmdfile 'ECSAMI_raw' "$(getLatestEcsAmi)"
+    elif [ "$action" == 'update-stack' ] ; then
+      addParameter $cmdfile 'ECSAMI_raw' "$(getStackParameter ECSAMI_raw ${FULL_STACK_NAME})"
+    fi
+
     checkLandscapeParameters 'application' 'database'
 
     checkRDSParameters    # Based on landscape and other parameters, perform rds cloning if indicated.

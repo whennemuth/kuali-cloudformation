@@ -76,9 +76,14 @@ Parameters:
 
   # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/retrieve-ecs-optimized_AMI.html
   ECSAMI:
-    Description: AMI ID
+    Description: A reference to the latest ecs optimized ami stored in the ssm parameter store.
     Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
     Default: /aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id
+
+  ECSAMI_raw:
+    Description: A specific ecs optimized ami.
+    Type: String
+    Default: empty
 
   EC2InstanceType:
     Type: String
@@ -103,6 +108,7 @@ Conditions:
   DuoCampusSubnet: !Not [ !Equals [ !Ref CampusSubnetCIDR1, !Ref CampusSubnetCIDR2 ] ]
   IncludeCampusSg1: !And [ !Not [ !Equals [ !Ref CampusSubnetCIDR1, 'UsingAppSg' ] ], Condition: IncludeAppSg ]
   IncludeCampusSg2: !And [ !Not [ !Equals [ !Ref CampusSubnetCIDR2, 'UsingAppSg' ] ], Condition: IncludeCampusSg1, Condition: DuoCampusSubnet ]
+  UseSpecificAMI: !Not [ !Equals [ !Ref ECSAMI_raw, empty ] ]
 
       
 Resources:
@@ -230,7 +236,7 @@ Resources:
       - Key: Function
         Value: !Ref Function
       ImageId: 
-        !Ref ECSAMI
+        !If [ UseSpecificAMI, !Ref ECSAMI_raw, !Ref ECSAMI ]
       InstanceType:
         !Ref EC2InstanceType
       SecurityGroupIds:

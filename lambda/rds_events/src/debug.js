@@ -163,7 +163,7 @@ var debugChoice = process.argv[2];
         });
         break;
 
-      case 'update-stacks-for-kc':
+      case 'update-stacks-for-kc-mocked':
         var baseline = process.argv[3];
         var AWSMock = MockFactory.getFullMock();
         var inventory = new CloudFormationInventoryForKC(AWSMock, baseline);
@@ -175,6 +175,18 @@ var debugChoice = process.argv[2];
         }
         break;
 
+      case 'update-stacks-for-kc':
+        var baseline = process.argv[3];
+        var AWS = require('aws-sdk');
+        var inventory = new CloudFormationInventoryForKC(AWS, baseline);
+        var stacks = await inventory.getStacks();
+        for (let index = 0; index < stacks.length; index++) {
+          const stack = stacks[index];
+          const data = await stack.updateRdsVpcSecurityGroupId(AWS, 'sg-08ab79baa11bad5e0');
+          console.log(JSON.stringify(data, null, 2));
+        }
+        break;
+  
       case 'get-stacks-for-batch':
         var AWS = require('aws-sdk');
         var inventory = new CloudFormationInventoryForBatch(AWS);
@@ -184,7 +196,7 @@ var debugChoice = process.argv[2];
         });
         break;
 
-      case 'update-stacks-for-batch':
+      case 'update-stacks-for-batch-mocked':
         var AWSMock = MockFactory.getFullMock();
         var inventory = new CloudFormationInventoryForBatch(AWSMock);
         var stacks = await inventory.getStacks();

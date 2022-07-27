@@ -50,6 +50,11 @@ Parameters:
     Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
     Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2
 
+  EC2AMI_raw:
+    Description: A specific ecs optimized ami.
+    Type: String
+    Default: empty
+
   EC2InstanceType:
     Type: String
     Description: What type of EC2 instance should be used for hosting?
@@ -65,6 +70,7 @@ Conditions:
 
   IsLegacyTarget: !Equals [!Ref TrustingAccount, '730096353738']
   IsLandscapeProvided: !Not [ !Equals [ !Ref Landscape, empty ] ]
+  UseSpecificAMI: !Not [ !Equals [ !Ref EC2AMI_raw, empty ] ]
 
 Resources:
 
@@ -353,7 +359,7 @@ Resources:
         Timeout: PT15M
     Properties:
       ImageId: 
-        !Ref EC2AMI
+        !If [ UseSpecificAMI, !Ref EC2AMI_raw, !Ref EC2AMI ]
       InstanceType:
         !Ref EC2InstanceType
       IamInstanceProfile:

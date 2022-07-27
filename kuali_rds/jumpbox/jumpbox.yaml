@@ -25,6 +25,11 @@ Parameters:
     Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
     Default: /aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id
 
+  ECSAMI_raw:
+    Description: A specific ecs optimized ami.
+    Type: String
+    Default: empty
+
   JumpboxInstanceType:
     Type: String
     Description: What type of EC2 instance should be used?
@@ -85,6 +90,11 @@ Parameters:
       For example, for daily at midnight EST, enter '0 5 * * *'
     Type: String
     Default: '0 8 * * *'
+
+
+Conditions:
+  UseSpecificAMI: !Not [ !Equals [ !Ref ECSAMI_raw, empty ] ]
+
 
 Resources:
 
@@ -201,7 +211,7 @@ Resources:
       - Key: self-stoppable
         Value: 'true'
       ImageId: 
-        !Ref ECSAMI
+        !If [ UseSpecificAMI, !Ref ECSAMI_raw, !Ref ECSAMI ]
       InstanceType:
         !Ref JumpboxInstanceType
       SecurityGroupIds: 

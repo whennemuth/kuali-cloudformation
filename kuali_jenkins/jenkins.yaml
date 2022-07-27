@@ -65,6 +65,11 @@ Parameters:
     Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2
     # Default: /aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id
 
+  EC2AMI_raw:
+    Description: A specific ecs optimized ami.
+    Type: String
+    Default: empty
+
   EC2InstanceType:
     Type: String
     Description: What type of EC2 instance should be used for hosting?
@@ -95,6 +100,7 @@ Parameters:
 
 Conditions:
   CreateAdminSecret: !Not [!Equals [!Ref JenkinsAdminPassword, empty]]
+  UseSpecificAMI: !Not [ !Equals [ !Ref EC2AMI_raw, empty ] ]
 
 Resources:
 
@@ -392,7 +398,7 @@ Resources:
       - Key: Function
         Value: !Ref Function
       ImageId: 
-        !Ref EC2AMI
+        !If [ UseSpecificAMI, !Ref EC2AMI_raw, !Ref EC2AMI ]
       InstanceType:
         !Ref EC2InstanceType
       SecurityGroupIds:

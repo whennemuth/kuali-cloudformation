@@ -108,6 +108,12 @@ EOF
     add_parameter $cmdfile 'TrustingRoleName' 'TRUSTING_ROLE_NAME'
     add_parameter $cmdfile 'TrustedRoleName' 'TRUSTED_ROLE_NAME'
 
+    if [ "$action" == 'create-stack' ] ; then
+      addParameter $cmdfile 'EC2AMI_raw' "$(getLatestEc2Ami)"
+    elif [ "$action" == 'update-stack' ] ; then
+      addParameter $cmdfile 'EC2AMI_raw' "$(getStackParameter EC2AMI_raw ${FULL_STACK_NAME})"
+    fi
+
     echo "      ]' \\" >> $cmdfile
     echo "      --tags '[" >> $cmdfile
     addStandardTags
