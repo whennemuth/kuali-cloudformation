@@ -165,8 +165,7 @@ processEnvironmentVariableFiles() {
       echo "ECS deployment: Copying $(pwd)/$envfile to $targetS3EnvFile..."
       aws s3 cp $envfile $targetS3EnvFile
     else
-      echo "INVALID STATE! No environment variable file available for $app container."
-      exit 1
+      echo "No environment variable file available for $app container. This is an invalid state if processing for an ecs deployment."
     fi
 
     if [ "${ENV_FILE_EXTENSION,,}" == 'true' ] ; then
