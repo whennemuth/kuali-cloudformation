@@ -188,39 +188,44 @@ async function handleRoute53(AWS, newRdsDb) {
  * @param {*} newRdsDb Decorated details for the newly created kuali rds database.
  */
 async function handleRdsSecurityGroupReferencesForKC(AWS, newRdsDb) {
-  await handleRdsSecurityGroupReferences({
-    StackType: 'kuali application',
-    AWS: AWS,
-    NewRdsDb: newRdsDb,
-    Inventory:  new CloudFormationInventoryForKC(AWS, newRdsDb.getBaseline())
-  });
+  try {
+    await handleRdsSecurityGroupReferences({
+      StackType: 'kuali application',
+      AWS: AWS,
+      NewRdsDb: newRdsDb,
+      Inventory:  new CloudFormationInventoryForKC(AWS, newRdsDb.getBaseline())
+    });
+  } 
+  catch (err) {
+    console.log(err, err.stack);
+  }
 }
 
 async function handleRdsSecurityGroupReferencesForBatch(AWS, newRdsDb) {
-  await handleRdsSecurityGroupReferences({
-    StackType: 'research admin reports',
-    AWS: AWS,
-    NewRdsDb: newRdsDb,
-    Inventory:  new CloudFormationInventoryForBatch(AWS)    
-  });
+  try {
+    await handleRdsSecurityGroupReferences({
+      StackType: 'research admin reports',
+      AWS: AWS,
+      NewRdsDb: newRdsDb,
+      Inventory:  new CloudFormationInventoryForBatch(AWS)    
+    });
+  } 
+  catch (err) {
+    console.log(err, err.stack);
+  }
 }
 
 module.exports = function(AWS) {
   this.execute = (dbArn) => {
     (async () => {
-      try {
-        var newRdsDb = await getRdsDatabase(AWS, dbArn);
-        if( ! newRdsDb) return;
-    
-        await handleRoute53(AWS, newRdsDb);
+      var newRdsDb = await getRdsDatabase(AWS, dbArn);
+      if( ! newRdsDb) return;
   
-        await handleRdsSecurityGroupReferencesForKC(AWS, newRdsDb);
+      await handleRoute53(AWS, newRdsDb);
 
-        await handleRdsSecurityGroupReferencesForBatch(AWS, newRdsDb);
-      } 
-      catch (err) {
-        console.log(err, err.stack);
-      }
+      await handleRdsSecurityGroupReferencesForKC(AWS, newRdsDb);
+
+      await handleRdsSecurityGroupReferencesForBatch(AWS, newRdsDb);
     })();
   }
 }

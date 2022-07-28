@@ -80,6 +80,9 @@ Parameters:
     - db.m5.xlarge
     - db.r5.large
     - db.r5.xlarge
+    - db.t3.medium
+    - db.t3.large
+    - db.t3.xlarge
     # Cannot use these because they are BYOL only.
     # - db.r5b.large
     # - db.r5b.xlarge
@@ -171,6 +174,14 @@ Parameters:
       You can't specify the string NULL, or any other reserved word, for DBName
     MaxLength: 64
     MinLength: 4
+
+  Version12Compatibility:
+    Type: String
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Default: 'true'
+    Description: Will force compatibility mode for version 12.1.0.2.0
 
   Port:
     Description: TCP/IP Port for the Database Instance
@@ -287,6 +298,7 @@ Conditions:
   IncludeCampusSg1: !And [ !Not [ !Equals [ !Ref CampusSubnetCIDR1, 'UsingAppSg' ] ], Condition: IncludeAppSg ]
   IncludeCampusSg2: !And [ !Not [ !Equals [ !Ref CampusSubnetCIDR2, 'UsingAppSg' ] ], Condition: IncludeCampusSg1, Condition: DuoCampusSubnet ]
   CreateDnsRecord: !Not [!Equals [!Ref HostedZoneName, empty]]
+  CompatibilityMode: !Equals [ !Ref Version12Compatibility, 'true' ]
 
 Resources:
 
@@ -403,6 +415,7 @@ Resources:
 
   ParameterGroup:
     Type: 'AWS::RDS::DBParameterGroup'
+    Condition: CompatibilityMode
     Properties:
       Description: Single parameter group to indicate the db initializes with prior version compatibility set.
       Family: !Sub ${Engine}-${RdsMajorVersion}
@@ -441,7 +454,11 @@ Resources:
       DBInstanceClass: !Ref DBInstanceClass
       DBInstanceIdentifier: !Sub ${GlobalTag}-${Landscape}
       DBName: !Ref DBName
-      DBParameterGroupName: !Ref ParameterGroup
+      DBParameterGroupName: 
+        !If
+        - CompatibilityMode
+        - !Ref ParameterGroup
+        - !Ref AWS::NoValue
       DBSnapshotIdentifier: 
         !If
         - CreateFromSnapshot

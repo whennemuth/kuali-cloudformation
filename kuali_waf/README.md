@@ -54,7 +54,7 @@ Alternatively, the only way to provide enough protection without a WAF is to res
   4. **GenericRFI_QUERYARGUMENTS**: Inspects the values of all query parameters and blocks requests attempting to exploit RFI (Remote File Inclusion) in web applications. Examples include patterns like `://`.
   5. **NoUserAgent_HEADER**: Blocks requests with no HTTP User-Agent header.
 
-  While these modifications can be made manually through the AWS console once the standard [template](https://s3.amazonaws.com/solutions-reference/aws-waf-security-automations/latest/aws-waf-security-automations.template) from AWS has been run and the WAF created, keeping the entire stack creation process automated is a goal and so this same template has been downloaded and modified to turn off these 5 rules. Any other custom rules can added against this copy. This means that checks should be made by routine to determine if the original template from AWS has changed with additions or updates so they can be pulled and merged with the copy.
+  While these modifications can be made manually through the AWS console once the standard [template](https://s3.amazonaws.com/solutions-reference/aws-waf-security-automations/latest/aws-waf-security-automations.template) from AWS has been run and the WAF created, keeping the entire stack creation process automated is a goal and so this same template has been downloaded and modified to turn off these 5 rules. Any other custom rules can be added against this copy. This means that checks should be made by routine to determine if the original template from AWS has changed with additions or updates so they can be pulled and merged with the copy.
 
   ```
   # Clone this repository.
@@ -126,5 +126,4 @@ sh upload.sh profile=[your profile]
 - [aws-waf-and-shield-advanced-developer-guide](https://github.com/awsdocs/aws-waf-and-shield-advanced-developer-guide)
   Contains tons of in depth documentation on WAF specifics.
 - [How can I detect false positives caused by AWS Managed Rules and add them to a safe list?](https://aws.amazon.com/premiumsupport/knowledge-center/waf-detect-false-positives-from-amrs/)
-
 

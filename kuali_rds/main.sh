@@ -120,6 +120,7 @@ EOF
     add_parameter $cmdfile 'MultiAZ' 'MULTI_AZ'
     add_parameter $cmdfile 'Engine' 'ENGINE'
     add_parameter $cmdfile 'RdsMajorVersion' 'MAJOR_VERSION'
+    add_parameter $cmdfile 'Version12Compatibility' 'VERSION_12_COMPATIBILITY'
     add_parameter $cmdfile 'DBName' 'DB_NAME'
     add_parameter $cmdfile 'Port' 'PORT'
     add_parameter $cmdfile 'LicenseModel' 'LICENSE_MODEL'
