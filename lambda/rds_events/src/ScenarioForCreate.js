@@ -104,6 +104,11 @@ async function updateHostedZoneDbRecords(parms) {
   console.log(`${header}\n    Resource record update success${header}\n${JSON.stringify(data, null, 2)}`);
 }
 
+/**
+ * When the hosted zone resource record and rds vpc security group ingress rules are updated, move the corresponding pending lifecycle record into "final" state.
+ * @param {*} AWS 
+ * @param {*} oldRdsDb 
+ */
 async function archivePendingDatabaseRecord(AWS, oldRdsDb) {
   console.log(`${header}\n    Archiving pending rds db lifecycle record ${header}`);
   var result = await new LifecycleRecord(AWS, oldRdsDb).move('pending', 'final');
@@ -122,22 +127,67 @@ async function handleRdsSecurityGroupReferences(parms) {
   var stacks = await parms.Inventory.getStacks();
   for(const stackItem in stacks) {
     var stack = stacks[stackItem];
-    if(stack.securityGroupMismatch(parms.NewRdsDb)) {
-      console.log(`${stack.getName()} used a vpc security group id: ${stack.getRdsSecurityGroupId()}, that needs to be updated pme from the new rds db: ${parms.NewRdsDb.getFirstSecurityGroupId()}`);
-      var data = await stack.updateRdsVpcSecurityGroupId(parms.AWS, parms.NewRdsDb.getFirstSecurityGroupId());
-      console.log(`Stack update in progress: ${JSON.stringify(data, null, 2)}`);
-    }
-    else {
-      console.log(`
+    if(stack.securityGroupMatch(parms.OldRdsDb)) {
+      if(stack.securityGroupMismatch(parms.NewRdsDb)) {
+        console.log(`${stack.getName()} used a rds vpc security group id: ${stack.getRdsSecurityGroupId()}, that needs to be updated to the one from the new rds db: ${parms.NewRdsDb.getFirstSecurityGroupId()}`);
+        var data = await stack.updateRdsVpcSecurityGroupId(parms.AWS, parms.NewRdsDb.getFirstSecurityGroupId());
+        console.log(`Stack update in progress: ${JSON.stringify(data, null, 2)}`);
+      }
+      else {
+        console.log(`
 A new rds database was created, but seems to have the same vpc security group id 
 as a prior rds database to which the ${stack.getName()} stack attached ingress rules for. 
 This could only happen if:
   1) The rds db was created in a stack that is nested in the application stack.
   2) The parent application stack finished before the db creation event was picked up by the lambda function.
 Result is no action.
-`);
+  `);
+      }
+    }
+    else {
+      console.log(`
+Stack "${stack.getName()}" does not exhibit a "${stack.getRdsVpcSecGrpParmName()}" matching that of the replaced rds database.
+   ${stack.getName()}: ${stack.getRdsSecurityGroupId()}
+   Defunct database: ${JSON.stringify(parms.OldRdsDb.getVpcSecurityGroups())}
+Probably means that ${stack.getName()} was never associated with ${parms.NewRdsDb.getID()} or any of its predecessors.
+      `);
     }
   }
+}
+
+async function handleRdsLifecycleRecordKeeping(AWS, dbArn) {
+  return new Promise(
+    (resolve) => {
+      try {
+        resolve((async () => {
+          var newRdsDb = await getRdsDatabase(AWS, dbArn);
+
+          await persistNewLifecycleRecord(AWS, newRdsDb);
+
+          var databaseJson = await loadLifecycleRecord(AWS, newRdsDb, 'pending');
+
+          var oldRdsDb = null;
+          if(databaseJson) {
+            oldRdsDb = new RdsDb().load(JSON.parse(databaseJson));
+          }
+
+          return {
+            OldRdsDb: oldRdsDb,
+            NewRdsDb: newRdsDb,
+            areComplete: () => {
+              if( ! oldRdsDb) return false;
+              if( ! newRdsDb) return false;
+              return true;
+            }
+          }
+        })());
+      }
+      catch(err) {
+        console.log(err, err.stack);
+        return { areComplete: () => { return false; }};
+      }
+    }
+  );
 }
 
 /**
@@ -148,24 +198,16 @@ Result is no action.
  * @param {*} newRdsDb 
  * @returns 
  */
-async function handleRoute53(AWS, newRdsDb) {
+async function handleRoute53(AWS, oldRdsDb, newRdsDb) {
   try {
-    // 1) Create new lifecycle record in s3 for the new RDS instance
-    await persistNewLifecycleRecord(AWS, newRdsDb);
-
-    // 2) Search for any prior lifecycle record for a deleted RDS database that has the same ID as the new one or the new ones "Replaces" tag.
-    var databaseJson = await loadLifecycleRecord(AWS, newRdsDb, 'pending');
-    if( ! databaseJson) return;
-
-    // 3) Despite finding a match, warn if the old database record content indicates a different landscape as that of the new rds database.
-    var oldRdsDb = new RdsDb().load(JSON.parse(databaseJson));
+    // 1) Despite finding a match, warn if the old database record content indicates a different landscape as that of the new rds database.
     checkRdsLandscapeMismatch(newRdsDb, oldRdsDb);
 
-    // 4) Get the hosted zone along with the database CNAME record.
+    // 2) Get the hosted zone along with the database CNAME record.
     var hsdata = await getHostedZoneAndDbRecords(AWS, process.env.HOSTED_ZONE_NAME, oldRdsDb.getEndpointAddress());
     if(hsdata.missingDbRecord()) return;
 
-    // 5) A hosted zone resource record was found that maps database requests to the defunct rds endpoint. Update it to the new rds endpoint.
+    // 3) A hosted zone resource record was found that maps database requests to the defunct rds endpoint. Update it to the new rds endpoint.
     await updateHostedZoneDbRecords({
       AWS: AWS,
       hostedZone: hsdata.hostedZone,
@@ -173,9 +215,6 @@ async function handleRoute53(AWS, newRdsDb) {
       oldTargetEndpoint: oldRdsDb.getEndpointAddress(),
       newTargetEndpoint: newRdsDb.getEndpointAddress()
     })
-
-    // 6) Now that the hosted zone resource record is updated, move the corresponding lifecyle record into "final" state.
-    await archivePendingDatabaseRecord(AWS, oldRdsDb);
   }
   catch(err) {
     console.log(err, err.stack);
@@ -187,11 +226,12 @@ async function handleRoute53(AWS, newRdsDb) {
  * @param {*} AWS An aws sdk object.
  * @param {*} newRdsDb Decorated details for the newly created kuali rds database.
  */
-async function handleRdsSecurityGroupReferencesForKC(AWS, newRdsDb) {
+async function handleRdsSecurityGroupReferencesForKC(AWS, oldRdsDb, newRdsDb) {
   try {
     await handleRdsSecurityGroupReferences({
       StackType: 'kuali application',
       AWS: AWS,
+      OldRdsDb: oldRdsDb,
       NewRdsDb: newRdsDb,
       Inventory:  new CloudFormationInventoryForKC(AWS, newRdsDb.getBaseline())
     });
@@ -201,11 +241,12 @@ async function handleRdsSecurityGroupReferencesForKC(AWS, newRdsDb) {
   }
 }
 
-async function handleRdsSecurityGroupReferencesForBatch(AWS, newRdsDb) {
+async function handleRdsSecurityGroupReferencesForBatch(AWS, oldRdsDb, newRdsDb) {
   try {
     await handleRdsSecurityGroupReferences({
       StackType: 'research admin reports',
       AWS: AWS,
+      OldRdsDb: oldRdsDb,
       NewRdsDb: newRdsDb,
       Inventory:  new CloudFormationInventoryForBatch(AWS)    
     });
@@ -218,14 +259,20 @@ async function handleRdsSecurityGroupReferencesForBatch(AWS, newRdsDb) {
 module.exports = function(AWS) {
   this.execute = (dbArn) => {
     (async () => {
-      var newRdsDb = await getRdsDatabase(AWS, dbArn);
-      if( ! newRdsDb) return;
+
+      var records = await handleRdsLifecycleRecordKeeping(AWS, dbArn);
+
+      if(records.areComplete()) {
+
+        await handleRoute53(AWS, records.OldRdsDb, records.NewRdsDb);
+
+        await handleRdsSecurityGroupReferencesForKC(AWS, records.OldRdsDb, records.NewRdsDb);
+
+        await handleRdsSecurityGroupReferencesForBatch(AWS, records.OldRdsDb, records.NewRdsDb);
+
+        await archivePendingDatabaseRecord(AWS, records.OldRdsDb);
+      }
   
-      await handleRoute53(AWS, newRdsDb);
-
-      await handleRdsSecurityGroupReferencesForKC(AWS, newRdsDb);
-
-      await handleRdsSecurityGroupReferencesForBatch(AWS, newRdsDb);
     })();
   }
 }

@@ -154,6 +154,22 @@
       }
     },
     {
+      "name": "rds create event (read only)",
+      "type": "node",
+      "request": "launch",
+      "program": "./src/debug.js",
+      "args": [
+        "create-event-readonly",
+        "../mocks/MockRdsCreateEvent2.js"
+      ],
+      "env": {
+        "AWS_REGION": "us-east-1",
+        "AWS_PROFILE": "infnprd",
+        "BUCKET_NAME": "kuali-conf",
+        "HOSTED_ZONE_NAME": "kualitest.research.bu.edu"
+      }
+    },
+    {
       "name": "rds create event",
       "type": "node",
       "request": "launch",

@@ -150,6 +150,7 @@ Resources:
                   - ecr:*
                 Resource:
                   - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/kuali-*
+                  - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/research-admin-reports
               - Effect: Allow
                 Action:
                   - ecr:GetAuthorizationToken
@@ -207,6 +208,7 @@ Resources:
                 - kuali-core
                 - kuali-portal
                 - kuali-research-pdf
+                - research-admin-reports
           result: [SUCCESS]
         detail-type: [ECR Image Action]
         source: [aws.ecr]
@@ -474,15 +476,25 @@ Resources:
                       ;;
                   esac
                   if [ -n "$targetRepo" ] ; then
-                    local targetImage="${TARGET_ACCOUNT}.dkr.ecr.${REGION}.amazonaws.com/${targetRepo}:${TAG}"
-                    cmd1="aws --profile=$ASSUMED_ROLE_PROFILE ecr get-login-password --region ${REGION} | docker login --username AWS --password-stdin ${TARGET_ACCOUNT}.dkr.ecr.${REGION}.amazonaws.com"
-                    cmd2="docker tag ${SOURCE_IMAGE} ${targetImage}"
-                    cmd3="docker push ${targetImage}"
-
                     if assumeRole ; then
+
+                      # Create each command
+                      local targetImage="${TARGET_ACCOUNT}.dkr.ecr.${REGION}.amazonaws.com/${targetRepo}:${TAG}"
+                      if repositoryExists $targetRepo ; then
+                        cmd1="echo $targetRepo found"
+                      else
+                        cmd1="aws --profile=$ASSUMED_ROLE_PROFILE ecr create-repository --repository-name $targetRepo"
+                      fi
+                      cmd2="aws --profile=$ASSUMED_ROLE_PROFILE ecr get-login-password --region ${REGION} | docker login --username AWS --password-stdin ${TARGET_ACCOUNT}.dkr.ecr.${REGION}.amazonaws.com"
+                      cmd3="docker tag ${SOURCE_IMAGE} ${targetImage}"
+                      cmd4="docker push ${targetImage}"
+
+                      # Run each command
                       if runCommand "$cmd1" ; then
                         if runCommand "$cmd2" ; then
-                          runCommand "$cmd3"
+                          if runCommand "$cmd3" ; then
+                            runCommand "$cmd4"
+                          fi
                         fi
                       fi
                     fi
@@ -491,8 +503,18 @@ Resources:
                   fi
                 }
 
+                repositoryExists() {
+                  repotest="$(aws ecr describe-repositories --repository-name $1 2>&1)"
+                  [ $? -eq 0 ] && return
+                  repotest=$(echo "$repotest" | grep -o 'does not exist')
+                  [ -z "$repotest" ] && return
+
+                  false
+                }
+
                 assumeRole() {
                   ROLE_ARN=$(echo $args | jq -r '.target.role')
+                  REGION=$(echo "$args" | jq -r '.source.region')
                   local retval=$?
                   if [ -n "$ROLE_ARN" ] && [ $retval -eq 0 ]; then
                     echo "Assuming role $ROLE_ARN"
@@ -509,6 +531,7 @@ Resources:
                       aws configure set aws_access_key_id ${sts[0]} --profile $ASSUMED_ROLE_PROFILE && \
                       aws configure set aws_secret_access_key ${sts[1]} --profile $ASSUMED_ROLE_PROFILE && \
                       aws configure set aws_session_token ${sts[2]} --profile $ASSUMED_ROLE_PROFILE && \
+                      aws configure set region $REGION --profile $ASSUMED_ROLE_PROFILE
                       export AWS_PROFILE=$ASSUMED_ROLE_PROFILE
                       [ $? -eq 0 ] && local success='true'
                     fi

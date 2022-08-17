@@ -52,9 +52,6 @@ module.exports = function(AWS, rdsParm) {
    * Determine if a bucket object exists. Will return "found" upon success.
    */
   this.find = (state) => {
-    if(state == 'pending') {
-
-    }
     const key = `${Folders.getByState(state)}/${this.getRdsId(state)}`
     const s3path = `${env.BUCKET_NAME}/${key}`
     console.log(`Searching for rds db lifecycle record: ${s3path}...`);
@@ -70,7 +67,7 @@ module.exports = function(AWS, rdsParm) {
             var retval = null;
             await s3.headObject(params).promise()
               .then(data => {
-                retval = 'found';
+                retval = data ? 'found' : 'NotFound';
               })
               .catch(err => {
                 if(err.name === 'NotFound') {

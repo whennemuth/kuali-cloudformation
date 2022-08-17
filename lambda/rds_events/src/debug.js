@@ -121,15 +121,28 @@ var debugChoice = process.argv[2];
         break;  
   
       /**
-       * Simulate an EventBridge rule being triggered that indicates a kuali database has been either created or deleted.
+       * Simulate an EventBridge rule being triggered that indicates a kuali database has been created.
        * It doesn't matter if the rds database exists in the aws account because it is being mocked.
-       * All other api activity (s3, route53) is not mocked and will be executed against the aws account.
+       * All other api activity (s3, route53, cloudformation) is not mocked and will be executed against the aws account.
        */
       case 'create-event-rds-mocked':
         var eventMockFile = process.argv[3];
         var mockEvent = require(eventMockFile);
         var dbMockFile = process.argv[4];
-        var AWSMock = MockFactory.getUnmockedExceptRds(dbMockFile);
+        var AWSMock = MockFactory.getFullUnmockedExceptRds(dbMockFile);
+        rdsr.handler(mockEvent, { getMockAWS: () => { return AWSMock; }});
+        break;
+
+      /**
+       * Simulate an EventBridge rule being triggered that indicates a kuali database has been created.
+       * All api operations that read data are not mocked.
+       * All api operations that update, create, or delete data are mocked.
+       * This is a safe way to see what a real create event would do against the current resources in the account without anything getting changed.
+       */
+      case 'create-event-readonly':
+        var eventMockFile = process.argv[3];
+        var mockEvent = require(eventMockFile);
+        var AWSMock = MockFactory.getFullReadOnlyMock();
         rdsr.handler(mockEvent, { getMockAWS: () => { return AWSMock; }});
         break;
   

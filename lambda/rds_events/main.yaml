@@ -80,19 +80,48 @@ Resources:
               - Effect: Allow
                 Action: 
                   - route53:ChangeResourceRecordSets
-                Resource: 
-                  - arn:aws:route53:::hostedzone/*
-              - Effect: Allow
-                Action: 
                   - route53:GetChange
                 Resource: 
                   - arn:aws:route53:::change/*
+                  - arn:aws:route53:::hostedzone/*
               - Effect: Allow
                 Action:
                   - rds:Describe*
                   - rds:ListTagsForResource
                 Resource:
                   arn:aws:rds:*:*:db:kuali*
+              - Effect: Allow
+                Action:
+                  - tag:GetResources
+                Resource: '*'
+              # The remaining policy statements allow for updating target cloudformation stacks and the actions the update itself takes.
+              - Effect: Allow
+                Action:
+                  - cloudformation:ListStacks
+                  - cloudformation:DescribeStacks
+                  - cloudformation:UpdateStack
+                  - ec2:*
+                  # - iam:GetRole
+                  - iam:*
+                  - lambda:Get*
+                  - lambda:InvokeFunction
+                  - lambda:List*
+                Resource: '*'
+              - Effect: Deny
+                Action:
+                  - cloudformation:UpdateStack
+                NotResource:
+                  - arn:aws:cloudformation:*:*:stack/kuali*/*
+                  - arn:aws:cloudformation:*:*:stack/research-admin-reports/*
+              # This does not seem to work (cloudformation not supporting ResourceTag condition key)
+              # SEE: https://docs.aws.amazon.com/service-authorization/latest/reference/list_awscloudformation.html#awscloudformation-policy-keys
+              # - Effect: Deny
+              #   Action:
+              #     - cloudformation:UpdateStack
+              #   Resource: '*'
+              #   Condition:
+              #     StringNotEqualsIfExists: 
+              #       aws:ResourceTag/Service: !Ref Service
 
   RdsLifecycleEventRule:
     Type: AWS::Events::Rule

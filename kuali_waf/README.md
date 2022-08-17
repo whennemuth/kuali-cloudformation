@@ -71,7 +71,7 @@ Alternatively, the only way to provide enough protection without a WAF is to res
   diff aws-waf-security-automations-webacl.template aws-waf-security-automations-webacl-custom.yaml
   ```
 
-2. **XssRule modification for Rice API:**
+2. **Modify XssRule for Rice API:**
 
   A specific service-to-service https request made by rice for user information gets blocked by the WAF as is.
   The relevant part of the stack trace looks like this:
@@ -98,6 +98,9 @@ Alternatively, the only way to provide enough protection without a WAF is to res
   - The AWS-AWSManagedRulesCommonRuleSet.CrossSiteScripting_BODY rule is deactivated (set to "COUNT").
     This will prevent interference with the exception in the Rice-Identity-Service-Rule. The Rice-Identity-Service-Rule will re-engage the rule if its own exception has been satisfied.
   - *NOTE: The Main XssRule is deactivated because due to redundancy - the same actions & criterion are duplicated in AWSManagedRulesCommonRuleSet.*
+
+3. **Modify GenericLFI_BODY**:
+  The AWSManagedRulesCommonRuleSet regards requests that kuali makes to its struts endpoint "/kc/kr/maintenance.do" as a Local File Inclusion (LFI) exploit. Similar to the Rice-Identity-Service-Rule, this is remedied by adding the "GenericLFI_BODY" rule from the AWSManagedRulesCommonRuleSet (switches from BLOCK to COUNT as the action), allowing the request to survive until it encounters a custom rule of lower priority called "kc-kr-maintenance-dot-do-Rule". This rule checks if the request was labelled by the GenericLFI_BODY rule and re-blocks it unless its url matches "/kc/kr/maintenance.do", in which case it lets it through.
 
 3. **Flood protection:**
    One of the WebAcl blocking rules activates after the 50th http request is detected against the load balancer within a 5 minute interval originating from the same IP address. It has been found that busy clicking, combined with "chatty" api calls of kc can easily exceed this limit. When exceeded, the user will start to see 403 status codes in their browser. To avoid this, the request threshold of the WebAcl HttpFloodProtectionRateBasedRule has been increased to 2000. This limit should go beyond what any single user can rack up for http hits in 5 minutes.

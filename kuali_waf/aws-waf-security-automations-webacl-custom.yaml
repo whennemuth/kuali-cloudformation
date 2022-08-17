@@ -456,8 +456,9 @@ Resources:
                   - Name: GenericRFI_BODY
                   - Name: GenericRFI_QUERYARGUMENTS
                   - Name: NoUserAgent_HEADER
-                  # Including this rule in exclusions - See the readme file for explanation.
+                  # Including these rule in exclusions - See the readme file for explanation.
                   - Name: CrossSiteScripting_BODY
+                  - Name: GenericLFI_BODY
           - !Ref 'AWS::NoValue'
         - Name: !Sub '${ParentStackName}WhitelistRule'
           Priority: 2
@@ -702,6 +703,30 @@ Resources:
             SampledRequestsEnabled: true
             CloudWatchMetricsEnabled: true
             MetricName: Rice-Identity-Service-Rule
+        - Name: kc-kr-maintenance-dot-do-Rule
+          Priority: 11
+          Statement:
+            AndStatement:
+              Statements:
+              - LabelMatchStatement:
+                  Scope: LABEL
+                  Key: awswaf:managed:aws:core-rule-set:GenericLFI_BODY
+              - NotStatement:
+                  Statement:
+                    ByteMatchStatement:
+                      SearchString: "kc/kr/maintenance.do"
+                      FieldToMatch:
+                        UriPath: {}
+                      TextTransformations:
+                      - Priority: 0
+                        Type: NONE
+                      PositionalConstraint: CONTAINS
+          Action:
+            Block: {}
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: kc-kr-maintenance-dot-do-Rule
 
 
 Outputs:

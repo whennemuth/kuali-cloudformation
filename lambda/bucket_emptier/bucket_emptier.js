@@ -134,7 +134,31 @@ const emptyBucket = (bucketName, maxKeys, callback) => {
       else {
         if(exists) {
           deleteS3Objects(s3, {Bucket: bucketName, MaxKeys: maxKeys}, (err, data) => {
-            callback(err, data);
+            if(err) {
+              callback(err, null);
+            }
+            else {
+              /**
+               * Try to empty the bucket again.
+               * Typically, a bucket is being emptied in preparation for its deletion. Therefore, since the
+               * bucket is emptied by listing items with the listObjectsV2 api function and deleting the items
+               * that are listed, if whatever has been adding content to the bucket "sneaks" more content into
+               * the bucket between the time the list(s) are obtained, and the bucket deletion is attempted, 
+               * then the bucket deletion will fail (because it is still not empty). It follows that buckets 
+               * are more prone to this scenario if they have accumulated a lot of content and it takes more 
+               * time to delete the content, allowing for greater opportunity for incoming items to be added 
+               * before the bucket can be BOTH emptied and deleted. An example would be a bucket that keeps WAF
+               * or ALB logs - the WAF or ALB might write more logs to the bucket while it is being emptied.
+               * This secondary bucket emptying attempt should be much faster, since very little content could
+               * have slipped in during the first attempt, making the soon to follow bucket deletion attempt
+               * more likely to succeed, albeit not guaranteed (the same scenario is possible to happen during 
+               * the second bucket emptying attempt, only significantly less so).
+               */
+              console.log('Bucket should now be empty, but making sure with a repeat emptying attempt:')
+              deleteS3Objects(s3, {Bucket: bucketName, MaxKeys: maxKeys}, (err, data) => {
+                callback(err, data);
+              });
+            }            
           });
         }
         else {

@@ -51,17 +51,33 @@ Resources:
       RoleName: kuali-ecr-sync-trusting-role
       AssumeRolePolicyDocument:
         Version: 2012-10-17
+        # Commenting out due to issue warned about in: https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_principal.html#principal-roles
+        # Statement:
+        #   - Effect: Allow
+        #     Principal:
+        #       AWS: 
+        #         - 
+        #           !If 
+        #             - CustomTrustedRoleName
+        #             - !Sub arn:aws:iam::${TrustedAccount}:role/kuali-${Landscape}-ecr-sync-trusted-role
+        #             - !Sub arn:aws:iam::${TrustedAccount}:role/${TrustedRoleName}
+        #         - !Sub arn:aws:iam::${TrustedAccount}:root
+        #     Action: sts:AssumeRole
+
         Statement:
           - Effect: Allow
             Principal:
               AWS: 
-                - 
+                - !Sub arn:aws:iam::${TrustedAccount}:root
+            Condition:
+              ArnEquals:
+                aws:PrincipalArn: 
                   !If 
                     - CustomTrustedRoleName
                     - !Sub arn:aws:iam::${TrustedAccount}:role/kuali-${Landscape}-ecr-sync-trusted-role
                     - !Sub arn:aws:iam::${TrustedAccount}:role/${TrustedRoleName}
-                - !Sub arn:aws:iam::${TrustedAccount}:root
             Action: sts:AssumeRole
+
       Path: /
       Policies:
         - PolicyName: kuali-ecr-sync-trusting-policy
@@ -92,6 +108,7 @@ Resources:
                   - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/kuali-portal
                   - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/kuali-portal-feature
                   - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/kuali-research-pdf
+                  - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/research-admin-reports
               - Effect: Allow
                 Action:
                   - ecr:GetAuthorizationToken

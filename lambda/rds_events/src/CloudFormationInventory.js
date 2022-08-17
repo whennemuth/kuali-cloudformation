@@ -93,6 +93,12 @@ const Stack = function(stackSummary, rdsVpcSecGrpParmName) {
   this.getRdsSecurityGroupId = () => {
     return this.getParameterValue(rdsVpcSecGrpParmName);
   }
+  this.getRdsVpcSecGrpParmName = () => {
+    return rdsVpcSecGrpParmName;
+  }
+  this.securityGroupMatch = rdsDb => {
+    return this.securityGroupMismatch(rdsDb) == false;
+  };
   this.securityGroupMismatch = rdsDb => {
     if( ! this.getRdsSecurityGroupId()) {
       return false;
