@@ -53,33 +53,42 @@ exports.handler = function (event, context) {
     new ResourceCollection.load(AWS, tagging, (candidates) => {
       if(candidates.processNext) {
         candidates.processNext((resource, callback) => {
-          var scheduled = new ScheduledResource(AWS, resource);
-          console.log("");
-          console.log("---------");
-          console.log(resource.getIntroduction());
-          console.log("---------");
-          scheduled.toStop((stop) => {
-            if(stop) {
-              resource.stop(callback);
-            }
-            else {
-              scheduled.toStart((start) => {
-                if(start) {
-                  resource.start(callback);
-                }
-                else {
-                  scheduled.toReboot((reboot) => {
-                    if(reboot) {
-                      resource.reboot(callback);
-                    }
-                    else {
-                      callback(resource);
-                    }
-                  })                  
-                }
-              })
-            }
-          });
+        try {
+            var scheduled = new ScheduledResource(AWS, resource);
+            console.log("");
+            console.log("---------");
+            console.log(resource.getIntroduction());
+            console.log("---------");
+            scheduled.toStop((stop) => {
+              if(stop) {
+                resource.stop(callback);
+              }
+              else {
+                scheduled.toStart((start) => {
+                  if(start) {
+                    resource.start(callback);
+                  }
+                  else {
+                    scheduled.toReboot((reboot) => {
+                      if(reboot) {
+                        resource.reboot(callback);
+                      }
+                      else {
+                        callback(resource);
+                      }
+                    })                  
+                  }
+                })
+              }
+            });  
+          }
+          catch (err) {
+            // There was an error with this resource, so go on to the next resource
+            var rn = { val: resource.getName() || 'unknown' };
+            console.error(`Error occurred with resource: ${rn.val}`);
+            err.stack ? console.error(err, err.stack) : console.error(err);
+            callback(resource);
+          }
         },
         () => {
           console.log('\nFinished processing.\n');
@@ -89,6 +98,7 @@ exports.handler = function (event, context) {
     });
   }
   catch(e) {
+    console.error('Error occurred loading/preparing resource candidates:')
     e.stack ? console.error(e, e.stack) : console.error(e);
   }
 }

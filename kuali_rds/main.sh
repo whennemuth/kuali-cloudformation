@@ -81,7 +81,11 @@ stackAction() {
 
   [ -z "$FULL_STACK_NAME" ] && FULL_STACK_NAME=${STACK_NAME}-${LANDSCAPE}
   if [ "$action" == 'delete-stack' ] ; then
-    aws cloudformation $action --stack-name $FULL_STACK_NAME
+    if isDryrun ; then
+      echo "DRYRUN: aws cloudformation $action --stack-name $FULL_STACK_NAME"
+    else
+      aws cloudformation $action --stack-name $FULL_STACK_NAME
+    fi
   else
     # checkSubnets will also assign a value to VPC_ID
     if [ "$LEGACY_ACCOUNT" ] ; then

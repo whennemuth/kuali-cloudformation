@@ -1,18 +1,29 @@
 -- set serveroutput on;
 create or replace procedure populate_trigger_toggle_table (
-    schema_name in varchar2
+    schema_name in varchar2,
+    task in varchar2
 ) 
 authid current_user is
 begin
     declare 
         v_count number;
         v_sql varchar2(200);
+        v_status varchar(10) := 'ENABLED';
     begin        
+        -- Validate the task entry
+        if (upper(task)!='ENABLE' and upper(task)!='DISABLE') then
+            raise_application_error(-20001, 'Invalid task parameter! expecting ''DISABLE'' or ''ENABLE''');
+        end if;
+        
+        if upper(task)='ENABLE' then
+            v_status := 'DISABLED';
+        end if;
+
         -- Baseline select for getting a schemas triggers
         v_sql := 'select owner, trigger_name ' ||
             'from sys.all_triggers ' ||
             'where owner = ''' || schema_name || ''' ' ||
-            'and status = ''ENABLED''';
+            'and status = ''' || v_status || '''';
 
         -- Determine if trigger exists (dms_trigger is used to log which triggers will be or have been disabled)
         select count(*) into v_count from dba_tables where table_name = 'DMS_TRIGGER' and owner = 'ADMIN';
@@ -31,18 +42,18 @@ end populate_trigger_toggle_table;
 /
 
 
-execute populate_trigger_toggle_table('KCOEUS')
-/
-execute populate_trigger_toggle_table('KCRMPROC')
-/
-execute populate_trigger_toggle_table('KULUSERMAINT')
-/
-execute populate_trigger_toggle_table('SAPBWKCRM')
-/
-execute populate_trigger_toggle_table('SAPETLKCRM')
-/
-execute populate_trigger_toggle_table('SNAPLOGIC')
-/
+-- execute populate_trigger_toggle_table('KCOEUS')
+-- /
+-- execute populate_trigger_toggle_table('KCRMPROC')
+-- /
+-- execute populate_trigger_toggle_table('KULUSERMAINT')
+-- /
+-- execute populate_trigger_toggle_table('SAPBWKCRM')
+-- /
+-- execute populate_trigger_toggle_table('SAPETLKCRM')
+-- /
+-- execute populate_trigger_toggle_table('SNAPLOGIC')
+-- /
 
 
 create or replace procedure toggle_triggers (
@@ -62,7 +73,7 @@ begin
             raise_application_error(-20001, 'Invalid task parameter! expecting ''DISABLE'' or ''ENABLE''');
         end if;
         
-        populate_trigger_toggle_table(schema_name);
+        populate_trigger_toggle_table(schema_name, task);
         
         execute immediate 'select * from dms_trigger where owner = ''' || schema_name || '''' bulk collect into toggled_triggers;
         if toggled_triggers.count <> 0 then

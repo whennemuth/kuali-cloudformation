@@ -103,17 +103,18 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
        sh main.sh create-stack \
         profile=default \
         landscape=mylandscape2 \
+        using_route53=true \
         rds_snapshot_arn=arn:aws:rds:us-east-1:770203350335:snapshot:rds:some-snapshot-name \
         instance_to_replace=kuali-oracle-mylandscape1
       
       
       ```
-   
+      
       **"Orphaning" contingencies:** You can replace an rds instance in one shot as in example 1 above, or in two separate steps as in example 2.
       In both examples, an `"instance_to_replace"` parameter is involved *(although you don't see it in example one, it is set dynamically).*
       This parameter indicates the `"DbInstanceIdentifier"` value of the rds database that is deleted and for which you intend the new database to replace. Its value is used for a `"Replaces"` tag set against the new rds database. Soon after the new rds database is created, an eventbridge rule will detect it and trigger a lambda function to restore route53 and security group relationships existing application stacks may have had with the deleted rds database. *NOTE: before the eventbridge rule has a chance to run, there will be a short period of time when applications stacks will be without a database - **"orphaned"**.*
       Without the `instance_to_replace` tag, any replacement rds database would have to have to be associated manually with client app stacks:
-   
+      
       1. The replacement database may have a different private endpoint *`(ie: "kuali-oracle-stg.clb9d4mkglfd.us-east-1.rds.amazonaws.com")`* than the database it replaces. In this case, each route53 CNAME record associated with the prior (deleted) rds database now "points" to a defunct private endpoint address and would need to be updated to the replacement database private endpoint.
       2. When an application stack is created and details are provided for either an existing rds database or for creation of a new one, an rds database vpc security group ID is involved as one of the parameters. At least two `"AWS::EC2::SecurityGroupIngress"` resources are created against this security group adding ingress from both the application ec2 instances and the application load balancer.
    

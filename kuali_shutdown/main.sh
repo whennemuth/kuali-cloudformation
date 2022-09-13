@@ -65,21 +65,7 @@ stackAction() {
 
     # Upload lambda code
     if [ "$PACKAGE_JAVASCRIPT" != 'false' ] ; then
-      outputHeading "Building, zipping, and uploading lambda code..."
-      if ! bucketExistsInThisAccount "$CODE_BUCKET_NAME" ; then
-        if askYesNo "The bucket $CODE_BUCKET_NAME does not exist create it?" ; then
-          aws s3 mb s3://$CODE_BUCKET_NAME
-          [ $? -gt 0 ] && echo "ERROR! Could not create bucket s3://$CODE_BUCKET_NAME, Cancelling..." && exit 1
-        else
-          echo "Cancelling..."
-          exit 0
-        fi
-      fi
-      local zipfile=s3://$CODE_BUCKET_NAME/$CODE_BUCKET_PATH
-      if [ "${SKIP_BUILD,,}" != 'true' ] ; then
-        zipPackageAndCopyToS3 '../lambda/shutdown_scheduler' "$zipfile"
-        [ $? -gt 0 ] && echo "ERROR! Could not upload shutdown_scheduler.zip to s3 at $zipfile" && exit 1
-      fi
+      exportCode
     fi
 
     cat <<-EOF > $cmdfile
@@ -116,6 +102,27 @@ EOF
   fi
 }
 
+
+# Build and upload the lambda function code:
+exportCode() {
+  outputHeading "Building, zipping, and uploading lambda code..."
+  if ! bucketExistsInThisAccount "$CODE_BUCKET_NAME" ; then
+    if askYesNo "The bucket $CODE_BUCKET_NAME does not exist create it?" ; then
+      aws s3 mb s3://$CODE_BUCKET_NAME
+      [ $? -gt 0 ] && echo "ERROR! Could not create bucket s3://$CODE_BUCKET_NAME, Cancelling..." && exit 1
+    else
+      echo "Cancelling..."
+      exit 0
+    fi
+  fi
+  local zipfile=s3://$CODE_BUCKET_NAME/$CODE_BUCKET_PATH
+  if [ "${SKIP_BUILD,,}" != 'true' ] ; then
+    zipPackageAndCopyToS3 '../lambda/shutdown_scheduler' "$zipfile"
+    [ $? -gt 0 ] && echo "ERROR! Could not upload shutdown_scheduler.zip to s3 at $zipfile" && exit 1
+  fi
+}        
+
+
 runTask() {
   case "$task" in
     validate)
@@ -139,6 +146,9 @@ runTask() {
       stackAction "update-stack" ;;
     delete-stack)
       stackAction "delete-stack" ;;
+    export)
+      exportCode ;;
+      # sh main.sh export profile=infnprd
     test)
       echo "No test configured yet." ;;
     *)

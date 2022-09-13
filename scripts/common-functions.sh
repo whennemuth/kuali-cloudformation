@@ -2076,6 +2076,7 @@ waitForStack() {
   local stackname="$2"
   local interval=${3:-5}
   local counter=1
+
   if [ -z "$stackname" ] ; then
     stackname="$STACK_NAME"
     if [ -n "$stackname" ] ; then
@@ -2087,53 +2088,68 @@ waitForStack() {
     echo "You will need to use the aws management console or the cli to acertain stack status."
     exit 0
   fi
-  while true ; do
-    status="$(
-      aws cloudformation describe-stacks \
-        --stack-name $stackname \
-        --output text \
-        --query 'Stacks[].{status:StackStatus}' 2> /dev/null
-    )"
-    case "${task,,}" in
-      create) successStatus="CREATE_COMPLETE" ;;
-      update) successStatus="UPDATE_COMPLETE" ;;
-      delete) successStatus="DELETED" ;;
-      *) echo "ERROR! Unknown stack operation: $task" && return 1
-    esac
-    [ -z "$status" ] && status="$successStatus"
-    echo "$stackname stack status check $counter: $status"
-    ([ -n "$(echo $status | grep -Pi '_COMPLETE$')" ] || [ $status == "$successStatus" ] || [ -n "$(echo $status | grep -Pi '_FAILED$')" ]) && break
-    ((counter++))
-    sleep $interval
-  done
+  case "${task,,}" in
+    create) successStatus="CREATE_COMPLETE" ;;
+    update) successStatus="UPDATE_COMPLETE" ;;
+    delete) successStatus="DELETED" ;;
+    *) echo "ERROR! Unknown stack operation: $task" && return 1
+  esac
+
+  if isDryrun ; then
+    echo "DRYRUN: waiting for $stackname to $task..."
+    status="$successStatus"
+  else
+    while true ; do
+      status="$(
+        aws cloudformation describe-stacks \
+          --stack-name $stackname \
+          --output text \
+          --query 'Stacks[].{status:StackStatus}' 2> /dev/null
+      )"
+      [ -z "$status" ] && status="$successStatus"
+      echo "$stackname stack status check $counter: $status"
+      ([ -n "$(echo $status | grep -Pi '_COMPLETE$')" ] || [ $status == "$successStatus" ] || [ -n "$(echo $status | grep -Pi '_FAILED$')" ]) && break
+      ((counter++))
+      sleep $interval
+    done
+  fi 
+
   if [ "$status" == $successStatus ] ; then
     if [ "$task" == 'delete' ] ; then
-      echo " "
-      echo "Finished."
+      if isDryrun ; then
+        echo "DRYRUN: $task complete"
+      else
+        echo " "
+        echo "Finished."
+      fi
     else
-      outputHeading "Stack outputs:"
-      while read p ; do
-        local key="$(echo ''$p'' | jq '.OutputKey')"
-        local val="$(echo ''$p'' | jq '.OutputValue')"
-        echo "$key: $val"
-      done <<<$(
-        aws cloudformation describe-stacks \
-        --stack-name=$stackname \
-        --query 'Stacks[].{Outputs:Outputs}' \
-        | jq -c '.[0].Outputs' \
-        | jq -c '.[]' 2> /dev/null
-      )
-      # for p in $(
-      #   aws cloudformation describe-stacks \
-      #   --stack-name=$stackname \
-      #   --query 'Stacks[].{Outputs:Outputs}' \
-      #   | jq -c '.[0].Outputs' \
-      #   | jq -c '.[]'
-      # ) ; do
-      #   local key="$(echo ''$p'' | jq '.OutputKey')"
-      #   local val="$(echo ''$p'' | jq '.OutputValue')"
-      #   echo "$key: $val"
-      # done
+      if isDryrun ; then
+        echo "DRYRUN: $task complete"
+      else
+        outputHeading "Stack outputs:"
+        while read p ; do
+          local key="$(echo ''$p'' | jq '.OutputKey')"
+          local val="$(echo ''$p'' | jq '.OutputValue')"
+          echo "$key: $val"
+        done <<<$(
+          aws cloudformation describe-stacks \
+          --stack-name=$stackname \
+          --query 'Stacks[].{Outputs:Outputs}' \
+          | jq -c '.[0].Outputs' \
+          | jq -c '.[]' 2> /dev/null
+        )
+        # for p in $(
+        #   aws cloudformation describe-stacks \
+        #   --stack-name=$stackname \
+        #   --query 'Stacks[].{Outputs:Outputs}' \
+        #   | jq -c '.[0].Outputs' \
+        #   | jq -c '.[]'
+        # ) ; do
+        #   local key="$(echo ''$p'' | jq '.OutputKey')"
+        #   local val="$(echo ''$p'' | jq '.OutputValue')"
+        #   echo "$key: $val"
+        # done
+      fi
     fi
     true
   else
@@ -2607,8 +2623,12 @@ checkLandscapeParameters() {
   local category="$1"
   [ -z "$LANDSCAPE" ] && echo "Missing landscape parameter!" && exit 1
   if [ "$task" == 'create-stack' ] && stackExistsForLandscape $LANDSCAPE $category ; then
-    echo "A cloudformation stack for the $LANDSCAPE landscape already exists!"
-    exit 1
+    if isDryrun ; then
+      echo "DRYRUN: A cloudformation stack for the $LANDSCAPE landscape already exists, but this is ok because this is a dryrun."
+    else
+      echo "A cloudformation stack for the $LANDSCAPE landscape already exists!"
+      exit 1
+    fi
   fi
   echo "Ok"
 }

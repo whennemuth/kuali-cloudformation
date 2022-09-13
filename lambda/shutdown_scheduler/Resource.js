@@ -44,11 +44,16 @@ module.exports = function(tagsAndArn, tagsOfInterest) {
   }
 
   this.getTagValue = (key) => {
-    tags = this.tagsAndArn.Tags;
-    for(var i=0; i<tags.length; i++) {
-      if(key && key.equalsIgnoreCase(tags[i].Key)) {
-        return tags[i].Value;
+    try {
+      tags = this.tagsAndArn.Tags;
+      for(var i=0; i<tags.length; i++) {
+        if(key && key.equalsIgnoreCase(tags[i].Key)) {
+          return tags[i].Value;
+        }
       }
+    }
+    catch (error) {
+      console.error(`Error getting tag value for: ${key}`);
     } 
     return "";
   }

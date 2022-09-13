@@ -85,6 +85,10 @@ getAwsCredential() {
       local credname='aws_secret_access_key'
       local varname="${prefix}${credname^^}"
       ;;
+    session|aws_session_token)
+      local credname='aws_session_token'
+      local varname="${prefix}${credname^^}"
+      ;;
     *)
       return -1
       ;;
@@ -139,6 +143,7 @@ run() {
     --rm \
     -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
     -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
+    -e AWS_SESSION_TOKEN=$AWS_SESSION_TOKEN \
     -v $INPUT_MOUNT:/tmp/input/ \
     -v $OUTPUT_MOUNT:/tmp/output/ \
     oracle/sqlplus \
@@ -157,6 +162,7 @@ shell() {
     --rm \
     -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
     -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
+    -e AWS_SESSION_TOKEN=$AWS_SESSION_TOKEN \
     -v $INPUT_MOUNT:/tmp/input/ \
     -v $OUTPUT_MOUNT:/tmp/output/ \
     --entrypoint bash \
@@ -172,19 +178,24 @@ toggleConstraintsAndTriggers() {
   local encoded_sql=""
   local schemas='KCOEUS KCRMPROC KULUSERMAINT SAPBWKCRM SAPETLKCRM SNAPLOGIC'
 
-  if [ "${TOGGLE_CONSTRAINTS,,}" != "none" ] ; then
-    for schema in $schemas ; do
-      [ -n "$encoded_sql" ] && encoded_sql="$encoded_sql@"
-      encoded_sql="$encoded_sql$(echo "execute toggle_constraints('$schema', 'FK', '$TOGGLE_CONSTRAINTS')" | base64 -w 0)"
-    done
+  toggleConstraints() {
+    constraintType="$1"
+    if [ "${TOGGLE_CONSTRAINTS,,}" != "none" ] ; then
+      for schema in $schemas ; do
+        [ -n "$encoded_sql" ] && encoded_sql="$encoded_sql@"
+        encoded_sql="$encoded_sql$(echo "execute toggle_constraints('$schema', '$constraintType', '$TOGGLE_CONSTRAINTS')" | base64 -w 0)"
+      done
+    fi
+  }
+
+  if [ TOGGLE_CONSTRAINTS == "DISABLE" ] ; then
+    toggleConstraints 'FK'
+    toggleConstraints 'PK'
+  else
+    toggleConstraints 'PK'
+    toggleConstraints 'FK'
   fi
 
-  if [ "${TOGGLE_CONSTRAINTS,,}" != "none" ] ; then
-    for schema in $schemas ; do
-      [ -n "$encoded_sql" ] && encoded_sql="$encoded_sql@"
-      encoded_sql="$encoded_sql$(echo "execute toggle_constraints('$schema', 'PK', '$TOGGLE_CONSTRAINTS')" | base64 -w 0)"
-    done
-  fi
 
   if [ "${TOGGLE_TRIGGERS,,}" != "none" ] ; then
     for schema in $schemas ; do
@@ -214,8 +225,16 @@ EOF
 }
 
 validateAwsCredentials() {
+  if [ "${VALIDATE_CREDENTIALS,,}" == 'false' ] ; then
+    return 0
+  fi
   if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ] ; then
-    echo "Required parameter(s) missing: AWS_ACCESS_KEY_ID and/or AWS_SECRET_ACCESS_KEY"
+    echo "Minimum required parameter(s) missing: AWS_ACCESS_KEY_ID and/or AWS_SECRET_ACCESS_KEY"
+    exit 1
+  fi
+  local id="$(aws sts get-caller-identity 2> /dev/null)"
+  if [ $? -gt 0 ] || [ -z "$id" ] ; then
+    echo "The provided credentials do not give access. Check them and try again."
     exit 1
   fi
 }
@@ -225,10 +244,14 @@ validateAwsCredentials() {
 checkAwsCredentials() {
   [ -z "$AWS_ACCESS_KEY_ID" ] && AWS_ACCESS_KEY_ID=$(getAwsCredential 'id')
   [ -z "$AWS_SECRET_ACCESS_KEY" ] && AWS_SECRET_ACCESS_KEY=$(getAwsCredential 'key')
+  [ -z "$AWS_SESSION_TOKEN" ] && AWS_SESSION_TOKEN=$(getAwsCredential 'session')
   [ -z "$LEGACY_AWS_ACCESS_KEY_ID" ] && LEGACY_AWS_ACCESS_KEY_ID=$(getAwsCredential 'id' 'legacy')
   [ -z "$LEGACY_AWS_SECRET_ACCESS_KEY" ] && LEGACY_AWS_SECRET_ACCESS_KEY=$(getAwsCredential 'key' 'legacy')
+  [ -z "$LEGACY_AWS_SESSION_TOKEN" ] && LEGACY_AWS_SESSION_TOKEN=$(getAwsCredential 'session', 'legacy')
   [ -z "$TARGET_AWS_ACCESS_KEY_ID" ] && TARGET_AWS_ACCESS_KEY_ID=$(getAwsCredential 'id' 'target')
   [ -z "$TARGET_AWS_SECRET_ACCESS_KEY" ] && TARGET_AWS_SECRET_ACCESS_KEY=$(getAwsCredential 'key' 'target')
+  [ -z "$TARGET_AWS_SESSION_TOKEN" ] && TARGET_AWS_SESSION_TOKEN=$(getAwsCredential 'session', 'target')
+  validateAwsCredentials
 }
 
 updateSequences() {
@@ -288,9 +311,10 @@ EOF
   }
 
 
-  # The AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY values will have been provided for both the "legacy" aws account
-  # and a newer "target" account. Strip out the id and key pair for "target" if "legacy is specified" and vice versa.
-  # This will "filter" down the arg list from having 4 "AWS_..." values to 2.
+  # The AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY (and AWS_SESSION_TOKEN, if credentials are temporary) 
+  # values will have been provided for both the "legacy" aws account and a newer "target" account. 
+  # Strip out the id and key pair for "target" if "legacy is specified" and vice versa.
+  # This will "filter" down the arg list from having 6 "AWS_..." values to 3.
   filterArgs() {
     local type="$1"
     local args=""
@@ -303,14 +327,18 @@ EOF
           target)
             [ "${name,,}" == 'legacy_aws_access_key_id' ] && continue 
             [ "${name,,}" == 'legacy_aws_secret_access_key' ] && continue 
+            [ "${name,,}" == 'legacy_aws_session_token' ] && continue 
             [ "${name,,}" == 'target_aws_access_key_id' ] && args="$args aws_access_key_id=$value" && continue
             [ "${name,,}" == 'target_aws_secret_access_key' ] && args="$args aws_secret_access_key=$value" && continue
+            [ "${name,,}" == 'target_aws_session_token' ] && args="$args aws_session_token=$value" && continue
             ;;
           legacy)
             [ "${name,,}" == 'target_aws_access_key_id' ] && continue 
             [ "${name,,}" == 'target_aws_secret_access_key' ] && continue 
+            [ "${name,,}" == 'target_aws_session_token' ] && continue 
             [ "${name,,}" == 'legacy_aws_access_key_id' ] && args="$args aws_access_key_id=$value" && continue
             [ "${name,,}" == 'legacy_aws_secret_access_key' ] && args="$args aws_secret_access_key=$value" && continue
+            [ "${name,,}" == 'legacy_aws_session_token' ] && args="$args aws_session_token=$value" && continue
             ;;
         esac
       fi
@@ -377,7 +405,9 @@ case "$task" in
   rerun)
     build && run $@ ;;
   shell)
-    shell ;;
+    checkAwsCredentials
+    shell
+    ;;
   get-mount)
     validateLandscape
     getPwdForDefaultInputMount
@@ -386,7 +416,7 @@ case "$task" in
     ;;
   run-sct-scripts)
     validateLandscape
-    validateAwsCredentials
+    checkAwsCredentials
     INPUT_MOUNT="$(getPwdForSctScriptMount)"
     if [ -n "$(echo "$START_AT" | grep -P '^\d+$')" ] ; then
       runFrom $@
