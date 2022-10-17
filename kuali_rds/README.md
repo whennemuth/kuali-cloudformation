@@ -116,7 +116,20 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
       Without the `instance_to_replace` tag, any replacement rds database would have to have to be associated manually with client app stacks:
       
       1. The replacement database may have a different private endpoint *`(ie: "kuali-oracle-stg.clb9d4mkglfd.us-east-1.rds.amazonaws.com")`* than the database it replaces. In this case, each route53 CNAME record associated with the prior (deleted) rds database now "points" to a defunct private endpoint address and would need to be updated to the replacement database private endpoint.
+      
       2. When an application stack is created and details are provided for either an existing rds database or for creation of a new one, an rds database vpc security group ID is involved as one of the parameters. At least two `"AWS::EC2::SecurityGroupIngress"` resources are created against this security group adding ingress from both the application ec2 instances and the application load balancer.
+         One precaution you might take is to record the ingress rules against the database BEFORE you replace or update the stack:
+      
+         ```
+         export AWS_PROFILE=[profile name] && \
+         aws ec2 describe-security-group-rules --filters Name=group-id,Values=$(
+           aws rds describe-db-instances \
+             --db-instance-id=kuali-oracle-stg \
+             --query 'DBInstances[0].VpcSecurityGroups[0]' | jq -r '.VpcSecurityGroupId'
+         )
+         ```
+      
+         This information will help verify effort to restore full rds database ingress is successful AFTER the rds  instance has been recreated by cloudformation. If for some reason the eventbridge-driven lambda process for updating ingress does not do its job, you would typically,  accomplish this manually by performing an update to the application stack, replacing one parameter with a new value: `RdsVpcSecurityGroupId`, and leaving all other parameters the same. The value for this parameter would be the group-id of the vpc security group created for the new rds database that replaces the old. During the update, the application stack will attach replacement ingress rules for the application ec2 instances and the application load balancer to this new vpc security group. Alternatively, you could attach the ingress rules manually through the console, but this is harder and would compound already introduced "drift" in the application stack.
    
 3. **Monitor stack progress:**
    Go to the stack in the [AWS Console](https://console.aws.amazon.com/cloudformation/home?region=us-east-1). Click on the new stack in the list and go to the "Events" tab.

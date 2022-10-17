@@ -28,13 +28,15 @@ This runbook will be used one or more times for the staging environment, each te
 
 ### RUNBOOK TASKS:
 
+1. **Database Quarantine**
+   Quarantine the legacy oracle database
 1. **Database Re-migration**
-   Quarantine the legacy oracle database, retake and share RDS snapshot to reintroduce data duplicate conditions between accounts.
+   Retake and share RDS snapshot to reintroduce data duplicate conditions between accounts.
    Essentially we are swapping out the CSS RDS with a data-duplicate of the legacy database.
    - Warren: [database runbook (steps 6-12)](database.md)
 3. **Verify connectivity**
    - Warren:  Perform a browser smoke test.
-   - Rohini: Perform informatica job can reach 
+   - Rohini: Perform database connectivity test from corresponding informatica server.
 4. Coordinate with SAPBW participants to test each of the routine direct-to-database jobs against the RDS database. Testing for: 
    - Database connectivity issues
    - Authorization issues against required schemas, tables and views.

@@ -104,6 +104,14 @@ Parameters:
     - 'false'
     Default: 'true'
 
+  GrantSnaplogicIngress:
+    Type: String
+    Description: Grants ingress for the corresponding snaplogic server.
+    AllowedValues:
+    - 'true'
+    - 'false'
+    Default: 'true'
+
 
 Mappings:
 
@@ -142,6 +150,22 @@ Mappings:
     prod:
       host: ist-etl-prod01.bu.edu
       cidr: 10.231.31.15/32
+
+  SnaplogicCidrs:
+    nonprod:
+      host1: ist-snap-dev.bu.edu
+      cidr1: 10.231.11.7/32
+      host2: ist-snap-dev2.bu.edu
+      cidr2: 10.231.11.13/32
+      host3: ist-snap-test1.bu.edu
+      cidr3: 10.231.11.9/32
+      host4: ist-snap-test2.bu.edu
+      cidr4: 10.231.11.10/32
+    prod:
+      host1: ist-snap-prod1.bu.edu
+      cidr1: 10.231.11.39/32
+      host2: ist-snap-prod2.bu.edu
+      cidr2: 10.231.11.40/32
 
   SAPBWCidrs:
     qa: {
@@ -198,9 +222,12 @@ Conditions:
   IncludeCampusSg2: !And [ !Not [ !Equals [ !Ref CampusSubnetCIDR2, 'UsingAppSg' ] ], Condition: IncludeCampusSg1, Condition: DuoCampusSubnet ]
   IncludeDbReportIngress: !Equals [ !Ref GrantDBReportIngress, 'true' ]
   IncludeInformaticaIngress: !Equals [ !Ref GrantInformaticaIngress, 'true' ]
+  IncludeSnaplogicIngress: !Equals [ !Ref GrantSnaplogicIngress, 'true']
   IsProdBaseline: !Equals [!Ref Baseline, prod]
   GrantInformaticaNonProdIngress: !And [ Condition: IncludeInformaticaIngress, !Not [ Condition: IsProdBaseline ] ]
   GrantInformaticaProdIngress: !And [ Condition: IncludeInformaticaIngress, Condition: IsProdBaseline ]
+  GrantSnaplogicNonProdIngress: !And [ Condition: IncludeSnaplogicIngress, !Not [ Condition: IsProdBaseline ] ]
+  GrantSnaplogicProdIngress: !And [ Condition: IncludeSnaplogicIngress, Condition: IsProdBaseline ]
   IsSAPBWBaseline: !Or [ !Equals [!Ref Baseline, stg], !Equals [!Ref Baseline, prod], !Equals [!Ref Baseline, qa] ]
   IncludeSAPBW1And2: !And [ Condition: IsSAPBWBaseline, !Equals [ !Ref GrantSAPBWIngress, 'true' ] ]
   IncludeSAPBW3To9: !And [ Condition: IncludeSAPBW1And2, Condition: IsProdBaseline ]
@@ -399,6 +426,91 @@ Resources:
       IpProtocol: tcp
       FromPort: !Ref FromPort
       ToPort: !Ref ToPort
+
+  SnaplogicNonProdIngress1:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Condition: GrantSnaplogicNonProdIngress
+    Properties:
+      GroupId: !Ref SGBase
+      CidrIp: !FindInMap [ SnaplogicCidrs, nonprod, "cidr1" ]
+      Description: !Sub 
+        - "Oracle: snaplogic ${host} host ingress to ${baseline} oracle rds instance(s)"
+        - baseline: !Ref Baseline
+          host: !FindInMap [ SnaplogicCidrs, nonprod, "host1" ]
+      IpProtocol: tcp
+      FromPort: !Ref FromPort
+      ToPort: !Ref ToPort
+
+  SnaplogicNonProdIngress2:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Condition: GrantSnaplogicNonProdIngress
+    Properties:
+      GroupId: !Ref SGBase
+      CidrIp: !FindInMap [ SnaplogicCidrs, nonprod, "cidr2" ]
+      Description: !Sub 
+        - "Oracle: snaplogic ${host} host ingress to ${baseline} oracle rds instance(s)"
+        - baseline: !Ref Baseline
+          host: !FindInMap [ SnaplogicCidrs, nonprod, "host2" ]
+      IpProtocol: tcp
+      FromPort: !Ref FromPort
+      ToPort: !Ref ToPort
+
+  SnaplogicNonProdIngress3:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Condition: GrantSnaplogicNonProdIngress
+    Properties:
+      GroupId: !Ref SGBase
+      CidrIp: !FindInMap [ SnaplogicCidrs, nonprod, "cidr3" ]
+      Description: !Sub 
+        - "Oracle: snaplogic ${host} host ingress to ${baseline} oracle rds instance(s)"
+        - baseline: !Ref Baseline
+          host: !FindInMap [ SnaplogicCidrs, nonprod, "host3" ]
+      IpProtocol: tcp
+      FromPort: !Ref FromPort
+      ToPort: !Ref ToPort
+
+  SnaplogicNonProdIngress4:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Condition: GrantSnaplogicNonProdIngress
+    Properties:
+      GroupId: !Ref SGBase
+      CidrIp: !FindInMap [ SnaplogicCidrs, nonprod, "cidr4" ]
+      Description: !Sub 
+        - "Oracle: snaplogic ${host} host ingress to ${baseline} oracle rds instance(s)"
+        - baseline: !Ref Baseline
+          host: !FindInMap [ SnaplogicCidrs, nonprod, "host4" ]
+      IpProtocol: tcp
+      FromPort: !Ref FromPort
+      ToPort: !Ref ToPort
+
+  SnaplogicProdIngress1:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Condition: GrantSnaplogicProdIngress
+    Properties:
+      GroupId: !Ref SGBase
+      CidrIp: !FindInMap [ SnaplogicCidrs, prod, "cidr1" ]
+      Description: !Sub 
+        - "Oracle: snaplogic ${host} host ingress to ${baseline} oracle rds instance(s)"
+        - baseline: !Ref Baseline
+          host: !FindInMap [ SnaplogicCidrs, prod, "host1" ]
+      IpProtocol: tcp
+      FromPort: !Ref FromPort
+      ToPort: !Ref ToPort
+
+  SnaplogicProdIngress2:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Condition: GrantSnaplogicProdIngress
+    Properties:
+      GroupId: !Ref SGBase
+      CidrIp: !FindInMap [ SnaplogicCidrs, prod, "cidr2" ]
+      Description: !Sub 
+        - "Oracle: snaplogic ${host} host ingress to ${baseline} oracle rds instance(s)"
+        - baseline: !Ref Baseline
+          host: !FindInMap [ SnaplogicCidrs, prod, "host2" ]
+      IpProtocol: tcp
+      FromPort: !Ref FromPort
+      ToPort: !Ref ToPort
+    
 
   # SAPBW: Allow ingress from the SAP BW server(s) associated with the prod or staging baseline landscapes only
   SAPBWServerIngress1:

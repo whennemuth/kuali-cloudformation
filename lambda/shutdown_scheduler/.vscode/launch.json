@@ -22,14 +22,14 @@
       "env": {
         "DEBUG_MODE": "local_mocked",
         "AWS_SDK_LOAD_CONFIG": "1",
-        "AWS_PROFILE": "infnprd",
+        "AWS_PROFILE": "legacy",
         "StartupCronKey": "StartupCron",
         "ShutdownCronKey": "ShutdownCron",
         "TimeZoneKey": "LocalTimeZone",
         "RebootCronKey": "RebootCron",
         "LastRebootTimeKey": "LastRebootTime"
       },
-      "cwd": "${workspaceFolder}/lambda/shutdown_scheduler",
+      "cwd": "${workspaceFolder}",
       "name": "Shutdown scheduler mocked",
       "type": "node",
       "request": "launch",

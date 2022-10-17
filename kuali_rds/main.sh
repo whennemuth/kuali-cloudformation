@@ -201,6 +201,7 @@ runTask() {
       fi
       ;;
     update-stack)
+      # Update the stack reassembling all the parameters
       stackAction "update-stack" ;;
     delete-stack)
       stackAction "delete-stack" ;;

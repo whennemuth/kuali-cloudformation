@@ -68,8 +68,8 @@ module.exports = {
                 { Key: "Service", Value: "research-administration" },
                 { Key: "Baseline", Value: "stg" },
                 { Key: "Name", Value: mockdata.getEC2(1).id },
-                { Key: "StartupCron", Value: "0 10 ? * MON-FRI" },
-                { Key: "ShutdownCron", Value: "15 0 ? * MON-FRI" },
+                { Key: "StartupCron", Value: "45 5 1-31 1-12 SUN-MON" },
+                { Key: "ShutdownCron", Value: "15 22 1-31 1-12 SUN-MON" },
                 { Key: "LocalTimeZone", Value: "America/New_York" }
               ]
             },

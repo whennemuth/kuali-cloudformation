@@ -75,8 +75,8 @@ Resources:
               #
               # Need to figure out a way to prevent this lambda function from being able to "touch" any other hosted zone than
               # a kuali hosted zone, without being able to cite the hosted zone id (would do no use anyway), using name only.
-              # Currently the lambda function itself will filter only provide an action against a hosted zone if it determines
-              # the name matches that of a kuali hosted zone, and likewise for the record - perhaps that is enough?
+              # Currently the lambda function itself ignores hosted zones if it determines by filter that their name(s)
+              # do not match that of a kuali hosted zone, and likewise for the record - perhaps that is enough?
               - Effect: Allow
                 Action: 
                   - route53:ChangeResourceRecordSets

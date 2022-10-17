@@ -366,12 +366,21 @@ addParameter() {
   local value="$3"
   [ -z "$value" ] && return 0
   [ -n "$(cat $cmdfile | grep 'ParameterKey')" ] && local comma=","
-  cat <<-EOF >> $cmdfile
+  if [ "$value" == 'UsePreviousValue' ] ; then
+    cat <<-EOF >> $cmdfile
+        ${comma}{
+          "ParameterKey" : "$key",
+          "UsePreviousValue" : true
+        }
+EOF
+  else
+    cat <<-EOF >> $cmdfile
         ${comma}{
           "ParameterKey" : "$key",
           "ParameterValue" : "$value"
         }
 EOF
+  fi
 }
 
 # Add on key=value parameter entry to the construction of an aws cli function call to 
@@ -2272,6 +2281,100 @@ runStackActionCommand() {
       fi
       ;;
   esac
+}
+
+# A stack update usually requires supplying parameter values again with some of them changed.
+# This is an alternative using the --use-previous-template flag and the UsePreviousValue setting for parameters, 
+# where the actual values do not need to be known, except for the one or more (but probably few) that are changing.
+# Arguments:
+#   stackname: The name of the stack being updated.
+#   tags: Additional tags to assign to the stack 
+runStackTweak() {
+  local stackname="$1"
+  shift
+
+  isStandardParm() {
+    local p="${1,,}"
+    case "$p" in
+      debug|dryrun|prompt|profile|silent|landscape)
+        local standard='true' ;;
+    esac
+    [ -n "$standard" ] && true || false
+  }
+
+  while true ; do
+    if [ $# -eq 0 ] ; then
+      echo "No stack parameters provided!"
+      exit 1;
+    else
+      local p="$(echo $1 | cut -d'=' -f1)"
+      if isStandardParm "$p" ; then
+        parseArgs "$1"
+        shift
+      else
+        break;
+      fi
+    fi
+  done
+  
+  cat <<-EOF > $cmdfile
+  aws cloudformation update-stack \\
+    --stack-name ${stackname} \\
+    --use-previous-template \\
+    --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \\
+    --parameters '[
+EOF
+
+  getNewValue() {
+    local key="$1"
+    shift
+    local val="$1"
+    shift
+    local newval=""
+    for kv in $@ ; do
+      local k="$(echo $kv | cut -d'=' -f1)"
+      if [ "$k" == "$key" ] ; then
+        local v="$(echo $kv | cut -d'=' -f2-)"
+        newval="$v"
+        if [ "$v" == "$val" ] ; then
+          newval="IDENTICAL-VALUES"
+        fi
+        break;
+      fi
+    done
+    echo "$newval"
+  }
+
+  local updates=0
+  for row in $(aws cloudformation describe-stacks --stack-name=$stackname --query 'Stacks[0].Parameters[]' | jq -c '.[]') ; do 
+    local key="$(echo $row | jq -r '.ParameterKey' 2> /dev/null)"
+    if [ -n "$key" ] ; then
+      local oldval="$(echo $row | jq -r '.ParameterValue' 2> /dev/null)"
+      [ -z "$oldval" ] && echo "Unexpected output in stack parameter output: Parameter with no value!" &&  exit 1
+      local newval="$(getNewValue $key $oldval $@)"
+      if [ "$newval" == 'IDENTICAL-VALUES' ] ; then
+        echo "The provided stack parameter value for $key will not result in a change!"
+      elif [ -n "$newval" ] ; then
+        ((updates++))
+        echo "${key}: $newval"
+        addParameter $cmdfile $key $newval
+      else
+        echo "UsePreviousValue: $key"
+        addParameter $cmdfile $key 'UsePreviousValue'
+      fi
+    else
+      echo "Unexpected output in stack parameter output: Parameter with no key!" &&  exit 1
+    fi
+  done
+
+  echo "      ]'" >> $cmdfile
+
+  if [ $updates -eq 0 ] ; then
+    printf "The provided stack parameters will not result in a change!\nCancelling stack update.\n"
+    return 1
+  fi
+
+  runStackActionCommand
 }
 
 getStackParameter() {

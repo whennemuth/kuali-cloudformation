@@ -83,7 +83,7 @@ module.exports = function(basicResource, AWS) {
   this.stop = (callback) => {
     this.basicResource.logHeading(`STOPPING RDS INSTANCE ${this.getId()}...`);
     var rds = new AWS.RDS();
-    rds.stoptDBInstance({ DBInstanceIdentifier: this.getId()}, function(err, data) {
+    rds.stopDBInstance({ DBInstanceIdentifier: this.getId()}, function(err, data) {
       if (err) {
         console.log(err, err.stack);
         callback(e.name)
@@ -98,7 +98,7 @@ module.exports = function(basicResource, AWS) {
     this.basicResource.logHeading(`REBOOTING RDS INSTANCE ${this.getId()}...`);
     var rds = new AWS.RDS();
     var self = this;
-    rds.reboottDBInstance({ DBInstanceIdentifier: this.getId()}, function(err, data) {
+    rds.rebootDBInstance({ DBInstanceIdentifier: this.getId()}, function(err, data) {
       if (err) {
         console.log(err, err.stack);
         callback(e.name)

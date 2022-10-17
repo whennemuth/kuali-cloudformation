@@ -94,9 +94,29 @@ You can drive what the container does with name=value parameter pairs:
     landscape=prod \
     toggle_constraints=ENABLE \
     toggle_triggers=ENABLE
+  
   ```
 
-     
+   Spot-check the counts of remaining disabled constraints and triggers between legacy and css databases by running the following on both *(results should be the same)*.
+
+  ```
+  select count(*)
+  from sys.all_constraints 
+  where constraint_type = 'R'
+      and owner in ('KCOEUS', 'KCRMPROC', 'KULUSERMAINT', 'SAPBWKCRM', 'SAPETLKCRM', 'SNAPLOGIC')
+      and status = 'DISABLED'; 
+      # and status = 'ENABLED';
+  
+  # Confirm the remaining number of disabled triggers is the same between legacy and css databases by running the following on both
+  select *
+  from sys.all_triggers
+  WHERE
+      status = 'DISABLED' and
+      # status = 'ENABLED' and
+      owner in ('KCOEUS', 'KCRMPROC', 'KULUSERMAINT', 'SAPBWKCRM', 'SAPETLKCRM', 'SNAPLOGIC');
+  ```
+
+  
 
 - **Update sequences**
   A migration that continues with [Change data capture](https://docs.aws.amazon.com/dms/latest/userguide/CHAP_Task.CDC.html) replicates all table data on an ongoing basis, but not the changes to sequences used by those tables:
@@ -149,7 +169,7 @@ You can drive what the container does with name=value parameter pairs:
    sh dbclient.sh compare-table-counts \
      aws_access_key_id=[your key] \
      aws_secret_access_key=[your secret] \
-     landscape=ci \
+     landscape=stg \
      bucket_name=kuali-research-ec2-setup
    ```
    
