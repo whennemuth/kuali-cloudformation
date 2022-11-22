@@ -73,7 +73,7 @@ Parameters:
     Description: |
       The compute and memory capacity of the DB instance. 
       Not all DB instance classes are available in all AWS Regions, or for all database engines.
-    Default: db.m5.large 
+    Default: db.t3.small 
     Type: String
     AllowedValues:
     - db.m5.large
@@ -168,7 +168,7 @@ Parameters:
     Type: String
     AllowedPattern: "[a-zA-Z][a-zA-Z0-9]*"
     ConstraintDescription: Must begin with a letter and contain a minimum of 4 alphanumeric characters.
-    Default: Kuali
+    Default: KUALI
     Description: |
       The Oracle System ID (SID) of the created DB instance. 
       If you specify null, the default value ORCL is used. 

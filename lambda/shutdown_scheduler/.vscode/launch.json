@@ -36,13 +36,13 @@
       "program": "debug.js"
     },
     {
-      "cwd": "${workspaceFolder}/lambda/shutdown_scheduler",
+      "cwd": "${workspaceFolder}",
       "name": "Shutdown scheduler experiment",
       "type": "node",
       "request": "launch",
       "program": "debug.js",
       "args": [
-        "{ \\\"experiment\\\": { \\\"trial1\\\": \\\"hello\\\" } }"
+        "{ \\\"experiment\\\": { \\\"trial3\\\": \\\"hello\\\" } }"
       ]
     },
     {

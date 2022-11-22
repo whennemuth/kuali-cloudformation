@@ -66,13 +66,13 @@ Resources:
     Type: AWS::Logs::LogGroup
     DeletionPolicy: Delete
     Properties:
-      LogGroupName: !Sub /aws/ec2/${Service}-${Function}-${Category}
+      LogGroupName: !Sub /aws/ec2/${Service}-${Function}-${Category}-${Landscape}
       RetentionInDays: 90
 
   EC2Role:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub ${Function}-${Category}-role
+      RoleName: !Sub ${Function}-${Category}-${Landscape}-role
       AssumeRolePolicyDocument:
         Statement:
         - Effect: Allow
@@ -84,7 +84,7 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
       Policies:
-        - PolicyName: !Sub ${Function}-${Category}-log-policy
+        - PolicyName: !Sub ${Function}-${Category}-${Landscape}-log-policy
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -93,7 +93,7 @@ Resources:
                   - logs:*
                 Resource: 
                   - !GetAtt EC2LogsGroup.Arn
-        - PolicyName: !Sub ${Function}-${Category}-ecr-policy
+        - PolicyName: !Sub ${Function}-${Category}-${Landscape}-ecr-policy
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -106,7 +106,7 @@ Resources:
                   - ecr:*
                 Resource:
                   - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/kuali-maintenance
-        - PolicyName: !Sub ${Function}-${Category}-s3-policy
+        - PolicyName: !Sub ${Function}-${Category}-${Landscape}-s3-policy
           PolicyDocument:
             Statement:
             - Effect: Allow
@@ -116,7 +116,7 @@ Resources:
   EC2InstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:
-      InstanceProfileName: !Sub ${Function}-${Category}-ec2-profile
+      InstanceProfileName: !Sub ${Function}-${Category}-${Landscape}-ec2-profile
       Path: "/"
       Roles:
       - !Ref EC2Role
@@ -124,12 +124,12 @@ Resources:
   EC2InstanceSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: !Sub Defines access for the ${Service}-${Function}-${Category} ec2 instance. Must originate from the kuali ELB only.
-      GroupName: !Sub ${Service}-${Function}-${Category}-sg
+      GroupDescription: !Sub Defines access for the ${Service}-${Function}-${Category}-${Landscape} ec2 instance. Must originate from the kuali ELB only.
+      GroupName: !Sub ${Service}-${Function}-${Category}-${Landscape}-sg
       VpcId: !Ref VpcId
       Tags:
         - Key: Name
-          Value: !Sub ${Service}-${Function}-${Category}-sg
+          Value: !Sub ${Service}-${Function}-${Category}-${Landscape}-sg
         - Key: Service
           Value: !Ref Service
         - Key: Function

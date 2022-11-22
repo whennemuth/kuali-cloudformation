@@ -698,7 +698,7 @@ Resources:
                 "LobChunkSize": 64,
                 "LimitedSizeLobMode": false,
                 "LobMaxSize": 0,
-                "InlineLobMaxSize": 32
+                "InlineLobMaxSize": 0
               },
               "FullLoadSettings": {
                 "TargetTablePrepMode": "${target_table_prep_mode}",
@@ -737,8 +737,8 @@ Resources:
                 "StatusTableEnabled": true
               },
               "StreamBufferSettings": {
-                "StreamBufferCount": 3,
-                "StreamBufferSizeInMB": 8,
+                "StreamBufferCount": 5,
+                "StreamBufferSizeInMB": 16,
                 "CtrlStreamBufferSizeInMB": 5
               },
               "ChangeProcessingTuning": null,
@@ -771,7 +771,7 @@ Resources:
                 "TableErrorEscalationPolicy":"STOP_TASK",
                 "TableErrorEscalationCount": 100,
 
-                "RecoverableErrorCount": 0,
+                "RecoverableErrorCount": -1,
                 "RecoverableErrorInterval": 5,
                 "RecoverableErrorThrottling": true,
                 "RecoverableErrorThrottlingMax": 1800,

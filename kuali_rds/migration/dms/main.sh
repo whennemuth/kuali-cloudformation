@@ -258,14 +258,16 @@ preMigrationAssessmentOk() {
   fi
 }
 
+getTaskArn() {
+  aws dms describe-replication-tasks \
+    --filter Name=replication-task-id,Values=${GLOBAL_TAG}-${LANDSCAPE}-dms-replication-task \
+    --output text \
+    --query 'ReplicationTasks[].{arn:ReplicationTaskArn}'
+}
+
 migrate() {
   local taskType="${1:-"start-replication"}"
-  local arn=$(
-    aws dms describe-replication-tasks \
-      --filter Name=replication-task-id,Values=${GLOBAL_TAG}-${LANDSCAPE}-dms-replication-task \
-      --output text \
-      --query 'ReplicationTasks[].{arn:ReplicationTaskArn}' 2> /dev/null
-  )
+  local arn=$(getTaskArn 2> /dev/null)
   ([ -z "$arn" ] || [ "${arn,,}" == 'none' ]) && echo "ERROR! Cannot acquire replication task arn." && exit 1
 
   aws dms start-replication-task \
@@ -273,10 +275,21 @@ migrate() {
     --start-replication-task-type $taskType
 }
 
+stop() {
+  local taskType="${1:-"start-replication"}"
+  local arn=$(getTaskArn 2> /dev/null)
+  ([ -z "$arn" ] || [ "${arn,,}" == 'none' ]) && echo "ERROR! Cannot acquire replication task arn." && exit 1
+
+  aws dms stop-replication-task \
+    --replication-task-arn $arn
+}
+
 runTask() {
   case "$task" in
     migrate)
       migrate $TASK_TYPE ;;
+    stop)
+      stop-task ;;
     validate)
       validateStack silent ;;
     upload)

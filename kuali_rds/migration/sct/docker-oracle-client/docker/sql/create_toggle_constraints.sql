@@ -267,5 +267,5 @@ end toggle_constraints;
 --/
 --execute admin.toggle_constraints('KCOEUS', 'PK', 'ENABLE')
 --/
-execute admin.toggle_constraints('KCOEUS', 'FK', 'ENABLE')
-/
+--execute admin.toggle_constraints('KCOEUS', 'FK', 'ENABLE')
+--/

@@ -203,6 +203,8 @@ runTask() {
     update-stack)
       # Update the stack reassembling all the parameters
       stackAction "update-stack" ;;
+    tweak-stack)
+      runStackTweak ${STACK_NAME}-${LANDSCAPE} $@ ;;
     delete-stack)
       stackAction "delete-stack" ;;
     get-password)

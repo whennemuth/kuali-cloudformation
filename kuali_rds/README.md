@@ -60,7 +60,8 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
         profile=default \
         landscape=prod \
         using_route53=true \
-        db_instance_class=db.m5.xlarge multi_az=true \
+        db_instance_class=db.m5.xlarge \
+        multi_az=true \
         rds_snapshot_arn=arn:aws:rds:us-east-1:770203350335:snapshot:rds:some-snapshot-name
       
       # Example 3) Create a new rds instance based on a snapshot of another rds instance.
@@ -78,10 +79,10 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
       sh main.sh create-stack profile=myprofile landscape=ci stack_name=my-kuali-rds global_tag=my-kuali-rds no_rollback=true template_bucket_path=s3://kuali-conf/cloudformation/kuali_rds db_instance_class=db.r4.xlarge engine=oracle-ee engine_version=12.1.0.2.v20  db_name=Kuali port=1521 license_model=license-included multi_az=false allocated_storage=400 rds_snapshot_arn=[some arn] auto_version_minor_upgrade=false backup_retention_period=10 characterset_name=US7ASCII iops=4000 campus_subnet1=subnet-06edbf07b7e07d73c campus_subnet1_cidr=10.58.34.0/24 campus_subnet2=subnet-0032f03a478ee868b campus_subnet2_cidr=10.58.35.0/24 private_subnet1=subnet-0d4acd358fba71d20 private_subnet1_cidr=10.58.33.0/25 private_subnet2=subnet-08afdf870ee85d511 private_subnet2_cidr=10.58.33.128/25 public_subnet1=subnet-07afd7c2e54376dd0 public_subnet1_cidr=10.58.32.0/25 public_subnet2=subnet-03034a40da92d6d08 public_subnet2_cidr=10.58.32.128/25 jumpbox_instance_type=t3.small version_12_compatibility=true
       
       ```
-   
+      
       Once you initiate stack creation, you can go to the aws management console and watch the stack creation events as they come in:
       [AWS Management Console - Cloudformation](https://console.aws.amazon.com/cloudformation/home?region=us-east-1)
-   
+      
    - **Re-creation/replacement:**
       This is a scenario in which an existing rds database is to be deleted and replaced with a new one.
       Use the helper script (main.sh) to create the cloudformation stack.

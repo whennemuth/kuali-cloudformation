@@ -2269,13 +2269,15 @@ runStackActionCommand() {
   fi
 
   echo "Stack command issued."
+  local _task="${task:0:6}"
+  [ "${_task:0:5}" == 'tweak' ] && _task='tweak'
   case "${task:0:6}" in
     create)
       if ! waitForStackToCreate ; then
         exit 1
       fi
       ;;
-    update)
+    update|tweak)
       if ! waitForStackToUpdate ; then
         exit 1
       fi
@@ -2283,9 +2285,12 @@ runStackActionCommand() {
   esac
 }
 
-# A stack update usually requires supplying parameter values again with some of them changed.
+# A stack update usually requires supplying the minimum parameter values again with some of them changed.
 # This is an alternative using the --use-previous-template flag and the UsePreviousValue setting for parameters, 
 # where the actual values do not need to be known, except for the one or more (but probably few) that are changing.
+# ALL parameters the stack last used (including default values) are explicitly resupplied with the same values except for the few that are changing.
+# This method provides certainty that you are EXACTLY duplicating the stack and then "tweaking" that starting point with just the changes you want.
+# This differs from providing the minimum parms that "should" invoke the same stack conditions through defaults with other changes.
 # Arguments:
 #   stackname: The name of the stack being updated.
 #   tags: Additional tags to assign to the stack 
@@ -2384,6 +2389,30 @@ getStackParameter() {
     --stack-name=$stackname \
     --query 'Stacks[].{Parameters:Parameters}' | \
     jq -r '.[0].Parameters[] | select(.ParameterKey == "'$parmname'").ParameterValue' 2> /dev/null
+}
+
+# If the existing stack to update or delete does not have a roleARN associated, then it was probably created 
+# by you with your current credentials. If a different role appears to be on the stack, then it is not clear
+# what that role can do, so explicitly apply the role of the current user.
+getStackRoleArn() {
+  local stackname="$1"
+  local profile="${2:-$AWS_PROFILE}"
+  local role="$(aws --profile=$profile cloudformation describe-stacks --stack-name $stackname --output text --query 'Stacks[0].RoleARN' 2> /dev/null)"
+  if [ "$role" == 'None' ] || [ -z "$role" ] ; then
+    getThisRole $profile
+    # return 0
+  else
+    local thisrole="$(getThisRole $profile)"
+    if [ -n "$thisrole" ] && [ "$thisrole" != "$role" ] ; then
+      echo "$thisrole"
+    fi
+  fi
+}
+
+getThisRole() {
+  local profile="${1:-$AWS_PROFILE}"
+  aws --profile=$profile sts get-caller-identity --output text --query 'Arn' 2> /dev/null \
+  | sed 's|assumed-||' | sed 's|:sts:|:iam:|' | grep -oP '[^/]+/[^/]+' 2> /dev/null
 }
 
 awsVersion() {

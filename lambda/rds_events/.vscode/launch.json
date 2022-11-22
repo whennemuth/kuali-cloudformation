@@ -287,6 +287,20 @@
       }
     },
     {
+      "name": "get stale security groups",
+      "program": "./src/debug.js",
+      "request": "launch",
+      "type": "node",
+      "args": [
+        "get-stale-security-groups",
+        "vpc-0290de1785982a52f"
+      ],
+      "env": {
+        "AWS_REGION": "us-east-1",
+        "AWS_PROFILE": "infnprd",
+      }
+    },
+    {
       "name": "export",
       "type": "node",
       "request": "launch",
@@ -297,15 +311,19 @@
       ]
     },
     {
-      "name": "Testing",
+      "name": "test",
       "type": "node",
       "request": "launch",
       "program": "./src/debug.js",
       "args": [
         "test"
-      ]
+      ],
+      "env": {
+        "AWS_REGION": "us-east-1",
+        "AWS_PROFILE": "infnprd",
+        "MODE": "mocked"
+      }
     }
-
   ],
   "compounds": []
 }

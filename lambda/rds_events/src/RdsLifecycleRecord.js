@@ -133,7 +133,7 @@ module.exports = function(AWS, rdsParm) {
   };
 
   /**
-   * Save the json comprising an rds instance details as an s3 file named according to the baseline landscape or the rds instance.
+   * Save the json comprising an rds instance details as an s3 file named according to the baseline landscape of the rds instance.
    */
   this.persist = () => {
     const key = `${Folders.CREATED}/${rdsId}`

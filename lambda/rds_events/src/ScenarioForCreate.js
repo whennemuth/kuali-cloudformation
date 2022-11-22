@@ -263,6 +263,8 @@ module.exports = function(AWS) {
       var records = await handleRdsLifecycleRecordKeeping(AWS, dbArn);
 
       if(records.areComplete()) {
+console.log("------------- TEMPORARILY DISABLED ------------- ");
+return;
 
         await handleRoute53(AWS, records.OldRdsDb, records.NewRdsDb);
 

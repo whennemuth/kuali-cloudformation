@@ -103,6 +103,8 @@ stackAction() {
   local action=$1   
 
   [ -z "$FULL_STACK_NAME" ] && FULL_STACK_NAME=${STACK_NAME}-${LANDSCAPE}
+  # local roleArn="$(getStackRoleArn ${FULL_STACK_NAME})"
+
   if [ "$action" == 'delete-stack' ] ; then
     if isDryrun ; then
       echo "DRYRUN: aws cloudformation $action --stack-name $(getStackToDelete)"
@@ -372,6 +374,8 @@ runTask() {
       ;;
     update-stack)
       stackAction "update-stack" ;;
+    tweak-stack)
+      runStackTweak ${STACK_NAME}-${LANDSCAPE} $@ ;;
     reupdate-stack)
       PROMPT='false'
       task='update-stack'

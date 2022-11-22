@@ -6,6 +6,7 @@ if [ -n "$landscape" ] ; then
   if [ "${landscape:0:4}" != 'prod' ] ; then
     sed -i "s/LANDSCAPE/$landscape/g" $jsfile
     sed -i "s|https://|&$landscape.|g" $jsfile
+    sed -i "s/kuali/kualitest/g" $jsfile
   fi
 fi
 

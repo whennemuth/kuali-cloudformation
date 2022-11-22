@@ -459,6 +459,7 @@ Resources:
                   # Including these rule in exclusions - See the readme file for explanation.
                   - Name: CrossSiteScripting_BODY
                   - Name: GenericLFI_BODY
+                  - Name: GenericLFI_QUERYARGUMENTS
           - !Ref 'AWS::NoValue'
         - Name: !Sub '${ParentStackName}WhitelistRule'
           Priority: 2
@@ -711,6 +712,9 @@ Resources:
               - LabelMatchStatement:
                   Scope: LABEL
                   Key: awswaf:managed:aws:core-rule-set:GenericLFI_BODY
+              - LabelMatchStatement:
+                  Scope: LABEL
+                  Key: awswaf:managed:aws:core-rule-set:GenericLFI_QUERYARGUMENTS
               - NotStatement:
                   Statement:
                     ByteMatchStatement:

@@ -51,5 +51,25 @@ exports.runTrial = function(trialName, trialArg) {
       console.log(JSON.stringify(retval, null, 2));
   }
 
+  this.trial3 = () => {
+    const parser = require('cron-parser');
+    let parsed1 = parser.parseExpression('45 5 1-31 1-12 SUN-SAT', {tz:'America/New_York'});
+    console.log(parsed1.prev());
+    console.log(parsed1.next());
+
+    let parsed2 = parser.parseExpression('45 5 ? * *', {tz:'America/New_York'});
+    console.log(parsed2.prev());
+    console.log(parsed2.next());
+
+    let parsed3 = parser.parseExpression('15 22 1-31 1-12 SUN-SAT', {tz:'America/New_York'});
+    console.log(parsed3.prev());
+    console.log(parsed3.next());
+
+    let parsed4 = parser.parseExpression('15 22 ? * *', {tz:'America/New_York'});
+    console.log(parsed4.prev());
+    console.log(parsed4.next());
+
+  }
+
   this[trialName](trialArg);
 };

@@ -1,3 +1,4 @@
+const { detail } = require('../mocks/MockRdsCreateEvent1.js');
 const DBCreateScenario = require('./ScenarioForCreate.js');
 const DBDeleteScenario = require('./ScenarioForDelete.js');
 
@@ -38,6 +39,24 @@ var DBEvent = function(event) {
   }
 };
 
+var SGEvent = function(event) {
+  this.isAuthorizeSGIngress = () => { return false; }
+  this.getJson = () => { return JSON.stringify(event, null, 2); }
+  this.logEvent = eventType => {
+    console.log(`${header}\n    Detected the following security group ${eventType} event:${header}\n${this.getJson()}`);
+  }
+  this.logEventId = () => {
+    var cloudtrailURL = `https://us-east-1.console.aws.amazon.com/cloudtrail/home?region=us-east-1#/events?EventId=${event.detail.eventID}`;
+    console.log(`${header}\n    Detected ${event.detail.eventName} event:${header}\n    ${cloudtrailURL}`);
+  }
+  with(event) {
+    if(source == 'aws.ec2') {
+      this.isAuthorizeSGIngress = () => {
+        return detail.eventName == 'AuthorizeSecurityGroupIngress';
+      }
+    }
+  }
+}
 
 exports.handler = function(event, context) {
   try {    
@@ -47,20 +66,29 @@ exports.handler = function(event, context) {
     else {
       var AWS = require('aws-sdk');
     }
+
     var dbEvent = new DBEvent(event);
-    if(dbEvent.isCreate()) {
-      dbEvent.logEvent('creation');
-      new DBCreateScenario(AWS).execute(dbEvent.getArn());
+    if(dbEvent.isRdsInstanceEvent()) {
+      if(dbEvent.isCreate()) {
+        dbEvent.logEvent('creation');
+        new DBCreateScenario(AWS).execute(dbEvent.getArn());
+      }
+      else if(dbEvent.isDelete()) {
+        dbEvent.logEvent('deletion');
+        new DBDeleteScenario(AWS).execute(dbEvent.getArn());
+      }
+      else if(dbEvent.isTest()) {
+        console.log('THIS IS A TEST!');
+      }
+      else {
+        console.log(`Rds instance event noticed: ${dbEvent.detail.EventID}: ${dbEvent.detail.SourceIdentifier}`);
+      }
     }
-    else if(dbEvent.isDelete()) {
-      dbEvent.logEvent('deletion');
-      new DBDeleteScenario(AWS).execute(dbEvent.getArn());
-    }
-    else if(dbEvent.isTest()) {
-      console.log('THIS IS A TEST!');
-    }
-    else if(dbEvent.isRdsInstanceEvent()) {
-      console.log(`Rds instance event noticed: ${dbEvent.detail.EventID}: ${dbEvent.detail.SourceIdentifier}`);
+    else {
+      var sgEvent = new SGEvent(event);
+      if(sgEvent.isAuthorizeSGIngress()) {
+        sgEvent.logEventId()
+      }
     }
   }
   catch(e) {

@@ -4,6 +4,7 @@ const HostedZone = require('./HostedZone.js');
 const rdsr = require('./RdsLifecycleEvent.js');
 const CloudFormationInventoryForKC = require('./CloudFormationInventoryForKC.js');
 const CloudFormationInventoryForBatch = require('./CloudFormationInventoryForBatch.js');
+const SecurityGroups = require('./SecurityGroup.js');
 const MockFactory = require('../mocks/MockFactory.js');
 
 var debugChoice = process.argv[2];
@@ -219,6 +220,21 @@ var debugChoice = process.argv[2];
           console.log(JSON.stringify(data, null, 2));
         }
         break;
+
+      case 'get-stale-security-groups':
+        var AWS = require('aws-sdk');
+        var vpcId = process.argv[3];
+        // var filter = process.argv[4];
+        var sgs = await new SecurityGroups(
+          AWS, 
+          vpcId, 
+          { qualifies: sg => { return true; }}
+        );
+        sgs.each(sg => {
+          console.log(`GroupId: ${sg.GroupId}, GroupName: ${sg.GroupName}`);
+          console.log(`FromGroupId: ${sg.StaleIpPermissions[0].UserIdGroupPairs[0].GroupId}`);
+        })
+        break;
             
       case 'zip':
         const zip = require('../../zip/zip.js');
@@ -226,8 +242,26 @@ var debugChoice = process.argv[2];
         break;
         
       case 'test':
-        const date = require('date-and-time');
-        console.log(date.format(new Date(),'YYYY-MM-DD-HH.mm.ss'));
+        // const date = require('date-and-time');
+        // console.log(date.format(new Date(),'YYYY-MM-DD-HH.mm.ss'));
+        // break;
+        var test = require('./test.js');
+        test.handler({
+          ResourceProperties: {
+            RdsVpcSecurityGroupId: 'sg-0bdd9cbe0117aa755',
+            DBIdentifier: 'kuali-oracle-warren',
+            SecurityGroupGroupIds: [
+              'kuali-oracle-stg',
+              // 'sg-000537769a1c2d858',
+              'sg-0e4d6b8a99395a608'
+            ],
+            // EC2SecurityGroupGroupId: 'sg-000537769a1c2d858',
+            // ALBSecurityGroupGroupId: 'sg-0e4d6b8a99395a608',
+            BucketName: 'kuali-conf',
+            BucketPath: 'rds-lifecycle-events/created'
+          },
+          RequestType: 'Create'
+        },{});
         break;
     }
   }

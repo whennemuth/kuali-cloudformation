@@ -127,6 +127,9 @@ Resources:
   RdsLifecycleEventRule:
     Type: AWS::Events::Rule
     Properties:
+      Name: "detect-rds-lifecycle-events"
+      Description: "Detects creation and deletion events for rds databases and triggers lambda functionality that acts if kuali specific scenarios are met"
+      State: "ENABLED"
       EventPattern:
         source: [aws.rds]
         detail-type: [RDS DB Instance Event]
@@ -145,13 +148,40 @@ Resources:
         - Arn: !GetAtt RdsLifecycleFunction.Arn
           Id: kuali-rds-lifecycle-event-lambda
 
-  PermissionForEventsToInvokeLambda:
+  SecurityGroupEventRule:
+    Type: "AWS::Events::Rule"
+    Properties:
+      Name: "detect-security-group-changes"
+      Description: "Detects changes to security group ingress authorizations and triggers lambda functionality that acts if kuali specific scenarios are met."
+      State: "ENABLED"
+      EventPattern:
+        detail-type: [AWS API Call via CloudTrail]
+        detail:
+          eventSource:
+            - ec2.amazonaws.com
+          eventName:
+            - "AuthorizeSecurityGroupIngress"
+            - "CreateSecurityGroup"
+            - "DeleteSecurityGroup"
+      Targets:
+        - Arn: !GetAtt RdsLifecycleFunction.Arn
+          Id: kuali-rds-lifecycle-event-lambda
+
+  PermissionForRdsEventsToInvokeLambda:
     Type: AWS::Lambda::Permission
     Properties:
       FunctionName: !GetAtt RdsLifecycleFunction.Arn
       Action: lambda:InvokeFunction
       Principal: events.amazonaws.com
       SourceArn : !GetAtt RdsLifecycleEventRule.Arn
+
+  PermissionForSGEventsToInvokeLambda:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt RdsLifecycleFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn : !GetAtt SecurityGroupEventRule.Arn
 
   # Create a log group that anticipates the default name that lambda will log to.
   # This way it can be deleted by cloudformation and not get orphaned.
