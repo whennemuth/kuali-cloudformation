@@ -477,6 +477,7 @@ Resources:
       Port: !Sub '{{resolve:secretsmanager:kuali/${Landscape}/kuali-oracle-ec2-dms-password:SecretString:port}}'
       Username: !Sub '{{resolve:secretsmanager:kuali/${Landscape}/kuali-oracle-ec2-dms-password:SecretString:username}}'
       Password: !Sub '{{resolve:secretsmanager:kuali/${Landscape}/kuali-oracle-ec2-dms-password:SecretString:password}}'
+      ExtraConnectionAttributes: useLogMinerReader=N;useBfile=Y;
       Tags: 
         - Key: Name
           Value: !Sub ${GlobalTag}-${Landscape}-dms-source-endpoint

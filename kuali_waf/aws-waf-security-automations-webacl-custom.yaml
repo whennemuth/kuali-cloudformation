@@ -690,14 +690,23 @@ Resources:
                   Key: awswaf:managed:aws:core-rule-set:CrossSiteScripting_Body
               - NotStatement:
                   Statement:
-                    ByteMatchStatement:
-                      SearchString: "remoting/soap/kim/v2_0/identityService"
-                      FieldToMatch:
-                        UriPath: {}
-                      TextTransformations:
-                      - Priority: 0
-                        Type: NONE
-                      PositionalConstraint: CONTAINS
+                    OrStatement:
+                      Statements:
+                      - ByteMatchStatement:
+                          SearchString: "remoting/soap/kim/v2_0/identityService"
+                          FieldToMatch:
+                            UriPath: {}
+                          TextTransformations:
+                          - Priority: 0
+                            Type: NONE
+                          PositionalConstraint: CONTAINS
+                      - RegexMatchStatement:
+                          RegexString: ^/kc/([^/]+/)*\w+\.do$
+                          FieldToMatch:
+                            UriPath: {}
+                          TextTransformations:
+                          - Priority: 0
+                            Type: NONE
           Action:
             Block: {}
           VisibilityConfig:
@@ -717,14 +726,13 @@ Resources:
                   Key: awswaf:managed:aws:core-rule-set:GenericLFI_QUERYARGUMENTS
               - NotStatement:
                   Statement:
-                    ByteMatchStatement:
-                      SearchString: "kc/kr/maintenance.do"
+                    RegexMatchStatement:
+                      RegexString: ^/kc/([^/]+/)*\w+\.do$
                       FieldToMatch:
                         UriPath: {}
                       TextTransformations:
                       - Priority: 0
                         Type: NONE
-                      PositionalConstraint: CONTAINS
           Action:
             Block: {}
           VisibilityConfig:

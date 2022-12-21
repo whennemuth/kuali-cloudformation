@@ -80,7 +80,7 @@ This list derives from the [release.md](./release.md) runbook, but is concerned 
 
    ```
    cd kuali_rds && \
-   sh main.sh recreate-stack \
+   sh main.sh create-stack \
      profile=infnprd \
      landscape=stgtemp \
      rds_snapshot_arn=arn:aws:rds:us-east-1:730096353738:snapshot:kuali-stg-$(date +'%m-%d-%y')
@@ -100,7 +100,7 @@ This list derives from the [release.md](./release.md) runbook, but is concerned 
      
    # UPDATE! The following does not work if the stored proc takes a long time. The db client driver fails with:
    # "end-of-file" hangup notice on the connection and the data gets into a bad and unreversible state.
-   #nSo, go to sqldeveloper and execute the stored procs manually:
+   # So, go to sqldeveloper and execute the stored procs manually:
    
    execute admin.toggle_constraints('KCOEUS', 'PK', 'ENABLE');
    /

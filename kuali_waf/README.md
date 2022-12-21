@@ -118,6 +118,36 @@ sh upload.sh profile=[your profile]
 
   
 
+### Querying the logs with Athena:
+
+WAF activity is steamed to S3 and can be queried using athena.
+SEE: [User guide for querying WAF logs](https://docs.aws.amazon.com/athena/latest/ug/waf-logs.html)
+An example for the athena query editor may look like this (queries for blocks on 2 calendar days):
+
+```
+WITH unnested AS (
+    SELECT * FROM waf_access_logs CROSS JOIN UNNEST(rulegrouplist) AS t(allrulegroups)
+    where action = 'BLOCK' 
+    -- AND from_unixtime(timestamp/1000) > now() - interval '2' day
+    AND httprequest.uri LIKE '/kc/%'
+    AND cast(from_unixtime(timestamp/1000) as date) >= cast('2022-12-07' as date)
+    AND cast(from_unixtime(timestamp/1000) as date) < cast('2022-12-09' as date)
+)
+select
+    from_unixtime(timestamp/1000) as _timestamp, 
+    terminatingruleid,
+    httprequest.clientip,
+    httprequest.httpmethod,
+    httprequest.uri,
+    json_extract(allrulegroups, '$.terminatingRuleType') as term_rule_type,
+    json_extract(allrulegroups, '$.terminatingrule') as term_rule,
+    json_extract(allrulegroups, '$.terminatingRuleMatchDetails') as term_rule_details,
+    allrulegroups
+from unnested
+```
+
+
+
 ### Additional links/documentation:
 
 - [AWS WAF security automations source code](https://github.com/awslabs/aws-waf-security-automations)
