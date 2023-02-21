@@ -2,6 +2,8 @@
 
 declare -A defaults=(
   [STACK_NAME]='kuali-maintenance'
+  [IMAGE_NAME]='kuali-maintenance'
+  [IMAGE_TAG]='latest'
   [SERVICE]='research-administration'
   [FUNCTION]='kuali'
   [NO_ROLLBACK]='true'
@@ -74,6 +76,8 @@ EOF
     add_parameter $cmdfile 'CampusSubnet' 'CAMPUS_SUBNET1'
     add_parameter $cmdfile 'EC2InstanceType' 'EC2_INSTANCE_TYPE'
     add_parameter $cmdfile 'ELBSecurityGroupId' 'ELB_SECURITY_GROUP_ID'
+    add_parameter $cmdfile 'ImageName' 'IMAGE_NAME'
+    add_parameter $cmdfile 'ImageTag' 'IMAGE_TAG'
 
     echo "      ]' \\" >> $cmdfile
     echo "      --tags '[" >> $cmdfile
@@ -143,6 +147,23 @@ getELBRegisteredInstanceIds() {
 
 # Based on tagging, get the maintenance ec2 instance for the provided landscape and print out its id.
 getMaintInstanceId() {
+  while read instanceId ; do
+    if [ -n "$instanceId" ] ; then  
+      details="$(
+        aws ec2 describe-instance-status \
+          --instance-ids $instanceId \
+          --include-all-instances \
+          --output text \
+          --query 'InstanceStatuses[].{state:InstanceState.Name,sysStatus:SystemStatus.Status,instStatus:InstanceStatus.Status}' 2> /dev/null
+      )"
+      [ -z "$details" ] && continue;
+      local instanceState=$(echo "$details" | awk '{print $2}')
+      if ([ "$instanceState" == 'running' ]) ; then
+        echo $instanceId
+        return 0
+      fi
+    fi
+  done <<< "$(
   aws resourcegroupstaggingapi get-resources \
     --resource-type-filters ec2:instance \
     --tag-filters \
@@ -154,6 +175,7 @@ getMaintInstanceId() {
     --query 'ResourceTagMappingList[].{ARN:ResourceARN}' 2> /dev/null \
     | sed 's|/|\n|g' \
     | grep -iP '^i\-[a-zA-Z\d]+$'
+  )"
 }
 
 # Based on tagging, get the application ec2 instance(s) for the provided landscape and print out the id(s).
@@ -281,6 +303,31 @@ isMicroEC2() {
   [ -n "$micro" ] && true || false
 }
 
+swapDockerImage() {
+  [ -z "$LANDSCAPE" ] && echo "Missing landscape" && return 1
+
+  local instanceId="$(getMaintInstanceId)"
+  if [ -n "$instanceId" ] ; then
+    cat <<-EOF > $cmdfile
+      aws ssm send-command \\
+        --instance-ids "$(getMaintInstanceId)" \\
+        --document-name "AWS-RunShellScript" \\
+        --comment "Swapping docker image running on kuali maintenance ec2 instance" \\
+        --parameters \\
+              commands="/opt/aws/bin/cfn-init -v --configsets BootstrapConfigSet --region us-east-1 --stack kuali-maintenance-$LANDSCAPE --resource EC2Instance" \\
+        --output text \\
+        --query "Command.CommandId"
+EOF
+  else
+    echo "No running ec2 instance found"
+    return 1
+  fi
+
+  cat $cmdfile
+  isDryrun && return 0
+  sh $cmdfile
+}
+
 runTask() {
   case "$task" in
     create-stack)
@@ -304,6 +351,10 @@ runTask() {
       parseArgs $@
       setDefaults
       swapElbInstances ;;
+    image-swapout)
+      parseArgs $@
+      setDefaults
+      swapDockerImage ;;
     test)
       echo "NOT IMPLEMENTED" ;;
     *)

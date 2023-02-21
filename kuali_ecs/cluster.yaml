@@ -587,6 +587,7 @@ Resources:
             - ConfigSet: ProcessEnvFiles
             - ConfigSet: ProcessKcConfigFile
             - ConfigSet: RetrieveSSLCerts
+            - ConfigSet: StartCronForEcsLogsCollector
             - ConfigSet: AddInstanceToCluster
           GetConfigsFromS3:
             - 01_get_configs_from_s3
@@ -600,8 +601,10 @@ Resources:
             - 05_initialize_core_mongodb_content
           StartCronForCustomCloudwatchMetrics:
             - 06_start_cron_for_custom_cloudwatch_metrics
+          StartCronForEcsLogsCollector:
+            - 07_start_cron_for_ecs_logs_collector
           AddInstanceToCluster:
-            - 07_add_instance_to_cluster
+            - 08_add_instance_to_cluster
 
 
         getFiles:
@@ -618,7 +621,7 @@ Resources:
               mode: "000775"
               owner: root
               group: root
-            /opt/kuali/scripts/crontab:
+            /opt/kuali/scripts/crontab-cloudwatch-metrics:
               content: |
                 SHELL=/bin/bash
                 PATH=/sbin:/bin:/usr/sbin:/usr/bin
@@ -632,6 +635,18 @@ Resources:
                 # * * * * * /opt/kuali/scripts/send-custom-cloudwatch-metrics.sh "custom1"
                 # * * * * * /opt/kuali/scripts/send-custom-cloudwatch-metrics.sh "custom2" "ec2"
                 # * * * * * /opt/kuali/scripts/send-custom-cloudwatch-metrics.sh "psuedo"  "ec2" "${TemplateBucketName}" "${AWS::Region}"
+              mode: "000644"
+              owner: root
+              group: root
+            /opt/kuali/scripts/crontab-ecs-logs-collector:
+              content: |
+                SHELL=/bin/bash
+                PATH=/sbin:/bin:/usr/sbin:/usr/bin
+                MAILTO=root
+                HOME=/
+                
+                # Check every 15 minutes for the health of this instance (target) in the kc target group and upload all ecs logs if it is unhealthy to an s3 bucket
+                */15 * * * * /opt/kuali/scripts/bad-health-check.sh "kuali-config"
               mode: "000644"
               owner: root
               group: root
@@ -887,11 +902,18 @@ Resources:
         06_start_cron_for_custom_cloudwatch_metrics:
           commands:
             start_cron_for_custom_cloudwatch_metrics:
-              command: crontab -u root /opt/kuali/scripts/crontab
+              command: crontab -u root /opt/kuali/scripts/crontab-cloudwatch-metrics
               env:
                 LANDSCAPE: !Ref Landscape
                 AWS_DEFAULT_REGION: !Ref AWS::Region
-        07_add_instance_to_cluster:
+        07_start_cron_for_ecs_logs_collector:
+          commands:
+            start_cron_for_ecs_logs_collector:
+              command: crontab -u root /opt/kuali/scripts/crontab-ecs-logs-collector
+              env:
+                BUCKET: kuali-config
+                AWS_DEFAULT_REGION: !Ref AWS::Region
+        08_add_instance_to_cluster:
           commands:
             add_instance_to_cluster:
               command:

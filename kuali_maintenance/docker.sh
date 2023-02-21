@@ -5,12 +5,14 @@ source ../scripts/common-functions.sh
 parseArgs $@
 
 region="${REGION:-${AWS_REGION:-"us-east-1"}}"
-imageShortName='kuali-maintenance'
+imageShortName="${IMAGE_NAME:-"kuali-maintenance"}"
+imageTag="${IMAGE_TAG:-"latest"}"
+htmlFile="${HTML_FILE:-"index.htm"}"
 containerName='kuali-maint'
 
 build() {
   stop 
-  runCommand "docker build -t $(getImageName) ."
+  runCommand "docker build -t $(getImageName) --build-arg htmlfile=$htmlFile ."
   if isDryrun ; then
     echo "(dryrun) Removing dangling images..."
   else
@@ -69,7 +71,7 @@ getEcrRegistryName() {
 }
 
 getImageName() {
-  echo $(getEcrRegistryName)/$imageShortName
+  echo $(getEcrRegistryName)/${imageShortName}:${imageTag}
 }
 
 runCommand() {

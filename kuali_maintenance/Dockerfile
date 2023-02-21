@@ -1,6 +1,7 @@
 FROM nginx:latest
+ARG htmlfile=index.htm
 WORKDIR /
-COPY ./index.htm /usr/share/nginx/html/index.html
+COPY ./$htmlfile /usr/share/nginx/html/index.html
 COPY ./env.js /usr/share/nginx/html/env.js
 COPY ./env.sh /env.sh
 COPY ./default.conf /etc/nginx/conf.d/default.conf

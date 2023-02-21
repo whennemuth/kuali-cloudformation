@@ -1,8 +1,8 @@
-## STAGING RELEASE RUNBOOK FOR CLI
+## PRODUCTION RELEASE RUNBOOK FOR CLI
 
 #### <img align="left" src="C:\whennemuth\workspaces\ecs_workspace\cloud-formation\kuali-infrastructure\runbook\checklist-release.png">Kuali Research "release night" migration to common security services aws account.
 
-This is the sequencing of work and assignments that will go into transitioning the kuali research application stack to the common security services (CSS) account for the staging envionment and retiring the current aws cloud account where it is currently running.
+This is the sequencing of work and assignments that will go into transitioning the kuali research application stack to the common security services (CSS) account for the production envionment and retiring the current aws cloud account where it is currently running.
 
 This list derives from the [release.md](./release.md) runbook, but is concerned with the specifics of any and all steps that can be scripted and have api alternatives for aws management console manual steps.
 
@@ -19,7 +19,7 @@ This list derives from the [release.md](./release.md) runbook, but is concerned 
      --region=us-east-1 \
      dms describe-replication-tasks \
      --without-settings \
-     --filter Name=replication-task-id,Values=kuali-dms-oracle-stg-dms-replication-task \
+     --filter Name=replication-task-id,Values=kuali-dms-oracle-prod-dms-replication-task \
      --query 'ReplicationTasks[].{status:Status, percent:ReplicationTaskStats.FullLoadProgressPercent}'
    ```
 
@@ -29,10 +29,10 @@ This list derives from the [release.md](./release.md) runbook, but is concerned 
    cd kuali_rds/migration/dms
    
    # Resume
-   sh main.sh migrate profile=legacy landscape=stg task_type=resume-processing
+   sh main.sh migrate profile=legacy landscape=prod task_type=resume-processing
    
    # Reload
-   sh main.sh migrate profile=legacy landscape=stg task_type=resume-reload-target
+   sh main.sh migrate profile=legacy landscape=prod task_type=resume-reload-target
    ```
 
 1. **Stop the DMS migration task:**
@@ -40,7 +40,7 @@ This list derives from the [release.md](./release.md) runbook, but is concerned 
 
    ```
    cd kuali_rds/migration/dms
-   sh main.sh stop-task profile=legacy landscape=stg 
+   sh main.sh stop-task profile=legacy landscape=prod 
    ```
    
 1. **Put up a "down for maintenance" page:**
@@ -48,25 +48,25 @@ This list derives from the [release.md](./release.md) runbook, but is concerned 
 
    ```
    cd kuali_maintenance
-   sh main.sh create-stack landscape=stg profile=legacy image_tag=down
+   sh main.sh create-stack landscape=prod profile=legacy image_tag=down
    ```
    
    Swap out the old ec2 pair with the new small ec2 that serves up the redirect page:
    
    ```
-   cd kuali-maintenance
-   sh main.sh elb-swapout landscape=stg profile=legacy
+   cd kuali_maintenance
+   sh main.sh elb-swapout landscape=prod profile=legacy
    ```
    
    Lastly, verify in the browser that all links for kuali now bring up a "down for maintenance" page.
    
 1. **Shut down the legacy environment:**
-   Turn off the staging application ec2 instances, followed by the database ec2 instances:
+   Turn off the production application ec2 instances, followed by the database ec2 instances:
 
    ```
-   aws --profile=legacy ec2 stop-instances --instance-ids i-090d188ea237c8bcf i-0cb479180574b4ba2
+   aws --profile=legacy ec2 stop-instances --instance-ids i-0534c4e38e6a24009 i-07d7b5f3e629e89ae
    
-   aws --profile=legacy ec2 stop-instances --instance-ids i-0a10357e09f87c2b5 i-0ec7d772f6d22d33c
+   aws --profile=legacy ec2 stop-instances --instance-ids i-056cffe470fee2792 i-024246073db181f34
    ```
    
 2. **Fresh database snapshot**
@@ -74,22 +74,22 @@ This list derives from the [release.md](./release.md) runbook, but is concerned 
 
    ```
    aws --profile=legacy rds create-db-snapshot \
-       --db-instance-identifier kuali-oracle-stg \
-       --db-snapshot-identifier kuali-stg-$(date +'%m-%d-%y') \
+       --db-instance-identifier kuali-oracle-prod \
+       --db-snapshot-identifier kuali-prod-$(date +'%m-%d-%y') \
        --tags \
            Key=Function,Value=kuali \
            Key=Service,Value=research-administration \
-           Key=Baseline,Value=stg \
-           Key=Landscape,Value=stg
+           Key=Baseline,Value=prod \
+           Key=Landscape,Value=prod
    ```
 
    Once the snapshot is created, share it to the CSS account:
 
    ```
    aws --profile=legacy rds modify-db-snapshot-attribute \
-     --db-snapshot-identifier kuali-stg-$(date +'%m-%d-%y') \
+     --db-snapshot-identifier kuali-prod-$(date +'%m-%d-%y') \
      --attribute-name restore \
-     --values-to-add 770203350335
+     --values-to-add 115619461932
    ```
 
 3. **Create interim database from shared snapshot:**
@@ -98,19 +98,19 @@ This list derives from the [release.md](./release.md) runbook, but is concerned 
    ```
    cd kuali_rds && \
    sh main.sh create-stack \
-     profile=infnprd \
-     landscape=stgtemp \
-     rds_snapshot_arn=arn:aws:rds:us-east-1:730096353738:snapshot:kuali-stg-$(date +'%m-%d-%y')
+     profile=infprd \
+     landscape=prodtemp \
+     rds_snapshot_arn=arn:aws:rds:us-east-1:730096353738:snapshot:kuali-prod-$(date +'%m-%d-%y')
    ```
 
-6. **Re-enable primary & foreign keys:**
+7. **Re-enable primary & foreign keys:**
 
    ```
    cd kuali_rds/migration/sct/docker-oracle-client
    sh dbclient.sh toggle-constraints-triggers \
-     profile=infnprd \
-     landscape=stgtemp \
-     baseline=stg \
+     profile=infprd \
+     landscape=prodtemp \
+     baseline=prod \
      toggle_constraints=enable \
      toggle_triggers=enable \
      dryrun=true
@@ -118,6 +118,10 @@ This list derives from the [release.md](./release.md) runbook, but is concerned 
    # UPDATE! The following does not work if the stored proc takes a long time. The db client driver fails with:
    # "end-of-file" hangup notice on the connection and the data gets into a bad and unreversible state.
    # So, go to sqldeveloper and execute the stored procs manually:
+   
+   # User: admin
+   # Password: [secrets manager: kuali/prod/kuali-oracle-rds-admin-password]
+   # hostname: [look for the "endpoint" value in the rds console for the new instance (no bu dns entry exists)]:
    
    execute admin.toggle_constraints('KCOEUS', 'PK', 'ENABLE');
    /
@@ -180,10 +184,10 @@ This list derives from the [release.md](./release.md) runbook, but is concerned 
    ```
    cd kuali_rds/migration/sct/docker-oracle-client && \
    sh dbclient.sh update-sequences \
-     target_aws_profile=infnprd \
+     target_aws_profile=infprd \
      legacy_aws_profile=legacy \
-     baseline=stg \
-     landscape=stgtemp \
+     baseline=prod \
+     landscape=prodtemp \
      template_bucket_name=kuali-research-ec2-setup \
      dryrun=true
    ```
@@ -193,10 +197,10 @@ This list derives from the [release.md](./release.md) runbook, but is concerned 
    ```
    cd kuali_rds/migration/sct/docker-oracle-client
    sh dbclient.sh compare-table-counts \
-     target_aws_profile=infnprd \
+     target_aws_profile=infprd \
      legacy_aws_profile=legacy \
-     baseline=stg \
-     landscape=stgtemp \
+     baseline=prod \
+     landscape=prodtemp \
      template_bucket_name=kuali-research-ec2-setup \
      dryrun=true
    ```
@@ -207,16 +211,16 @@ This list derives from the [release.md](./release.md) runbook, but is concerned 
    ```
    cd scripts/
    source common-functions.sh
-   export AWS_PROFILE=infnprd
+   export AWS_PROFILE=infprd
    
    aws rds create-db-snapshot \
-       --db-instance-identifier $(nameFromARN $(getRdsArn 'stgtemp')) \
-       --db-snapshot-identifier kuali-stg-$(date +'%m-%d-%y') \
+       --db-instance-identifier $(nameFromARN $(getRdsArn 'prodtemp')) \
+       --db-snapshot-identifier kuali-prod-$(date +'%m-%d-%y') \
        --tags \
            Key=Function,Value=kuali \
            Key=Service,Value=research-administration \
-           Key=Baseline,Value=stg \
-           Key=Landscape,Value=stg
+           Key=Baseline,Value=prod \
+           Key=Landscape,Value=prod
    ```
 
 8. **Inventory database ingress rules:**
@@ -225,11 +229,11 @@ This list derives from the [release.md](./release.md) runbook, but is concerned 
    ```
    cd scripts/
    source common-functions.sh
-   export AWS_PROFILE=infnprd
+   export AWS_PROFILE=infprd
    
    sg_id=$(
        aws rds describe-db-instances \
-       --db-instance-id $(getRdsArn stg) \
+       --db-instance-id $(getRdsArn prod) \
        --output text \
        --query 'DBInstances[0].VpcSecurityGroups[0].VpcSecurityGroupId'
    )
@@ -238,34 +242,30 @@ This list derives from the [release.md](./release.md) runbook, but is concerned 
    	--query 'SecurityGroups[0].IpPermissions' > ${sg_id}.txt
    ```
 
-8. **Restore the staging database:**
-   Restore the current "stg" RDS database from the snapshot created from the "stg-temp" database:
+8. **Restore the production database:**
+   Replace the existing prod rds database stack with a new one based on the new snapshot:
 
    ```
-   cd scripts/
-   source common-functions.sh
+   cd kuali_rds && \
+   sh main.sh recreate-stack \
+     profile=infprd \
+     landscape=prod \
+     using_route53=true \
+     multi_az=true \
+     rds_snapshot_arn=arn:aws:rds:us-east-1:115619461932:snapshot:kuali-prod-$(date +'%m-%d-%y')
+   ```
    
-   # NOTE modified stack parameter(s) should be the last name=value pair(s).
-   ( \
-   	runStackTweak \
-   		kuali-rds-oracle-stg \
-   		prompt=true \
-   		landscape=stg \
-   		profile=infnprd \
-   		dryrun=true \
-   		RdsSnapshotARN=arn:aws:rds:us-east-1:770203350335:snapshot:kuali-stg-$(date +'%m-%d-%y') \
-   )
-   ```
-
+   
+   
 9. **Delete the temp RDS database:**
 
    ```
    cd kuali_rds/
-   sh main.sh delete-stack profile=infnprd landscape=stgtemp
+   sh main.sh delete-stack profile=infprd landscape=prodtemp
    ```
 
 11. **Ensure security group updates:**
-    Having restored the staging database, check that it still retains all of the ingress rules it had before the restore was performed.
+    Having restored the production database, check that it still retains all of the ingress rules it had before the restore was performed.
     If you see a different vpc-security-group-id for the rds instance, then ingress rules are missing. The "UserIdGroupPairs" section of the output obtained earlier will have the missing details.
     *SAMPLE OUTPUT FOR PROD:*
 
@@ -297,32 +297,32 @@ This list derives from the [release.md](./release.md) runbook, but is concerned 
     ```
     cd scripts/
     source common-functions.sh
-    export AWS_PROFILE=infnprd
+    export AWS_PROFILE=infprd
     
     sg_id=$(
         aws rds describe-db-instances \
-        --db-instance-id $(getRdsArn stg) \
+        --db-instance-id $(getRdsArn prod) \
         --output text \
         --query 'DBInstances[0].VpcSecurityGroups[0].VpcSecurityGroupId'
     )
     
     # NOTE modified stack parameter(s) should be the last name=value pair(s).
     (
-    	runStackTweak \
-    		kuali-ecs-stg \
-    		prompt=true \
-    		landscape=stg \
-    		dryrun=true \
-    		RdsVpcSecurityGroupId=${sg_id}
+      runStackTweak \
+        kuali-ecs-prod \
+        prompt=true \
+        landscape=prod \
+        dryrun=true \
+        RdsVpcSecurityGroupId=${sg_id}
     )
     
     (
-    	runStackTweak \
-    		research-admin-reports \
-    		prompt=true \
-    		landscape=stg \
-    		dryrun=true \
-    		RdsVpcSecurityGroupId=${sg_id}
+      runStackTweak \
+        research-admin-reports \
+        prompt=true \
+        landscape=prod \
+        dryrun=true \
+        RdsVpcSecurityGroupId=${sg_id}
     )
     ```
 
@@ -331,39 +331,51 @@ This list derives from the [release.md](./release.md) runbook, but is concerned 
 12. **Force refresh of ecs cluster:**
 
     ```
-    aws --profile=infnprd ecs update-service \
-      --cluster kuali-ecs-stg-cluster \
+    aws --profile=infprd ecs update-service \
+      --cluster kuali-ecs-prod-cluster \
       --service kuali-research \
       --force-new-deployment
     ```
 
     Wait until the update is complete and you can visit the service in the browser.
     
-15. **Modify the redirect for legacy staging:**
+12. **Enable all 7 research admin reports event rules in the new prod account:**
+    Go to the aws console at: https://us-east-1.console.aws.amazon.com/events/home?region=us-east-1#/rules
+    check each rule (except the "test" rule) and click "enable"
+    All report recipients listed in the associated dynamodb table should start getting emails from this stack.
+    
+12. **Disable all 7 research admin reports event rules in the legacy prod account:**
+    Perform the same steps in reverse.
+    
+15. **Modify the redirect for legacy production:**
     Now that the cutover is finished, change the "*`down for maintenance`*" redirect to "*`Kuali has changed location, update your shortcuts`*".
     This requires issuing a command to the ec2 instance to download and run a different docker image that serves up the page.
     
     ```
+    # Update the stack to change the ImageTag parameter:
     cd kuali_maintenance
-    sh main.sh image-swapout landscape=stg
+    (
+      runStackTweak \
+        kuali-maintenance-prod \
+        landscape=prod \
+        profile=legacy \
+        ImageTag=latest
+    )
+    
+    # When stack update is complete, run this to restart docker on the ec2:
+    sh main.sh image-swapout landscape=prod
     ```
     
     In the browser, verify that the message has changed.
     
 16. **Update the ticket and email the team:**
     "*Hi Team.*
-    *The kuali "cutover" for the staging environment aws infrastructure has been completed:*
+    *The kuali "cutover" for the production environment aws infrastructure has been completed:*
 
-    1) *The existing staging oracle database has been snapshotted and the ec2 instances it runs on are shut down*
+    1) *The existing production oracle database has been snapshotted and the ec2 instances it runs on are shut down*
     2) *The RDS database in the new environment has been "rebased" on the snapshot.*
-    3) *The old staging kc url now presents a page referring users to the new location.*
-    4) *The new location is https://stg.kualitest.research.bu.edu/dashboard*
-
-    *The remaining items for the overall migration are as follows:*
-
-    1) *Client services of the kuali app and/or database (SAP, informatica, snaplogic) update their configurations to "officially" reference the new staging location, endpoints and authentication details. Each client has a child ticket in [parent ticket] for their effort in this.*
-    2) *The carry all regression testing/fixing to completion.*
-    3) *Scheduling of a repeat exercise for the production environment after a period of "observation".*
+    3) *The old production kc url now presents a page referring users to the new location.*
+    4) *The new location is https://kuali.research.bu.edu/dashboard*
 
     *Thanks,*
     *Warren*"

@@ -235,9 +235,10 @@ EOF
       add_parameter $cmdfile 'MongoSubnetId' 'PRIVATE_SUBNET1'
     fi
 
-    if [ "${PDF_BUCKET_NAME,,}" != 'none' ] ; then  
-      add_parameter $cmdfile 'PdfS3BucketName' 'PDF_BUCKET_NAME'
-    fi
+    # if [ "${PDF_BUCKET_NAME,,}" != 'none' ] ; then  
+    #   add_parameter $cmdfile 'PdfS3BucketName' 'PDF_BUCKET_NAME'
+    # fi
+    add_parameter $cmdfile 'PdfS3BucketName' "kuali-ec2-alb-${LANDSCAPE}-pdf"
 
     if [ "$action" == 'create-stack' ] ; then
       addParameter $cmdfile 'ECSAMI' "$(getLatestEcsAmi)"

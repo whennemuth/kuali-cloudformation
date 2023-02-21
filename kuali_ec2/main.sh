@@ -11,7 +11,7 @@ declare -A defaults=(
   [PORTAL_IMAGE]='getLatestImage repo_name=kuali-portal'
   [PDF_IMAGE]='getLatestImage repo_name=kuali-research-pdf'
   [NO_ROLLBACK]='true'
-  [PDF_BUCKET_NAME]='$GLOBAL_TAG-$LANDSCAPE-pdf'
+  [PDF_BUCKET_NAME]="$GLOBAL_TAG-$LANDSCAPE-pdf"
   [CREATE_MONGO]='false'
   # -----------------------------------------------
   # No defaults - user must provide explicit value:

@@ -225,6 +225,16 @@ Parameters:
     - shib.bu.edu
     Default: auto
 
+  # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/retrieve-ecs-optimized_AMI.html
+  # ECSAMI:
+  #   Description: A reference to the latest ecs optimized ami stored in the ssm parameter store.
+  #   Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+  #   Default: /aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id
+
+  ECSAMI:
+    Description: A specific ecs optimized ami.
+    Type: String
+
   # --------------------------------------------------------------------------------------------
   #       RDS create from snapshotParameters:
   # --------------------------------------------------------------------------------------------
@@ -509,6 +519,8 @@ Resources:
           !Ref TemplateBucketName
         ApplicationSecurityGroupId:
           !GetAtt SecurityGroups.Outputs.EC2SecurityGroupId
+        ECSAMI:
+          !Ref ECSAMI
     
   Instance1:
     Type: AWS::CloudFormation::Stack
@@ -597,6 +609,8 @@ Resources:
           !Ref EnableNewRelicAPM
         EnableNewRelicInfrastructure:
           !Ref EnableNewRelicInfrastructure
+        ECSAMI:
+          !Ref ECSAMI
       Tags:
         - Key: DnsJdbc
           Value:
@@ -713,6 +727,8 @@ Resources:
           !Ref EnableNewRelicAPM
         EnableNewRelicInfrastructure:
           !Ref EnableNewRelicInfrastructure
+        ECSAMI:
+          !Ref ECSAMI
         InstanceProfile:
           !GetAtt Instance1.Outputs.EC2InstanceProfile
         InstanceRole:

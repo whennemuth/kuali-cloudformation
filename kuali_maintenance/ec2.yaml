@@ -56,6 +56,18 @@ Parameters:
     ConstraintDescription: Specified instance type is not within selection list.
     Default: t3.micro
 
+  ImageName:
+    Type: String
+    Description: The base name of the docker image to use
+    Type: String
+    Default: kuali-maintenance
+
+  ImageTag:
+    Type: String
+    Description: The tag identifier for the docker image to use
+    Type: String
+    Default: latest
+
   ELBSecurityGroupId:
     Type: String
     Description: The id of the load balancer that must be granted ingress on the ec2
@@ -188,6 +200,7 @@ Resources:
             yum update -y
             yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
             yum install -y aws-cfn-bootstrap
+            yum install -y jq
 
             # Install and run docker
             amazon-linux-extras install -y docker
@@ -358,7 +371,7 @@ Resources:
                 #!/bin/bash
 
                 registry="${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com"
-                imageName="${!registry}/kuali-maintenance"
+                imageName="${!registry}/${ImageName}"
 
                 pull() {
                   local pswd="$(aws ecr get-login-password --region ${AWS::Region})"
@@ -368,7 +381,7 @@ Resources:
 
                 clear() {
                   docker rm -f kuali-maint 2> /dev/null || true
-                  docker rmi ${!imageName} 2> /dev/null || true
+                  docker rmi ${!imageName}:${ImageTag} 2> /dev/null || true
                 }
 
                 run() {
@@ -385,7 +398,7 @@ Resources:
                     -p 443:443 \
                     -v $CERT_FILE:/etc/nginx/nginx.crt \
                     -v $KEY_FILE:/etc/nginx/nginx.key \
-                    ${!imageName}
+                    ${!imageName}:${ImageTag}
                 }
 
                 case "${!1}" in
