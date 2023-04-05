@@ -90,7 +90,7 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
        stack_name=my-kuali-with-autoscaling \
        no_rollback=true \
        global_tag=my-kuali-ecs \
-    	ec2_instance_type=m5.large \
+    	instance_type=m5.large \
        availability_zone1=us-west-1a \
        availability_zone2=us-west-1b \
     	template_bucket_path=s3://my_bucket/some/directory \

@@ -499,7 +499,7 @@ Resources:
       PerformanceInsightsRetentionPeriod: 
         !If 
         - IsProd
-        - 731
+        - 186
         - 7
       Port: !Ref Port
       # https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_WorkingWithAutomatedBackups.html#USER_WorkingWithAutomatedBackups.BackupWindow

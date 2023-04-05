@@ -85,7 +85,7 @@ Parameters:
     - c5.large
     - c5.xlarge
     ConstraintDescription: Specified instance type is not within selection list.
-    Default: m4.large
+    Default: m5.large
 
   EC2KeypairName:
     # Type: AWS::EC2::KeyPair::KeyName

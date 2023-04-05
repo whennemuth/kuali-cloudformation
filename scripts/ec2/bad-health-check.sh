@@ -9,6 +9,7 @@
 
 REGION="${REGION:-$1}"
 BUCKET="${BUCKET:-$2}"
+LANDSCAPE="${LANDSCAPE:-$3}"
 
 if [ -z "$REGION" ] ; then
   echo "Required parameter missing: REGION - cancelling script!"
@@ -37,7 +38,7 @@ getThisInstanceHealth() {
   aws \
     elbv2 describe-target-health \
     --target-group-arn "$(getKcTargetGroupArn)" \
-    --query "TargetHealthDescriptions[?Target.Id==`$(getThisInstanceId)`]"
+    --query 'TargetHealthDescriptions[?Target.Id==`'$(getThisInstanceId)'`]' \
     | jq -r '.[0].TargetHealth.State'
 }
 
@@ -61,7 +62,9 @@ collectECSLogs() {
 
 uploadECSLogs() {
   local fn="$(ls -1 collect-i-*.tgz | head -1)"
-  aws s3 cp "$fn" "$BUCKET/ecs-logs-collector/target-group-targets/kc/unhealthy/$(getThisInstanceId)/$fn"
+  local cmd="aws s3 cp "$fn" "s3://$BUCKET/ecs-logs-collector/target-group-targets/kc/unhealthy/$(getThisInstanceId)/${LANDSCAPE}-${fn}""
+  echo "$cmd"
+  eval "$cmd"
 }
 
 checkWorkDir() {
@@ -69,10 +72,12 @@ checkWorkDir() {
   if [ ! -d $workdir ] ; then
     mkdir $workdir
   fi
-  cd workdir
+  cd $workdir
 }
 
 if thisInstanceIsUnhealthy ; then
+
+  echo "$(date +%F-%T): Unhealthy status detected!"
 
   checkWorkDir
 
@@ -80,4 +85,6 @@ if thisInstanceIsUnhealthy ; then
 
   uploadECSLogs
 
+else
+  echo "$(date +%F-%T): Healthy status"
 fi

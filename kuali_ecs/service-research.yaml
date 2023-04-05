@@ -18,6 +18,16 @@ Parameters:
     Type: String
     AllowedPattern: "[a-zA-Z\\d]{1,12}"
     ConstraintDescription: Up to 12 letters and/or numbers
+    
+  Service:
+    Description: Service catalog name
+    Type: String
+    Default: research-administration
+
+  Function:
+    Description: The Function within the Service
+    Type: String
+    Default: kuali
 
   EnvVarFileS3Arn:
     Description: Specify the arn of a name/value pairs file in s3 for the task definition to use as environment variables for containers.
@@ -71,9 +81,14 @@ Parameters:
     ConstraintDescription: Enter "true" or "false" only.
     Default: "false"
 
+  Memory:
+    Type: String
+    Description: The hard limit on the amount of memory the research task can use.
+    Default: empty
 
 Conditions:
   IsProd: !Equals [!Ref Landscape, prod]
+  CustomMemory: !Not [!Equals [!Ref Memory, empty]]
 
 
 Resources:
@@ -87,6 +102,11 @@ Resources:
       ExecutionRoleArn: !Ref TaskExecutionRoleArn
       RequiresCompatibilities:
       - EC2
+      Memory:
+        !If
+          - CustomMemory
+          - !Ref Memory
+          - !Ref AWS::NoValue
       Volumes:
       - Name: KC-Config-Bind-Mount
         Host:
@@ -157,6 +177,15 @@ Resources:
         - SourceVolume: KC-certs-Bind-Mount
           ContainerPath: /opt/kuali/certs
           ReadOnly: false
+      Tags:
+      - Key: Name
+        Value: !Sub ${GlobalTag}-${Landscape}-research-td
+      - Key: Landscape
+        Value: !Ref Landscape
+      - Key: Service
+        Value: !Ref Service
+      - Key: Function
+        Value: !Ref Function
 
   LogGroup:
     Type: AWS::Logs::LogGroup
@@ -166,12 +195,12 @@ Resources:
         !Sub ${GlobalTag}-${Landscape}-kc
       RetentionInDays: !If [ IsProd, 365, 30 ]
 
-  Service:
+  ECSService:
     Type: AWS::ECS::Service
     DependsOn: ListenerRuleKC
     Properties:
-      ServiceName:
-        kuali-research
+      # ServiceName:
+      #   kuali-research
       Cluster:
         !Ref ClusterId
       DeploymentController:
@@ -185,6 +214,8 @@ Resources:
       PlacementStrategies:
         - Field: instanceId
           Type: spread
+      PlacementConstraints:
+        - Type: distinctInstance
       Role:
         !Ref ServiceRole
       DesiredCount:
@@ -199,6 +230,15 @@ Resources:
         ContainerPort: 8080
         TargetGroupArn:
           !Ref TargetGroup
+      Tags:
+      - Key: Name
+        Value: !Sub ${GlobalTag}-${Landscape}-research-svc
+      - Key: Landscape
+        Value: !Ref Landscape
+      - Key: Service
+        Value: !Ref Service
+      - Key: Function
+        Value: !Ref Function
 
   TargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
@@ -231,6 +271,12 @@ Resources:
       - Key: Name
         Value: 
           !Sub ${GlobalTag}-${Landscape}-kc-targetgroup
+      - Key: Landscape
+        Value: !Ref Landscape
+      - Key: Service
+        Value: !Ref Service
+      - Key: Function
+        Value: !Ref Function
 
   ListenerRuleKcDefault:
     Type: AWS::ElasticLoadBalancingV2::ListenerRule
@@ -304,7 +350,7 @@ Resources:
     Type: AWS::ApplicationAutoScaling::ScalableTarget
     Properties:
       ResourceId:
-        !Join [ "/", [ service, !Ref ClusterId, !GetAtt Service.Name ] ]
+        !Join [ "/", [ service, !Ref ClusterId, !GetAtt ECSService.Name ] ]
       RoleARN:
         !Ref ECSContainerInstanceAutoScalingRoleARN
       MaxCapacity:
@@ -360,7 +406,7 @@ Resources:
           !Ref ClusterId
       - Name: ServiceName
         Value:
-          !GetAtt Service.Name
+          !GetAtt ECSService.Name
       Statistic: Average
       ComparisonOperator: GreaterThanThreshold
       EvaluationPeriods: 3
@@ -383,7 +429,7 @@ Resources:
           !Ref ClusterId
       - Name: ServiceName
         Value:
-          !GetAtt Service.Name
+          !GetAtt ECSService.Name
       Statistic: Average
       ComparisonOperator: LessThanThreshold
       EvaluationPeriods: 6

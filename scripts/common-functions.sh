@@ -193,6 +193,9 @@ validateOne() {
 
 # Validate one or all cloudformation yaml templates.
 validateStack() {
+  if [ "${SKIP_VALIDATION,,}" == 'true' ] ; then
+    return 0
+  fi
   eval "$(getEvalArgs $@)"
   local root=$(pwd)
     
@@ -238,6 +241,9 @@ validateStack() {
 }
 
 validateTemplateAndUploadToS3() {
+  if [ "${SKIP_VALIDATION,,}" == 'true' ] ; then
+    return 0
+  fi
   eval "$(getEvalArgs $@)"
 
   if [ "${validatedStacks[$filepath]}" == "$filepath" ] ; then

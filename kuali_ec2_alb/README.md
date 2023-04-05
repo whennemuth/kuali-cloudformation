@@ -98,7 +98,7 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
       # Example 3): Same as scenario 1, except create/use a custom S3 bucket, and overrides default ec2 instance size
       sh main.sh create-stack \
           template_bucket_path=s3://my_bucket/some/directory \
-          ec2_instance_type=m4.xlarge \
+          instance_type=m4.xlarge \
           kc_image=770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-coeus-sandbox:2001.0040 \
           core_image=770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-core:2001.0040 \
           portal_image=770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-portal:2001.0040 \
@@ -118,7 +118,7 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
           stack_name=my-kuali-with-ALB \
           no_rollback=true \
           global_tag=my-kuali-alb-ec2 \
-          ec2_instance_type=m5.large \
+          instance_type=m5.large \
           availability_zone1=us-west-1a \
           availability_zone2=us-west-1b \
           template_bucket_path=s3://my_bucket/some/directory \
@@ -165,7 +165,7 @@ Included is a bash helper script (main.sh) that serves to simplify many of the c
    
    # The templates may not have changed, changing parameters to up the ec2 instance size and upgrade kuali-research to new release:
    sh main.sh update-stack \
-   	ec2_instance_type=m4.xlarge \
+   	instance_type=m4.xlarge \
    kc_image=770203350335.dkr.ecr.us-east-1.amazonaws.com/kuali-coeus-sandbox:2006.0038
    ```
 

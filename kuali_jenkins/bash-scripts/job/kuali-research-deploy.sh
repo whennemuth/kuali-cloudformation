@@ -430,8 +430,17 @@ deployToEcs() {
   # REFERENCE: https://doylew.medium.com/updating-aws-ecs-task-definition-and-scheduled-tasks-using-aws-cli-commands-through-deployment-jobs-7cef82262236
   echo "Stack $STACK_NAME is of type \"ecs\""
   local clusterName="kuali-ecs-$LANDSCAPE-cluster"
-  local service="kuali-research"
   local taskDefName="research"
+  local service="$(aws resourcegroupstaggingapi get-resources \
+    --resource-type-filters ecs:service \
+    --tag-filters \
+      "Key=Landscape,Values=$LANDSCAPE" \
+      'Key=Service,Values=research-administration' \
+      'Key=Function,Values=kuali' \
+      "Key=Name,Values=kuali-ecs-$LANDSCAPE-research-svc" \
+    --output text \
+    --query 'ResourceTagMappingList[*].{arn:ResourceARN}' | cut -d'/' -f3)"
+    
   # local stack="$(aws cloudformation describe-stacks --stack-name $STACK_NAME)" 
   # local clusterName="$(echo "$stack" | jq -r '.Stacks[0].Outputs[] | select(.OutputKey == "Cluster").OutputValue' 2> /dev/null)"
   

@@ -197,7 +197,7 @@ Resources:
           OutputFormat: "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat"
           SerdeInfo:
             Parameters: {
-              "paths": "action,formatVersion,httpRequest,httpSourceId,httpSourceName,nonTerminatingMatchingRules,rateBasedRuleList,ruleGroupList,terminatingRuleId,terminatingRuleType,timestamp,webaclId"
+              "paths": "action,formatVersion,httpRequest,httpSourceId,httpSourceName,nonTerminatingMatchingRules,rateBasedRuleList,ruleGroupList,terminatingRuleId,terminatingRuleType,terminatingRuleMatchDetails,timestamp,webaclId"
             }
             SerializationLibrary: "org.openx.data.jsonserde.JsonSerDe"
           Compressed : true
@@ -213,6 +213,8 @@ Resources:
               Type: string
             - Name: terminatingruletype
               Type: string
+            - Name: terminatingrulematchdetails
+              Type: array<string>
             - Name: action
               Type: string
             - Name: httpsourcename

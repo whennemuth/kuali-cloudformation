@@ -125,7 +125,7 @@ Parameters:
     - c5.large
     - c5.xlarge
     ConstraintDescription: Specified instance type is not within selection list.
-    Default: m4.large
+    Default: m5.large
   
   TemplateBucketName:
     Type: String
@@ -148,9 +148,9 @@ Parameters:
     Type: Number
     Description: How many EC2 instances are to be initially deployed as ECS hosts
       accross your cluster?
-    AllowedValues: [ 2, 3, 4, 5, 6 ]
+    AllowedValues: [ 2, 3, 4, 5, 6, 7, 8 ]
     ConstraintDescription: Maximum cluster size is limited between 1 and 6 instances.
-    Default: 3
+    Default: 4
 
   CoreImage:
     Type: String
@@ -353,6 +353,14 @@ Conditions:
       - Condition: UseExistingRdsInstance
       - !Not [ !Equals [ !Ref RdsRoute53Endpoint, empty]]
       - !Not [ !Equals [ !Ref RdsPrivateEndpoint, empty]]
+  IsBelowXlarge: !Or [
+    !Equals [ !Ref InstanceType, "t2.large" ],
+    !Equals [ !Ref InstanceType, "t3.large" ],
+    !Equals [ !Ref InstanceType, "m4.large" ],
+    !Equals [ !Ref InstanceType, "m5.large" ],
+    !Equals [ !Ref InstanceType, "c5.large" ]
+  ]
+  ProdIsUndersized: !And [Condition: IsProd, Condition: IsBelowXlarge]
 
 
 Resources:
@@ -603,7 +611,10 @@ Resources:
                 # Function getRdsHostname in process.configs.sh will try to "figure out" the rds endpoint
         UsingRoute53: !If [ CreateDnsRecord, 'true', 'false' ]
         InstanceType:
-          !Ref InstanceType
+          !If
+            - ProdIsUndersized
+            - m5.xlarge
+            - !Ref InstanceType
         CampusSubnet1:
           !Ref CampusSubnet1
         CampusSubnet2:
@@ -697,6 +708,8 @@ Resources:
           !Ref GlobalTag
         Landscape:
           !Ref Landscape
+        Service: !Ref Service
+        Function: !Ref Function
         TaskExecutionRoleArn:
           !GetAtt TaskExecutionRole.Arn
         EnvVarFileS3Arn:
@@ -725,6 +738,8 @@ Resources:
           !Ref GlobalTag
         Landscape:
           !Ref Landscape
+        Service: !Ref Service
+        Function: !Ref Function
         TaskExecutionRoleArn:
           !GetAtt TaskExecutionRole.Arn
         EnvVarFileS3Arn:
@@ -757,6 +772,8 @@ Resources:
           !Ref GlobalTag
         Landscape:
           !Ref Landscape
+        Service: !Ref Service
+        Function: !Ref Function
         TaskExecutionRoleArn:
           !GetAtt TaskExecutionRole.Arn
         EnvVarFileS3Arn:
@@ -785,6 +802,8 @@ Resources:
           !Ref GlobalTag
         Landscape:
           !Ref Landscape
+        Service: !Ref Service
+        Function: !Ref Function
         TaskExecutionRoleArn:
           !GetAtt TaskExecutionRole.Arn
         EnvVarFileS3Arn:
@@ -803,6 +822,11 @@ Resources:
           !Ref KcImage
         EnableNewRelicAPM:
           !Ref EnableNewRelicAPM
+        Memory:
+          !If
+            - IsBelowXlarge
+            - !Ref AWS::NoValue
+            - 6500
 
   LifeCycleHook:
     Type: AWS::CloudFormation::Stack

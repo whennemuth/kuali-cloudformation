@@ -67,6 +67,9 @@ Parameters:
     Type: String
   ActivateBadBotProtectionParam:
     Type: String
+  ActivateUSAOnlyProtectionParam:
+    Type: String
+    Default: no
   RequestThreshold:
     Type: Number
   RegionScope:
@@ -129,6 +132,10 @@ Conditions:
 
   BadBotProtectionActivated: !Equals
     - !Ref ActivateBadBotProtectionParam
+    - 'yes'
+
+  USAOnlyProtectionActivated: !Equals
+    - !Ref ActivateUSAOnlyProtectionParam
     - 'yes'
 
 Mappings:
@@ -422,20 +429,23 @@ Resources:
         - Key: Landscape
           Value: !Ref Landscape
       Rules:
-        - Name: !Sub ${ParentStackName}-USA-only-rule
-          Priority: 0
-          Action:
-            Block: {}
-          VisibilityConfig:
-            SampledRequestsEnabled: true
-            CloudWatchMetricsEnabled: true
-            MetricName: MetricForAMRCRS
-          Statement:
-            NotStatement:
-              Statement:
-                GeoMatchStatement:
-                  CountryCodes:
-                    - US
+        - !If
+          - USAOnlyProtectionActivated
+          - Name: !Sub ${ParentStackName}-USA-only-rule
+            Priority: 0
+            Action:
+              Block: {}
+            VisibilityConfig:
+              SampledRequestsEnabled: true
+              CloudWatchMetricsEnabled: true
+              MetricName: MetricForAMRCRS
+            Statement:
+              NotStatement:
+                Statement:
+                  GeoMatchStatement:
+                    CountryCodes:
+                      - US
+          - !Ref 'AWS::NoValue'
         - !If
           - AWSManagedRulesActivated
           - Name: AWS-AWSManagedRulesCommonRuleSet

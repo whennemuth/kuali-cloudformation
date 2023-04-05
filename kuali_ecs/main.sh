@@ -11,7 +11,6 @@ declare -A defaults=(
   [PORTAL_IMAGE]='getLatestImage repo_name=kuali-portal'
   [PDF_IMAGE]='getLatestImage repo_name=kuali-research-pdf'
   [NO_ROLLBACK]='true'
-  [PDF_BUCKET_NAME]="$GLOBAL_TAG-$LANDSCAPE-pdf"
   [DEEP_VALIDATION]='true'
   # ----- Most of the following are defaulted in the yaml file itself:
   # [HOSTED_ZONE]='kualitest.research.bu.edu'
@@ -27,7 +26,7 @@ declare -A defaults=(
   # [ENABLE_ALB_LOGGING]='false'
   # [CREATE_WAF]='false'
   # [KEYPAIR_NAME]='kuali-keypair-$LANDSCAPE'
-  # [EC2_INSTANCE_TYPE]='m4.medium'
+  # [INSTANCE_TYPE]='m4.medium'
   # [VPC_ID]='???'
   # [CAMPUS_SUBNET1]='???'
   # [PUBLIC_SUBNET1]='???'
@@ -247,7 +246,7 @@ EOF
     add_parameter $cmdfile 'PortalImage' 'PORTAL_IMAGE'
     add_parameter $cmdfile 'Landscape' 'LANDSCAPE'
     add_parameter $cmdfile 'GlobalTag' 'GLOBAL_TAG'
-    add_parameter $cmdfile 'EC2InstanceType' 'EC2_INSTANCE_TYPE'
+    add_parameter $cmdfile 'InstanceType' 'INSTANCE_TYPE'
     add_parameter $cmdfile 'NewrelicLicsenseKey' 'NEWRELIC_LICENSE_KEY'
     add_parameter $cmdfile 'EnableNewRelicAPM' 'ENABLE_NEWRELIC_APM'
     add_parameter $cmdfile 'EnableNewRelicInfrastructure' 'ENABLE_NEWRELIC_INFRASTRUCTURE'
@@ -269,8 +268,10 @@ EOF
       add_parameter $cmdfile 'MongoSubnetId' 'PRIVATE_SUBNET1'
     fi
 
-    if [ "${PDF_BUCKET_NAME,,}" != 'none' ] ; then  
+    if [ -n "$PDF_BUCKET_NAME" ] && [ "${PDF_BUCKET_NAME,,}" != 'none' ] ; then  
       add_parameter $cmdfile 'PdfS3BucketName' 'PDF_BUCKET_NAME'
+    else
+      addParameter $cmdfile 'PdfS3BucketName' "${FULL_STACK_NAME}-pdf"
     fi
 
     if [ "$action" == 'create-stack' ] ; then

@@ -11,7 +11,6 @@ declare -A defaults=(
   [PORTAL_IMAGE]='getLatestImage repo_name=kuali-portal'
   [PDF_IMAGE]='getLatestImage repo_name=kuali-research-pdf'
   [NO_ROLLBACK]='true'
-  [PDF_BUCKET_NAME]="$GLOBAL_TAG-$LANDSCAPE-pdf"
   [CREATE_MONGO]='false'
   # -----------------------------------------------
   # No defaults - user must provide explicit value:
@@ -142,10 +141,12 @@ EOF
       copyToBucket '../kuali_mongo/mongo.yaml' "s3://$TEMPLATE_BUCKET_NAME/cloudformation/kuali_mongo/"
     fi
 
-    if [ "${PDF_BUCKET_NAME,,}" != 'none' ] ; then  
+    if [ -n "$PDF_BUCKET_NAME" ] && [ "${PDF_BUCKET_NAME,,}" != 'none' ] ; then  
       add_parameter $cmdfile 'PdfS3BucketName' 'PDF_BUCKET_NAME'
+    else
+      addParameter $cmdfile 'PdfS3BucketName' "${FULL_STACK_NAME}-pdf"
     fi
-
+    
     if [ "$action" == 'create-stack' ] ; then
       addParameter $cmdfile 'ECSAMI' "$(getLatestEcsAmi)"
     elif [ "$action" == 'update-stack' ] ; then

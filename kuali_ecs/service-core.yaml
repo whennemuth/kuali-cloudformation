@@ -17,6 +17,16 @@ Parameters:
     Type: String
     AllowedPattern: "[a-zA-Z\\d]{1,12}"
     ConstraintDescription: Up to 12 letters and/or numbers
+    
+  Service:
+    Description: Service catalog name
+    Type: String
+    Default: research-administration
+
+  Function:
+    Description: The Function within the Service
+    Type: String
+    Default: kuali
 
   EnvVarFileS3Arn:
     Description: Specify the arn of a name/value pairs file in s3 for the task definition to use as environment variables for containers.
@@ -113,6 +123,15 @@ Resources:
         - SourceVolume: Core-Config-Bind-Mount
           ContainerPath: /var/core-config
           ReadOnly: false
+      Tags:
+      - Key: Name
+        Value: !Sub ${GlobalTag}-${Landscape}-core-td
+      - Key: Landscape
+        Value: !Ref Landscape
+      - Key: Service
+        Value: !Ref Service
+      - Key: Function
+        Value: !Ref Function
 
   LogGroup:
     Type: AWS::Logs::LogGroup
@@ -122,12 +141,12 @@ Resources:
         !Sub ${GlobalTag}-${Landscape}-core
       RetentionInDays: !If [ IsProd, 365, 30 ]
 
-  Service:
+  ECSService:
     Type: AWS::ECS::Service
     DependsOn: ListenerRule
     Properties:
-      ServiceName:
-        kuali-cor-main
+      # ServiceName:
+      #   kuali-cor-main
       Cluster:
         !Ref ClusterId
       DeploymentController:
@@ -141,6 +160,8 @@ Resources:
       PlacementStrategies:
         - Field: instanceId
           Type: spread
+      PlacementConstraints:
+        - Type: distinctInstance
       Role:
         !Ref ServiceRole
       DesiredCount:
@@ -154,6 +175,15 @@ Resources:
         ContainerPort: 3000
         TargetGroupArn:
           !Ref TargetGroup
+      Tags:
+      - Key: Name
+        Value: !Sub ${GlobalTag}-${Landscape}-core-svc
+      - Key: Landscape
+        Value: !Ref Landscape
+      - Key: Service
+        Value: !Ref Service
+      - Key: Function
+        Value: !Ref Function
 
   TargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
@@ -185,6 +215,12 @@ Resources:
       - Key: Name
         Value: 
           !Sub ${GlobalTag}-${Landscape}-core-targetgroup
+      - Key: Landscape
+        Value: !Ref Landscape
+      - Key: Service
+        Value: !Ref Service
+      - Key: Function
+        Value: !Ref Function
 
   ListenerRule:
     Type: AWS::ElasticLoadBalancingV2::ListenerRule
@@ -235,7 +271,7 @@ Resources:
     Type: AWS::ApplicationAutoScaling::ScalableTarget
     Properties:
       ResourceId:
-        !Join [ "/", [ service, !Ref ClusterId, !GetAtt Service.Name ] ]
+        !Join [ "/", [ service, !Ref ClusterId, !GetAtt ECSService.Name ] ]
       RoleARN:
         !Ref ECSContainerInstanceAutoScalingRoleARN
       MaxCapacity:
@@ -291,7 +327,7 @@ Resources:
           !Ref ClusterId
       - Name: ServiceName
         Value:
-          !GetAtt Service.Name
+          !GetAtt ECSService.Name
       Statistic: Average
       ComparisonOperator: GreaterThanThreshold
       EvaluationPeriods: 3
@@ -314,7 +350,7 @@ Resources:
           !Ref ClusterId
       - Name: ServiceName
         Value:
-          !GetAtt Service.Name
+          !GetAtt ECSService.Name
       Statistic: Average
       ComparisonOperator: LessThanThreshold
       EvaluationPeriods: 6
