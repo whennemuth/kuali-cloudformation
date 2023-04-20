@@ -23,8 +23,8 @@ public class ComparableMavenVersion implements Comparable<ComparableMavenVersion
 	private Integer iteration = 0;
 
 	public ComparableMavenVersion(String version) {
-		this.version = version;
-		initialize(version);
+		this.version = String.valueOf(version);
+		initialize(this.version);
 	}
 	
 	private void initialize(String version) {

@@ -98,10 +98,7 @@ public class EcrDAO extends AbstractAwsDAO {
 		});
 		
 		if(getRegistryId() != null && getRepositoryName() != null) {
-			ListImagesRequest request = ListImagesRequest.builder()
-					.registryId(getRegistryId())
-					.repositoryName(getRepositoryName())
-					.build();
+			
 			
 			EcrClient client = EcrClient.builder()
 					.region(getRegion())
@@ -110,12 +107,30 @@ public class EcrDAO extends AbstractAwsDAO {
 					.build();
 			
 			logger.info(String.format("++++++++ API CALL ++++++++ : Getting versions of %s...", getRepositoryName()));
+
+			String nextToken = "empty";
+			ListImagesRequest request = null;
+			while(nextToken != null && ! nextToken.isBlank()) {
+				if("empty".equals(nextToken)) {
+					request = ListImagesRequest.builder()
+							.registryId(getRegistryId())
+							.repositoryName(getRepositoryName())
+							.build();
+				}
+				else {
+					request = ListImagesRequest.builder()
+							.registryId(getRegistryId())
+							.repositoryName(getRepositoryName())
+							.nextToken(nextToken)
+							.build();
+				}
+				ListImagesResponse response = client.listImages(request);
+				if(response.hasImageIds()) {
+					images.addAll(response.imageIds());
+				}			
+				nextToken = response.nextToken();
+			}
 			
-			ListImagesResponse response = client.listImages(request);
-			
-			if(response.hasImageIds()) {
-				images.addAll(response.imageIds());
-			}			
 		}
 		
 		return images;
@@ -141,12 +156,7 @@ public class EcrDAO extends AbstractAwsDAO {
 			}			
 		});
 		
-		if(getRegistryId() != null && getRepositoryName() != null) {
-			DescribeImagesRequest request = DescribeImagesRequest.builder()
-					.registryId(getRegistryId())
-					.repositoryName(getRepositoryName())
-					.build();
-			
+		if(getRegistryId() != null && getRepositoryName() != null) {		
 			EcrClient client = EcrClient.builder()
 					.region(getRegion())
 					.credentialsProvider(provider)
@@ -155,11 +165,32 @@ public class EcrDAO extends AbstractAwsDAO {
 			
 			logger.info(String.format("++++++++ API CALL ++++++++ : Getting metadata of all images for %s...", getRepositoryName()));
 			
-			DescribeImagesResponse response = client.describeImages(request);
-			
-			if(response.hasImageDetails()) {
-				details.addAll(response.imageDetails());
+			String nextToken = "empty";
+			while(nextToken != null && ! nextToken.isBlank()) {
+				DescribeImagesResponse response = null;
+				if("empty".equals(nextToken)) {
+					DescribeImagesRequest request = DescribeImagesRequest.builder()
+							.registryId(getRegistryId())
+							.repositoryName(getRepositoryName())
+							.build();
+					response = client.describeImages(request);
+					
+				}
+				else {
+					DescribeImagesRequest request = DescribeImagesRequest.builder()
+							.registryId(getRegistryId())
+							.repositoryName(getRepositoryName())
+							.nextToken(nextToken)
+							.build();
+					response = client.describeImages(request);
+				}
+				if(response.hasImageDetails()) {
+					details.addAll(response.imageDetails());
+				}
+				nextToken = response.nextToken();
 			}
+			
+			
 		}
 
 		return details;

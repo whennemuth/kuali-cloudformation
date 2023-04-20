@@ -26,6 +26,9 @@ import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.databind.ser.std.StdSerializer;
 
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.awscore.AwsRequest;
+import software.amazon.awssdk.awscore.AwsRequest.Builder;
+import software.amazon.awssdk.awscore.AwsResponse;
 import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
@@ -99,16 +102,27 @@ public class StackDAO extends AbstractAwsDAO {
 		List<StackSummary> filtered = new ArrayList<StackSummary>();
 		try {
 			logger.info("++++++++ API CALL ++++++++ : Getting kuali stack summaries");
-			response = getClient().listStacks(ListStacksRequest.builder()
-					.stackStatusFilters(getAllButDeletedStackStatuses()).build());
-			for (StackSummary summary : response.stackSummaries()) {
-				if(summary.rootId() == null) {
-					if(summary.stackName().toLowerCase().startsWith("kuali")) {
-						filtered.add(summary);
-						CACHE.put(summary);
-					}
+			String nextToken = "empty";
+			while(nextToken != null && ! nextToken.isBlank()) {
+				if("empty".equals(nextToken)) {
+					response = getClient().listStacks(ListStacksRequest.builder()
+							.stackStatusFilters(getAllButDeletedStackStatuses()).build());					
 				}
+				else {
+					response = getClient().listStacks(ListStacksRequest.builder()
+							.stackStatusFilters(getAllButDeletedStackStatuses()).nextToken(nextToken).build());					
+				}
+				for (StackSummary summary : response.stackSummaries()) {
+					if(summary.rootId() == null) {
+						if(summary.stackName().toLowerCase().startsWith("kuali")) {
+							filtered.add(summary);
+							CACHE.put(summary);
+						}
+					}
+				}				
+				nextToken = response.nextToken();
 			}
+
 			CACHE.setLoaded(true);
 		} 
 		catch (AwsServiceException | SdkClientException e) {			
@@ -137,24 +151,33 @@ public class StackDAO extends AbstractAwsDAO {
 		List<Stack> filtered = new ArrayList<Stack>();
 		try {
 			logger.info("++++++++ API CALL ++++++++ : Getting kuali stacks");
-			response = getClient().describeStacks(DescribeStacksRequest.builder().build());
-			for(Stack stack : response.stacks()) {
-				if(stack.hasTags()) {
-					int foundTags = 0;
-					for(Tag tag : stack.tags()) {
-						if(tag.key().equalsIgnoreCase("Service") && tag.value().equalsIgnoreCase("research-administration")) {
-							foundTags++;
-						}
-						if(tag.key().equalsIgnoreCase("Function") && tag.value().equalsIgnoreCase("kuali")) {
-							foundTags++;
-						}
-						if(foundTags == 2) {
-							filtered.add(stack);
-							CACHE.put(stack);
-							break;
+			String nextToken = "empty";
+			while(nextToken != null && ! nextToken.isBlank()) {
+				if("empty".equals(nextToken)) {
+					response = getClient().describeStacks(DescribeStacksRequest.builder().build());
+				}
+				else {
+					response = getClient().describeStacks(DescribeStacksRequest.builder().nextToken(nextToken).build());
+				}
+				for(Stack stack : response.stacks()) {
+					if(stack.hasTags()) {
+						int foundTags = 0;
+						for(Tag tag : stack.tags()) {
+							if(tag.key().equalsIgnoreCase("Service") && tag.value().equalsIgnoreCase("research-administration")) {
+								foundTags++;
+							}
+							if(tag.key().equalsIgnoreCase("Function") && tag.value().equalsIgnoreCase("kuali")) {
+								foundTags++;
+							}
+							if(foundTags == 2) {
+								filtered.add(stack);
+								CACHE.put(stack);
+								break;
+							}
 						}
 					}
 				}
+				nextToken = response.nextToken();
 			}
 			CACHE.setLoaded(true);
 		} 

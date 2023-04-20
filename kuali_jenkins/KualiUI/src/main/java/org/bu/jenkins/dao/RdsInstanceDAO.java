@@ -116,13 +116,6 @@ public class RdsInstanceDAO extends AbstractAwsDAO {
 			return;
 		}
 		try {
-			GetResourcesRequest request = GetResourcesRequest.builder()
-					.resourceTypeFilters("rds:db")
-					.tagFilters(
-							TagFilter.builder().key("Service").values("research-administration").build(),
-							TagFilter.builder().key("Function").values("kuali").build()
-					).build();
-			
 			ResourceGroupsTaggingApiClient client = ResourceGroupsTaggingApiClient.builder()
 					.region(getRegion())
 					.credentialsProvider(provider)
@@ -130,21 +123,46 @@ public class RdsInstanceDAO extends AbstractAwsDAO {
 					.build();
 			
 			logger.info("++++++++ API CALL ++++++++ : Making api call for resource mapping list for kuali rds instances...");
-			GetResourcesResponse response = client.getResources(request);
-			if(response.hasResourceTagMappingList()) {
+			
+			GetResourcesRequest request = null;
+			String nextToken = "empty";
+			while(nextToken != null && ! nextToken.isBlank()) {
+				if("empty".equals(nextToken)) {
+					request = GetResourcesRequest.builder()
+							.resourceTypeFilters("rds:db")
+							.tagFilters(
+									TagFilter.builder().key("Service").values("research-administration").build(),
+									TagFilter.builder().key("Function").values("kuali").build()
+							).build();
+				}
+				else {
+					request = GetResourcesRequest.builder()
+							.resourceTypeFilters("rds:db")
+							.tagFilters(
+									TagFilter.builder().key("Service").values("research-administration").build(),
+									TagFilter.builder().key("Function").values("kuali").build()
+							).
+							paginationToken(nextToken).
+							build();					
+				}
 				
-				outerloop:
-				for(ResourceTagMapping mapping : response.resourceTagMappingList()) {
-					RdsInstance rdsInstance = new RdsInstance(mapping.resourceARN());
-					for(software.amazon.awssdk.services.resourcegroupstaggingapi.model.Tag tag : mapping.tags()) {
-						rdsInstance.putTag(tag.key(), tag.value());						
-					}
-					if(loadSnapshots) {
-						loadSnapshots(rdsInstance);
-					}
-					CACHE.put(rdsInstance);
-					continue outerloop;
-				}				
+				GetResourcesResponse response = client.getResources(request);
+				if(response.hasResourceTagMappingList()) {
+					
+					outerloop:
+					for(ResourceTagMapping mapping : response.resourceTagMappingList()) {
+						RdsInstance rdsInstance = new RdsInstance(mapping.resourceARN());
+						for(software.amazon.awssdk.services.resourcegroupstaggingapi.model.Tag tag : mapping.tags()) {
+							rdsInstance.putTag(tag.key(), tag.value());						
+						}
+						if(loadSnapshots) {
+							loadSnapshots(rdsInstance);
+						}
+						CACHE.put(rdsInstance);
+						continue outerloop;
+					}	
+				}
+				nextToken = response.paginationToken();
 			}
 			CACHE.setLoaded(true);
 		} 

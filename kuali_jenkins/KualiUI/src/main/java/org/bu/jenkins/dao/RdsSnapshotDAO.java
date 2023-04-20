@@ -60,12 +60,6 @@ public class RdsSnapshotDAO extends AbstractAwsDAO {
 			return;
 		}
 		try {
-			GetResourcesRequest request = GetResourcesRequest.builder()
-					.resourceTypeFilters("rds:snapshot")
-					.tagFilters(
-							TagFilter.builder().key("Service").values("research-administration").build(),
-							TagFilter.builder().key("Function").values("kuali").build()
-					).build();
 			
 			ResourceGroupsTaggingApiClient client = ResourceGroupsTaggingApiClient.builder()
 					.region(getRegion())
@@ -74,19 +68,45 @@ public class RdsSnapshotDAO extends AbstractAwsDAO {
 					.build();
 			
 			logger.info("++++++++ API CALL ++++++++ : Making api call for resource mapping list for kuali rds snapshots...");
-			
-			GetResourcesResponse response = client.getResources(request);
-			if(response.hasResourceTagMappingList()) {
+
+			GetResourcesRequest request = null;
+			String nextToken = "empty";
+			while(nextToken != null && ! nextToken.isBlank()) {
+				if("empty".equals(nextToken)) {
+					request = GetResourcesRequest.builder()
+							.resourceTypeFilters("rds:snapshot")
+							.tagFilters(
+									TagFilter.builder().key("Service").values("research-administration").build(),
+									TagFilter.builder().key("Function").values("kuali").build()
+							).build();
+					
+				}
+				else {
+					request = GetResourcesRequest.builder()
+							.resourceTypeFilters("rds:snapshot")
+							.tagFilters(
+									TagFilter.builder().key("Service").values("research-administration").build(),
+									TagFilter.builder().key("Function").values("kuali").build()
+							).
+							paginationToken(nextToken).
+							build();
+					
+				}
 				
-				for(ResourceTagMapping mapping : response.resourceTagMappingList()) {
-					RdsSnapshot snapshot = new RdsSnapshot(mapping.resourceARN());
-					for(software.amazon.awssdk.services.resourcegroupstaggingapi.model.Tag tag : mapping.tags()) {
-						snapshot.putTag(tag.key(), tag.value());				
-					}
-					STANDARD_SNAPSHOT_CACHE.put(snapshot);
-					continue;
-				}				
-			}
+				GetResourcesResponse response = client.getResources(request);
+				if(response.hasResourceTagMappingList()) {
+					
+					for(ResourceTagMapping mapping : response.resourceTagMappingList()) {
+						RdsSnapshot snapshot = new RdsSnapshot(mapping.resourceARN());
+						for(software.amazon.awssdk.services.resourcegroupstaggingapi.model.Tag tag : mapping.tags()) {
+							snapshot.putTag(tag.key(), tag.value());				
+						}
+						STANDARD_SNAPSHOT_CACHE.put(snapshot);
+						continue;
+					}				
+				}
+				nextToken = response.paginationToken();
+			}		
 			STANDARD_SNAPSHOT_CACHE.setLoaded(true);
 		} 
 		catch (AwsServiceException | SdkClientException e) {
