@@ -1,6 +1,10 @@
 
 #!/bin/bash
 
+if [ -f ../../../scripts/common-functions.sh ] ; then
+  source ../../../scripts/common-functions.sh
+fi
+
 # You must source common-functions.sh for some functionality used below.
 
 checkTestHarness $@ 2> /dev/null || true

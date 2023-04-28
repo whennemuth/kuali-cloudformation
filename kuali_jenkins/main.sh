@@ -197,6 +197,7 @@ EOF
     add_parameter $cmdfile 'JenkinsSubnet' 'CAMPUS_SUBNET1'
     add_parameter $cmdfile 'JavaVersion' 'JAVA_VERSION'
     add_parameter $cmdfile 'JenkinsVersion' 'JENKINS_VERSION'
+    add_parameter $cmdfile 'SkipConfigs' 'SKIP_CONFIGS'
     if [ -n "$ADMIN_PASSWORD" ] ; then
       if secretExists 'kuali/jenkins/administrator' ; then
         echo "Secret exists, modify password in secret-string..."

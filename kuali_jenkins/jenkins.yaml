@@ -33,6 +33,19 @@ Parameters:
     Type: AWS::EC2::VPC::Id
     Description: The id of the vpc to deploy to.
 
+  ConfigSet:
+    Type: String
+    Description: >
+      This value designates what cfn-init config sets get run. Defaults to running all of them.
+      Specify PreJenkins if you want run all up to, and stopping short of intalling and configuring jenkins.
+      Specify SkipConfigs if you do not want any configurations to run.
+      The latter two options apply if you plan to log into the server and run these configurations manually.
+    AllowedValues:
+      - SkipConfigs
+      - PreJenkins
+      - AllConfigs
+    Default: AllConfigs
+
   JenkinsVersion:
     Type: String
     Description: > 
@@ -453,6 +466,12 @@ Resources:
             - ConfigSet: ConfigureJenkins
             - ConfigSet: GetAwardNoticeJar
             - ConfigSet: StartActiveChoicesDockerService
+          PreJenkins:
+            - ConfigSet: GetHelperScripts
+            - ConfigSet: YumInstall
+            - ConfigSet: InstallVarious
+          SkipConfigs:
+            - 00_skip_configs
           GetHelperScripts:
             - 01_get_helper_scripts
           YumInstall:
@@ -472,6 +491,10 @@ Resources:
           StartActiveChoicesDockerService:
             - 09_start_active_choices_docker_service
           
+        00_skip_configs:
+          commands:
+              print_blank_lines:
+                command: echo "Skipping initialization. Log into server and perform cfn-init steps manually."
 
         01_get_helper_scripts:
           packages:
