@@ -1,5 +1,6 @@
 #!/bin/bash
 
+dos2unix /var/lib/jenkins/_cfn-scripts/utils.sh
 source /var/lib/jenkins/_cfn-scripts/utils.sh
 
 TEMPLATE_BUCKET=${TEMPLATE_BUCKET:-"kuali-conf"}

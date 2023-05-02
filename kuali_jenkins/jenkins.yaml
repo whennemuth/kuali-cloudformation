@@ -55,8 +55,9 @@ Parameters:
       
     AllowedValues:
       - 'jenkins-2.322-1.1'
+      - 'jenkins-2.402-1.1'
       - 'latest'
-    Default: 'jenkins-2.322-1.1'
+    Default: 'jenkins-2.402-1.1'
 
   JenkinsSubnet:
     Type: AWS::EC2::Subnet::Id
@@ -109,6 +110,36 @@ Parameters:
     Description: The ID of the old kuali aws account.
     Default: '730096353738'
 
+Mappings:
+  crc: 
+    # General CRC Academic/Admin Systems
+    first:
+      cidr: "128.197.0.0/16"
+  2faCidrs:
+    first:
+      cidr: "168.122.81.0/24"
+    second:
+      cidr: "168.122.82.0/23"
+    third:
+      cidr: "168.122.76.0/24"
+    fourth:
+      cidr: "168.122.68.0/24"
+    fifth:
+      cidr: "168.122.69.0/24"
+    sixth:
+      cidr: "10.1.0.0/21"
+
+  # Macs?: 168.122.73.117
+  # Typically, the dbreport subnet should be for database access, but anyone with a vpn connection as
+  # dbreport should also be able to access the app through the browser, so it is also included here.
+  DbReportCidrs:
+    # dbreport vpn: offcampus
+    first:
+      cidr: "168.122.78.128/28"
+    # dbreport vpn: oncampus
+    second:
+      cidr: "168.122.84.240/28"
+
 Conditions:
   CreateAdminSecret: !Not [!Equals [!Ref JenkinsAdminPassword, empty]]
 
@@ -121,21 +152,114 @@ Resources:
       GroupDescription: !Sub Security group for jenkins ec2 instance.
       GroupName: !Sub ${GlobalTag}-ec2-security-group
       SecurityGroupIngress:
-      - Description: Allows inbound http access
+      # - Description: Allows inbound http access
+      #   IpProtocol: tcp
+      #   FromPort: 80
+      #   ToPort: 80
+      #   CidrIp: 0.0.0.0/0
+      # - Description: Allows inbound http access
+      #   IpProtocol: tcp
+      #   FromPort: 8080
+      #   ToPort: 8080
+      #   CidrIp: 0.0.0.0/0
+      # - Description: Allows inbound https access
+      #   IpProtocol: tcp
+      #   FromPort: 443
+      #   ToPort: 443
+      #   CidrIp: 0.0.0.0/0
+      
+      - Description: "HTTP: vpn.bu.edu/2fa On Campus, Group 1"
         IpProtocol: tcp
         FromPort: 80
         ToPort: 80
-        CidrIp: 0.0.0.0/0
-      - Description: Allows inbound http access
+        CidrIp: !FindInMap [ 2faCidrs, "first", "cidr" ]
+      - Description: "HTTP: vpn.bu.edu/2fa On Campus, Group 2 "
         IpProtocol: tcp
-        FromPort: 8080
-        ToPort: 8080
-        CidrIp: 0.0.0.0/0
-      - Description: Allows inbound https access
+        FromPort: 80
+        ToPort: 80
+        CidrIp: !FindInMap [ 2faCidrs, "second", "cidr" ]
+      - Description: "HTTP: vpn.bu.edu/2fa Off Campus"
+        IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: !FindInMap [ 2faCidrs, "third", "cidr" ]
+      - Description: "HTTP: vpn.bu.edu/2fa Off Campus"
+        IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: !FindInMap [ 2faCidrs, "fourth", "cidr" ]
+      - Description: "HTTP: vpn.bu.edu/2fa Off Campus"
+        IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: !FindInMap [ 2faCidrs, "fifth", "cidr" ]
+      - Description: "HTTP: vpn.bu.edu/2fa Off Campus"
+        IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: !FindInMap [ 2faCidrs, "sixth", "cidr" ]
+      - Description: "HTTP: vpn.bu.edu/dbreport Off Campus"
+        IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: !FindInMap [ DbReportCidrs, "first", "cidr" ]
+      - Description: "HTTP: vpn.bu.edu/dbreport On Campus"
+        IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: !FindInMap [ DbReportCidrs, "second", "cidr" ]
+      - Description: "HTTP: General CRC Academic/Admin Systems"
+        IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: !FindInMap [ crc, "first", "cidr" ]
+        
+      - Description: "HTTPS: vpn.bu.edu/2fa On Campus, Group 1"
         IpProtocol: tcp
         FromPort: 443
         ToPort: 443
-        CidrIp: 0.0.0.0/0
+        CidrIp: !FindInMap [ 2faCidrs, "first", "cidr" ]
+      - Description: "HTTPS: vpn.bu.edu/2fa On Campus, Group 2 "
+        IpProtocol: tcp
+        FromPort: 443
+        ToPort: 443
+        CidrIp: !FindInMap [ 2faCidrs, "second", "cidr" ]
+      - Description: "HTTPS: vpn.bu.edu/2fa Off Campus"
+        IpProtocol: tcp
+        FromPort: 443
+        ToPort: 443
+        CidrIp: !FindInMap [ 2faCidrs, "third", "cidr" ]
+      - Description: "HTTPS: vpn.bu.edu/2fa Off Campus"
+        IpProtocol: tcp
+        FromPort: 443
+        ToPort: 443
+        CidrIp: !FindInMap [ 2faCidrs, "fourth", "cidr" ]
+      - Description: "HTTPS: vpn.bu.edu/2fa Off Campus"
+        IpProtocol: tcp
+        FromPort: 443
+        ToPort: 443
+        CidrIp: !FindInMap [ 2faCidrs, "fifth", "cidr" ]
+      - Description: "HTTPS: vpn.bu.edu/2fa Off Campus"
+        IpProtocol: tcp
+        FromPort: 443
+        ToPort: 443
+        CidrIp: !FindInMap [ 2faCidrs, "sixth", "cidr" ]
+      - Description: "HTTPS: vpn.bu.edu/dbreport Off Campus"
+        IpProtocol: tcp
+        FromPort: 443
+        ToPort: 443
+        CidrIp: !FindInMap [ DbReportCidrs, "first", "cidr" ]
+      - Description: "HTTPS: vpn.bu.edu/dbreport On Campus"
+        IpProtocol: tcp
+        FromPort: 443
+        ToPort: 443
+        CidrIp: !FindInMap [ DbReportCidrs, "second", "cidr" ]
+      - Description: "HTTPS: General CRC Academic/Admin Systems"
+        IpProtocol: tcp
+        FromPort: 443
+        ToPort: 443
+        CidrIp: !FindInMap [ crc, "first", "cidr" ]
+
       Tags:
         - Key: Name
           Value: !Sub ${GlobalTag}-jenkins-security-group
@@ -407,6 +531,12 @@ Resources:
         Value: !Ref Service
       - Key: Function
         Value: !Ref Function
+      - Key: StartupCron
+        Value: "0 9 ? * *"
+      - Key: ShutdownCron
+        Value: "59 23 ? * *"
+      - Key: LocalTimeZone
+        Value: "America/New_York"
       ImageId: 
         !Ref EC2AMI
       InstanceType:
@@ -430,7 +560,7 @@ Resources:
 
           # Perform initialization, output is logged to /var/log/cfn-init.log
           /opt/aws/bin/cfn-init \
-            -v --configsets AllConfigs \
+            -v --configsets ${ConfigSet} \
             --region ${AWS::Region} \
             --stack ${AWS::StackName} \
             --resource EC2Instance
@@ -642,7 +772,7 @@ Resources:
           commands:
             Install:
               cwd: /var/lib/jenkins/_cfn-scripts
-              command: bash 03_install_various.sh
+              command: dos2unix 03_install_various.sh && bash 03_install_various.sh
 
         04_install_jenkins:
           files:
@@ -654,13 +784,13 @@ Resources:
           commands:
             Install:
               cwd: /var/lib/jenkins/_cfn-scripts
-              command: bash 04_install_jenkins.sh
+              command: dos2unix 04_install_jenkins.sh && bash 04_install_jenkins.sh
               env:
                 JENKINS_VERSION: !Ref JenkinsVersion
 
         05_load_jenkins_plugins:
           files:
-            /var/lib/jenkins/plugin-list:
+            /var/lib/jenkins/plugin-list-old:
               content: |
                 uno-choice:2.5.1
                 maven-plugin:3.8
@@ -675,6 +805,20 @@ Resources:
                 ssh-slaves:1.31.3
                 timestamper:1.11.8
                 ws-cleanup:0.38
+            /var/lib/jenkins/plugin-list:
+              content: |
+                uno-choice:2.5.1
+                maven-plugin:3.8
+                build-timeout:1.24
+                email-ext:2.92
+                # environment-script:1.2.5
+                github:1.37.0
+                git-parameter:0.9.18
+                saml:2.333.vc81e525974a_c
+                ssh-agent:327.v230ecd01f86f
+                ssh-slaves:1.31.3
+                timestamper:1.21
+                ws-cleanup:0.43
               mode: "000644"
               owner: jenkins
               group: jenkins
@@ -685,8 +829,8 @@ Resources:
               group: jenkins
           commands:
             Install:
-              cwd: /var/lib/jenkins
-              command: bash /var/lib/jenkins/_cfn-scripts/05_load_jenkins_plugins.sh
+              cwd: /var/lib/jenkins/_cfn-scripts/
+              command: dos2unix 05_load_jenkins_plugins.sh && bash 05_load_jenkins_plugins.sh
               env:
                 JENKINS_PLUGINS_S3_LOCATION: !Sub s3://${TemplateBucketName}/cloudformation/kuali_jenkins/plugin-files/${JenkinsVersion}/
                 JENKINS_VERSION: !Ref JenkinsVersion

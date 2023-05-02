@@ -86,7 +86,7 @@ b'{"SessionId":"wrh-0519abda370dfeec7","StreamUrl":"wss://ssmmessages.us-east-1.
 2021-03-05 13:48:39,742 - MainThread - botocore.retries.standard - DEBUG - Not retrying request.
 2021-03-05 13:48:39,742 - MainThread - botocore.hooks - DEBUG - Event after-call.ssm.StartSession: calling handler <bound method RetryQuotaChecker.release_retry_quota of <botocore.retries.standard.RetryQuotaChecker object at 0x000001DC1DCB5988>>
 Warning: Permanently added 'i-0fd62640bbeb89a3b' (ECDSA) to the list of known hosts.
-Last login: Fri Mar  5 18:46:35 2021 from localhost
+Last login: Fri Mar  5 18:46:35 2021 from localhost
 
    __|  __|  __|
    _|  (   \__ \   Amazon Linux 2 (ECS Optimized)

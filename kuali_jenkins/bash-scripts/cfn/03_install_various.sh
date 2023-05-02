@@ -59,8 +59,11 @@ amazon-linux-extras install -y nginx1
 
 # Install node
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.34.0/install.sh | bash
+mkdir /.nvm
+export NVM_DIR='/.nvm'
 . /.nvm/nvm.sh
-nvm install node
+# nvm install node
+nvm install 17.6.0
 
 # For some reason, nvm may not create symlinks to npm and/or node, so check and correct if necessary.
 if [ -z "$(ls -1 /usr/bin | grep 'npm')" ] ; then

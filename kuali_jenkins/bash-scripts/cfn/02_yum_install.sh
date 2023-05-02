@@ -6,4 +6,5 @@ yum install -y zip unzip
 yum install -y sysstat
 yum install -y jq
 yum install -y vim
+yum install -y dos2unix
 printf "\n\n"

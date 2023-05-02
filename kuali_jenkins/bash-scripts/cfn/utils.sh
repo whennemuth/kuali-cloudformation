@@ -132,6 +132,7 @@ waitUntilServletContainerIsReady() {
       echo "It's been a minute and jenkins is not ready."
       echo "Exiting..."
       exit 1
+      # journalctl -u jenkins.service
     fi
     sleep 1
   done

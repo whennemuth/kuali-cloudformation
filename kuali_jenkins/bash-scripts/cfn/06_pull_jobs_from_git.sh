@@ -12,6 +12,7 @@ pullJobs() {
   [ ! -d jobs ] && mkdir jobs
   cd jobs
   [ ! -d .git ] && git init
+  git config --global --add safe.directory $JENKINS_HOME/jobs
   git config user.email "jenkins@bu.edu"
   git config user.name jenkins
   git remote add github git@github.com:bu-ist/kuali-research-jenkins.git
