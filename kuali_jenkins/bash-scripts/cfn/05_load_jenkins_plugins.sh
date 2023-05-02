@@ -24,7 +24,7 @@ installLatestPluginsFromList() {
   # turnOffSecurity
   getCLI
 
-  local list=${1:-'plugin-list'}
+  local list=${1:-'/var/lib/jenkins/plugin-list'}
   for plugin in $(cat $list | sed 's/\ \+//g') ; do
     if [ "${plugin:0:1}" != '#' ] ; then
       java -jar $JENKINS_CLI_JAR $(getAdminUserCliParm) -s http://localhost:8080 install-plugin $plugin
