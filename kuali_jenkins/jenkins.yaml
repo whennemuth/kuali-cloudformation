@@ -877,7 +877,7 @@ Resources:
           commands:
             Install:
               cwd: /var/lib/jenkins
-              command: bash /var/lib/jenkins/_cfn-scripts/06_pull_jobs_from_git.sh
+              command: dos2unix /var/lib/jenkins/_cfn-scripts/06_pull_jobs_from_git.sh && bash /var/lib/jenkins/_cfn-scripts/06_pull_jobs_from_git.sh
 
         07_configure_jenkins:
           files:
