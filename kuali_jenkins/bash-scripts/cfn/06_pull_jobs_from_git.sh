@@ -12,13 +12,11 @@ pullJobs() {
   [ ! -d jobs ] && mkdir jobs
   cd jobs
   [ ! -d .git ] && git init
-  echo "I AM: $(whoami)"
-  set -x
+  export HOME="$(echo ~)"
   git config --global --add safe.directory $JENKINS_HOME/jobs
   git config user.email "jenkins@bu.edu"
   git config user.name jenkins
   git remote add github git@github.com:bu-ist/kuali-research-jenkins.git
-  set +x
 
   # Pull all main/job configuration files from github
   eval `ssh-agent -s`
