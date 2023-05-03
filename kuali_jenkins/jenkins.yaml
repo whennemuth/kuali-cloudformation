@@ -491,7 +491,7 @@ Resources:
       - Key: ShutdownCron
         Value: "59 23 ? * *"
       - Key: LocalTimeZone
-        Value: "America/New_York"
+        Value: "America/New_York_DISABLED"
       ImageId: 
         !Ref EC2AMI
       InstanceType:
