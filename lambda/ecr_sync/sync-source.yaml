@@ -263,7 +263,7 @@ Resources:
           - !Sub ${Service}-${Function}-${Landscape}-ecr-sync
           - !Sub ${Service}-${Function}-ecr-sync
       Description: Function that repeats image pushes to an ecr in another account
-      Runtime: nodejs12.x
+      Runtime: nodejs18.x
       Role: !GetAtt LambdaRole.Arn
       Handler: index.PushImage
       Environment:

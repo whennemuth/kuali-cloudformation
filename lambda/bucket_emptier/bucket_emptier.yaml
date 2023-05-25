@@ -110,7 +110,7 @@ Resources:
       - loggroup: LambdaLogsGroupRetain.Arn
       Handler: bucket_emptier.handler
       Role: !GetAtt LambdaExecutionRole.Arn
-      Runtime: nodejs12.x
+      Runtime: nodejs18.x
       Timeout: 600  # 10 minutes
       FunctionName: !Sub ${GlobalTag}-${Landscape}-bucket-emptier
       Code:
@@ -138,7 +138,7 @@ Resources:
       - loggroup: LambdaLogsGroupDelete.Arn
       Handler: bucket_emptier.handler
       Role: !GetAtt LambdaExecutionRole.Arn
-      Runtime: nodejs12.x
+      Runtime: nodejs18.x
       Timeout: 600  # 10 minutes
       FunctionName: !Sub ${GlobalTag}-${Landscape}-bucket-emptier
       Code:

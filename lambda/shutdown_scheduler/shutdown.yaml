@@ -141,7 +141,7 @@ Resources:
     DependsOn: LambdaLogsGroup 
     Properties:
       FunctionName: !Sub ${GlobalTag}-shutdown-scheduler
-      Runtime: nodejs12.x
+      Runtime: nodejs18.x
       Role: !GetAtt Role.Arn
       Handler: ResourceProcessor.handler
       Timeout: !Ref LambdaTimeout

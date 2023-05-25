@@ -135,7 +135,7 @@ Resources:
       Description: Turn off logging for ALB and WAF. Empty the buckets logged to. Stack delete will now succeed.
       Handler: cleanup.handler
       Role: !GetAtt WafLambdaExecutionRole.Arn
-      Runtime: nodejs12.x
+      Runtime: nodejs18.x
       Timeout: 300  # 5 minutes
       FunctionName: !Sub ${GlobalTag}-${Landscape}-alb-waf-logging-cleanup
       Environment:

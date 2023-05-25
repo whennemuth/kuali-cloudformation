@@ -18,7 +18,7 @@ while true ; do
   fi
   echo "$counter: Checking yum activity..."
   retval="$(yum-complete-transaction | grep -i 'No unfinished transactions left')"
-  if [ -z "$retval" ] ; then
+  if [ -n "$retval" ] ; then
     echo "All yum updates are complete!"
     break;
   fi
