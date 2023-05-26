@@ -121,7 +121,7 @@ Resources:
       - loggroup: !GetAtt LambdaLogsGroupRetain.Arn 
       Handler: toggle_alb_logging.handler
       Role: !GetAtt LambdaExecutionRole.Arn
-      Runtime: nodejs18.x
+      Runtime: nodejs16.x
       Timeout: 15  # 15 seconds
       FunctionName: !Sub ${GlobalTag}-${Landscape}-alb-logging-toggler
       Code:
@@ -148,7 +148,7 @@ Resources:
       - loggroup: !GetAtt LambdaLogsGroupDelete.Arn 
       Handler: toggle_alb_logging.handler
       Role: !GetAtt LambdaExecutionRole.Arn
-      Runtime: nodejs18.x
+      Runtime: nodejs16.x
       Timeout: 15  # 15 seconds
       FunctionName: !Sub ${GlobalTag}-${Landscape}-alb-logging-toggler
       Code:

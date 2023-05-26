@@ -198,7 +198,7 @@ Resources:
     Properties:
       FunctionName: kuali-rds-lifecycle-event-handler
       Description: Function that makes route53 corrections for target rds instance replacements
-      Runtime: nodejs18.x
+      Runtime: nodejs16.x
       Role: !GetAtt LambdaRole.Arn
       Handler: src/RdsLifecycleEvent.handler
       Timeout: 60
