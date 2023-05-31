@@ -847,6 +847,11 @@ Resources:
               mode: "000600"
               owner: jenkins
               group: jenkins
+            /var/lib/jenkins/.ssh/bu_github_id_research_resources_rsa:
+              source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/bu_github_id_research_resources_rsa
+              mode: "000600"
+              owner: jenkins
+              group: jenkins
             /var/lib/jenkins/.ssh/bu_kuali_id_jenkins_rsa:
               source: !Sub http://${TemplateBucketName}.s3.amazonaws.com/bu_kuali_id_jenkins_rsa
               mode: "000600"
