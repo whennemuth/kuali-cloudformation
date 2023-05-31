@@ -114,7 +114,7 @@ buildM2ArtifactInventory() {
       "jar,org/kuali/coeus,${api_version},${api_version_tag},coeus-api-all,coeus-api,kc-api,git@github.com:bu-ist/kuali-kc-api.git,~/.ssh/bu_github_id_coeus-api_rsa"
       "jar,org/kuali/coeus,${s2sgen_version},${s2sgen_version_tag},coeus-s2sgen-api,coeus-s2sgen,kc-s2sgen,git@github.com:bu-ist/kuali-kc-s2sgen.git,~/.ssh/bu_github_id_coeus-s2sgen_rsa"
       "jar,org/kuali/coeus,${s2sgen_version},${s2sgen_version_tag},coeus-s2sgen-impl,coeus-s2sgen,kc-s2sgen,git@github.com:bu-ist/kuali-kc-s2sgen.git,~/.ssh/bu_github_id_coeus-s2sgen_rsa"
-      "jar,org.kuali.research,${research_resources_version},${research_resources_version_tag},research-resources,research-resources,kc-research-resources,git@github.com:bu-ist/kuali-research-resources.git,~/.ssh/bu_github_id_research_resources_rsa"
+      # "jar,org.kuali.research,${research_resources_version},${research_resources_version_tag},research-resources,research-resources,kc-research-resources,git@github.com:bu-ist/kuali-research-resources.git,~/.ssh/bu_github_id_research_resources_rsa"
    )
 }
 
